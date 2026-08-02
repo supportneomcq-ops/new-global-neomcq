@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-main: #F8FAFC;
+    --card-bg: #FFFFFF;
+    --primary: #6D5BFF;
+    --secondary: #00D4FF;
+    --text-main: #111827;
+    --text-muted: #64748B;
+    --border-color: rgba(109, 91, 255, 0.15);
+  }
+
+  .dark {
+    --bg-main: #050816;
+    --card-bg: #0E1324;
+    --primary: #6D5BFF;
+    --secondary: #00D4FF;
+    --text-main: #FFFFFF;
+    --text-muted: #A6ADC8;
+    --border-color: rgba(109, 91, 255, 0.25);
+  }
+}
+
+html, body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.font-heading {
+  font-family: var(--font-space-grotesk), system-ui, sans-serif;
+}
+
+/* Custom Grid Pattern */
+.bg-grid-pattern {
+  background-size: 44px 44px;
+  background-image: 
+    linear-gradient(to right, rgba(109, 91, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(109, 91, 255, 0.05) 1px, transparent 1px);
+}
+
+.dark .bg-grid-pattern {
+  background-image: 
+    linear-gradient(to right, rgba(109, 91, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(109, 91, 255, 0.08) 1px, transparent 1px);
+}
