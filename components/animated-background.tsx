@@ -2,10 +2,12 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
+import { useTheme } from 'next-themes';
 
 export function AnimatedBackground() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const { resolvedTheme } = useTheme();
 
   // Mouse tracking spotlight
   useEffect(() => {
@@ -63,6 +65,8 @@ export function AnimatedBackground() {
       color: colors[Math.floor(Math.random() * colors.length)],
     }));
 
+    const isDark = resolvedTheme !== 'light';
+
     const draw = () => {
       ctx.clearRect(0, 0, width, height);
 
@@ -75,7 +79,8 @@ export function AnimatedBackground() {
 
           const maxDist = 160;
           if (dist < maxDist) {
-            const opacity = (1 - dist / maxDist) * 0.25;
+            const baseOpacity = isDark ? 0.25 : 0.15;
+            const opacity = (1 - dist / maxDist) * baseOpacity;
             ctx.beginPath();
             ctx.moveTo(nodes[i].x, nodes[i].y);
             ctx.lineTo(nodes[j].x, nodes[j].y);
@@ -103,7 +108,7 @@ export function AnimatedBackground() {
         ctx.save();
         ctx.beginPath();
         ctx.arc(n.x, n.y, currentRadius * 2, 0, Math.PI * 2);
-        ctx.fillStyle = `${n.color}22`;
+        ctx.fillStyle = `${n.color}${isDark ? '22' : '15'}`;
         ctx.fill();
 
         // Solid Node Core
@@ -123,7 +128,7 @@ export function AnimatedBackground() {
       window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animationFrameId);
     };
-  }, []);
+  }, [resolvedTheme]);
 
   return (
     <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden select-none">
@@ -135,7 +140,7 @@ export function AnimatedBackground() {
           y: [0, -30, 0],
         }}
         transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full bg-gradient-to-br from-[#6D5BFF]/20 via-[#00D4FF]/15 to-transparent blur-[120px] opacity-70"
+        className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full bg-gradient-to-br from-[#6D5BFF]/15 via-[#00D4FF]/10 to-transparent blur-[120px] opacity-80 dark:opacity-70"
       />
 
       <motion.div
@@ -145,7 +150,7 @@ export function AnimatedBackground() {
           y: [0, 40, 0],
         }}
         transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute top-1/3 -right-40 w-[650px] h-[650px] rounded-full bg-gradient-to-bl from-[#A855F7]/20 via-[#6D5BFF]/15 to-transparent blur-[140px] opacity-60"
+        className="absolute top-1/3 -right-40 w-[650px] h-[650px] rounded-full bg-gradient-to-bl from-[#A855F7]/15 via-[#6D5BFF]/10 to-transparent blur-[140px] opacity-70 dark:opacity-60"
       />
 
       <motion.div
@@ -155,17 +160,17 @@ export function AnimatedBackground() {
           y: [0, 50, 0],
         }}
         transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute -bottom-40 left-1/4 w-[700px] h-[700px] rounded-full bg-gradient-to-t from-[#00D4FF]/15 via-[#6D5BFF]/10 to-transparent blur-[150px] opacity-50"
+        className="absolute -bottom-40 left-1/4 w-[700px] h-[700px] rounded-full bg-gradient-to-t from-[#00D4FF]/10 via-[#6D5BFF]/08 to-transparent blur-[150px] opacity-60 dark:opacity-50"
       />
 
-      {/* 2. Faint Radial Grid Pattern Overlay */}
+      {/* 2. Faint Grid Pattern Overlay */}
       <div className="absolute inset-0 bg-grid-pattern opacity-40 dark:opacity-60" />
 
       {/* 3. Interactive Mouse Spotlight Glow */}
       <div
         className="absolute inset-0 transition-opacity duration-300"
         style={{
-          background: `radial-gradient(600px circle at ${mousePos.x}px ${mousePos.y}px, rgba(109, 91, 255, 0.12), transparent 80%)`,
+          background: `radial-gradient(600px circle at ${mousePos.x}px ${mousePos.y}px, rgba(109, 91, 255, 0.08), transparent 80%)`,
         }}
       />
 

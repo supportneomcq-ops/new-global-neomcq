@@ -34,34 +34,15 @@ export default function RootLayout({
       className={`${spaceGrotesk.variable} ${inter.variable}`}
       suppressHydrationWarning
     >
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                try {
-                  var desc = Object.getOwnPropertyDescriptor(window, 'fetch');
-                  if (desc && desc.get && !desc.set) {
-                    var _fetch = window.fetch;
-                    Object.defineProperty(window, 'fetch', {
-                      get: function() { return _fetch; },
-                      set: function(fn) { _fetch = fn; },
-                      configurable: true,
-                      enumerable: true
-                    });
-                  }
-                } catch(e) {}
-              })();
-            `,
-          }}
-        />
-      </head>
-      <body className="min-h-screen bg-slate-50 dark:bg-[#050816] text-slate-900 dark:text-white antialiased selection:bg-[#6D5BFF] selection:text-white" suppressHydrationWarning>
+      <body
+        className="min-h-screen bg-background text-foreground antialiased selection:bg-[#6D5BFF] selection:text-white"
+        suppressHydrationWarning
+      >
         <ThemeProvider
           attribute="class"
-          defaultTheme="dark"
+          defaultTheme="system"
           enableSystem
-          disableTransitionOnChange={false}
+          disableTransitionOnChange
         >
           {children}
         </ThemeProvider>

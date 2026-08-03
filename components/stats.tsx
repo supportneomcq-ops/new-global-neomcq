@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion } from 'motion/react';
-import { Globe2, Brain, Users, Sparkles } from 'lucide-react';
+import { Globe2, Brain, Zap } from 'lucide-react';
 
 export function Stats() {
   const statItems = [
@@ -19,43 +19,35 @@ export function Stats() {
       color: 'from-[#6D5BFF] to-[#A855F7]',
     },
     {
-      icon: Users,
-      label: '5 Million+ Active Users',
-      subText: 'Students & Professionals',
-      color: 'from-[#EC4899] to-[#8B5CF6]',
-    },
-    {
-      icon: Sparkles,
+      icon: Zap,
       label: 'AI Powered',
-      subText: 'Real-time Explanations',
-      color: 'from-[#3B82F6] to-[#00D4FF]',
+      subText: 'Real-time Reasoning',
+      color: 'from-[#EC4899] to-[#8B5CF6]',
     },
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 w-full max-w-5xl mx-auto pt-6">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3.5 w-full max-w-3xl mx-auto pt-1 sm:pt-2">
       {statItems.map((stat, idx) => {
         const Icon = stat.icon;
         return (
           <motion.div
             key={stat.label}
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.7 + idx * 0.1 }}
-            whileHover={{ scale: 1.03, y: -2 }}
-            className="group relative p-4 sm:p-5 rounded-2xl bg-white/95 dark:bg-[#0E1324]/85 border border-slate-200 dark:border-[#6D5BFF]/30 backdrop-blur-xl shadow-md hover:shadow-xl hover:border-[#6D5BFF]/60 transition-all duration-300 text-left"
+            transition={{ duration: 0.45, delay: 0.65 + idx * 0.08 }}
+            whileHover={{ scale: 1.02, y: -1 }}
+            className="group relative p-2.5 sm:p-3 px-3.5 sm:px-4 rounded-xl sm:rounded-2xl bg-white/95 dark:bg-[#0E1324]/85 border border-slate-200/90 dark:border-[#6D5BFF]/30 backdrop-blur-xl shadow-sm hover:shadow-md hover:border-[#6D5BFF]/60 transition-all duration-300 text-left flex items-center gap-3"
           >
-            <div className="flex items-center gap-3">
-              <div className={`p-2.5 rounded-xl bg-gradient-to-br ${stat.color} text-white shadow-md group-hover:rotate-6 transition-transform duration-300 shrink-0`}>
-                <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className={`p-2 rounded-lg sm:rounded-xl bg-gradient-to-br ${stat.color} text-white shadow-sm group-hover:rotate-6 transition-transform duration-300 shrink-0`}>
+              <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="font-heading font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white tracking-tight truncate">
+                {stat.label}
               </div>
-              <div className="min-w-0">
-                <div className="font-heading font-extrabold text-xs sm:text-sm md:text-base text-slate-900 dark:text-white tracking-tight truncate">
-                  {stat.label}
-                </div>
-                <div className="text-[11px] font-semibold text-slate-600 dark:text-[#A6ADC8] truncate">
-                  {stat.subText}
-                </div>
+              <div className="text-[10px] sm:text-[11px] font-medium text-slate-600 dark:text-[#A6ADC8] truncate">
+                {stat.subText}
               </div>
             </div>
           </motion.div>
