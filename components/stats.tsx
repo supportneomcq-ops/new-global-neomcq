@@ -2,57 +2,79 @@
 
 import React from 'react';
 import { motion } from 'motion/react';
-import { Globe2, Brain, Zap } from 'lucide-react';
+import { Globe2, Brain, Zap, Sparkles } from 'lucide-react';
 
 export function Stats() {
   const statItems = [
     {
       icon: Globe2,
-      label: '180+ Countries',
-      subText: 'Global Exam Syllabi',
+      value: '180+',
+      label: 'Countries',
+      subText: 'Global Syllabi',
       color: 'from-[#00D4FF] to-[#3B82F6]',
     },
     {
       icon: Brain,
-      label: 'Millions of Questions',
-      subText: 'High-Yield AI Q-Banks',
+      value: '10M+',
+      label: 'Questions',
+      subText: 'High-Yield Q-Bank',
       color: 'from-[#6D5BFF] to-[#A855F7]',
     },
     {
       icon: Zap,
-      label: 'AI Powered',
-      subText: 'Real-time Reasoning',
+      value: 'Real-Time',
+      label: 'AI Tutor',
+      subText: 'Step-by-Step',
       color: 'from-[#EC4899] to-[#8B5CF6]',
     },
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3.5 w-full max-w-3xl mx-auto pt-1 sm:pt-2">
-      {statItems.map((stat, idx) => {
-        const Icon = stat.icon;
-        return (
-          <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45, delay: 0.65 + idx * 0.08 }}
-            whileHover={{ scale: 1.02, y: -1 }}
-            className="group relative p-2.5 sm:p-3 px-3.5 sm:px-4 rounded-xl sm:rounded-2xl bg-white/95 dark:bg-[#0E1324]/85 border border-slate-200/90 dark:border-[#6D5BFF]/30 backdrop-blur-xl shadow-sm hover:shadow-md hover:border-[#6D5BFF]/60 transition-all duration-300 text-left flex items-center gap-3"
-          >
-            <div className={`p-2 rounded-lg sm:rounded-xl bg-gradient-to-br ${stat.color} text-white shadow-sm group-hover:rotate-6 transition-transform duration-300 shrink-0`}>
-              <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </div>
-            <div className="min-w-0">
-              <div className="font-heading font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white tracking-tight truncate">
-                {stat.label}
-              </div>
-              <div className="text-[10px] sm:text-[11px] font-medium text-slate-600 dark:text-[#A6ADC8] truncate">
-                {stat.subText}
-              </div>
-            </div>
-          </motion.div>
-        );
-      })}
-    </div>
+    <motion.div
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 0.35 }}
+      className="w-full max-w-2xl mx-auto pt-1"
+    >
+      <div className="relative p-1.5 sm:p-2 rounded-2xl sm:rounded-full bg-white/95 dark:bg-[#0E1324]/90 border border-slate-200/90 dark:border-[#6D5BFF]/30 backdrop-blur-2xl shadow-lg shadow-black/5 dark:shadow-[#6D5BFF]/10 grid grid-cols-3 gap-1 sm:gap-2 items-center">
+        {statItems.map((stat, idx) => {
+          const Icon = stat.icon;
+          const isLast = idx === statItems.length - 1;
+
+          return (
+            <React.Fragment key={stat.label}>
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="flex items-center justify-center sm:justify-start gap-1.5 sm:gap-3 p-1.5 sm:p-2 px-1 sm:px-3 rounded-xl sm:rounded-full hover:bg-slate-100/80 dark:hover:bg-white/5 transition-colors cursor-pointer group min-w-0"
+              >
+                {/* Icon Container */}
+                <div
+                  className={`p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-gradient-to-br ${stat.color} text-white shadow-sm group-hover:scale-105 transition-transform shrink-0 flex items-center justify-center`}
+                >
+                  <Icon className="w-3 h-3 sm:w-4 sm:h-4" />
+                </div>
+
+                {/* Text Content */}
+                <div className="text-left min-w-0 flex-1">
+                  <div className="flex items-baseline gap-1 flex-wrap sm:flex-nowrap">
+                    <span className={`font-heading font-black text-[11px] sm:text-xs md:text-sm text-transparent bg-clip-text bg-gradient-to-r ${stat.color} shrink-0`}>
+                      {stat.value}
+                    </span>
+                    <span className="font-heading font-bold text-[10px] sm:text-xs text-slate-800 dark:text-gray-100 truncate">
+                      {stat.label}
+                    </span>
+                  </div>
+                  <div className="text-[9px] sm:text-[10px] font-medium text-slate-500 dark:text-[#A6ADC8] truncate hidden xs:block sm:block">
+                    {stat.subText}
+                  </div>
+                </div>
+              </motion.div>
+            </React.Fragment>
+          );
+        })}
+      </div>
+    </motion.div>
   );
 }
+

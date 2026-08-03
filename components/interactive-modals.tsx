@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Check, Sparkles, HelpCircle, Mail, Shield, BookOpen, Globe2, Cpu, ArrowRight, Database, Loader2 } from 'lucide-react';
+import { X, Check, Sparkles, HelpCircle, Mail, Shield, BookOpen, Globe2, Cpu, ArrowRight, Database, Loader2, Award, Zap, HeartHandshake } from 'lucide-react';
 
-export type ModalType = 'pricing' | 'features' | 'faq' | 'contact' | 'signin' | 'start' | null;
+export type ModalType = 'pricing' | 'features' | 'faq' | 'contact' | 'signin' | 'start' | 'exams' | 'why' | 'about' | null;
 
 interface ModalProps {
   activeModal: ModalType;
@@ -154,7 +154,6 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-                {/* Free Tier */}
                 <div className="p-6 rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/40 flex flex-col justify-between">
                   <div>
                     <h3 className="font-heading text-lg font-bold">Free Forever</h3>
@@ -174,7 +173,6 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
                   </button>
                 </div>
 
-                {/* Pro Tier */}
                 <div className="relative p-6 rounded-2xl border-2 border-[#6D5BFF] bg-gradient-to-b from-[#6D5BFF]/10 to-transparent flex flex-col justify-between shadow-lg">
                   <div className="absolute -top-3 right-4 px-3 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-[#6D5BFF] text-white">
                     Most Popular
@@ -250,6 +248,67 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* Exams Overview Modal */}
+          {activeModal === 'exams' && (
+            <div className="space-y-6">
+              <div className="text-center space-y-2">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-[#00D4FF]/10 text-[#00D4FF] border border-[#00D4FF]/20">
+                  <Globe2 className="w-3.5 h-3.5" /> Global Syllabus Database
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-heading font-bold">180+ Supported Exams Worldwide</h2>
+                <p className="text-sm text-gray-600 dark:text-[#A6ADC8]">
+                  From medical licensing to engineering, law, civil services, and language proficiency.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-80 overflow-y-auto pr-1 text-xs">
+                {['USMLE Step 1 & 2', 'NEET PG / INI-CET', 'PLAB 1 / UKMLA', 'NCLEX-RN', 'FMGE', 'AMC Australia', 'UPSC CSE', 'SSC CGL', 'CA Final', 'CFA Level I-III', 'SAT', 'GRE General', 'GMAT Focus', 'GATE Engineering', 'CAT MBA', 'IELTS Academic', 'TOEFL iBT', 'JLPT Japanese'].map((e) => (
+                  <div key={e} className="p-3 rounded-2xl border border-slate-200 dark:border-gray-800 bg-slate-50 dark:bg-gray-900/40 font-bold flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-[#00D4FF]" />
+                    <span>{e}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Why NeoMCQ Modal */}
+          {activeModal === 'why' && (
+            <div className="space-y-6">
+              <div className="text-center space-y-2">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-[#6D5BFF]/10 text-[#6D5BFF] border border-[#6D5BFF]/20">
+                  <Award className="w-3.5 h-3.5" /> Precision Learning
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-heading font-bold">Why Students Choose NeoMCQ</h2>
+              </div>
+              <div className="space-y-3 text-xs sm:text-sm text-slate-600 dark:text-gray-300">
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 space-y-1">
+                  <strong className="text-slate-900 dark:text-white font-bold">1. Enforced 5-Day Lockout Rule</strong>
+                  <p>Our study plan engine mandates that you complete 100% of the syllabus at least 5 days prior to your exam date, reserving the final 5 days strictly for revision and high-yield mocks.</p>
+                </div>
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 space-y-1">
+                  <strong className="text-slate-900 dark:text-white font-bold">2. Zero Hallucination Guardrails</strong>
+                  <p>Questions undergo multi-agent cross-verification against verified exam boards and clinical guidelines before being presented to learners.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* About Modal */}
+          {activeModal === 'about' && (
+            <div className="space-y-6">
+              <div className="text-center space-y-2">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-[#A855F7]/10 text-[#A855F7] border border-[#A855F7]/20">
+                  <HeartHandshake className="w-3.5 h-3.5" /> Our Mission
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-heading font-bold">About NeoMCQ</h2>
+                <p className="text-sm text-slate-600 dark:text-[#A6ADC8]">
+                  NeoMCQ was founded to equalize access to world-class exam preparation for students across every country and career path.
+                </p>
               </div>
             </div>
           )}
@@ -451,28 +510,6 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
                       'Continue with Magic Link'
                     )}
                   </button>
-
-                  <div className="relative my-4 text-center">
-                    <span className="bg-white dark:bg-[#0E1324] px-3 text-xs text-gray-400">or sign in with</span>
-                    <div className="absolute inset-0 top-1/2 border-t border-gray-200 dark:border-gray-800 -z-10" />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => handleSignInSubmit({ preventDefault: () => {} } as React.FormEvent)}
-                      className="py-2.5 px-3 rounded-xl border border-gray-300 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-900 text-xs font-medium flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      Google
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSignInSubmit({ preventDefault: () => {} } as React.FormEvent)}
-                      className="py-2.5 px-3 rounded-xl border border-gray-300 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-900 text-xs font-medium flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      Apple ID
-                    </button>
-                  </div>
                 </form>
               )}
             </div>

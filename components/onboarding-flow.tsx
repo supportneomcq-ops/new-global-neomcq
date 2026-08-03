@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useTransition } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   X,
@@ -23,9 +23,11 @@ import {
   Loader2,
   ExternalLink,
   ShieldCheck,
-  Brain,
+  ArrowRight,
+  Zap,
+  SlidersHorizontal,
   Target,
-  Zap
+  Languages
 } from 'lucide-react';
 import { getSupabaseClient } from '@/lib/supabase';
 import { Logo } from './logo';
@@ -43,11 +45,15 @@ export interface OnboardingData {
   phone: string;
   countryCode: string;
   country: string;
+  language: string;
   examName: string;
   examDate: string;
   daysLeft: number;
+  weeksLeft: number;
+  monthsLeft: number;
+  learningStyle: 'Rapid Learning' | 'Balanced Study';
   studyHours: number;
-  studyTime: 'Morning' | 'Afternoon' | 'Evening' | 'Night';
+  studyTime: 'Morning' | 'Afternoon' | 'Evening' | 'Night' | 'Flexible';
   studyGoals: string[];
 }
 
@@ -63,6 +69,9 @@ const PRESET_EXAMS = [
   { name: 'CFA Level I / II / III', category: 'Finance Global', code: 'CFA' },
   { name: 'SAT / ACT College Entrance', category: 'Global High School', code: 'SAT' },
   { name: 'GRE General Test', category: 'Graduate Entrance', code: 'GRE' },
+  { name: 'GMAT Focus Edition', category: 'MBA Entrance', code: 'GMAT' },
+  { name: 'IELTS Academic', category: 'Language Global', code: 'IELTS' },
+  { name: 'TOEFL iBT', category: 'Language Global', code: 'TOEFL' },
 ];
 
 const COUNTRY_CODES = [
@@ -93,85 +102,88 @@ const COUNTRIES = [
   'Other Global Location',
 ];
 
+const LANGUAGES = [
+  'English (US/UK)',
+  'Hindi',
+  'Spanish',
+  'French',
+  'German',
+  'Japanese',
+  'Arabic',
+  'Portuguese',
+];
+
 export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowProps) {
   const [step, setStep] = useState<number>(1);
-  const [, startTransition] = useTransition();
 
-  // Form State
+  // 1. Personal
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [countryCode, setCountryCode] = useState('+1');
   const [phone, setPhone] = useState('');
   const [country, setCountry] = useState('United States');
+  const [language, setLanguage] = useState('English (US/UK)');
 
-  // Exam Info
+  // 2. Exam
   const [examSearchQuery, setExamSearchQuery] = useState('');
   const [selectedExam, setSelectedExam] = useState('USMLE Step 1 & 2 CK');
   const [customExamInput, setCustomExamInput] = useState('');
-  
-  // Default exam date set to 4 months in future
+
+  // 3. Exam Date
   const defaultFutureDate = () => {
     const d = new Date();
-    d.setDate(d.getDate() + 128);
+    d.setDate(d.getDate() + 100);
     return d.toISOString().split('T')[0];
   };
   const [examDate, setExamDate] = useState<string>(defaultFutureDate());
 
-  // Study Habits
-  const [studyHours, setStudyHours] = useState<number>(4);
-  const [studyTime, setStudyTime] = useState<'Morning' | 'Afternoon' | 'Evening' | 'Night'>('Morning');
-  const [studyGoals, setStudyGoals] = useState<string[]>(['Pass with High Score', 'Improve Weak Subjects']);
+  // 4. Learning Style
+  const [learningStyle, setLearningStyle] = useState<'Rapid Learning' | 'Balanced Study'>('Balanced Study');
 
-  // Account Creation Password
+  // 5. Study Hours & Time
+  const [studyHours, setStudyHours] = useState<number>(4);
+  const [studyTime, setStudyTime] = useState<'Morning' | 'Afternoon' | 'Evening' | 'Night' | 'Flexible'>('Morning');
+
+  // 6. Goals & Password
+  const [studyGoals, setStudyGoals] = useState<string[]>(['Pass with High Score', 'Improve Weak Areas']);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState('');
 
-  // Post Signup Verification
+  // Submission
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPreparingAI, setIsPreparingAI] = useState(false);
-  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [showVerificationScreen, setShowVerificationScreen] = useState(false);
   const [resendSent, setResendSent] = useState(false);
 
-  // Calculate Days Left
-  const calculateDaysLeft = (targetDateStr: string): number => {
-    if (!targetDateStr) return 0;
+  // Time calculations
+  const calculateTimeLeft = (targetDateStr: string) => {
+    if (!targetDateStr) return { days: 0, weeks: 0, months: 0 };
     const target = new Date(targetDateStr).getTime();
     const now = new Date().getTime();
-    const diff = Math.ceil((target - now) / (1000 * 3600 * 24));
-    return diff > 0 ? diff : 0;
+    const diffMs = target - now;
+    const days = Math.max(0, Math.ceil(diffMs / (1000 * 3600 * 24)));
+    const weeks = Math.max(0, Number((days / 7).toFixed(1)));
+    const months = Math.max(0, Number((days / 30.4).toFixed(1)));
+    return { days, weeks, months };
   };
 
-  const daysLeft = calculateDaysLeft(examDate);
+  const { days: daysLeft, weeks: weeksLeft, months: monthsLeft } = calculateTimeLeft(examDate);
 
-  // Password Strength Calculation
-  const getPasswordStrength = (pass: string) => {
-    if (!pass) return { score: 0, label: '', color: 'bg-gray-200' };
-    let score = 0;
-    if (pass.length >= 8) score++;
-    if (/[A-Z]/.test(pass)) score++;
-    if (/[0-9]/.test(pass)) score++;
-    if (/[^A-Za-z0-9]/.test(pass)) score++;
+  // 5-Day Rule calculations
+  const learningPhaseDays = Math.max(0, daysLeft - 5);
+  const finalRevisionDays = Math.min(5, daysLeft);
 
-    if (score <= 1) return { score: 1, label: 'Weak', color: 'bg-rose-500' };
-    if (score === 2) return { score: 2, label: 'Fair', color: 'bg-amber-500' };
-    if (score === 3) return { score: 3, label: 'Strong', color: 'bg-emerald-500' };
-    return { score: 4, label: 'Excellent', color: 'bg-[#00D4FF]' };
-  };
+  const activeExamName = customExamInput.trim() || selectedExam;
 
-  const passwordStrength = getPasswordStrength(password);
-
-  // Filtered Exams
   const filteredExams = PRESET_EXAMS.filter(
     (e) =>
       e.name.toLowerCase().includes(examSearchQuery.toLowerCase()) ||
       e.category.toLowerCase().includes(examSearchQuery.toLowerCase())
   );
 
-  const activeExamName = customExamInput.trim() || selectedExam;
-
-  // Validation per step
+  // Step Validations
   const validateStep1 = () => {
     if (!firstName.trim()) {
       setFormError('Please enter your first name.');
@@ -194,17 +206,13 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
       setFormError('Please select or specify your exam name.');
       return false;
     }
-    if (!examDate) {
-      setFormError('Please select your exam date.');
-      return false;
-    }
     setFormError('');
     return true;
   };
 
   const validateStep3 = () => {
-    if (studyGoals.length === 0) {
-      setFormError('Please select at least one study goal.');
+    if (!examDate || daysLeft <= 0) {
+      setFormError('Please select a valid future exam date.');
       return false;
     }
     setFormError('');
@@ -212,8 +220,17 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
   };
 
   const validateStep4 = () => {
+    setFormError('');
+    return true;
+  };
+
+  const validateStep5 = () => {
     if (!password || password.length < 8) {
       setFormError('Password must be at least 8 characters long.');
+      return false;
+    }
+    if (studyGoals.length === 0) {
+      setFormError('Please select at least one study goal.');
       return false;
     }
     setFormError('');
@@ -224,8 +241,9 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
     if (step === 1 && !validateStep1()) return;
     if (step === 2 && !validateStep2()) return;
     if (step === 3 && !validateStep3()) return;
+    if (step === 4 && !validateStep4()) return;
     setFormError('');
-    setStep((prev) => Math.min(prev + 1, 4));
+    setStep((prev) => Math.min(prev + 1, 5));
   };
 
   const handlePrevStep = () => {
@@ -241,16 +259,15 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
     }
   };
 
-  // Final Signup Handler
+  // Final Account Creation
   const handleCreateAccount = async () => {
-    if (!validateStep4()) return;
+    if (!validateStep5()) return;
     setIsSubmitting(true);
     setFormError('');
 
     try {
       const supabase = getSupabaseClient();
 
-      // 1. Supabase Auth SignUp
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -260,6 +277,7 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
             last_name: lastName,
             phone: `${countryCode}${phone}`,
             country,
+            language,
             exam: activeExamName,
           },
         },
@@ -269,7 +287,6 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
         console.warn('Supabase auth signup note:', authError.message);
       }
 
-      // 2. Initialize Normalized Onboarding Tables in Supabase via API
       setIsPreparingAI(true);
       await fetch('/api/onboarding', {
         method: 'POST',
@@ -281,23 +298,26 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
           email,
           phone: `${countryCode}${phone}`,
           country,
+          language,
           examName: activeExamName,
           examDate,
           daysLeft,
+          weeksLeft,
+          monthsLeft,
+          learningStyle,
           studyHours,
           studyTime,
           studyGoals,
         }),
       });
 
-      // Simulated background preparation delay for AI Engine
       setTimeout(() => {
         setIsSubmitting(false);
         setIsPreparingAI(false);
-        setShowVerificationModal(true);
-      }, 1500);
+        setShowVerificationScreen(true);
+      }, 1000);
     } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : 'Signup failed';
+      const errMsg = err instanceof Error ? err.message : 'Account creation failed';
       setFormError(errMsg);
       setIsSubmitting(false);
       setIsPreparingAI(false);
@@ -305,182 +325,168 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
   };
 
   const handleCompleteAndDashboard = () => {
-    const onboardingPayload: OnboardingData = {
+    onComplete({
       firstName,
       lastName,
       email,
       phone: `${countryCode}${phone}`,
       countryCode,
       country,
+      language,
       examName: activeExamName,
       examDate,
       daysLeft,
+      weeksLeft,
+      monthsLeft,
+      learningStyle,
       studyHours,
       studyTime,
       studyGoals,
-    };
-    onComplete(onboardingPayload);
+    });
   };
 
   if (!isOpen) return null;
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
-        {/* Backdrop */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={onClose}
-          className="fixed inset-0 bg-black/70 backdrop-blur-md"
-        />
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 20 }}
+        transition={{ duration: 0.3, ease: 'easeOut' }}
+        className="fixed inset-0 z-50 bg-slate-50 dark:bg-[#050816] flex flex-col justify-between min-h-dvh w-full max-w-full overflow-y-auto text-slate-900 dark:text-white select-none antialiased"
+      >
+        {/* HEADER & PROGRESS BAR */}
+        <header className="sticky top-0 z-30 bg-white/95 dark:bg-[#050816]/95 border-b border-slate-200/90 dark:border-gray-800/80 backdrop-blur-xl pt-[max(0.75rem,env(safe-area-inset-top))] px-4 sm:px-8 pb-3">
+          <div className="max-w-3xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {step > 1 && !showVerificationScreen ? (
+                <button
+                  onClick={handlePrevStep}
+                  className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-slate-700 dark:text-gray-200 transition-colors cursor-pointer"
+                  aria-label="Previous step"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+              ) : (
+                <Logo size="sm" />
+              )}
+            </div>
 
-        {/* Modal Window Container */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96, y: 15 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.96, y: 15 }}
-          transition={{ type: 'spring', damping: 26, stiffness: 320 }}
-          className="relative w-full max-w-2xl rounded-3xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-[#6D5BFF]/35 p-5 sm:p-8 shadow-2xl z-10 my-6 text-slate-900 dark:text-white overflow-hidden"
-        >
-          {/* Top Gradient Backdrop Accent */}
-          <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-[#6D5BFF] via-[#00D4FF] to-[#A855F7]" />
-          <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-80 h-32 bg-[#6D5BFF]/15 blur-2xl pointer-events-none" />
+            {!showVerificationScreen && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-heading font-extrabold px-3 py-1 rounded-full bg-[#6D5BFF]/10 text-[#6D5BFF] dark:text-[#00D4FF] border border-[#6D5BFF]/20">
+                  Step {step} of 5
+                </span>
+              </div>
+            )}
 
-          {/* Close Button */}
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 p-2 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-gray-800/80 dark:hover:bg-gray-700 text-slate-600 dark:text-gray-300 transition-colors cursor-pointer z-20"
-            aria-label="Close setup"
-          >
-            <X className="w-5 h-5" />
-          </button>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-slate-600 dark:text-gray-300 transition-colors cursor-pointer"
+              aria-label="Exit onboarding"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
 
-          {/* Verification Modal Screen Overlay */}
-          {showVerificationModal ? (
-            <div className="py-6 space-y-6 text-center">
-              <div className="w-16 h-16 mx-auto rounded-full bg-gradient-to-br from-[#6D5BFF] via-[#00D4FF] to-[#A855F7] p-0.5 shadow-xl">
+          {!showVerificationScreen && (
+            <div className="max-w-3xl mx-auto mt-3 w-full h-1.5 rounded-full bg-slate-200 dark:bg-gray-800/80 overflow-hidden">
+              <motion.div
+                className="h-full bg-gradient-to-r from-[#6D5BFF] via-[#00D4FF] to-[#A855F7]"
+                initial={{ width: '20%' }}
+                animate={{ width: `${(step / 5) * 100}%` }}
+                transition={{ duration: 0.35, ease: 'easeInOut' }}
+              />
+            </div>
+          )}
+        </header>
+
+        {/* MAIN FORM STEP CONTENT */}
+        <main className="flex-1 w-full max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col justify-center">
+          {formError && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6 p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs sm:text-sm font-semibold flex items-center justify-between"
+            >
+              <span>{formError}</span>
+              <button onClick={() => setFormError('')} className="p-1 hover:opacity-75">
+                <X className="w-4 h-4" />
+              </button>
+            </motion.div>
+          )}
+
+          {showVerificationScreen ? (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="py-6 space-y-6 text-center"
+            >
+              <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-[#6D5BFF] via-[#00D4FF] to-[#A855F7] p-0.5 shadow-xl">
                 <div className="w-full h-full rounded-full bg-white dark:bg-[#0E1324] flex items-center justify-center">
-                  <Mail className="w-8 h-8 text-[#00D4FF] animate-bounce" />
+                  <Mail className="w-10 h-10 text-[#00D4FF] animate-bounce" />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                  Supabase Account Provisioned
+                <span className="px-3.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                  Supabase Backend Profile Active
                 </span>
                 <h2 className="text-2xl sm:text-3xl font-heading font-extrabold">Verify Your Email</h2>
                 <p className="text-sm text-slate-600 dark:text-[#A6ADC8] max-w-md mx-auto">
-                  A verification link has been sent to <strong className="text-slate-900 dark:text-white">{email}</strong>. Please check your inbox to activate full AI features.
+                  We sent a confirmation link to <strong className="text-slate-900 dark:text-white">{email}</strong>.
                 </p>
               </div>
 
-              {/* Status Indicator */}
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-900/60 border border-slate-200 dark:border-gray-800 text-left max-w-md mx-auto space-y-2 text-xs">
-                <div className="flex items-center gap-2 font-bold text-slate-800 dark:text-gray-200">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                  <span>AI Coach Initialized for {activeExamName}</span>
+              <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-gray-800 text-left max-w-md mx-auto space-y-2.5 text-xs sm:text-sm shadow-sm">
+                <div className="flex items-center gap-2.5 font-bold text-slate-800 dark:text-gray-200">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>AI Learning Engine Configured for {activeExamName}</span>
                 </div>
-                <div className="flex items-center gap-2 text-slate-600 dark:text-[#A6ADC8]">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                  <span>Exam Target Set: {daysLeft} Days Countdown</span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-600 dark:text-[#A6ADC8]">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                  <span>Personalized Practice Q-Bank Ready</span>
+                <div className="flex items-center gap-2.5 text-slate-600 dark:text-[#A6ADC8]">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>5-Day Rule Syllabus Lock: {learningPhaseDays} Days Learning + {finalRevisionDays} Days Lockout Revision</span>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2 max-w-md mx-auto">
-                <button
-                  onClick={() => {
-                    setResendSent(true);
-                    setTimeout(() => setResendSent(false), 4000);
-                  }}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-300 dark:border-gray-700 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  {resendSent ? <Check className="w-4 h-4 text-emerald-500" /> : <Mail className="w-4 h-4" />}
-                  <span>{resendSent ? 'Link Resent!' : 'Resend Email'}</span>
-                </button>
-
-                <a
-                  href="https://mail.google.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-300 dark:border-gray-700 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <ExternalLink className="w-4 h-4 text-[#00D4FF]" />
-                  <span>Open Gmail</span>
-                </a>
-
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4 max-w-md mx-auto">
                 <button
                   onClick={handleCompleteAndDashboard}
-                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#6D5BFF] to-[#A855F7] text-white text-xs font-bold shadow-md hover:opacity-95 transition-opacity flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full px-6 py-3.5 rounded-2xl bg-gradient-to-r from-[#6D5BFF] via-[#00D4FF] to-[#A855F7] text-white text-xs sm:text-sm font-bold shadow-lg hover:opacity-95 transition-opacity flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <span>Continue to Dashboard</span>
-                  <ChevronRight className="w-4 h-4" />
+                  <span>Launch Personalized Dashboard</span>
+                  <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
-            </div>
+            </motion.div>
           ) : (
-            <>
-              {/* Top Step Header & Progress Bar */}
-              <div className="space-y-4 mb-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Logo size="sm" showText={false} />
-                    <span className="font-heading font-extrabold text-sm text-slate-900 dark:text-white">
-                      Setup Your AI Exam Coach
-                    </span>
-                  </div>
-                  <span className="text-xs font-bold px-3 py-1 rounded-full bg-[#6D5BFF]/15 text-[#6D5BFF] dark:text-[#00D4FF]">
-                    Step {step} of 4
-                  </span>
-                </div>
-
-                {/* Animated Progress Bar */}
-                <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-gray-800 overflow-hidden">
-                  <motion.div
-                    className="h-full bg-gradient-to-r from-[#6D5BFF] via-[#00D4FF] to-[#A855F7]"
-                    initial={{ width: '25%' }}
-                    animate={{ width: `${(step / 4) * 100}%` }}
-                    transition={{ duration: 0.35, ease: 'easeInOut' }}
-                  />
-                </div>
-              </div>
-
-              {/* Validation Error Alert */}
-              {formError && (
-                <div className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-center justify-between">
-                  <span>{formError}</span>
-                  <button onClick={() => setFormError('')} className="p-1 hover:opacity-75">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              )}
-
-              {/* STEP 1: Personal Details */}
+            <AnimatePresence mode="wait">
+              {/* STEP 1: PERSONAL DETAILS */}
               {step === 1 && (
                 <motion.div
-                  initial={{ opacity: 0, x: 20 }}
+                  key="step-1"
+                  initial={{ opacity: 0, x: 25 }}
                   animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="space-y-4"
+                  exit={{ opacity: 0, x: -25 }}
+                  transition={{ duration: 0.25 }}
+                  className="space-y-6"
                 >
-                  <div className="space-y-1">
-                    <h3 className="font-heading font-extrabold text-xl sm:text-2xl flex items-center gap-2">
-                      <User className="w-5 h-5 text-[#6D5BFF]" /> Personal Details
-                    </h3>
-                    <p className="text-xs text-slate-600 dark:text-[#A6ADC8]">
-                      Tell us who you are so Neo AI can personalize your exam experience.
+                  <div className="space-y-2 text-center sm:text-left">
+                    <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-semibold bg-[#6D5BFF]/10 text-[#6D5BFF] border border-[#6D5BFF]/20">
+                      <User className="w-3.5 h-3.5" /> Personal Details
+                    </div>
+                    <h2 className="text-2xl sm:text-3xl font-heading font-extrabold tracking-tight">
+                      Let&apos;s personalize your AI Coach
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-600 dark:text-[#A6ADC8]">
+                      Enter your details to synchronize your learning profile across all devices.
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-gray-300 mb-1">
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1.5">
                         First Name <span className="text-rose-500">*</span>
                       </label>
                       <input
@@ -488,48 +494,48 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                         value={firstName}
                         onChange={(e) => setFirstName(e.target.value)}
                         placeholder="e.g. Sarah"
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm"
+                        className="w-full px-4 py-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-gray-300 mb-1">
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1.5">
                         Last Name
                       </label>
                       <input
                         type="text"
                         value={lastName}
                         onChange={(e) => setLastName(e.target.value)}
-                        placeholder="e.g. Jenkins"
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm"
+                        placeholder="e.g. Connor"
+                        className="w-full px-4 py-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
                       />
                     </div>
 
                     <div className="sm:col-span-2">
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-gray-300 mb-1">
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1.5">
                         Email Address <span className="text-rose-500">*</span>
                       </label>
                       <div className="relative">
-                        <Mail className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
+                        <Mail className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
                         <input
                           type="email"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           placeholder="sarah@university.edu"
-                          className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm"
+                          className="w-full pl-11 pr-4 py-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-gray-300 mb-1">
-                        Country Code & Phone <span className="text-rose-500">*</span>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1.5">
+                        Country Code & Mobile <span className="text-rose-500">*</span>
                       </label>
                       <div className="flex gap-2">
                         <select
                           value={countryCode}
                           onChange={(e) => setCountryCode(e.target.value)}
-                          className="px-2 py-2.5 rounded-xl bg-slate-100 dark:bg-gray-900 border border-slate-300 dark:border-gray-800 text-xs font-bold focus:outline-none focus:border-[#6D5BFF]"
+                          className="px-2.5 py-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 text-xs font-bold focus:outline-none focus:border-[#6D5BFF] shadow-sm"
                         >
                           {COUNTRY_CODES.map((c) => (
                             <option key={c.code} value={c.code}>
@@ -539,28 +545,28 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                         </select>
 
                         <div className="relative flex-1">
-                          <Phone className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                          <Phone className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
                           <input
                             type="tel"
                             value={phone}
                             onChange={(e) => setPhone(e.target.value)}
                             placeholder="555-0199"
-                            className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-100 dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm"
+                            className="w-full pl-10 pr-3 py-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
                           />
                         </div>
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-gray-300 mb-1">
-                        Country (Target Syllabus)
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1.5">
+                        Country
                       </label>
                       <div className="relative">
-                        <Globe className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
+                        <Globe className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
                         <select
                           value={country}
                           onChange={(e) => setCountry(e.target.value)}
-                          className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm"
+                          className="w-full pl-11 pr-4 py-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
                         >
                           {COUNTRIES.map((cnt) => (
                             <option key={cnt} value={cnt}>
@@ -570,45 +576,65 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                         </select>
                       </div>
                     </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1.5">
+                        Preferred Learning Language
+                      </label>
+                      <div className="relative">
+                        <Languages className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
+                        <select
+                          value={language}
+                          onChange={(e) => setLanguage(e.target.value)}
+                          className="w-full pl-11 pr-4 py-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
+                        >
+                          {LANGUAGES.map((lang) => (
+                            <option key={lang} value={lang}>
+                              {lang}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
                   </div>
                 </motion.div>
               )}
 
-              {/* STEP 2: Exam Information */}
+              {/* STEP 2: EXAM SELECTION */}
               {step === 2 && (
                 <motion.div
-                  initial={{ opacity: 0, x: 20 }}
+                  key="step-2"
+                  initial={{ opacity: 0, x: 25 }}
                   animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="space-y-4"
+                  exit={{ opacity: 0, x: -25 }}
+                  transition={{ duration: 0.25 }}
+                  className="space-y-6"
                 >
-                  <div className="space-y-1">
-                    <h3 className="font-heading font-extrabold text-xl sm:text-2xl flex items-center gap-2">
-                      <BookOpen className="w-5 h-5 text-[#00D4FF]" /> Exam Target & Timeline
-                    </h3>
-                    <p className="text-xs text-slate-600 dark:text-[#A6ADC8]">
-                      Select or search your upcoming exam and set your official test date.
+                  <div className="space-y-2 text-center sm:text-left">
+                    <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-semibold bg-[#00D4FF]/10 text-[#00D4FF] border border-[#00D4FF]/20">
+                      <BookOpen className="w-3.5 h-3.5" /> Exam Selection
+                    </div>
+                    <h2 className="text-2xl sm:text-3xl font-heading font-extrabold tracking-tight">
+                      What exam are you preparing for?
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-600 dark:text-[#A6ADC8]">
+                      Select from 180+ global exam blueprints or specify your custom curriculum.
                     </p>
                   </div>
 
-                  {/* Search Exam Box */}
-                  <div className="space-y-2">
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-gray-300">
-                      What exam are you preparing for?
-                    </label>
+                  <div className="space-y-3">
                     <div className="relative">
-                      <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
+                      <Search className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
                       <input
                         type="text"
                         value={examSearchQuery}
                         onChange={(e) => setExamSearchQuery(e.target.value)}
-                        placeholder="Search exam (e.g. NEET PG, USMLE, PLAB, CA, UPSC)..."
-                        className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm"
+                        placeholder="Search exam (e.g. USMLE, NEET, PLAB, NCLEX, CA, GRE)..."
+                        className="w-full pl-11 pr-4 py-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
                       />
                     </div>
 
-                    {/* Preset Badges Grid */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-44 overflow-y-auto pr-1">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto pr-1">
                       {filteredExams.map((ex) => {
                         const isSelected = selectedExam === ex.name && !customExamInput;
                         return (
@@ -619,124 +645,202 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                               setSelectedExam(ex.name);
                               setCustomExamInput('');
                             }}
-                            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                            className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
                               isSelected
                                 ? 'border-[#6D5BFF] bg-[#6D5BFF]/15 ring-2 ring-[#6D5BFF]/30 font-bold'
-                                : 'border-slate-200 dark:border-gray-800 bg-slate-50 dark:bg-gray-900/40 hover:border-slate-300'
+                                : 'border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900/40 hover:border-slate-300'
                             }`}
                           >
                             <div className="text-[10px] text-[#6D5BFF] dark:text-[#00D4FF] font-semibold">{ex.category}</div>
-                            <div className="text-xs font-heading truncate">{ex.name}</div>
+                            <div className="text-xs font-heading font-bold truncate mt-0.5">{ex.name}</div>
                           </button>
                         );
                       })}
                     </div>
 
-                    {/* Or Custom Exam */}
-                    <div className="pt-1">
+                    <div className="pt-2">
                       <label className="block text-xs font-semibold text-slate-500 mb-1">
-                        Or specify a Custom / Other Exam:
+                        Not in the list? Custom Exam Entry:
                       </label>
                       <input
                         type="text"
                         value={customExamInput}
                         onChange={(e) => setCustomExamInput(e.target.value)}
-                        placeholder="Enter custom exam name..."
-                        className="w-full px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-xs"
+                        placeholder="Type custom exam name..."
+                        className="w-full px-4 py-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-xs shadow-sm"
                       />
-                    </div>
-                  </div>
-
-                  {/* Exam Date & Days Left Counter */}
-                  <div className="p-4 rounded-2xl bg-gradient-to-r from-[#6D5BFF]/10 to-[#00D4FF]/10 border border-[#6D5BFF]/30 space-y-3">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-800 dark:text-gray-200 flex items-center gap-1.5">
-                          <Calendar className="w-4 h-4 text-[#6D5BFF]" /> Target Exam Date
-                        </label>
-                        <input
-                          type="date"
-                          value={examDate}
-                          onChange={(e) => setExamDate(e.target.value)}
-                          className="mt-1 px-3 py-1.5 rounded-xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 text-xs font-bold text-slate-900 dark:text-white"
-                        />
-                      </div>
-
-                      {/* Animated Days Left Badge */}
-                      <motion.div
-                        key={daysLeft}
-                        initial={{ scale: 0.85, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        className="p-3 rounded-xl bg-white dark:bg-[#0E1324] border border-[#00D4FF]/40 shadow-md text-center shrink-0 min-w-32"
-                      >
-                        <div className="text-2xl font-heading font-black text-transparent bg-clip-text bg-gradient-to-r from-[#00D4FF] to-[#6D5BFF]">
-                          {daysLeft} Days
-                        </div>
-                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                          Remaining
-                        </div>
-                      </motion.div>
                     </div>
                   </div>
                 </motion.div>
               )}
 
-              {/* STEP 3: Study Habits */}
+              {/* STEP 3: EXAM DATE & 5-DAY RULE CALCULATION */}
               {step === 3 && (
                 <motion.div
-                  initial={{ opacity: 0, x: 20 }}
+                  key="step-3"
+                  initial={{ opacity: 0, x: 25 }}
                   animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="space-y-4"
+                  exit={{ opacity: 0, x: -25 }}
+                  transition={{ duration: 0.25 }}
+                  className="space-y-6"
                 >
-                  <div className="space-y-1">
-                    <h3 className="font-heading font-extrabold text-xl sm:text-2xl flex items-center gap-2">
-                      <Clock className="w-5 h-5 text-[#A855F7]" /> Study Habits & Goals
-                    </h3>
-                    <p className="text-xs text-slate-600 dark:text-[#A6ADC8]">
-                      Configure your daily commitment and primary objectives.
+                  <div className="space-y-2 text-center sm:text-left">
+                    <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-semibold bg-[#A855F7]/10 text-[#A855F7] border border-[#A855F7]/20">
+                      <Calendar className="w-3.5 h-3.5" /> Exam Date
+                    </div>
+                    <h2 className="text-2xl sm:text-3xl font-heading font-extrabold tracking-tight">
+                      When is your official exam day?
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-600 dark:text-[#A6ADC8]">
+                      Neo AI enforces the <strong className="text-[#00D4FF]">5-Day Lockout Rule</strong>: complete the full syllabus before the final 5 days.
                     </p>
                   </div>
 
-                  {/* Daily Study Hours Selector */}
-                  <div className="space-y-2 pt-1">
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-gray-300 flex justify-between">
-                      <span>Daily Study Target</span>
-                      <span className="font-bold text-[#6D5BFF]">{studyHours} Hours / Day</span>
-                    </label>
-                    <div className="grid grid-cols-6 gap-2">
-                      {[1, 2, 3, 4, 5, 6].map((hrs) => (
-                        <button
-                          key={hrs}
-                          type="button"
-                          onClick={() => setStudyHours(hrs)}
-                          className={`py-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                            studyHours === hrs
-                              ? 'bg-gradient-to-r from-[#6D5BFF] to-[#00D4FF] text-white border-transparent shadow-md'
-                              : 'bg-slate-100 dark:bg-gray-900 border-slate-300 dark:border-gray-800 hover:border-slate-400'
-                          }`}
-                        >
-                          {hrs}{hrs === 6 ? '+' : ''} hrs
-                        </button>
-                      ))}
+                  <div className="p-5 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 space-y-4 shadow-sm">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1.5">
+                        Select Exam Date
+                      </label>
+                      <input
+                        type="date"
+                        value={examDate}
+                        onChange={(e) => setExamDate(e.target.value)}
+                        className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-gray-800 border border-slate-300 dark:border-gray-700 text-sm font-bold shadow-sm"
+                      />
+                    </div>
+
+                    {/* Instant Time Calculations */}
+                    <div className="grid grid-cols-3 gap-2 sm:gap-3 text-center">
+                      <div className="p-3 rounded-2xl bg-[#6D5BFF]/10 border border-[#6D5BFF]/30">
+                        <div className="text-xl sm:text-2xl font-black text-[#6D5BFF]">{daysLeft}</div>
+                        <div className="text-[10px] font-bold text-slate-500 uppercase">Days Left</div>
+                      </div>
+                      <div className="p-3 rounded-2xl bg-[#00D4FF]/10 border border-[#00D4FF]/30">
+                        <div className="text-xl sm:text-2xl font-black text-[#00D4FF]">{weeksLeft}</div>
+                        <div className="text-[10px] font-bold text-slate-500 uppercase">Weeks Left</div>
+                      </div>
+                      <div className="p-3 rounded-2xl bg-[#A855F7]/10 border border-[#A855F7]/30">
+                        <div className="text-xl sm:text-2xl font-black text-[#A855F7]">{monthsLeft}</div>
+                        <div className="text-[10px] font-bold text-slate-500 uppercase">Months Left</div>
+                      </div>
+                    </div>
+
+                    {/* 5-Day Rule Breakdown */}
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-800/80 border border-slate-200 dark:border-gray-700 space-y-2 text-xs">
+                      <div className="font-bold text-slate-800 dark:text-gray-200 flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                        <span>Syllabus Allocation (5-Day Rule Applied)</span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-600 dark:text-gray-300 pt-1">
+                        <span>Phase 1: Full Syllabus & Q-Bank</span>
+                        <strong className="text-[#00D4FF]">Days 1 – {learningPhaseDays}</strong>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-600 dark:text-gray-300">
+                        <span>Phase 2: Final 5-Day Revision Only</span>
+                        <strong className="text-[#A855F7]">Days {learningPhaseDays + 1} – {daysLeft}</strong>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* STEP 4: LEARNING STYLE & STUDY HOURS */}
+              {step === 4 && (
+                <motion.div
+                  key="step-4"
+                  initial={{ opacity: 0, x: 25 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -25 }}
+                  transition={{ duration: 0.25 }}
+                  className="space-y-6"
+                >
+                  <div className="space-y-2 text-center sm:text-left">
+                    <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                      <Zap className="w-3.5 h-3.5" /> Learning Style & Hours
+                    </div>
+                    <h2 className="text-2xl sm:text-3xl font-heading font-extrabold tracking-tight">
+                      How would you like to prepare?
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-600 dark:text-[#A6ADC8]">
+                      Configure your preferred learning style and daily study window.
+                    </p>
+                  </div>
+
+                  {/* Option A vs Option B Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setLearningStyle('Rapid Learning')}
+                      className={`p-4 rounded-3xl border text-left transition-all cursor-pointer ${
+                        learningStyle === 'Rapid Learning'
+                          ? 'border-[#6D5BFF] bg-[#6D5BFF]/15 ring-2 ring-[#6D5BFF]/30 font-bold'
+                          : 'border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900/40'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 text-[#6D5BFF] font-heading font-extrabold text-sm">
+                        <Zap className="w-4 h-4 text-amber-400" />
+                        <span>Rapid Learning</span>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-gray-300 mt-2 leading-relaxed">
+                        Fast-paced preparation focused on completing the syllabus quickly with high-yield focus.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setLearningStyle('Balanced Study')}
+                      className={`p-4 rounded-3xl border text-left transition-all cursor-pointer ${
+                        learningStyle === 'Balanced Study'
+                          ? 'border-[#00D4FF] bg-[#00D4FF]/15 ring-2 ring-[#00D4FF]/30 font-bold'
+                          : 'border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900/40'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 text-[#00D4FF] font-heading font-extrabold text-sm">
+                        <Clock className="w-4 h-4 text-[#00D4FF]" />
+                        <span>Balanced Study</span>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-gray-300 mt-2 leading-relaxed">
+                        Steady learning with balanced revision, spaced repetition, and deep concept practice.
+                      </p>
+                    </button>
+                  </div>
+
+                  {/* Study Hours Slider (1 to 12) */}
+                  <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 space-y-3">
+                    <div className="flex items-center justify-between text-xs font-bold">
+                      <span className="text-slate-700 dark:text-gray-300">Daily Study Target</span>
+                      <span className="text-sm font-extrabold text-[#00D4FF]">{studyHours} Hours / Day</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="1"
+                      max="12"
+                      value={studyHours}
+                      onChange={(e) => setStudyHours(Number(e.target.value))}
+                      className="w-full accent-[#6D5BFF] cursor-pointer"
+                    />
+                    <div className="flex justify-between text-[10px] text-slate-400 font-bold">
+                      <span>1 hr (Light)</span>
+                      <span>6 hrs (Standard)</span>
+                      <span>12 hrs (Full-time)</span>
                     </div>
                   </div>
 
-                  {/* Preferred Study Time */}
+                  {/* Peak Time */}
                   <div className="space-y-2">
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-gray-300">
-                      Preferred Peak Study Window
+                    <label className="block text-xs font-bold text-slate-700 dark:text-gray-300">
+                      Preferred Study Time Window
                     </label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {(['Morning', 'Afternoon', 'Evening', 'Night'] as const).map((t) => (
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                      {(['Morning', 'Afternoon', 'Evening', 'Night', 'Flexible'] as const).map((t) => (
                         <button
                           key={t}
                           type="button"
                           onClick={() => setStudyTime(t)}
-                          className={`p-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                          className={`p-2.5 rounded-2xl border text-xs font-semibold transition-all cursor-pointer ${
                             studyTime === t
-                              ? 'border-[#6D5BFF] bg-[#6D5BFF]/15 text-[#6D5BFF] dark:text-[#00D4FF] font-bold'
-                              : 'border-slate-200 dark:border-gray-800 bg-slate-50 dark:bg-gray-900/40'
+                              ? 'border-[#6D5BFF] bg-[#6D5BFF]/15 text-[#6D5BFF] dark:text-[#00D4FF] font-extrabold shadow-sm'
+                              : 'border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900/40'
                           }`}
                         >
                           {t}
@@ -744,18 +848,43 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                       ))}
                     </div>
                   </div>
+                </motion.div>
+              )}
 
-                  {/* Study Goals Multi Select */}
+              {/* STEP 5: GOAL & PASSWORD CREATION */}
+              {step === 5 && (
+                <motion.div
+                  key="step-5"
+                  initial={{ opacity: 0, x: 25 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -25 }}
+                  transition={{ duration: 0.25 }}
+                  className="space-y-6"
+                >
+                  <div className="space-y-2 text-center sm:text-left">
+                    <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-semibold bg-amber-400/10 text-amber-500 border border-amber-400/20">
+                      <Target className="w-3.5 h-3.5" /> Goals & Account
+                    </div>
+                    <h2 className="text-2xl sm:text-3xl font-heading font-extrabold tracking-tight">
+                      Final Step: Set Password & Goals
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-600 dark:text-[#A6ADC8]">
+                      Secure your Supabase profile and choose your primary preparation target.
+                    </p>
+                  </div>
+
+                  {/* Primary Target Goal */}
                   <div className="space-y-2">
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-gray-300">
-                      Primary Study Objectives (Select all that apply)
+                    <label className="block text-xs font-bold text-slate-700 dark:text-gray-300">
+                      Target Goal
                     </label>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       {[
-                        'Pass with High Score',
-                        'Achieve Top National Rank',
-                        'Rapid 30-Day Revision',
-                        'Improve Weak Subjects',
+                        'Pass Exam',
+                        'High Score',
+                        'Top Rank',
+                        'Revision Only',
+                        'Improve Weak Areas',
                       ].map((goal) => {
                         const isSelected = studyGoals.includes(goal);
                         return (
@@ -763,10 +892,10 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                             key={goal}
                             type="button"
                             onClick={() => handleGoalToggle(goal)}
-                            className={`p-2.5 rounded-xl border text-left text-xs font-semibold transition-all flex items-center justify-between cursor-pointer ${
+                            className={`p-3 rounded-2xl border text-left text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${
                               isSelected
-                                ? 'border-[#6D5BFF] bg-[#6D5BFF]/10 text-slate-900 dark:text-white'
-                                : 'border-slate-200 dark:border-gray-800 bg-slate-50 dark:bg-gray-900/30 text-slate-600 dark:text-gray-400'
+                                ? 'border-[#6D5BFF] bg-[#6D5BFF]/10 text-slate-900 dark:text-white shadow-sm'
+                                : 'border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900/30 text-slate-600 dark:text-gray-400'
                             }`}
                           >
                             <span>{goal}</span>
@@ -776,149 +905,86 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                       })}
                     </div>
                   </div>
-                </motion.div>
-              )}
 
-              {/* STEP 4: Review Summary & Account Creation */}
-              {step === 4 && (
-                <motion.div
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="space-y-4"
-                >
-                  <div className="space-y-1">
-                    <h3 className="font-heading font-extrabold text-xl sm:text-2xl flex items-center gap-2">
-                      <Sparkles className="w-5 h-5 text-amber-400" /> Review & Create Account
-                    </h3>
-                    <p className="text-xs text-slate-600 dark:text-[#A6ADC8]">
-                      Verify your AI profile parameters and secure your Supabase account.
-                    </p>
-                  </div>
-
-                  {/* Summary Card */}
-                  <div className="p-4 rounded-2xl bg-slate-100 dark:bg-gray-900/80 border border-slate-200 dark:border-gray-800 space-y-2 text-xs">
-                    <div className="grid grid-cols-2 gap-2 pb-2 border-b border-slate-200 dark:border-gray-800">
-                      <div>
-                        <span className="text-slate-500">Learner:</span>{' '}
-                        <strong className="text-slate-900 dark:text-white">{firstName} {lastName}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-500">Email:</span>{' '}
-                        <strong className="text-slate-900 dark:text-white truncate block">{email}</strong>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 pt-1">
-                      <div>
-                        <span className="text-slate-500">Target Exam:</span>{' '}
-                        <strong className="text-[#00D4FF]">{activeExamName}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-500">Timeline:</span>{' '}
-                        <strong className="text-[#6D5BFF]">{daysLeft} Days Left ({examDate})</strong>
-                      </div>
-                    </div>
-                    <div className="pt-1">
-                      <span className="text-slate-500">Habit:</span>{' '}
-                      <span className="font-semibold text-slate-800 dark:text-gray-200">{studyHours} hrs/day ({studyTime})</span>
-                    </div>
-                  </div>
-
-                  {/* Password Input with Strength Meter */}
-                  <div className="space-y-2 pt-1">
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-gray-300">
+                  {/* Password Creation */}
+                  <div className="space-y-2 pt-2">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-gray-300">
                       Create Password <span className="text-rose-500">*</span>
                     </label>
                     <div className="relative">
-                      <Lock className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
+                      <Lock className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
                       <input
                         type={showPassword ? 'text' : 'password'}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        placeholder="At least 8 characters (letters + numbers)"
-                        className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-100 dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm"
+                        placeholder="At least 8 characters..."
+                        className="w-full pl-11 pr-11 py-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-600"
+                        className="absolute right-4 top-3.5 text-slate-400 hover:text-slate-600"
                       >
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
-
-                    {/* Password Strength Indicator */}
-                    {password && (
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-[10px] font-bold">
-                          <span className="text-slate-500">Password Strength:</span>
-                          <span className="text-slate-900 dark:text-white">{passwordStrength.label}</span>
-                        </div>
-                        <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-gray-800 overflow-hidden flex gap-1">
-                          {[1, 2, 3, 4].map((bar) => (
-                            <div
-                              key={bar}
-                              className={`h-full flex-1 transition-colors ${
-                                bar <= passwordStrength.score ? passwordStrength.color : 'bg-transparent'
-                              }`}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </motion.div>
               )}
-
-              {/* Navigation Buttons Footer */}
-              <div className="flex items-center justify-between pt-6 mt-6 border-t border-slate-200 dark:border-gray-800">
-                {step > 1 ? (
-                  <button
-                    type="button"
-                    onClick={handlePrevStep}
-                    disabled={isSubmitting}
-                    className="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-gray-700 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <ChevronLeft className="w-4 h-4" /> Back
-                  </button>
-                ) : (
-                  <div />
-                )}
-
-                {step < 4 ? (
-                  <button
-                    type="button"
-                    onClick={handleNextStep}
-                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#6D5BFF] via-[#5B4AEB] to-[#A855F7] text-white text-xs font-bold shadow-md hover:opacity-95 transition-opacity flex items-center gap-2 cursor-pointer"
-                  >
-                    <span>Next Step</span>
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleCreateAccount}
-                    disabled={isSubmitting}
-                    className="px-7 py-3 rounded-xl bg-gradient-to-r from-[#6D5BFF] via-[#00D4FF] to-[#A855F7] text-white text-sm font-extrabold shadow-lg hover:opacity-95 transition-opacity flex items-center gap-2 cursor-pointer"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>{isPreparingAI ? 'Preparing Your AI...' : 'Creating Account...'}</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4" />
-                        <span>Create My AI Coach</span>
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
-            </>
+            </AnimatePresence>
           )}
-        </motion.div>
-      </div>
+        </main>
+
+        {/* BOTTOM STEP NAVIGATION */}
+        {!showVerificationScreen && (
+          <footer className="sticky bottom-0 z-30 bg-white/95 dark:bg-[#050816]/95 border-t border-slate-200/90 dark:border-gray-800/80 backdrop-blur-xl px-4 sm:px-8 py-3.5 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
+            <div className="max-w-2xl mx-auto flex items-center justify-between gap-4">
+              {step > 1 ? (
+                <button
+                  type="button"
+                  onClick={handlePrevStep}
+                  disabled={isSubmitting}
+                  className="px-5 py-3 rounded-2xl border border-slate-300 dark:border-gray-700 text-xs font-bold hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <ChevronLeft className="w-4 h-4" /> Back
+                </button>
+              ) : (
+                <div />
+              )}
+
+              {step < 5 ? (
+                <button
+                  type="button"
+                  onClick={handleNextStep}
+                  className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-[#6D5BFF] via-[#5B4AEB] to-[#A855F7] text-white text-xs sm:text-sm font-extrabold shadow-lg shadow-[#6D5BFF]/30 hover:opacity-95 transition-opacity flex items-center gap-2 cursor-pointer ml-auto"
+                >
+                  <span>Continue</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleCreateAccount}
+                  disabled={isSubmitting}
+                  className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-[#6D5BFF] via-[#00D4FF] to-[#A855F7] text-white text-xs sm:text-sm font-extrabold shadow-xl shadow-[#6D5BFF]/35 hover:opacity-95 transition-opacity flex items-center gap-2 cursor-pointer ml-auto"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>{isPreparingAI ? 'Generating Study Plan...' : 'Creating Account...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      <span>Generate AI Study Plan</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </footer>
+        )}
+      </motion.div>
     </AnimatePresence>
   );
 }

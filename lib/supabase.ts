@@ -16,18 +16,12 @@ export function getSupabaseClient(): SupabaseClient {
           autoRefreshToken: true,
           detectSessionInUrl: true,
         },
-        global: {
-          fetch: globalThis.fetch.bind(globalThis),
-        },
       });
     }
     return supabaseBrowserClient;
   }
   return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { persistSession: false },
-    global: {
-      fetch: globalThis.fetch.bind(globalThis),
-    },
   });
 }
 
@@ -35,9 +29,6 @@ export function getSupabaseAdmin(): SupabaseClient {
   if (!supabaseAdminClient) {
     supabaseAdminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       auth: { persistSession: false },
-      global: {
-        fetch: globalThis.fetch.bind(globalThis),
-      },
     });
   }
   return supabaseAdminClient;
