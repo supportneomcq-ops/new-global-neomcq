@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   X,
@@ -345,65 +345,90 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
     });
   };
 
+  useEffect(() => {
+    if (isOpen) {
+      document.body.classList.add('modal-open');
+      document.documentElement.classList.add('modal-open');
+    } else {
+      document.body.classList.remove('modal-open');
+      document.documentElement.classList.remove('modal-open');
+    }
+    return () => {
+      document.body.classList.remove('modal-open');
+      document.documentElement.classList.remove('modal-open');
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
     <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 20 }}
-        transition={{ duration: 0.3, ease: 'easeOut' }}
-        className="fixed inset-0 z-50 bg-slate-50 dark:bg-[#050816] flex flex-col justify-between min-h-dvh w-full max-w-full overflow-y-auto text-slate-900 dark:text-white select-none antialiased"
-      >
-        {/* HEADER & PROGRESS BAR */}
-        <header className="sticky top-0 z-30 bg-white/95 dark:bg-[#050816]/95 border-b border-slate-200/90 dark:border-gray-800/80 backdrop-blur-xl pt-[max(0.75rem,env(safe-area-inset-top))] px-4 sm:px-8 pb-3">
-          <div className="max-w-3xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              {step > 1 && !showVerificationScreen ? (
-                <button
-                  onClick={handlePrevStep}
-                  className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-slate-700 dark:text-gray-200 transition-colors cursor-pointer"
-                  aria-label="Previous step"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-              ) : (
-                <Logo size="sm" />
+      <div className="fixed inset-0 z-[99990] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/80 backdrop-blur-md overflow-hidden text-slate-900 dark:text-white select-none antialiased">
+        {/* Backdrop overlay click */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+          className="absolute inset-0 bg-transparent"
+        />
+
+        {/* Centered Responsive Modal Card */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 15 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 15 }}
+          transition={{ duration: 0.25, ease: 'easeOut' }}
+          className="relative w-full max-w-2xl sm:max-w-3xl h-[min(88dvh,660px)] max-h-[88dvh] flex flex-col rounded-3xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-[#6D5BFF]/30 shadow-2xl overflow-hidden z-10 my-auto"
+        >
+          {/* HEADER & PROGRESS BAR */}
+          <header className="shrink-0 bg-white/95 dark:bg-[#0E1324]/95 border-b border-slate-200/90 dark:border-gray-800/80 backdrop-blur-xl px-4 sm:px-8 py-3.5 z-20">
+            <div className="max-w-3xl mx-auto flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {step > 1 && !showVerificationScreen ? (
+                  <button
+                    onClick={handlePrevStep}
+                    className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-slate-700 dark:text-gray-200 transition-colors cursor-pointer"
+                    aria-label="Previous step"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <Logo size="sm" />
+                )}
+              </div>
+
+              {!showVerificationScreen && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-heading font-extrabold px-3 py-1 rounded-full bg-[#6D5BFF]/10 text-[#6D5BFF] dark:text-[#00D4FF] border border-[#6D5BFF]/20">
+                    Step {step} of 5
+                  </span>
+                </div>
               )}
+
+              <button
+                onClick={onClose}
+                className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-slate-600 dark:text-gray-300 transition-colors cursor-pointer"
+                aria-label="Exit onboarding"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
             {!showVerificationScreen && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-heading font-extrabold px-3 py-1 rounded-full bg-[#6D5BFF]/10 text-[#6D5BFF] dark:text-[#00D4FF] border border-[#6D5BFF]/20">
-                  Step {step} of 5
-                </span>
+              <div className="max-w-3xl mx-auto mt-3 w-full h-1.5 rounded-full bg-slate-200 dark:bg-gray-800/80 overflow-hidden">
+                <motion.div
+                  className="h-full bg-gradient-to-r from-[#6D5BFF] via-[#00D4FF] to-[#A855F7]"
+                  initial={{ width: '20%' }}
+                  animate={{ width: `${(step / 5) * 100}%` }}
+                  transition={{ duration: 0.35, ease: 'easeInOut' }}
+                />
               </div>
             )}
+          </header>
 
-            <button
-              onClick={onClose}
-              className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-slate-600 dark:text-gray-300 transition-colors cursor-pointer"
-              aria-label="Exit onboarding"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {!showVerificationScreen && (
-            <div className="max-w-3xl mx-auto mt-3 w-full h-1.5 rounded-full bg-slate-200 dark:bg-gray-800/80 overflow-hidden">
-              <motion.div
-                className="h-full bg-gradient-to-r from-[#6D5BFF] via-[#00D4FF] to-[#A855F7]"
-                initial={{ width: '20%' }}
-                animate={{ width: `${(step / 5) * 100}%` }}
-                transition={{ duration: 0.35, ease: 'easeInOut' }}
-              />
-            </div>
-          )}
-        </header>
-
-        {/* MAIN FORM STEP CONTENT */}
-        <main className="flex-1 w-full max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col justify-center">
+          {/* MAIN FORM STEP CONTENT - SCROLLABLE INSIDE CARD */}
+          <main className="flex-1 min-h-0 overflow-y-auto w-full max-w-2xl mx-auto px-4 sm:px-6 py-4 sm:py-6 flex flex-col justify-start">
           {formError && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
@@ -937,7 +962,7 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
 
         {/* BOTTOM STEP NAVIGATION */}
         {!showVerificationScreen && (
-          <footer className="sticky bottom-0 z-30 bg-white/95 dark:bg-[#050816]/95 border-t border-slate-200/90 dark:border-gray-800/80 backdrop-blur-xl px-4 sm:px-8 py-3.5 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
+          <footer className="shrink-0 bg-white dark:bg-[#0E1324] border-t border-slate-200/90 dark:border-gray-800/80 px-4 sm:px-8 py-3.5 z-20">
             <div className="max-w-2xl mx-auto flex items-center justify-between gap-4">
               {step > 1 ? (
                 <button
@@ -984,7 +1009,8 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
             </div>
           </footer>
         )}
-      </motion.div>
+        </motion.div>
+      </div>
     </AnimatePresence>
   );
 }

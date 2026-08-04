@@ -47,6 +47,20 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
       .catch(() => setDbStatus('Supabase Ready'));
   }, []);
 
+  useEffect(() => {
+    if (activeModal) {
+      document.body.classList.add('modal-open');
+      document.documentElement.classList.add('modal-open');
+    } else {
+      document.body.classList.remove('modal-open');
+      document.documentElement.classList.remove('modal-open');
+    }
+    return () => {
+      document.body.classList.remove('modal-open');
+      document.documentElement.classList.remove('modal-open');
+    };
+  }, [activeModal]);
+
   if (!activeModal) return null;
 
   const handleContactSubmit = async (e: React.FormEvent) => {
@@ -104,23 +118,23 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+      <div className="fixed inset-0 z-[99990] flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md overflow-hidden text-gray-900 dark:text-white select-none antialiased">
         {/* Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 bg-black/60 backdrop-blur-md"
+          className="absolute inset-0 bg-transparent"
         />
 
         {/* Modal Window */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
+          exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-          className="relative w-full max-w-3xl rounded-3xl bg-white dark:bg-[#0E1324] border border-gray-200 dark:border-[#6D5BFF]/30 p-6 sm:p-8 shadow-2xl z-10 my-8 text-gray-900 dark:text-white overflow-hidden"
+          className="relative w-full max-w-3xl h-[min(88dvh,660px)] max-h-[88dvh] rounded-3xl bg-white dark:bg-[#0E1324] border border-gray-200 dark:border-[#6D5BFF]/30 p-5 sm:p-7 shadow-2xl z-10 my-auto text-gray-900 dark:text-white flex flex-col overflow-y-auto scrollbar-thin"
         >
           {/* Top Decorative Radial Light */}
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-24 bg-gradient-to-b from-[#6D5BFF]/20 to-transparent blur-xl pointer-events-none" />

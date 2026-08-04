@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { FuturisticLoader } from '@/components/futuristic-loader';
 import { AnimatedBackground } from '@/components/animated-background';
 import { Header } from '@/components/header';
 import { Hero } from '@/components/hero';
@@ -15,6 +16,7 @@ import { ShieldCheck } from 'lucide-react';
 const STORAGE_KEY = 'neomcq_user_session';
 
 export default function HomePage() {
+  const [isBooting, setIsBooting] = useState(true);
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
@@ -62,6 +64,8 @@ export default function HomePage() {
     }
   };
 
+  const isAnyModalActive = isBooting || isOnboardingOpen || activeModal !== null || isAdminOpen || isMobileMenuOpen;
+
   // If user is authenticated & onboarded, display DashboardView
   if (currentUser) {
     return (
@@ -74,9 +78,21 @@ export default function HomePage() {
   }
 
   return (
-    <main className="relative min-h-svh w-screen max-w-full overflow-x-hidden flex flex-col justify-between bg-slate-50 dark:bg-[#050816] transition-colors duration-300">
-      {/* Dynamic AI Canvas Background */}
-      <AnimatedBackground />
+    <>
+      {/* Extremely Futuristic 5-second AI Initializing Bootloader */}
+      <FuturisticLoader onComplete={() => setIsBooting(false)} />
+
+      <main
+        className={`relative min-h-svh w-screen max-w-full flex flex-col justify-between bg-slate-50 dark:bg-[#050816] transition-opacity duration-500 ${
+          isBooting
+            ? 'fixed inset-0 h-screen overflow-hidden opacity-0 pointer-events-none'
+            : isAnyModalActive
+            ? 'h-screen max-h-screen overflow-hidden opacity-100'
+            : 'overflow-x-hidden opacity-100'
+        }`}
+      >
+        {/* Dynamic AI Canvas Background */}
+        <AnimatedBackground />
 
       {/* Navigation Header */}
       <Header
@@ -143,5 +159,6 @@ export default function HomePage() {
         onClose={() => setIsAdminOpen(false)}
       />
     </main>
+    </>
   );
 }

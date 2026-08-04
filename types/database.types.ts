@@ -385,6 +385,137 @@ export interface Database {
           created_at?: string
         }
       }
+      ai_generation_jobs: {
+        Row: {
+          id: string
+          user_id: string
+          job_type: string
+          status: 'pending' | 'processing' | 'completed' | 'failed'
+          input_params: Json
+          result: Json | null
+          error_message: string | null
+          retry_count: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          job_type: string
+          status?: 'pending' | 'processing' | 'completed' | 'failed'
+          input_params?: Json
+          result?: Json | null
+          error_message?: string | null
+          retry_count?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          job_type?: string
+          status?: 'pending' | 'processing' | 'completed' | 'failed'
+          input_params?: Json
+          result?: Json | null
+          error_message?: string | null
+          retry_count?: number
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      ai_content_cache: {
+        Row: {
+          id: string
+          cache_key: string
+          content_type: string
+          payload: Json
+          expires_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          cache_key: string
+          content_type: string
+          payload: Json
+          expires_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          cache_key?: string
+          content_type?: string
+          payload?: Json
+          expires_at?: string | null
+          created_at?: string
+        }
+      }
+      audit_logs: {
+        Row: {
+          id: string
+          user_id: string | null
+          action: string
+          entity_type: string
+          entity_id: string | null
+          details: Json
+          ip_address: string | null
+          user_agent: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id?: string | null
+          action: string
+          entity_type: string
+          entity_id?: string | null
+          details?: Json
+          ip_address?: string | null
+          user_agent?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string | null
+          action?: string
+          entity_type?: string
+          entity_id?: string | null
+          details?: Json
+          ip_address?: string | null
+          user_agent?: string | null
+          created_at?: string
+        }
+      }
+      notifications: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          message: string
+          type: string
+          is_read: boolean
+          metadata: Json | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title: string
+          message: string
+          type?: string
+          is_read?: boolean
+          metadata?: Json | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          message?: string
+          type?: string
+          is_read?: boolean
+          metadata?: Json | null
+          created_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never
@@ -397,6 +528,10 @@ export interface Database {
       is_admin: {
         Args: { p_user_id: string }
         Returns: boolean
+      }
+      log_audit_event: {
+        Args: { p_user_id: string; p_action: string; p_entity_type: string; p_entity_id: string; p_details?: Json }
+        Returns: string
       }
     }
   }
