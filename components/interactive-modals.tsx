@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Check, Sparkles, HelpCircle, Mail, Shield, BookOpen, Globe2, Cpu, ArrowRight, Database, Loader2, Award, Zap, HeartHandshake } from 'lucide-react';
+import { X, Check, Sparkles, HelpCircle, Mail, Shield, BookOpen, Globe2, Cpu, ArrowRight, Database, Loader2, Award, Zap, HeartHandshake, Lock, Eye, EyeOff } from 'lucide-react';
+import { loginAction } from '@/app/actions/auth';
 
 export type ModalType = 'pricing' | 'features' | 'faq' | 'contact' | 'signin' | 'start' | 'exams' | 'why' | 'about' | null;
 
@@ -24,6 +25,10 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
 
   // Sign In State
   const [signInEmail, setSignInEmail] = useState('');
+  const [signInPassword, setSignInPassword] = useState('');
+  const [signInRememberMe, setSignInRememberMe] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
+  const [signInError, setSignInError] = useState('');
   const [signInLoading, setSignInLoading] = useState(false);
   const [signedInSuccess, setSignedInSuccess] = useState(false);
 
@@ -82,17 +87,22 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
   const handleSignInSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSignInLoading(true);
+    setSignInError('');
 
     try {
-      await fetch('/api/signin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: signInEmail }),
-      });
+      const res = await loginAction({ email: signInEmail, password: signInPassword });
+      if (res?.error) {
+        setSignInError(res.error);
+        setSignInLoading(false);
+        return;
+      }
       setSignedInSuccess(true);
-    } catch {
-      setSignedInSuccess(true);
-    } finally {
+      // Seamlessly reload to update server side session and transition to DashboardView
+      setTimeout(() => {
+        window.location.reload();
+      }, 800);
+    } catch (err: any) {
+      setSignInError(err?.message || 'Authentication failed. Please check your credentials.');
       setSignInLoading(false);
     }
   };
@@ -484,42 +494,87 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
                   <div className="w-12 h-12 mx-auto rounded-full bg-emerald-500 text-white flex items-center justify-center">
                     <Check className="w-6 h-6" />
                   </div>
-                  <h3 className="font-heading font-bold text-lg text-emerald-600 dark:text-emerald-400">Recorded in Supabase!</h3>
+                  <h3 className="font-heading font-bold text-lg text-emerald-600 dark:text-emerald-400">Authenticated Successfully!</h3>
                   <p className="text-sm text-gray-600 dark:text-gray-300">
-                    Magic link dispatched to <strong>{signInEmail}</strong>. User lead registered in your Supabase backend.
+                    Signing you in and loading your secure dashboard...
                   </p>
-                  <button
-                    onClick={onClose}
-                    className="mt-4 px-5 py-2.5 text-xs font-semibold rounded-xl bg-[#6D5BFF] text-white cursor-pointer"
-                  >
-                    Close Window
-                  </button>
                 </div>
               ) : (
                 <form onSubmit={handleSignInSubmit} className="space-y-4 pt-2 max-w-md mx-auto">
+                  {signInError && (
+                    <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-semibold">
+                      {signInError}
+                    </div>
+                  )}
+
                   <div>
-                    <label className="block text-xs font-medium mb-1.5 text-gray-700 dark:text-gray-300">Email Address</label>
-                    <input
-                      type="email"
-                      required
-                      value={signInEmail}
-                      onChange={(e) => setSignInEmail(e.target.value)}
-                      placeholder="student@university.edu"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm"
-                    />
+                    <label className="block text-xs font-bold mb-1.5 text-slate-700 dark:text-gray-300">Email Address</label>
+                    <div className="relative">
+                      <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+                      <input
+                        type="email"
+                        required
+                        value={signInEmail}
+                        onChange={(e) => setSignInEmail(e.target.value)}
+                        placeholder="student@university.edu"
+                        className="w-full pl-10 pr-4 py-3 rounded-2xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold mb-1.5 text-slate-700 dark:text-gray-300">Password</label>
+                    <div className="relative">
+                      <Lock className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        required
+                        value={signInPassword}
+                        onChange={(e) => setSignInPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full pl-10 pr-11 py-3 rounded-2xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600 dark:hover:text-gray-200"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs pt-1">
+                    <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-600 dark:text-gray-400">
+                      <input
+                        type="checkbox"
+                        checked={signInRememberMe}
+                        onChange={(e) => setSignInRememberMe(e.target.checked)}
+                        className="rounded border-gray-300 dark:border-gray-700 text-[#6D5BFF] focus:ring-[#6D5BFF] cursor-pointer"
+                      />
+                      <span>Remember Me</span>
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={() => alert('An email reset link has been dispatched to your address.')}
+                      className="text-[#6D5BFF] dark:text-[#00D4FF] hover:underline cursor-pointer font-bold"
+                    >
+                      Forgot Password?
+                    </button>
                   </div>
 
                   <button
                     type="submit"
                     disabled={signInLoading}
-                    className="w-full py-3 rounded-xl bg-gradient-to-r from-[#6D5BFF] to-[#00D4FF] text-white font-semibold text-sm shadow-md hover:opacity-95 transition-opacity flex items-center justify-center gap-2 cursor-pointer"
+                    className="w-full mt-4 py-3.5 rounded-2xl bg-gradient-to-r from-[#6D5BFF] to-[#00D4FF] text-white font-extrabold text-xs sm:text-sm shadow-lg shadow-[#6D5BFF]/25 hover:opacity-95 transition-opacity flex items-center justify-center gap-2 cursor-pointer"
                   >
                     {signInLoading ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin" /> Verifying Supabase...
+                        <Loader2 className="w-4 h-4 animate-spin" /> Verifying Credentials...
                       </>
                     ) : (
-                      'Continue with Magic Link'
+                      'Sign In'
                     )}
                   </button>
                 </form>

@@ -1,0 +1,109 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { getSupabaseClient } from '@/lib/supabase';
+import { OnboardingData } from '@/components/onboarding-flow';
+import { DashboardView } from '@/components/dashboard-view';
+import { FuturisticLoader } from '@/components/futuristic-loader';
+
+const STORAGE_KEY = 'neomcq_user_session';
+
+export default function DashboardPage() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<OnboardingData | null>(null);
+
+  useEffect(() => {
+    const fetchSessionAndProfile = async () => {
+      try {
+        const supabase = getSupabaseClient();
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (user) {
+          // 1. Fetch profile details
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .maybeSingle();
+
+          // 2. Fetch linked exams
+          const { data: userExam } = await supabase
+            .from('user_exams')
+            .select('*, exams(*)')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+          // 3. Fetch study preferences
+          const { data: studyPref } = await supabase
+            .from('study_preferences')
+            .select('*')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+          const examDateStr = (userExam as any)?.target_date || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+          const daysLeftVal = Math.max(1, Math.ceil((new Date(examDateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+
+          const fullUser: OnboardingData = {
+            firstName: profile?.first_name || user.email?.split('@')[0] || 'Learner',
+            lastName: profile?.last_name || '',
+            email: user.email || '',
+            phone: profile?.phone || '',
+            countryCode: '',
+            country: 'Global',
+            language: 'English',
+            examName: (userExam as any)?.exams?.name || 'USMLE Step 1 & 2 CK',
+            examDate: examDateStr,
+            daysLeft: daysLeftVal,
+            weeksLeft: Math.ceil(daysLeftVal / 7),
+            monthsLeft: Math.ceil(daysLeftVal / 30),
+            learningStyle: studyPref?.learning_mode === 'mastery' ? 'Balanced Study' : 'Rapid Learning',
+            studyHours: studyPref?.daily_hours || 2,
+            studyTime: studyPref?.preferred_time ? (studyPref.preferred_time.charAt(0).toUpperCase() + studyPref.preferred_time.slice(1) as any) : 'Morning',
+            studyGoals: ['Pass Exam', 'High Score'],
+          };
+
+          setCurrentUser(fullUser);
+        } else {
+          // No user, middleware should catch but we double guard
+          router.push('/auth/sign-in');
+        }
+      } catch (err) {
+        console.error('Error loading dashboard session:', err);
+        router.push('/auth/sign-in');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSessionAndProfile();
+  }, [router]);
+
+  const handleSignOut = async () => {
+    try {
+      const supabase = getSupabaseClient();
+      await supabase.auth.signOut();
+      localStorage.removeItem(STORAGE_KEY);
+      router.push('/auth/sign-in');
+    } catch (err) {
+      console.error('Error signing out:', err);
+    }
+  };
+
+  if (loading) {
+    return <FuturisticLoader onComplete={() => {}} />;
+  }
+
+  if (!currentUser) {
+    return null;
+  }
+
+  return (
+    <DashboardView
+      user={currentUser}
+      onSignOut={handleSignOut}
+      onOpenPractice={() => alert('Starting adaptive exam module...')}
+    />
+  );
+}

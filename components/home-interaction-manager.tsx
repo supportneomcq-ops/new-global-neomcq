@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FuturisticLoader } from './futuristic-loader';
 import { Header } from './header';
 import { Hero } from './hero';
@@ -10,6 +10,8 @@ import { OnboardingFlow, OnboardingData } from './onboarding-flow';
 import { DashboardView } from './dashboard-view';
 import { AdminPanel } from './admin-panel';
 import { ShieldCheck } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { getSupabaseClient } from '@/lib/supabase';
 
 const STORAGE_KEY = 'neomcq_user_session';
 
@@ -18,6 +20,7 @@ interface HomeInteractionManagerProps {
 }
 
 export function HomeInteractionManager({ marquee }: HomeInteractionManagerProps) {
+  const router = useRouter();
   const [isBooting, setIsBooting] = useState(true);
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -41,6 +44,35 @@ export function HomeInteractionManager({ marquee }: HomeInteractionManagerProps)
     return null;
   });
 
+  useEffect(() => {
+    const checkRedirect = async () => {
+      try {
+        const supabase = getSupabaseClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: userRoles } = await supabase
+            .from('user_roles')
+            .select('roles(name)')
+            .eq('user_id', user.id);
+
+          const roleNames = userRoles?.map((r: any) => r.roles?.name).filter(Boolean) || [];
+          if (roleNames.includes('admin') || roleNames.includes('super_admin')) {
+            router.push('/admin');
+          } else if (roleNames.includes('support')) {
+            router.push('/support');
+          } else {
+            router.push('/dashboard');
+          }
+        } else if (currentUser) {
+          router.push('/dashboard');
+        }
+      } catch (err) {
+        console.error('Error verifying active session on landing page:', err);
+      }
+    };
+    checkRedirect();
+  }, [router, currentUser]);
+
   const handleStartOnboarding = () => {
     setActiveModal(null);
     setIsMobileMenuOpen(false);
@@ -55,6 +87,7 @@ export function HomeInteractionManager({ marquee }: HomeInteractionManagerProps)
     } catch {
       // Ignore storage write error
     }
+    router.push('/dashboard');
   };
 
   const handleSignOut = () => {

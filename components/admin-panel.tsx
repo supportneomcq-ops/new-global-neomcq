@@ -27,6 +27,7 @@ import {
   Check,
   X
 } from 'lucide-react';
+import { getSupabaseClient } from '@/lib/supabase';
 
 interface AdminPanelProps {
   isOpen: boolean;
@@ -56,9 +57,34 @@ export function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
   });
 
   useEffect(() => {
+    const fetchRealProfiles = async () => {
+      try {
+        const supabase = getSupabaseClient();
+        const { data: profiles, error } = await supabase
+          .from('profiles')
+          .select('id, first_name, last_name, email, timezone, created_at');
+
+        if (profiles && !error && profiles.length > 0) {
+          const mapped = profiles.map((p) => ({
+            id: p.id,
+            name: `${p.first_name || 'System'} ${p.last_name || 'User'}`,
+            email: p.email,
+            exam: 'USMLE Step 1 & 2 CK',
+            country: p.timezone || 'Global',
+            status: 'Active',
+            hours: '12 hrs',
+          }));
+          setMockUsers(mapped);
+        }
+      } catch (err) {
+        console.error('Error fetching real profiles inside admin panel:', err);
+      }
+    };
+
     if (isOpen) {
       document.body.classList.add('modal-open');
       document.documentElement.classList.add('modal-open');
+      fetchRealProfiles();
     } else {
       document.body.classList.remove('modal-open');
       document.documentElement.classList.remove('modal-open');

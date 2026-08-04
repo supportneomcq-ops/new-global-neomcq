@@ -6,6 +6,8 @@ import { ThemeToggle } from './theme-toggle';
 import { Menu, LogIn, Sparkles } from 'lucide-react';
 import { ModalType } from './interactive-modals';
 
+import { useRouter } from 'next/navigation';
+
 interface HeaderProps {
   onOpenModal: (modal: ModalType) => void;
   onOpenMobileMenu: () => void;
@@ -13,6 +15,7 @@ interface HeaderProps {
 }
 
 export function Header({ onOpenModal, onOpenMobileMenu, onStartFree }: HeaderProps) {
+  const router = useRouter();
   return (
     <header className="w-full pt-3 sm:pt-4 px-3 sm:px-6 lg:px-8 z-40 transition-all duration-300">
       <div className="max-w-7xl mx-auto h-14 sm:h-16 flex items-center justify-between px-4 sm:px-6 rounded-full bg-white/90 dark:bg-[#050816]/85 border border-slate-200/90 dark:border-[#6D5BFF]/30 backdrop-blur-xl shadow-lg shadow-black/5 dark:shadow-black/30">
@@ -66,7 +69,7 @@ export function Header({ onOpenModal, onOpenMobileMenu, onStartFree }: HeaderPro
 
           {/* Desktop Sign In button */}
           <button
-            onClick={() => onOpenModal('signin')}
+            onClick={() => router.push('/auth/sign-in')}
             className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-slate-300/80 dark:border-gray-700 hover:border-[#6D5BFF] dark:hover:border-[#00D4FF] text-xs font-heading font-bold text-slate-800 dark:text-gray-100 hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
           >
             <LogIn className="w-3.5 h-3.5 text-[#6D5BFF] dark:text-[#00D4FF]" />

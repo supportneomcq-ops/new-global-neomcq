@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Sparkles, ChevronRight, UserCheck, CreditCard, Cpu, HelpCircle, Mail } from 'lucide-react';
 import { Logo } from './logo';
 import { ModalType } from './interactive-modals';
+import { useRouter } from 'next/navigation';
 
 interface MobileMenuProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ interface MobileMenuProps {
 }
 
 export function MobileMenu({ isOpen, onClose, onOpenModal }: MobileMenuProps) {
+  const router = useRouter();
   useEffect(() => {
     if (isOpen) {
       document.body.classList.add('modal-open');
@@ -75,7 +77,11 @@ export function MobileMenu({ isOpen, onClose, onOpenModal }: MobileMenuProps) {
                     key={item.label}
                     onClick={() => {
                       onClose();
-                      onOpenModal(item.modal);
+                      if (item.modal === 'signin') {
+                        router.push('/auth/sign-in');
+                      } else {
+                        onOpenModal(item.modal);
+                      }
                     }}
                     className="w-full flex items-center justify-between p-3 rounded-2xl text-left font-heading font-medium text-sm sm:text-base hover:bg-slate-100 dark:hover:bg-[#6D5BFF]/15 text-slate-800 dark:text-gray-100 transition-colors group cursor-pointer"
                   >
