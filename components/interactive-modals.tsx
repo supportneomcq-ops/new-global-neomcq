@@ -61,8 +61,6 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
     };
   }, [activeModal]);
 
-  if (!activeModal) return null;
-
   const handleContactSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setContactLoading(true);
@@ -116,26 +114,26 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
     }
   };
 
-  return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-[99990] flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md overflow-hidden text-gray-900 dark:text-white select-none antialiased">
-        {/* Backdrop */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={onClose}
-          className="absolute inset-0 bg-transparent"
-        />
+  const isOpen = activeModal !== null;
 
-        {/* Modal Window */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 15 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-          className="relative w-full max-w-3xl h-[min(88dvh,660px)] max-h-[88dvh] rounded-3xl bg-white dark:bg-[#0E1324] border border-gray-200 dark:border-[#6D5BFF]/30 p-5 sm:p-7 shadow-2xl z-10 my-auto text-gray-900 dark:text-white flex flex-col overflow-y-auto scrollbar-thin"
-        >
+  return (
+    <div
+      className={`fixed inset-0 z-[99990] flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md overflow-hidden text-gray-900 dark:text-white select-none antialiased transition-all duration-300 ${
+        isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+      }`}
+    >
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        className="absolute inset-0 bg-transparent cursor-pointer"
+      />
+
+      {/* Modal Window */}
+      <div
+        className={`relative w-full max-w-3xl h-[min(88dvh,660px)] max-h-[88dvh] rounded-3xl bg-white dark:bg-[#0E1324] border border-gray-200 dark:border-[#6D5BFF]/30 p-5 sm:p-7 shadow-2xl z-10 my-auto text-gray-900 dark:text-white flex flex-col overflow-y-auto scrollbar-thin transition-all duration-300 transform ${
+          isOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-4'
+        }`}
+      >
           {/* Top Decorative Radial Light */}
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-24 bg-gradient-to-b from-[#6D5BFF]/20 to-transparent blur-xl pointer-events-none" />
 
@@ -615,8 +613,7 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
               )}
             </div>
           )}
-        </motion.div>
       </div>
-    </AnimatePresence>
+    </div>
   );
 }

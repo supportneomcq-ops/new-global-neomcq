@@ -1,7 +1,4 @@
-'use client';
-
 import React from 'react';
-import { motion } from 'motion/react';
 
 interface LogoProps {
   className?: string;
@@ -54,7 +51,7 @@ export function Logo({ className = '', size = 'md', showText = true }: LogoProps
           </defs>
 
           {/* 1. Outer Precision Orbital Ring (Slow rotation) */}
-          <motion.circle
+          <circle
             cx="50"
             cy="50"
             r="40"
@@ -62,13 +59,12 @@ export function Logo({ className = '', size = 'md', showText = true }: LogoProps
             strokeWidth="2"
             strokeDasharray="6 14 18 10"
             opacity="0.85"
-            animate={{ rotate: 360 }}
-            transition={{ duration: 24, repeat: Infinity, ease: 'linear' }}
+            className="animate-logo-spin-slow"
             style={{ transformOrigin: '50px 50px' }}
           />
 
           {/* 2. Secondary Reverse Orbit Ring */}
-          <motion.circle
+          <circle
             cx="50"
             cy="50"
             r="32"
@@ -76,25 +72,22 @@ export function Logo({ className = '', size = 'md', showText = true }: LogoProps
             strokeWidth="1.2"
             strokeDasharray="4 20"
             opacity="0.6"
-            animate={{ rotate: -360 }}
-            transition={{ duration: 18, repeat: Infinity, ease: 'linear' }}
+            className="animate-logo-spin-reverse"
             style={{ transformOrigin: '50px 50px' }}
           />
 
           {/* 3. Orbiting Micro-Satellite Node */}
-          <motion.g
-            animate={{ rotate: 360 }}
-            transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
+          <g
+            className="animate-logo-satellite"
             style={{ transformOrigin: '50px 50px' }}
           >
             <circle cx="50" cy="10" r="3.5" fill="#00D4FF" filter="url(#neoCoreGlow)" />
             <circle cx="50" cy="90" r="2.5" fill="#A855F7" opacity="0.8" />
-          </motion.g>
+          </g>
 
           {/* 4. Breathing Precision Geometric Core */}
-          <motion.g
-            animate={{ scale: [0.92, 1.06, 0.92], opacity: [0.85, 1, 0.85] }}
-            transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
+          <g
+            className="animate-logo-pulse"
             style={{ transformOrigin: '50px 50px' }}
           >
             {/* Outer Diamond */}
@@ -120,7 +113,7 @@ export function Logo({ className = '', size = 'md', showText = true }: LogoProps
             {/* Center Pulsing Light Prism */}
             <circle cx="50" cy="50" r="6" fill="url(#neoMainGrad)" filter="url(#neoCoreGlow)" />
             <circle cx="50" cy="50" r="2.5" fill="#FFFFFF" />
-          </motion.g>
+          </g>
         </svg>
       </div>
 

@@ -27,8 +27,6 @@ export function MobileMenu({ isOpen, onClose, onOpenModal }: MobileMenuProps) {
     };
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
   const menuItems: { label: string; modal: ModalType; badge?: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { label: 'Pricing Plans', modal: 'pricing', icon: CreditCard },
     { label: 'AI Features', modal: 'features', badge: 'v2.4', icon: Cpu },
@@ -38,25 +36,23 @@ export function MobileMenu({ isOpen, onClose, onOpenModal }: MobileMenuProps) {
   ];
 
   return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex justify-end overflow-hidden">
-        {/* Backdrop overlay */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={onClose}
-          className="fixed inset-0 bg-slate-900/60 dark:bg-black/70 backdrop-blur-md"
-        />
+    <div
+      className={`fixed inset-0 z-50 flex justify-end overflow-hidden transition-all duration-300 ${
+        isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+      }`}
+    >
+      {/* Backdrop overlay */}
+      <div
+        onClick={onClose}
+        className="fixed inset-0 bg-slate-900/60 dark:bg-black/70 backdrop-blur-md cursor-pointer"
+      />
 
-        {/* 100% Viewport Height Safe-Area Aware Slide Drawer */}
-        <motion.div
-          initial={{ x: '100%' }}
-          animate={{ x: 0 }}
-          exit={{ x: '100%' }}
-          transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-          className="relative w-[85%] max-w-sm h-dvh bg-white/95 dark:bg-[#0E1324]/95 backdrop-blur-2xl border-l border-slate-200 dark:border-[#6D5BFF]/30 px-5 pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))] flex flex-col justify-between shadow-2xl z-50 text-slate-900 dark:text-white overflow-y-auto"
-        >
+      {/* 100% Viewport Height Safe-Area Aware Slide Drawer */}
+      <div
+        className={`relative w-[85%] max-w-sm h-dvh bg-white/95 dark:bg-[#0E1324]/95 backdrop-blur-2xl border-l border-slate-200 dark:border-[#6D5BFF]/30 px-5 pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))] flex flex-col justify-between shadow-2xl z-50 text-slate-900 dark:text-white overflow-y-auto transition-transform duration-300 transform ${
+          isOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
           {/* Header & Logo Section */}
           <div>
             <div className="flex items-center justify-between pb-4 border-b border-slate-200/80 dark:border-gray-800">
@@ -116,9 +112,8 @@ export function MobileMenu({ isOpen, onClose, onOpenModal }: MobileMenuProps) {
               No credit card required • 180+ Country Syllabus
             </p>
           </div>
-        </motion.div>
       </div>
-    </AnimatePresence>
+    </div>
   );
 }
 

@@ -1,16 +1,13 @@
-'use client';
-
 import React from 'react';
-import { motion } from 'motion/react';
-import { Brain, BookOpen, BarChart3, Target, GraduationCap, Sparkles } from 'lucide-react';
+import { Brain, BookOpen, BarChart3, Target, GraduationCap } from 'lucide-react';
 
 export function AIOrb() {
   const nodeIcons = [
-    { icon: Brain, label: 'Adaptive AI', angle: 0, radius: 110, color: 'from-purple-500 to-indigo-600' },
-    { icon: BookOpen, label: 'Q-Banks', angle: 72, radius: 125, color: 'from-blue-500 to-cyan-400' },
-    { icon: BarChart3, label: 'Analytics', angle: 144, radius: 115, color: 'from-emerald-400 to-teal-500' },
-    { icon: Target, label: 'Precision', angle: 216, radius: 120, color: 'from-rose-500 to-pink-500' },
-    { icon: GraduationCap, label: 'Syllabi', angle: 288, radius: 110, color: 'from-amber-400 to-orange-500' },
+    { icon: Brain, label: 'Adaptive AI', angle: 0, color: 'from-purple-500 to-indigo-600', anim: 'animate-node-float-0' },
+    { icon: BookOpen, label: 'Q-Banks', angle: 72, color: 'from-blue-500 to-cyan-400', anim: 'animate-node-float-1' },
+    { icon: BarChart3, label: 'Analytics', angle: 144, color: 'from-emerald-400 to-teal-500', anim: 'animate-node-float-2' },
+    { icon: Target, label: 'Precision', angle: 216, color: 'from-rose-500 to-pink-500', anim: 'animate-node-float-3' },
+    { icon: GraduationCap, label: 'Syllabi', angle: 288, color: 'from-amber-400 to-orange-500', anim: 'animate-node-float-4' },
   ];
 
   return (
@@ -24,24 +21,11 @@ export function AIOrb() {
       <div className="absolute bottom-6 sm:bottom-10 w-2/3 h-12 sm:h-16 rounded-full border border-[#00D4FF]/40 bg-[#00D4FF]/5 blur-xs transform rotate-X-60" />
 
       {/* 3. Outer Rotating Holographic Grid Ring */}
-      <motion.div
-        animate={{ rotate: 360 }}
-        transition={{ duration: 40, repeat: Infinity, ease: 'linear' }}
-        className="absolute w-full h-full rounded-full border border-dashed border-[#6D5BFF]/25 dark:border-[#00D4FF]/20"
-      />
-
-      <motion.div
-        animate={{ rotate: -360 }}
-        transition={{ duration: 28, repeat: Infinity, ease: 'linear' }}
-        className="absolute w-5/6 h-5/6 rounded-full border border-dotted border-[#00D4FF]/30"
-      />
+      <div className="absolute w-full h-full rounded-full border border-dashed border-[#6D5BFF]/25 dark:border-[#00D4FF]/20 animate-logo-spin-slow" />
+      <div className="absolute w-5/6 h-5/6 rounded-full border border-dotted border-[#00D4FF]/30 animate-logo-spin-reverse" />
 
       {/* 4. Central Glowing Sphere Container */}
-      <motion.div
-        animate={{ y: [-8, 8, -8] }}
-        transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-        className="relative w-48 h-48 sm:w-64 sm:h-64 rounded-full flex items-center justify-center"
-      >
+      <div className="relative w-48 h-48 sm:w-64 sm:h-64 rounded-full flex items-center justify-center animate-orb-float">
         {/* Glass Orb Shell */}
         <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/30 via-[#6D5BFF]/15 to-black/20 dark:from-white/10 dark:via-[#6D5BFF]/20 dark:to-black/60 border border-white/40 dark:border-white/15 backdrop-blur-md shadow-2xl shadow-[#6D5BFF]/30 overflow-hidden">
           {/* Inner Glowing Star Core */}
@@ -65,11 +49,10 @@ export function AIOrb() {
             <line x1="12" y1="50" x2="88" y2="50" stroke="#00D4FF" strokeWidth="0.8" opacity="0.4" />
 
             {/* Core Neural Star */}
-            <motion.path
+            <path
               d="M50 15 Q50 50 85 50 Q50 50 50 85 Q50 50 15 50 Q50 50 50 15 Z"
               fill="url(#orbCoreGrad)"
-              animate={{ scale: [0.95, 1.05, 0.95] }}
-              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+              className="animate-logo-pulse"
               style={{ transformOrigin: '50px 50px' }}
             />
 
@@ -79,25 +62,15 @@ export function AIOrb() {
         </div>
 
         {/* 5. Orbiting Floating Satellite Badges */}
-        {nodeIcons.map((node, idx) => {
+        {nodeIcons.map((node) => {
           const Icon = node.icon;
           return (
-            <motion.div
+            <div
               key={node.label}
-              animate={{
-                y: [Number((Math.sin(idx) * 6).toFixed(2)), Number((Math.cos(idx) * -6).toFixed(2)), Number((Math.sin(idx) * 6).toFixed(2))],
-                x: [Number((Math.cos(idx) * 4).toFixed(2)), Number((Math.sin(idx) * -4).toFixed(2)), Number((Math.cos(idx) * 4).toFixed(2))],
-              }}
-              transition={{
-                duration: 4 + idx,
-                repeat: Infinity,
-                ease: 'easeInOut',
-              }}
-              className="absolute pointer-events-auto"
+              className={`absolute pointer-events-auto ${node.anim}`}
               style={{
                 top: `${(50 + Math.sin((node.angle * Math.PI) / 180) * 42).toFixed(2)}%`,
                 left: `${(50 + Math.cos((node.angle * Math.PI) / 180) * 42).toFixed(2)}%`,
-                transform: 'translate(-50%, -50%)',
               }}
             >
               <div className="flex items-center gap-1.5 p-2 sm:p-2.5 rounded-2xl bg-white/90 dark:bg-[#0E1324]/90 border border-slate-200 dark:border-[#6D5BFF]/40 backdrop-blur-xl shadow-lg hover:scale-110 transition-transform cursor-pointer group">
@@ -108,10 +81,10 @@ export function AIOrb() {
                   {node.label}
                 </span>
               </div>
-            </motion.div>
+            </div>
           );
         })}
-      </motion.div>
+      </div>
     </div>
   );
 }

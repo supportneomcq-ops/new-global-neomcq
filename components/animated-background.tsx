@@ -1,32 +1,46 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { motion } from 'motion/react';
 import { useTheme } from 'next-themes';
 
 export function AnimatedBackground() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: -500, y: -500 });
+  const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: -1000, y: -1000 });
   const { resolvedTheme } = useTheme();
 
   // Mouse tracking spotlight (only on desktop/pointer)
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
-    // Skip heavy mouse listener on touch devices
+    // Skip heavy mouse listener on touch/mobile devices
     const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     if (isTouch) return;
 
+    let frameId: number;
     const handleMouseMove = (e: MouseEvent) => {
-      setMousePos({ x: e.clientX, y: e.clientY });
+      if (frameId) cancelAnimationFrame(frameId);
+      frameId = requestAnimationFrame(() => {
+        setMousePos({ x: e.clientX, y: e.clientY });
+      });
     };
 
     window.addEventListener('mousemove', handleMouseMove, { passive: true });
-    return () => window.removeEventListener('mousemove', handleMouseMove);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      if (frameId) cancelAnimationFrame(frameId);
+    };
   }, []);
 
-  // Neural nodes and animated connection lines canvas
+  // Neural nodes and animated connection lines canvas (Desktop only)
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const isMobile = window.innerWidth < 768;
+    
+    // Completely skip canvas logic on mobile/touch to preserve CPU and battery
+    if (isTouch || isMobile) return;
+
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -36,7 +50,6 @@ export function AnimatedBackground() {
     let animationFrameId: number;
     let width = (canvas.width = window.innerWidth);
     let height = (canvas.height = window.innerHeight);
-    const isMobile = width < 640;
 
     const handleResize = () => {
       if (!canvas) return;
@@ -47,10 +60,9 @@ export function AnimatedBackground() {
     window.addEventListener('resize', handleResize, { passive: true });
 
     const isDark = resolvedTheme !== 'light';
-    const maxDist = isMobile ? 120 : 160;
+    const maxDist = 150;
+    const nodeCount = Math.min(Math.floor(width / 40), 30);
 
-    // Deterministic static positions for initial render / SSR compatibility
-    const nodeCount = isMobile ? 18 : Math.min(Math.floor(width / 35), 40);
     interface Node {
       x: number;
       y: number;
@@ -65,13 +77,13 @@ export function AnimatedBackground() {
     const colors = ['#6D5BFF', '#00D4FF', '#A855F7', '#3B82F6'];
 
     const nodes: Node[] = Array.from({ length: nodeCount }, (_, idx) => ({
-      x: ((idx * 137.5) % width),
-      y: ((idx * 223.7) % height),
-      vx: ((idx % 2 === 0 ? 1 : -1) * 0.3),
-      vy: ((idx % 3 === 0 ? 1 : -1) * 0.3),
+      x: ((idx * 157.5) % width),
+      y: ((idx * 253.7) % height),
+      vx: ((idx % 2 === 0 ? 1 : -1) * 0.2),
+      vy: ((idx % 3 === 0 ? 1 : -1) * 0.2),
       radius: (idx % 3) + 1.2,
       pulse: (idx * 0.5),
-      pulseSpeed: 0.015,
+      pulseSpeed: 0.01,
       color: colors[idx % colors.length],
     }));
 
@@ -86,13 +98,13 @@ export function AnimatedBackground() {
           const dist = Math.sqrt(dx * dx + dy * dy);
 
           if (dist < maxDist) {
-            const baseOpacity = isDark ? 0.2 : 0.12;
+            const baseOpacity = isDark ? 0.16 : 0.08;
             const opacity = (1 - dist / maxDist) * baseOpacity;
             ctx.beginPath();
             ctx.moveTo(nodes[i].x, nodes[i].y);
             ctx.lineTo(nodes[j].x, nodes[j].y);
             ctx.strokeStyle = `rgba(109, 91, 255, ${opacity})`;
-            ctx.lineWidth = 0.9;
+            ctx.lineWidth = 0.8;
             ctx.stroke();
           }
         }
@@ -109,13 +121,12 @@ export function AnimatedBackground() {
         if (n.y < 0 || n.y > height) n.vy *= -1;
 
         n.pulse += n.pulseSpeed;
-        const currentRadius = n.radius + Math.sin(n.pulse) * 0.6;
+        const currentRadius = n.radius + Math.sin(n.pulse) * 0.5;
 
         // Glow
-        ctx.save();
         ctx.beginPath();
-        ctx.arc(n.x, n.y, currentRadius * 1.8, 0, Math.PI * 2);
-        ctx.fillStyle = `${n.color}${isDark ? '1A' : '10'}`;
+        ctx.arc(n.x, n.y, currentRadius * 1.6, 0, Math.PI * 2);
+        ctx.fillStyle = `${n.color}${isDark ? '12' : '08'}`;
         ctx.fill();
 
         // Solid Node Core
@@ -123,7 +134,6 @@ export function AnimatedBackground() {
         ctx.arc(n.x, n.y, currentRadius, 0, Math.PI * 2);
         ctx.fillStyle = n.color;
         ctx.fill();
-        ctx.restore();
       }
 
       animationFrameId = requestAnimationFrame(draw);
@@ -139,53 +149,28 @@ export function AnimatedBackground() {
 
   return (
     <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden select-none">
-      {/* 1. Animated Gradient Mesh Blobs */}
-      <motion.div
-        animate={{
-          scale: [1, 1.15, 1],
-          x: [0, 25, 0],
-          y: [0, -20, 0],
-        }}
-        transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute -top-40 -left-40 w-[450px] sm:w-[600px] h-[450px] sm:h-[600px] rounded-full bg-gradient-to-br from-[#6D5BFF]/15 via-[#00D4FF]/10 to-transparent blur-[100px] sm:blur-[120px] opacity-75 dark:opacity-70"
-      />
+      {/* 1. GPU CSS-Animated Gradient Mesh Blobs - Entirely CSS/GPU driven */}
+      <div className="absolute -top-40 -left-40 w-[450px] sm:w-[600px] h-[450px] sm:h-[600px] rounded-full bg-gradient-to-br from-[#6D5BFF]/15 via-[#00D4FF]/10 to-transparent blur-[100px] sm:blur-[120px] opacity-75 dark:opacity-70 animate-bg-blob-1 gpu-accelerated" />
 
-      <motion.div
-        animate={{
-          scale: [1, 1.2, 1],
-          x: [0, -30, 0],
-          y: [0, 30, 0],
-        }}
-        transition={{ duration: 24, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute top-1/3 -right-40 w-[480px] sm:w-[650px] h-[480px] sm:h-[650px] rounded-full bg-gradient-to-bl from-[#A855F7]/15 via-[#6D5BFF]/10 to-transparent blur-[110px] sm:blur-[140px] opacity-65 dark:opacity-60"
-      />
+      <div className="absolute top-1/3 -right-40 w-[480px] sm:w-[650px] h-[480px] sm:h-[650px] rounded-full bg-gradient-to-bl from-[#A855F7]/15 via-[#6D5BFF]/10 to-transparent blur-[110px] sm:blur-[140px] opacity-65 dark:opacity-60 animate-bg-bg-blob-2 gpu-accelerated" />
 
-      <motion.div
-        animate={{
-          scale: [1.05, 0.95, 1.05],
-          x: [0, 20, 0],
-          y: [0, 35, 0],
-        }}
-        transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute -bottom-40 left-1/4 w-[500px] sm:w-[700px] h-[500px] sm:h-[700px] rounded-full bg-gradient-to-t from-[#00D4FF]/10 via-[#6D5BFF]/08 to-transparent blur-[120px] sm:blur-[150px] opacity-55 dark:opacity-50"
-      />
+      <div className="absolute -bottom-40 left-1/4 w-[500px] sm:w-[700px] h-[500px] sm:h-[700px] rounded-full bg-gradient-to-t from-[#00D4FF]/10 via-[#6D5BFF]/08 to-transparent blur-[120px] sm:blur-[150px] opacity-55 dark:opacity-50 animate-bg-blob-3 gpu-accelerated" />
 
       {/* 2. Faint Grid Pattern Overlay */}
       <div className="absolute inset-0 bg-grid-pattern opacity-30 dark:opacity-50" />
 
       {/* 3. Interactive Mouse Spotlight Glow */}
-      {mousePos.x > 0 && (
+      {mousePos.x > -500 && (
         <div
-          className="absolute inset-0 transition-opacity duration-300 hidden sm:block"
+          className="absolute inset-0 transition-opacity duration-300 hidden md:block"
           style={{
-            background: `radial-gradient(600px circle at ${mousePos.x}px ${mousePos.y}px, rgba(109, 91, 255, 0.08), transparent 80%)`,
+            background: `radial-gradient(600px circle at ${mousePos.x}px ${mousePos.y}px, rgba(109, 91, 255, 0.06), transparent 80%)`,
           }}
         />
       )}
 
-      {/* 4. Canvas Neural Network Nodes & Connection Lines */}
-      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full opacity-60 dark:opacity-80" />
+      {/* 4. Canvas Neural Network Nodes & Connection Lines (Pre-rendered only on desktop) */}
+      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full opacity-60 dark:opacity-80 hidden md:block" />
     </div>
   );
 }
-

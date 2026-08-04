@@ -69,17 +69,17 @@ export function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
     };
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
   return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-hidden">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.96 }}
-          className="w-full max-w-6xl h-[90vh] bg-white dark:bg-[#090D1E] rounded-3xl border border-slate-200 dark:border-gray-800 shadow-2xl flex flex-col overflow-hidden text-slate-900 dark:text-white"
-        >
+    <div
+      className={`fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-hidden transition-all duration-300 ${
+        isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+      }`}
+    >
+      <div
+        className={`w-full max-w-6xl h-[90vh] bg-white dark:bg-[#090D1E] rounded-3xl border border-slate-200 dark:border-gray-800 shadow-2xl flex flex-col overflow-hidden text-slate-900 dark:text-white transition-all duration-300 transform ${
+          isOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-4'
+        }`}
+      >
           {/* Top Admin Header */}
           <div className="px-6 py-4 border-b border-slate-200 dark:border-gray-800 flex items-center justify-between bg-slate-50/50 dark:bg-[#050816]/50">
             <div className="flex items-center gap-3">
@@ -352,8 +352,7 @@ export function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
               </div>
             )}
           </div>
-        </motion.div>
       </div>
-    </AnimatePresence>
+    </div>
   );
 }
