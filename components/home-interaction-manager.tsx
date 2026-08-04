@@ -76,7 +76,13 @@ export function HomeInteractionManager({ marquee }: HomeInteractionManagerProps)
   const handleStartOnboarding = () => {
     setActiveModal(null);
     setIsMobileMenuOpen(false);
-    setIsOnboardingOpen(true);
+    router.push('/onboarding');
+  };
+
+  const handleSignIn = () => {
+    setActiveModal(null);
+    setIsMobileMenuOpen(false);
+    router.push('/auth/sign-in');
   };
 
   const handleOnboardingComplete = (data: OnboardingData) => {
@@ -129,7 +135,9 @@ export function HomeInteractionManager({ marquee }: HomeInteractionManagerProps)
         {/* Navigation Header */}
         <Header
           onOpenModal={(modal) => {
-            if (modal === 'start' || modal === 'signin') {
+            if (modal === 'signin') {
+              handleSignIn();
+            } else if (modal === 'start') {
               handleStartOnboarding();
             } else {
               setActiveModal(modal);
@@ -164,7 +172,9 @@ export function HomeInteractionManager({ marquee }: HomeInteractionManagerProps)
           isOpen={isMobileMenuOpen}
           onClose={() => setIsMobileMenuOpen(false)}
           onOpenModal={(modal) => {
-            if (modal === 'start' || modal === 'signin') {
+            if (modal === 'signin') {
+              handleSignIn();
+            } else if (modal === 'start') {
               handleStartOnboarding();
             } else {
               setActiveModal(modal);

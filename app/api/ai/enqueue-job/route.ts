@@ -3,7 +3,16 @@ import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 
 const enqueueJobSchema = z.object({
-  jobType: z.enum(['study_plan', 'question_bank', 'summary_notes', 'mock_exam', 'adaptive_quiz']),
+  jobType: z.enum([
+    'study_plan',
+    'question_bank',
+    'summary_notes',
+    'mock_exam',
+    'adaptive_quiz',
+    'exam_syllabus',
+    'exam_structure',
+    'exam_topics',
+  ]),
   inputParams: z.record(z.string(), z.any()),
 })
 

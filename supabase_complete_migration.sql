@@ -629,3 +629,159 @@ ON CONFLICT (slug) DO NOTHING;
 -- =====================================================================
 -- SUCCESS! All NeoMCQ database tables, triggers, and seed data created.
 -- =====================================================================
+
+-- =====================================================================
+-- 12. GLOBAL AI EXAM ENGINE SCHEMA & VERSIONING
+-- =====================================================================
+
+ALTER TABLE public.exams 
+  ADD COLUMN IF NOT EXISTS aliases TEXT[] DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS ai_confidence_score NUMERIC(5,2) DEFAULT 98.50,
+  ADD COLUMN IF NOT EXISTS official_website TEXT,
+  ADD COLUMN IF NOT EXISTS ai_version TEXT DEFAULT 'v3.5',
+  ADD COLUMN IF NOT EXISTS prompt_version TEXT DEFAULT '2026-v1',
+  ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'AI Engine',
+  ADD COLUMN IF NOT EXISTS version INTEGER DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS approval_status TEXT CHECK (approval_status IN ('auto_approved', 'pending_review', 'approved', 'archived')) DEFAULT 'auto_approved';
+
+CREATE TABLE IF NOT EXISTS public.exam_aliases (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  exam_id UUID REFERENCES public.exams(id) ON DELETE CASCADE NOT NULL,
+  alias TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  UNIQUE(exam_id, alias)
+);
+
+CREATE INDEX IF NOT EXISTS idx_exam_aliases_alias_lower ON public.exam_aliases(LOWER(alias));
+CREATE INDEX IF NOT EXISTS idx_exam_aliases_exam_id ON public.exam_aliases(exam_id);
+
+ALTER TABLE public.exam_subjects
+  ADD COLUMN IF NOT EXISTS slug TEXT,
+  ADD COLUMN IF NOT EXISTS topic_count INTEGER DEFAULT 0 NOT NULL,
+  ADD COLUMN IF NOT EXISTS order_index INTEGER DEFAULT 0 NOT NULL,
+  ADD COLUMN IF NOT EXISTS version INTEGER DEFAULT 1 NOT NULL,
+  ADD COLUMN IF NOT EXISTS ai_confidence NUMERIC(5,2) DEFAULT 98.00 NOT NULL,
+  ADD COLUMN IF NOT EXISTS ai_version TEXT DEFAULT 'v3.5' NOT NULL;
+
+ALTER TABLE public.exam_topics
+  ADD COLUMN IF NOT EXISTS parent_id UUID REFERENCES public.exam_topics(id) ON DELETE CASCADE,
+  ADD COLUMN IF NOT EXISTS slug TEXT,
+  ADD COLUMN IF NOT EXISTS level TEXT CHECK (level IN ('topic', 'subtopic', 'concept')) DEFAULT 'topic' NOT NULL,
+  ADD COLUMN IF NOT EXISTS target_weight NUMERIC(5,2) DEFAULT 0.00 NOT NULL,
+  ADD COLUMN IF NOT EXISTS order_index INTEGER DEFAULT 0 NOT NULL,
+  ADD COLUMN IF NOT EXISTS version INTEGER DEFAULT 1 NOT NULL,
+  ADD COLUMN IF NOT EXISTS ai_confidence NUMERIC(5,2) DEFAULT 98.00 NOT NULL,
+  ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT '{}' NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_exam_topics_parent_id ON public.exam_topics(parent_id);
+CREATE INDEX IF NOT EXISTS idx_exam_topics_subject_id ON public.exam_topics(subject_id);
+CREATE INDEX IF NOT EXISTS idx_exam_topics_level ON public.exam_topics(level);
+
+ALTER TABLE public.ai_generation_jobs
+  ADD COLUMN IF NOT EXISTS progress_stage TEXT DEFAULT 'Preparing your exam...',
+  ADD COLUMN IF NOT EXISTS step_percentage INTEGER DEFAULT 0;
+
+ALTER TABLE public.exam_aliases ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_subjects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_topics ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public read access to exam_aliases" ON public.exam_aliases;
+CREATE POLICY "Public read access to exam_aliases" ON public.exam_aliases FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Authenticated users write exam_aliases" ON public.exam_aliases;
+CREATE POLICY "Authenticated users write exam_aliases" ON public.exam_aliases FOR ALL USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Public read access to exam_subjects" ON public.exam_subjects;
+CREATE POLICY "Public read access to exam_subjects" ON public.exam_subjects FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Authenticated users write exam_subjects" ON public.exam_subjects;
+CREATE POLICY "Authenticated users write exam_subjects" ON public.exam_subjects FOR ALL USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Public read access to exam_topics" ON public.exam_topics;
+CREATE POLICY "Public read access to exam_topics" ON public.exam_topics FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Authenticated users write exam_topics" ON public.exam_topics;
+CREATE POLICY "Authenticated users write exam_topics" ON public.exam_topics FOR ALL USING (auth.role() = 'authenticated');
+
+-- =====================================================================
+-- 13. AUTONOMOUS GLOBAL KNOWLEDGE ENGINE & LEARNING ASSET CACHE
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS public.subject_aliases (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  subject_id UUID REFERENCES public.exam_subjects(id) ON DELETE CASCADE NOT NULL,
+  alias TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  UNIQUE(subject_id, alias)
+);
+
+CREATE INDEX IF NOT EXISTS idx_subject_aliases_alias_lower ON public.subject_aliases(LOWER(alias));
+CREATE INDEX IF NOT EXISTS idx_subject_aliases_subject_id ON public.subject_aliases(subject_id);
+
+CREATE TABLE IF NOT EXISTS public.topic_aliases (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  topic_id UUID REFERENCES public.exam_topics(id) ON DELETE CASCADE NOT NULL,
+  alias TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  UNIQUE(topic_id, alias)
+);
+
+CREATE INDEX IF NOT EXISTS idx_topic_aliases_alias_lower ON public.topic_aliases(LOWER(alias));
+CREATE INDEX IF NOT EXISTS idx_topic_aliases_topic_id ON public.topic_aliases(topic_id);
+
+ALTER TABLE public.exam_subjects
+  ADD COLUMN IF NOT EXISTS generation_timestamp TIMESTAMPTZ DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS prompt_version TEXT DEFAULT '2026-v2',
+  ADD COLUMN IF NOT EXISTS model_version TEXT DEFAULT 'gemini-3.6-flash',
+  ADD COLUMN IF NOT EXISTS source_metadata JSONB DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS validation_status TEXT CHECK (validation_status IN ('auto_validated', 'pending_review', 'verified', 'archived')) DEFAULT 'auto_validated';
+
+ALTER TABLE public.exam_topics
+  ADD COLUMN IF NOT EXISTS generation_timestamp TIMESTAMPTZ DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS prompt_version TEXT DEFAULT '2026-v2',
+  ADD COLUMN IF NOT EXISTS model_version TEXT DEFAULT 'gemini-3.6-flash',
+  ADD COLUMN IF NOT EXISTS source_metadata JSONB DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS validation_status TEXT CHECK (validation_status IN ('auto_validated', 'pending_review', 'verified', 'archived')) DEFAULT 'auto_validated',
+  ADD COLUMN IF NOT EXISTS learning_objectives TEXT[] DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS estimated_study_mins INTEGER DEFAULT 45;
+
+CREATE TABLE IF NOT EXISTS public.learning_content_cache (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  topic_id UUID REFERENCES public.exam_topics(id) ON DELETE CASCADE NOT NULL,
+  content_type TEXT NOT NULL,
+  difficulty TEXT DEFAULT 'Intermediate' NOT NULL,
+  language TEXT DEFAULT 'en' NOT NULL,
+  payload JSONB NOT NULL,
+  version INTEGER DEFAULT 1 NOT NULL,
+  ai_confidence_score NUMERIC(5,2) DEFAULT 98.50 NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  expires_at TIMESTAMPTZ,
+  UNIQUE(topic_id, content_type, difficulty, language)
+);
+
+CREATE INDEX IF NOT EXISTS idx_learning_content_cache_topic ON public.learning_content_cache(topic_id, content_type);
+
+ALTER TABLE public.subject_aliases ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.topic_aliases ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.learning_content_cache ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public read access to subject_aliases" ON public.subject_aliases;
+CREATE POLICY "Public read access to subject_aliases" ON public.subject_aliases FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Authenticated users write subject_aliases" ON public.subject_aliases;
+CREATE POLICY "Authenticated users write subject_aliases" ON public.subject_aliases FOR ALL USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Public read access to topic_aliases" ON public.topic_aliases;
+CREATE POLICY "Public read access to topic_aliases" ON public.topic_aliases FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Authenticated users write topic_aliases" ON public.topic_aliases;
+CREATE POLICY "Authenticated users write topic_aliases" ON public.topic_aliases FOR ALL USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Public read access to learning_content_cache" ON public.learning_content_cache;
+CREATE POLICY "Public read access to learning_content_cache" ON public.learning_content_cache FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Authenticated users write learning_content_cache" ON public.learning_content_cache;
+CREATE POLICY "Authenticated users write learning_content_cache" ON public.learning_content_cache FOR ALL USING (auth.role() = 'authenticated');
+
+

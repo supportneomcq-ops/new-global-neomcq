@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     const supabase = await createClient()
     const { data: job, error } = await (supabase as any)
       .from('ai_generation_jobs')
-      .select('id, job_type, status, result, error_message, created_at, updated_at')
+      .select('id, job_type, status, progress_stage, step_percentage, result, error_message, created_at, updated_at')
       .eq('id', jobId)
       .single()
 

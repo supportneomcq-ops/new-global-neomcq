@@ -168,6 +168,15 @@ export interface Database {
           is_featured: boolean
           created_by_ai: boolean
           status: 'draft' | 'active' | 'archived'
+          aliases: string[]
+          ai_confidence_score: number
+          official_website: string | null
+          ai_version: string
+          prompt_version: string
+          source: string
+          version: number
+          metadata: Json
+          approval_status: 'auto_approved' | 'pending_review' | 'approved' | 'archived'
           created_at: string
           updated_at: string
         }
@@ -184,6 +193,15 @@ export interface Database {
           is_featured?: boolean
           created_by_ai?: boolean
           status?: 'draft' | 'active' | 'archived'
+          aliases?: string[]
+          ai_confidence_score?: number
+          official_website?: string | null
+          ai_version?: string
+          prompt_version?: string
+          source?: string
+          version?: number
+          metadata?: Json
+          approval_status?: 'auto_approved' | 'pending_review' | 'approved' | 'archived'
           created_at?: string
           updated_at?: string
         }
@@ -200,8 +218,128 @@ export interface Database {
           is_featured?: boolean
           created_by_ai?: boolean
           status?: 'draft' | 'active' | 'archived'
+          aliases?: string[]
+          ai_confidence_score?: number
+          official_website?: string | null
+          ai_version?: string
+          prompt_version?: string
+          source?: string
+          version?: number
+          metadata?: Json
+          approval_status?: 'auto_approved' | 'pending_review' | 'approved' | 'archived'
           created_at?: string
           updated_at?: string
+        }
+      }
+      exam_aliases: {
+        Row: {
+          id: string
+          exam_id: string
+          alias: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          exam_id: string
+          alias: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          exam_id?: string
+          alias?: string
+          created_at?: string
+        }
+      }
+      exam_subjects: {
+        Row: {
+          id: string
+          exam_id: string
+          name: string
+          slug: string | null
+          description: string | null
+          weight_percentage: number
+          topic_count: number
+          order_index: number
+          version: number
+          ai_confidence: number
+          ai_version: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          exam_id: string
+          name: string
+          slug?: string | null
+          description?: string | null
+          weight_percentage?: number
+          topic_count?: number
+          order_index?: number
+          version?: number
+          ai_confidence?: number
+          ai_version?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          exam_id?: string
+          name?: string
+          slug?: string | null
+          description?: string | null
+          weight_percentage?: number
+          topic_count?: number
+          order_index?: number
+          version?: number
+          ai_confidence?: number
+          ai_version?: string
+          created_at?: string
+        }
+      }
+      exam_topics: {
+        Row: {
+          id: string
+          subject_id: string
+          parent_id: string | null
+          name: string
+          slug: string | null
+          description: string | null
+          level: 'topic' | 'subtopic' | 'concept'
+          target_weight: number
+          order_index: number
+          version: number
+          ai_confidence: number
+          tags: string[]
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          subject_id: string
+          parent_id?: string | null
+          name: string
+          slug?: string | null
+          description?: string | null
+          level?: 'topic' | 'subtopic' | 'concept'
+          target_weight?: number
+          order_index?: number
+          version?: number
+          ai_confidence?: number
+          tags?: string[]
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          subject_id?: string
+          parent_id?: string | null
+          name?: string
+          slug?: string | null
+          description?: string | null
+          level?: 'topic' | 'subtopic' | 'concept'
+          target_weight?: number
+          order_index?: number
+          version?: number
+          ai_confidence?: number
+          tags?: string[]
+          created_at?: string
         }
       }
       user_exams: {

@@ -27,10 +27,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, status: 'completed', result: job.result })
     }
 
-    // Mark job as processing
+    // Stage 1: Mark job as processing
     await (supabase as any)
       .from('ai_generation_jobs')
-      .update({ status: 'processing', updated_at: new Date().toISOString() })
+      .update({ 
+        status: 'processing', 
+        progress_stage: 'Preparing your exam...', 
+        step_percentage: 20,
+        updated_at: new Date().toISOString() 
+      })
       .eq('id', jobId)
 
     let generatedResult: any = null
@@ -38,13 +43,44 @@ export async function POST(req: NextRequest) {
     try {
       const apiKey = process.env.GEMINI_API_KEY
       if (apiKey) {
-        const ai = new GoogleGenAI({ apiKey })
-        const prompt = `You are NeoMCQ AI Engine v3.5. Generate structured high-yield JSON data for job type: ${job.job_type}. Input details: ${JSON.stringify(job.input_params)}. Respond ONLY with valid JSON.`
-        
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: prompt,
+        const ai = new GoogleGenAI({
+          apiKey,
+          httpOptions: {
+            headers: {
+              'User-Agent': 'aistudio-build',
+            },
+          },
         })
+
+        // Stage 2: Building syllabus
+        await (supabase as any)
+          .from('ai_generation_jobs')
+          .update({ 
+            progress_stage: 'Building syllabus...', 
+            step_percentage: 45,
+            updated_at: new Date().toISOString() 
+          })
+          .eq('id', jobId)
+
+        const prompt = `You are NeoMCQ AI Engine v3.5. Generate structured high-yield JSON data for job type: ${job.job_type}. Input details: ${JSON.stringify(job.input_params)}. Respond ONLY with valid JSON.`
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.6-flash',
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json',
+          },
+        })
+
+        // Stage 3: Generating subjects & learning roadmap
+        await (supabase as any)
+          .from('ai_generation_jobs')
+          .update({ 
+            progress_stage: 'Generating subjects & learning roadmap...', 
+            step_percentage: 80,
+            updated_at: new Date().toISOString() 
+          })
+          .eq('id', jobId)
 
         const rawText = response.text || '{}'
         try {
@@ -59,7 +95,7 @@ export async function POST(req: NextRequest) {
           generatedResult = { text: rawText }
         }
       } else {
-        // Fallback structured AI output when API key is pending
+        // Fallback structured AI output
         generatedResult = {
           generated_at: new Date().toISOString(),
           job_type: job.job_type,
@@ -70,11 +106,13 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Update job to completed
+      // Stage 4: Completed
       await (supabase as any)
         .from('ai_generation_jobs')
         .update({
           status: 'completed',
+          progress_stage: 'Completed',
+          step_percentage: 100,
           result: generatedResult,
           updated_at: new Date().toISOString(),
         })
@@ -99,6 +137,7 @@ export async function POST(req: NextRequest) {
         .from('ai_generation_jobs')
         .update({
           status: 'failed',
+          progress_stage: 'Failed',
           error_message: aiError.message || 'AI processing error',
           updated_at: new Date().toISOString(),
         })

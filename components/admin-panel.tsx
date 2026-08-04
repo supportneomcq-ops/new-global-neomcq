@@ -29,6 +29,9 @@ import {
 } from 'lucide-react';
 import { getSupabaseClient } from '@/lib/supabase';
 
+import { AdminExamsManager } from './admin-exams-manager';
+import { AdminKnowledgeManager } from './admin-knowledge-manager';
+
 interface AdminPanelProps {
   isOpen: boolean;
   onClose: () => void;
@@ -36,7 +39,7 @@ interface AdminPanelProps {
 
 export function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<
-    'users' | 'exams' | 'jobs' | 'revenue' | 'analytics' | 'support' | 'system'
+    'users' | 'exams' | 'knowledge' | 'jobs' | 'revenue' | 'analytics' | 'support' | 'system'
   >('users');
 
   // Search & Filter state for Users tab
@@ -131,6 +134,7 @@ export function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
             {[
               { id: 'users', label: 'Users', icon: Users },
               { id: 'exams', label: 'Exams & Syllabi', icon: BookOpen },
+              { id: 'knowledge', label: 'Knowledge Engine', icon: Sparkles },
               { id: 'jobs', label: 'AI Jobs & Cache', icon: Cpu },
               { id: 'revenue', label: 'Revenue & Razorpay', icon: DollarSign },
               { id: 'analytics', label: 'Analytics', icon: BarChart3 },
@@ -244,29 +248,12 @@ export function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
 
             {/* 2. EXAMS TAB */}
             {activeTab === 'exams' && (
-              <div className="space-y-4">
-                <div className="p-4 rounded-2xl bg-gradient-to-r from-[#6D5BFF]/10 to-[#00D4FF]/10 border border-[#6D5BFF]/30 text-xs flex justify-between items-center">
-                  <div>
-                    <h3 className="font-bold text-sm">AI Syllabus Sync active across 180+ countries</h3>
-                    <p className="text-slate-500 dark:text-gray-400">Exams auto-index from national medical boards, engineering councils, and civil service authorities.</p>
-                  </div>
-                  <button className="px-3 py-2 rounded-xl bg-[#6D5BFF] text-white font-bold cursor-pointer hover:opacity-90">
-                    Manual Override
-                  </button>
-                </div>
+              <AdminExamsManager />
+            )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                  {['USMLE Step 1', 'NEET PG', 'PLAB 1 / UKMLA', 'NCLEX-RN', 'UPSC CSE', 'CFA Level I'].map((ex) => (
-                    <div key={ex} className="p-4 rounded-2xl border border-slate-200 dark:border-gray-800 bg-slate-50 dark:bg-gray-900/60 space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="font-bold text-sm">{ex}</span>
-                        <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-500 text-[10px] font-bold">100% Synced</span>
-                      </div>
-                      <div className="text-xs text-slate-500">24,000+ High-Yield Questions Index</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            {/* KNOWLEDGE ENGINE TAB */}
+            {activeTab === 'knowledge' && (
+              <AdminKnowledgeManager />
             )}
 
             {/* 3. AI JOBS & CACHE */}
