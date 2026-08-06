@@ -1,7 +1,7 @@
 import { createAdminClient } from './admin'
 
 export async function bootstrapAdmin() {
-  const email = process.env.INITIAL_ADMIN_EMAIL || 'admin@neomcq.com'
+  const email = process.env.INITIAL_ADMIN_EMAIL || 'support@neomcq.com'
   const password = process.env.INITIAL_ADMIN_PASSWORD || 'NeoMcqAdmin2026!'
 
   if (!email || !password) {
