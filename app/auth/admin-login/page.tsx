@@ -27,7 +27,8 @@ export default function AdminLoginPage() {
       });
 
       if (error) {
-        setErrorMsg(error.message || 'Invalid admin credentials');
+        const rawMsg = typeof error === 'string' ? error : error?.message || (typeof error === 'object' && Object.keys(error).length > 0 ? JSON.stringify(error) : '');
+        setErrorMsg(rawMsg && rawMsg !== '{}' ? rawMsg : 'Invalid admin credentials');
         setLoading(false);
         return;
       }
@@ -118,7 +119,12 @@ export default function AdminLoginPage() {
             </div>
 
             <div>
-              <label className="block text-gray-400 mb-1.5">Admin Secure Key</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-gray-400">Admin Secure Key</label>
+                <a href="/auth/forgot-password" className="text-[11px] text-[#00D4FF] hover:underline font-medium">
+                  Forgot Password?
+                </a>
+              </div>
               <div className="relative">
                 <Lock className="absolute left-3.5 top-3.5 w-4 h-4 text-gray-500" />
                 <input

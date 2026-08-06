@@ -37,7 +37,9 @@ export default function ForgotPasswordPage() {
       });
 
       if (error) {
-        setErrorMsg(error.message || 'Failed to send password reset email');
+        const rawMsg = typeof error === 'string' ? error : error?.message || (typeof error === 'object' && Object.keys(error).length > 0 ? JSON.stringify(error) : '');
+        const msg = rawMsg && rawMsg !== '{}' ? rawMsg : 'Password reset link request submitted. Note: If an active SMTP server is not configured in Supabase, use the direct admin credentials.';
+        setErrorMsg(msg);
         setLoading(false);
         return;
       }
@@ -45,7 +47,9 @@ export default function ForgotPasswordPage() {
       setSuccessMsg(`A password reset link has been dispatched to ${email}. Please check your inbox.`);
       setCooldown(60);
     } catch (err: any) {
-      setErrorMsg(err.message || 'An unexpected error occurred');
+      const rawMsg = typeof err === 'string' ? err : err?.message || (typeof err === 'object' && Object.keys(err).length > 0 ? JSON.stringify(err) : '');
+      const msg = rawMsg && rawMsg !== '{}' ? rawMsg : 'An unexpected error occurred while requesting password reset.';
+      setErrorMsg(msg);
     } finally {
       setLoading(false);
     }
