@@ -234,14 +234,12 @@ export default function SignInPage() {
                       <span>Remember Me</span>
                     </label>
 
-                    <button
-                      type="button"
-                      onClick={() => alert('A password reset link has been dispatched to your email address.')}
+                    <Link
+                      href="/auth/forgot-password"
                       className="text-[#6D5BFF] dark:text-[#00D4FF] hover:underline cursor-pointer font-extrabold"
-                      disabled={loading}
                     >
                       Forgot Password?
-                    </button>
+                    </Link>
                   </div>
 
                   {/* Sign In Button */}

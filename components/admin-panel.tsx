@@ -31,6 +31,8 @@ import { getSupabaseClient } from '@/lib/supabase';
 
 import { AdminExamsManager } from './admin-exams-manager';
 import { AdminKnowledgeManager } from './admin-knowledge-manager';
+import { AdminHierarchyManager } from './admin-hierarchy-manager';
+import { AdminAISettings } from './admin-ai-settings';
 
 interface AdminPanelProps {
   isOpen: boolean;
@@ -39,7 +41,7 @@ interface AdminPanelProps {
 
 export function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<
-    'users' | 'exams' | 'knowledge' | 'jobs' | 'revenue' | 'analytics' | 'support' | 'system'
+    'users' | 'exams' | 'hierarchy' | 'ai_settings' | 'knowledge' | 'jobs' | 'revenue' | 'analytics' | 'support' | 'system'
   >('users');
 
   // Search & Filter state for Users tab
@@ -134,6 +136,8 @@ export function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
             {[
               { id: 'users', label: 'Users', icon: Users },
               { id: 'exams', label: 'Exams & Syllabi', icon: BookOpen },
+              { id: 'hierarchy', label: 'Subjects & Topics', icon: FileText },
+              { id: 'ai_settings', label: 'AI Provider Settings', icon: Cpu },
               { id: 'knowledge', label: 'Knowledge Engine', icon: Sparkles },
               { id: 'jobs', label: 'AI Jobs & Cache', icon: Cpu },
               { id: 'revenue', label: 'Revenue & Razorpay', icon: DollarSign },
@@ -249,6 +253,16 @@ export function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
             {/* 2. EXAMS TAB */}
             {activeTab === 'exams' && (
               <AdminExamsManager />
+            )}
+
+            {/* SUBJECTS & TOPICS HIERARCHY TAB */}
+            {activeTab === 'hierarchy' && (
+              <AdminHierarchyManager />
+            )}
+
+            {/* AI PROVIDER SETTINGS TAB */}
+            {activeTab === 'ai_settings' && (
+              <AdminAISettings />
             )}
 
             {/* KNOWLEDGE ENGINE TAB */}

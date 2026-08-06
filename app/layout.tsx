@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Space_Grotesk, Inter } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
+import { SelectionProvider } from '@/lib/context/selection-context';
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -69,7 +70,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <SelectionProvider>
+            {children}
+          </SelectionProvider>
         </ThemeProvider>
       </body>
     </html>

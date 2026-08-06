@@ -49,6 +49,7 @@ import {
   List,
 } from 'lucide-react'
 import { getSupabaseClient } from '@/lib/supabase'
+import { useSelection } from '@/lib/context/selection-context'
 
 interface LearningContentEngineProps {
   initialExamName?: string
@@ -59,10 +60,15 @@ export function LearningContentEngine({
   initialExamName = 'USMLE Step 1 & 2 CK',
   initialSubjectName = 'Human Anatomy',
 }: LearningContentEngineProps) {
+  const { selection, setTopic } = useSelection()
+
   // Navigation & Entity State
-  const [examName] = useState(initialExamName)
-  const [subjectName, setSubjectName] = useState(initialSubjectName)
-  const [selectedTopic, setSelectedTopic] = useState<any | null>(null)
+  const examName = selection.exam?.name || initialExamName
+  const subjectName = selection.subject?.name || initialSubjectName
+  const selectedTopic = selection.topic || { id: 't1', name: 'Neuroanatomy & Cranial Nerves' }
+  const setSelectedTopic = useCallback((t: any) => {
+    setTopic({ id: t.id || `t-${t.name}`, name: t.name, slug: t.slug })
+  }, [setTopic])
   
   // Custom Search & Suggestions Input
   const [searchQuery, setSearchQuery] = useState('')
@@ -320,7 +326,7 @@ export function LearningContentEngine({
 
     // Load actual content assets from API
     fetchTopicContent(topic.id || 't1', topic.name)
-  }, [fetchTopicContent])
+  }, [fetchTopicContent, setSelectedTopic])
 
   // Fetch available topics for subject
   useEffect(() => {

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import {
   Sparkles,
   Calendar,
@@ -21,12 +21,16 @@ import {
   LogOut,
   Flame,
   HelpCircle,
-  Database
+  Database,
+  Layers,
+  ChevronDown
 } from 'lucide-react';
 import { OnboardingData } from './onboarding-flow';
 import { Logo } from './logo';
 import { ThemeToggle } from './theme-toggle';
 import { LearningContentEngine } from './learning-content-engine';
+import { UserProfileModal } from './user-profile-modal';
+import { useSelection } from '@/lib/context/selection-context';
 
 interface DashboardViewProps {
   user: OnboardingData;
@@ -34,17 +38,56 @@ interface DashboardViewProps {
   onOpenPractice: () => void;
 }
 
+// Framer Motion Staggered Variants for Widgets
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+      delayChildren: 0.05,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      type: 'spring' as const,
+      stiffness: 260,
+      damping: 20,
+    },
+  },
+};
+
 export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardViewProps) {
   const [completedHours, setCompletedHours] = useState<number>(1.5);
   const [streakDays, setStreakDays] = useState<number>(5);
   const [activeTab, setActiveTab] = useState<'learning' | 'overview' | 'analytics' | 'qbank' | 'coach'>('learning');
   
+  // Profile Modal
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+
+  // Selection Context
+  const {
+    selection,
+    setExam,
+    setSubject,
+    setTopic,
+    availableExams,
+    availableSubjects,
+    availableTopics
+  } = useSelection();
+
   // Quick AI Chat prompt state
   const [chatMessage, setChatMessage] = useState('');
   const [chatLog, setChatLog] = useState<Array<{ sender: 'user' | 'ai'; text: string }>>([
     {
       sender: 'ai',
-      text: `Hello ${user.firstName}! I am your Neo AI Coach initialized for ${user.examName}. You have ${user.daysLeft} days until your exam date (${user.examDate}). What subject should we review today?`,
+      text: `Hello ${user.firstName}! I am your Neo AI Coach initialized for ${selection.exam?.name || user.examName}. You have ${user.daysLeft} days until your exam. What subject should we review today?`,
     },
   ]);
 
@@ -56,13 +99,12 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
     setChatMessage('');
     setChatLog((prev) => [...prev, { sender: 'user', text: userText }]);
 
-    // Simulated instant AI answer tuned for the exam
     setTimeout(() => {
       setChatLog((prev) => [
         ...prev,
         {
           sender: 'ai',
-          text: `Got it! For ${user.examName}, mastering key high-yield concepts in ${userText} is crucial. I've prepared 5 adaptive practice questions targeting common distractors. Ready to test yourself?`,
+          text: `Got it! For ${selection.exam?.name || user.examName}, mastering key high-yield concepts in ${userText} is crucial. I've prepared practice questions targeting common distractors in ${selection.topic?.name || 'this topic'}. Ready to test yourself?`,
         },
       ]);
     }, 700);
@@ -77,6 +119,25 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
         <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <Logo size="md" />
 
+          {/* Quick Active Exam Selector in Header */}
+          <div className="hidden md:flex items-center gap-2 bg-slate-100 dark:bg-gray-900/80 px-3 py-1.5 rounded-2xl border border-slate-200 dark:border-gray-800 text-xs font-bold">
+            <span className="text-slate-400">Exam:</span>
+            <select
+              value={selection.exam?.id || ''}
+              onChange={(e) => {
+                const target = availableExams.find((ex) => ex.id === e.target.value);
+                if (target) setExam(target);
+              }}
+              className="bg-transparent text-[#6D5BFF] dark:text-[#00D4FF] focus:outline-none font-black cursor-pointer"
+            >
+              {availableExams.map((ex) => (
+                <option key={ex.id} value={ex.id} className="bg-white dark:bg-[#0E1324] text-slate-900 dark:text-white">
+                  {ex.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold border border-emerald-500/20">
               <Database className="w-3.5 h-3.5" />
@@ -84,6 +145,16 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
             </div>
 
             <ThemeToggle />
+
+            {/* User Profile Button */}
+            <button
+              onClick={() => setIsProfileOpen(true)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-gray-800 hover:bg-slate-200 dark:hover:bg-gray-700 text-slate-700 dark:text-gray-200 text-xs font-bold transition-colors cursor-pointer"
+              title="Open Account Profile"
+            >
+              <User className="w-4 h-4 text-[#6D5BFF]" />
+              <span className="hidden sm:inline">{user.firstName}</span>
+            </button>
 
             <button
               onClick={onSignOut}
@@ -99,21 +170,95 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
       {/* Main Container */}
       <main className="w-full max-w-7xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
         {/* Top Hero Banner */}
-        <div className="relative rounded-3xl bg-gradient-to-r from-[#0E1324] via-[#141A33] to-[#0E1324] border border-[#6D5BFF]/30 p-6 sm:p-8 text-white shadow-2xl overflow-hidden">
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="relative rounded-3xl bg-gradient-to-r from-[#0E1324] via-[#141A33] to-[#0E1324] border border-[#6D5BFF]/30 p-6 sm:p-8 text-white shadow-2xl overflow-hidden"
+        >
           <div className="absolute top-0 right-0 w-96 h-96 bg-[#6D5BFF]/20 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
           <div className="absolute bottom-0 left-1/3 w-64 h-64 bg-[#00D4FF]/15 rounded-full blur-2xl pointer-events-none" />
 
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="space-y-2">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-extrabold bg-[#6D5BFF]/20 text-[#00D4FF] border border-[#00D4FF]/30">
-                <Sparkles className="w-3.5 h-3.5" /> Neo AI Coach Active
+                <Sparkles className="w-3.5 h-3.5" /> Neo AI Active Sync
               </div>
               <h1 className="text-2xl sm:text-4xl font-heading font-extrabold tracking-tight">
                 Welcome back, {user.firstName}! 👋
               </h1>
               <p className="text-sm text-[#A6ADC8] max-w-xl">
-                Your AI study engine is tuned for <span className="text-white font-bold">{user.examName}</span> ({user.country}). Target date: <span className="text-white font-bold">{user.examDate}</span>.
+                Currently preparing for <span className="text-white font-bold">{selection.exam?.name || user.examName}</span> ({user.country}). Target date: <span className="text-white font-bold">{user.examDate}</span>.
               </p>
+
+              {/* Dynamic Exam, Subject & Topic Selector Controls */}
+              <div className="flex flex-wrap items-center gap-2 pt-2 text-xs">
+                <span className="text-slate-400 font-semibold">Exam:</span>
+                <select
+                  value={selection.exam?.id || ''}
+                  onChange={(e) => {
+                    const target = availableExams.find((ex) => ex.id === e.target.value);
+                    if (target) setExam(target);
+                  }}
+                  className="bg-white/10 hover:bg-white/15 transition-colors text-white rounded-xl px-3 py-1 font-bold border border-white/15 focus:outline-none cursor-pointer"
+                >
+                  {availableExams.length > 0 ? (
+                    availableExams.map((ex) => (
+                      <option key={ex.id} value={ex.id} className="bg-[#0E1324] text-white">
+                        {ex.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value={selection.exam?.id || ''} className="bg-[#0E1324] text-white">
+                      {selection.exam?.name || user.examName}
+                    </option>
+                  )}
+                </select>
+
+                <span className="text-slate-400 font-semibold">Subject:</span>
+                <select
+                  value={selection.subject?.id || ''}
+                  onChange={(e) => {
+                    const target = availableSubjects.find((s) => s.id === e.target.value);
+                    if (target) setSubject(target);
+                  }}
+                  className="bg-white/10 hover:bg-white/15 transition-colors text-[#00D4FF] rounded-xl px-3 py-1 font-bold border border-white/15 focus:outline-none cursor-pointer"
+                >
+                  {availableSubjects.length > 0 ? (
+                    availableSubjects.map((s) => (
+                      <option key={s.id} value={s.id} className="bg-[#0E1324] text-white">
+                        {s.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value={selection.subject?.id || ''} className="bg-[#0E1324] text-white">
+                      {selection.subject?.name || 'Human Anatomy'}
+                    </option>
+                  )}
+                </select>
+
+                <span className="text-slate-400 font-semibold">Topic:</span>
+                <select
+                  value={selection.topic?.id || ''}
+                  onChange={(e) => {
+                    const target = availableTopics.find((t) => t.id === e.target.value);
+                    if (target) setTopic(target);
+                  }}
+                  className="bg-white/10 hover:bg-white/15 transition-colors text-emerald-400 rounded-xl px-3 py-1 font-bold border border-white/15 focus:outline-none cursor-pointer"
+                >
+                  {availableTopics.length > 0 ? (
+                    availableTopics.map((t) => (
+                      <option key={t.id} value={t.id} className="bg-[#0E1324] text-white">
+                        {t.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value={selection.topic?.id || ''} className="bg-[#0E1324] text-white">
+                      {selection.topic?.name || 'Cardiovascular Anatomy'}
+                    </option>
+                  )}
+                </select>
+              </div>
             </div>
 
             {/* Days Countdown Widget */}
@@ -139,7 +284,7 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
               </div>
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Navigation Tabs */}
         <div className="flex items-center gap-2 border-b border-slate-200 dark:border-gray-800 pb-2 overflow-x-auto">
@@ -167,18 +312,23 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
         {/* LEARNING CONTENT ENGINE TAB */}
         {activeTab === 'learning' && (
           <LearningContentEngine
-            initialExamName={user.examName}
-            initialSubjectName="Human Anatomy"
+            initialExamName={selection.exam?.name || user.examName}
+            initialSubjectName={selection.subject?.name || 'Human Anatomy'}
           />
         )}
 
-        {/* OVERVIEW TAB CONTENT */}
+        {/* OVERVIEW TAB CONTENT WITH STAGGERED REVEAL ANIMATIONS */}
         {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="show"
+            className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+          >
             {/* Left 2 Columns */}
             <div className="lg:col-span-2 space-y-6">
               {/* Daily Progress Tracker Card */}
-              <div className="p-6 rounded-3xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
+              <motion.div variants={itemVariants} className="p-6 rounded-3xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-heading font-bold text-lg flex items-center gap-2">
@@ -212,10 +362,10 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
                   </button>
                   <span className="text-slate-400">Goals: {user.studyGoals.join(', ')}</span>
                 </div>
-              </div>
+              </motion.div>
 
               {/* Quick Launch Q-Bank */}
-              <div className="p-6 rounded-3xl bg-gradient-to-br from-[#6D5BFF]/10 to-[#00D4FF]/10 border border-[#6D5BFF]/30 space-y-4">
+              <motion.div variants={itemVariants} className="p-6 rounded-3xl bg-gradient-to-br from-[#6D5BFF]/10 to-[#00D4FF]/10 border border-[#6D5BFF]/30 space-y-4">
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
                     <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-[#6D5BFF] text-white">
@@ -223,7 +373,7 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
                     </span>
                     <h3 className="font-heading font-extrabold text-xl">Start Exam Practice Session</h3>
                     <p className="text-xs text-slate-600 dark:text-gray-300">
-                      Generates non-repetitive vignettes customized to {user.examName} standards.
+                      Generates non-repetitive vignettes customized to {selection.exam?.name || user.examName} standards.
                     </p>
                   </div>
                   <div className="w-12 h-12 rounded-2xl bg-[#6D5BFF] text-white flex items-center justify-center shrink-0">
@@ -239,11 +389,11 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
                     <Zap className="w-4 h-4" /> Start 10-Question Sprint <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
-              </div>
+              </motion.div>
             </div>
 
             {/* Right Column: AI Assistant & Quick Diagnostics */}
-            <div className="space-y-6">
+            <motion.div variants={itemVariants} className="space-y-6">
               {/* Interactive AI Coach Widget */}
               <div className="p-5 rounded-3xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-gray-800 shadow-sm space-y-4 flex flex-col justify-between h-96">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-gray-800">
@@ -291,17 +441,21 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
                   </button>
                 </form>
               </div>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         )}
 
         {/* ANALYTICS TAB CONTENT */}
         {activeTab === 'analytics' && (
-          <div className="p-6 rounded-3xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-gray-800 space-y-6">
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-6 rounded-3xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-gray-800 space-y-6"
+          >
             <div className="space-y-1">
               <h3 className="font-heading font-bold text-xl">Knowledge Weakness Radar</h3>
               <p className="text-xs text-slate-500">
-                Calculated by Neo AI based on global blueprint weightings for {user.examName}.
+                Calculated by Neo AI based on global blueprint weightings for {selection.exam?.name || user.examName}.
               </p>
             </div>
 
@@ -323,17 +477,21 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
                 </div>
               ))}
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* Q-BANK TAB CONTENT */}
         {activeTab === 'qbank' && (
-          <div className="p-6 rounded-3xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-gray-800 space-y-6 text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-6 rounded-3xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-gray-800 space-y-6 text-center"
+          >
             <Brain className="w-12 h-12 mx-auto text-[#6D5BFF] animate-pulse" />
             <div className="space-y-2">
               <h3 className="font-heading font-bold text-xl">Adaptive Q-Bank Practice Engine</h3>
               <p className="text-xs text-slate-500 max-w-md mx-auto">
-                Ready to practice questions tailored for {user.examName}?
+                Ready to practice questions tailored for {selection.exam?.name || user.examName}?
               </p>
             </div>
             <button
@@ -342,19 +500,35 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
             >
               Open Interactive Practice Window
             </button>
-          </div>
+          </motion.div>
         )}
 
         {/* COACH TAB CONTENT */}
         {activeTab === 'coach' && (
-          <div className="p-6 rounded-3xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-gray-800 space-y-4">
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-6 rounded-3xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-gray-800 space-y-4"
+          >
             <h3 className="font-heading font-bold text-lg">Detailed AI Coach Consultation</h3>
             <p className="text-xs text-slate-500">
-              Neo AI has indexed official guidelines for {user.examName} ({user.country}). Target: {user.examDate} ({user.daysLeft} days remaining).
+              Neo AI has indexed official guidelines for {selection.exam?.name || user.examName} ({user.country}). Target: {user.examDate} ({user.daysLeft} days remaining).
             </p>
-          </div>
+          </motion.div>
         )}
       </main>
+
+      {/* User Profile Modal */}
+      <UserProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        user={{
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          country: user.country,
+        }}
+      />
     </div>
   );
 }
