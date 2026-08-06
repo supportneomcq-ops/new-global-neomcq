@@ -16,6 +16,9 @@ export function getSupabaseClient(): SupabaseClient {
           autoRefreshToken: true,
           detectSessionInUrl: true,
         },
+        global: {
+          fetch: (...args) => window.fetch(...args),
+        },
       });
     }
     return supabaseBrowserClient;

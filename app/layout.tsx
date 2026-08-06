@@ -36,6 +36,29 @@ export default function RootLayout({
       data-scroll-behavior="smooth"
       suppressHydrationWarning
     >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                if (typeof window !== 'undefined') {
+                  const originalFetch = window.fetch;
+                  const desc = Object.getOwnPropertyDescriptor(window, 'fetch') || 
+                               Object.getOwnPropertyDescriptor(Object.getPrototypeOf(window), 'fetch');
+                  if (desc && !desc.writable && desc.configurable) {
+                    Object.defineProperty(window, 'fetch', {
+                      value: originalFetch,
+                      writable: true,
+                      configurable: true,
+                      enumerable: true
+                    });
+                  }
+                }
+              } catch (e) {}
+            `,
+          }}
+        />
+      </head>
       <body
         className="min-h-screen bg-background text-foreground antialiased selection:bg-[#6D5BFF] selection:text-white"
         suppressHydrationWarning

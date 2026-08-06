@@ -26,6 +26,7 @@ import {
 import { OnboardingData } from './onboarding-flow';
 import { Logo } from './logo';
 import { ThemeToggle } from './theme-toggle';
+import { LearningContentEngine } from './learning-content-engine';
 
 interface DashboardViewProps {
   user: OnboardingData;
@@ -36,7 +37,7 @@ interface DashboardViewProps {
 export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardViewProps) {
   const [completedHours, setCompletedHours] = useState<number>(1.5);
   const [streakDays, setStreakDays] = useState<number>(5);
-  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'qbank' | 'coach'>('overview');
+  const [activeTab, setActiveTab] = useState<'learning' | 'overview' | 'analytics' | 'qbank' | 'coach'>('learning');
   
   // Quick AI Chat prompt state
   const [chatMessage, setChatMessage] = useState('');
@@ -141,8 +142,9 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 border-b border-slate-200 dark:border-gray-800 pb-2">
+        <div className="flex items-center gap-2 border-b border-slate-200 dark:border-gray-800 pb-2 overflow-x-auto">
           {[
+            { id: 'learning', label: 'Neo Learning Engine ✨' },
             { id: 'overview', label: 'Dashboard Overview' },
             { id: 'analytics', label: 'Weakness Radar' },
             { id: 'qbank', label: 'Adaptive Q-Bank' },
@@ -151,7 +153,7 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shrink-0 ${
                 activeTab === tab.id
                   ? 'bg-[#6D5BFF] text-white shadow-md'
                   : 'text-slate-600 dark:text-gray-400 hover:bg-slate-200/50 dark:hover:bg-gray-800'
@@ -161,6 +163,14 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
             </button>
           ))}
         </div>
+
+        {/* LEARNING CONTENT ENGINE TAB */}
+        {activeTab === 'learning' && (
+          <LearningContentEngine
+            initialExamName={user.examName}
+            initialSubjectName="Human Anatomy"
+          />
+        )}
 
         {/* OVERVIEW TAB CONTENT */}
         {activeTab === 'overview' && (
