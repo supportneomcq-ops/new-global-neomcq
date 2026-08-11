@@ -289,12 +289,17 @@ export async function getUsersPaginatedAction(params: {
   // Apply role, subscription, and exam filters
   let filteredUserIds: string[] | null = null;
 
+  const combineFilter = (current: string[] | null, list: string[]): string[] => {
+    if (current === null) return list;
+    return (current as string[]).filter((id) => list.includes(id));
+  };
+
   if (params.role) {
     const { data: rData } = await adminClient.from('roles').select('id').eq('name', params.role).maybeSingle();
     if (rData) {
       const { data: urData } = await adminClient.from('user_roles').select('user_id').eq('role_id', rData.id);
       const roleUserIds = urData?.map((ur) => ur.user_id) || [];
-      filteredUserIds = filteredUserIds === null ? roleUserIds : filteredUserIds.filter((id) => roleUserIds.includes(id));
+      filteredUserIds = combineFilter(filteredUserIds, roleUserIds);
     } else {
       filteredUserIds = [];
     }
@@ -303,13 +308,13 @@ export async function getUsersPaginatedAction(params: {
   if (params.subscription) {
     const { data: subData } = await adminClient.from('subscriptions').select('user_id').eq('status', params.subscription);
     const subUserIds = subData?.map((s) => s.user_id) || [];
-    filteredUserIds = filteredUserIds === null ? subUserIds : filteredUserIds.filter((id) => subUserIds.includes(id));
+    filteredUserIds = combineFilter(filteredUserIds, subUserIds);
   }
 
   if (params.exam) {
     const { data: ueData } = await adminClient.from('user_exams').select('user_id').eq('exam_id', params.exam);
     const examUserIds = ueData?.map((ue) => ue.user_id) || [];
-    filteredUserIds = filteredUserIds === null ? examUserIds : filteredUserIds.filter((id) => examUserIds.includes(id));
+    filteredUserIds = combineFilter(filteredUserIds, examUserIds);
   }
 
   if (filteredUserIds !== null) {
@@ -402,6 +407,7 @@ export async function getAdminUserDetailAction(userId: string) {
   // 2. Fetch auth details (security events, last login, verification)
   const { data: { user: authUser }, error: auError } = await adminClient.auth.admin.getUserById(userId);
   if (auError) throw auError;
+  if (!authUser) throw new Error('User auth record not found');
 
   // 3. Fetch user roles
   const { data: userRoles } = await adminClient
