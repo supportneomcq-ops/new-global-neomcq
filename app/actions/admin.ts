@@ -251,3 +251,469 @@ export async function getSystemMetricsAction() {
     subscriptions: subscriptions || [],
   };
 }
+
+// 7. Get users with pagination, server-side search, and filters
+export async function getUsersPaginatedAction(params: {
+  page: number;
+  pageSize: number;
+  search: string;
+  role?: string;
+  status?: string;
+  subscription?: string;
+  exam?: string;
+  country?: string;
+}) {
+  await checkIsSupportOrAdmin();
+  const adminClient = getSupabaseAdmin();
+
+  let query = adminClient
+    .from('profiles')
+    .select('*, countries(id, name), user_roles(roles(id, name)), user_exams(exams(id, name)), subscriptions(status, plan_id, current_period_end, subscription_plans(name))', { count: 'exact' });
+
+  // Apply search
+  if (params.search) {
+    const q = params.search.trim();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(q);
+    if (isUuid) {
+      query = query.eq('id', q);
+    } else {
+      query = query.or(`email.ilike.%${q}%,first_name.ilike.%${q}%,last_name.ilike.%${q}%`);
+    }
+  }
+
+  // Apply country filter
+  if (params.country) {
+    query = query.eq('country_id', params.country);
+  }
+
+  // Apply role, subscription, and exam filters
+  let filteredUserIds: string[] | null = null;
+
+  if (params.role) {
+    const { data: rData } = await adminClient.from('roles').select('id').eq('name', params.role).maybeSingle();
+    if (rData) {
+      const { data: urData } = await adminClient.from('user_roles').select('user_id').eq('role_id', rData.id);
+      const roleUserIds = urData?.map((ur) => ur.user_id) || [];
+      filteredUserIds = filteredUserIds === null ? roleUserIds : filteredUserIds.filter((id) => roleUserIds.includes(id));
+    } else {
+      filteredUserIds = [];
+    }
+  }
+
+  if (params.subscription) {
+    const { data: subData } = await adminClient.from('subscriptions').select('user_id').eq('status', params.subscription);
+    const subUserIds = subData?.map((s) => s.user_id) || [];
+    filteredUserIds = filteredUserIds === null ? subUserIds : filteredUserIds.filter((id) => subUserIds.includes(id));
+  }
+
+  if (params.exam) {
+    const { data: ueData } = await adminClient.from('user_exams').select('user_id').eq('exam_id', params.exam);
+    const examUserIds = ueData?.map((ue) => ue.user_id) || [];
+    filteredUserIds = filteredUserIds === null ? examUserIds : filteredUserIds.filter((id) => examUserIds.includes(id));
+  }
+
+  if (filteredUserIds !== null) {
+    if (filteredUserIds.length === 0) {
+      return { users: [], totalCount: 0 };
+    }
+    query = query.in('id', filteredUserIds);
+  }
+
+  const from = (params.page - 1) * params.pageSize;
+  const to = from + params.pageSize - 1;
+
+  const { data: profiles, error, count } = await query
+    .range(from, to)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+
+  const profilesList = profiles || [];
+  
+  // Batch fetch auth statuses from Auth service to bypass local DB sync delays
+  const authUsersResults = await Promise.all(
+    profilesList.map((p) => adminClient.auth.admin.getUserById(p.id).catch(() => null))
+  );
+
+  const users = profilesList.map((p, i) => {
+    const authUserRes = authUsersResults[i];
+    const authUser = authUserRes?.data?.user;
+    const isSuspended = authUser?.user_metadata?.suspended === true;
+    const emailVerified = !!authUser?.email_confirmed_at;
+
+    const roles = p.user_roles?.map((ur: any) => ur.roles?.name).filter(Boolean) || ['user'];
+    const examName = p.user_exams?.[0]?.exams?.name || 'Not Selected';
+    const countryName = p.countries?.name || p.timezone || 'Global';
+
+    const activeSub = p.subscriptions?.[0];
+    const subscriptionStatus = activeSub?.status || 'free';
+    const subscriptionPlan = activeSub?.subscription_plans?.name || 'Free Plan';
+
+    return {
+      id: p.id,
+      firstName: p.first_name || 'System',
+      lastName: p.last_name || 'User',
+      email: p.email,
+      phone: p.phone || '',
+      country: countryName,
+      exam: examName,
+      roles,
+      isSuspended,
+      emailVerified,
+      createdAt: p.created_at,
+      subscriptionStatus,
+      subscriptionPlan,
+      lastSignInAt: authUser?.last_sign_in_at || null,
+    };
+  });
+
+  // Apply account status filters post-fetch if filtering on auth state
+  let filteredUsers = users;
+  if (params.status) {
+    if (params.status === 'suspended') {
+      filteredUsers = users.filter((u) => u.isSuspended);
+    } else if (params.status === 'active') {
+      filteredUsers = users.filter((u) => !u.isSuspended);
+    } else if (params.status === 'pending_verification') {
+      filteredUsers = users.filter((u) => !u.emailVerified);
+    }
+  }
+
+  return {
+    users: filteredUsers,
+    totalCount: count || 0,
+  };
+}
+
+// 8. Fetch user details profile context, stats, subscription, transactions, activity logs
+export async function getAdminUserDetailAction(userId: string) {
+  await checkIsSupportOrAdmin();
+  const adminClient = getSupabaseAdmin();
+
+  // 1. Fetch profile details
+  const { data: profile, error: pError } = await adminClient
+    .from('profiles')
+    .select('*, countries(id, name)')
+    .eq('id', userId)
+    .single();
+
+  if (pError) throw pError;
+
+  // 2. Fetch auth details (security events, last login, verification)
+  const { data: { user: authUser }, error: auError } = await adminClient.auth.admin.getUserById(userId);
+  if (auError) throw auError;
+
+  // 3. Fetch user roles
+  const { data: userRoles } = await adminClient
+    .from('user_roles')
+    .select('role_id, roles(id, name, description)')
+    .eq('user_id', userId);
+
+  const roles = userRoles?.map((ur: any) => ({
+    id: ur.roles?.id,
+    name: ur.roles?.name,
+    description: ur.roles?.description,
+  })) || [];
+
+  // 4. Fetch learning context (user exams)
+  const { data: userExams } = await adminClient
+    .from('user_exams')
+    .select('*, exams(*)')
+    .eq('user_id', userId);
+
+  const activeExam = userExams?.[0]?.exams || null;
+
+  // 5. Fetch study preferences
+  const { data: studyPrefs } = await adminClient
+    .from('study_preferences')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  // 6. Fetch stats from study sessions
+  const { data: studySessions } = await adminClient
+    .from('study_sessions')
+    .select('*')
+    .eq('user_id', userId);
+
+  const totalQuestionsSolved = studySessions?.reduce((acc, s) => acc + s.questions_answered, 0) || 0;
+  const correctAnswers = studySessions?.reduce((acc, s) => acc + s.correct_answers, 0) || 0;
+  const accuracy = totalQuestionsSolved > 0 ? Math.round((correctAnswers / totalQuestionsSolved) * 100) : 0;
+  const totalStudyTimeMins = studySessions?.reduce((acc, s) => acc + s.duration_mins, 0) || 0;
+
+  // 7. Fetch subscription
+  const { data: subscriptions } = await adminClient
+    .from('subscriptions')
+    .select('*, subscription_plans(*)')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  // 8. Fetch payments
+  const { data: payments } = await adminClient
+    .from('payments')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  // 9. Fetch audit logs (activity trail)
+  const { data: auditLogs } = await adminClient
+    .from('audit_logs')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  return {
+    profile: {
+      ...profile,
+      country: profile.countries?.name || profile.timezone || 'Global',
+    },
+    auth: {
+      id: authUser.id,
+      email: authUser.email,
+      emailConfirmed: !!authUser.email_confirmed_at,
+      createdAt: authUser.created_at,
+      lastSignInAt: authUser.last_sign_in_at,
+      isSuspended: authUser.user_metadata?.suspended === true,
+      userMetadata: authUser.user_metadata,
+      phone: authUser.phone,
+    },
+    roles,
+    learning: {
+      exam: activeExam,
+      studyPrefs,
+      stats: {
+        questionsSolved: totalQuestionsSolved,
+        accuracy,
+        studyTimeMins: totalStudyTimeMins,
+        streak: studySessions && studySessions.length > 0 ? studySessions.length : 0,
+      },
+    },
+    subscription: subscriptions?.[0] || null,
+    payments: payments || [],
+    activity: auditLogs || [],
+  };
+}
+
+// 9. Fetch all User Activity Logs
+export async function getUserActivitiesAction(params: {
+  page: number;
+  pageSize: number;
+  search: string;
+  activityType?: string;
+  userId?: string;
+}) {
+  await checkIsSupportOrAdmin();
+  const adminClient = getSupabaseAdmin();
+
+  let query = adminClient
+    .from('audit_logs')
+    .select('*, profiles(email, first_name, last_name)', { count: 'exact' });
+
+  if (params.userId) {
+    query = query.eq('user_id', params.userId);
+  }
+
+  if (params.activityType && params.activityType !== 'all') {
+    query = query.eq('action', params.activityType);
+  }
+
+  if (params.search) {
+    const q = params.search.trim();
+    query = query.or(`action.ilike.%${q}%,entity_type.ilike.%${q}%`);
+  }
+
+  const from = (params.page - 1) * params.pageSize;
+  const to = from + params.pageSize - 1;
+
+  const { data: logs, error, count } = await query
+    .range(from, to)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+
+  return {
+    logs: logs || [],
+    totalCount: count || 0,
+  };
+}
+
+// 10. Fetch Roles & Permissions Matrix
+export async function getRolesAndPermissionsAction() {
+  await checkIsSupportOrAdmin();
+  const adminClient = getSupabaseAdmin();
+
+  // 1. Fetch roles
+  const { data: roles, error: rError } = await adminClient
+    .from('roles')
+    .select('*')
+    .order('name');
+
+  if (rError) throw rError;
+
+  // 2. Fetch permissions
+  let { data: permissions, error: pError } = await adminClient
+    .from('permissions')
+    .select('*')
+    .order('name');
+
+  if (pError) throw pError;
+
+  // Seed default permissions if table is empty
+  if (!permissions || permissions.length === 0) {
+    const standardPermissions = [
+      { name: 'view_users', category: 'Users', description: 'Permission to view list of platform users' },
+      { name: 'edit_users', category: 'Users', description: 'Permission to modify user roles, statuses, and profiles' },
+      { name: 'manage_exams', category: 'Exams', description: 'Permission to create, update, or archive exams' },
+      { name: 'manage_content', category: 'Content', description: 'Permission to create and approve MCQ questions and study notes' },
+      { name: 'ai_settings', category: 'AI', description: 'Permission to tune AI parameters and models' },
+      { name: 'revenue', category: 'Finance', description: 'Permission to manage plans, transactions, coupons, and refunds' },
+      { name: 'system', category: 'System', description: 'Permission to view database, cron logs, and metrics' },
+    ];
+    
+    const { data: seededPerms, error: seedError } = await adminClient
+      .from('permissions')
+      .insert(standardPermissions)
+      .select();
+    
+    if (seedError) {
+      console.error('Failed to seed standard permissions:', seedError);
+    } else {
+      permissions = seededPerms || [];
+    }
+  }
+
+  // 3. Fetch role mappings
+  const { data: rolePermissions, error: rpError } = await adminClient
+    .from('role_permissions')
+    .select('*');
+
+  if (rpError) throw rpError;
+
+  // 4. Fetch count of users per role
+  const { data: userRoles, error: urError } = await adminClient
+    .from('user_roles')
+    .select('role_id');
+
+  if (urError) throw urError;
+
+  const roleCounts = userRoles?.reduce((acc: Record<string, number>, ur) => {
+    acc[ur.role_id] = (acc[ur.role_id] || 0) + 1;
+    return acc;
+  }, {}) || {};
+
+  return {
+    roles: roles.map((r) => ({
+      ...r,
+      userCount: roleCounts[r.id] || 0,
+    })),
+    permissions: permissions || [],
+    rolePermissions: rolePermissions || [],
+  };
+}
+
+// 11. Toggle Role-Permission Matrix Element
+export async function togglePermissionForRoleAction(roleId: string, permissionId: string, hasPermission: boolean) {
+  const adminUser = await checkIsAdmin();
+  const adminClient = getSupabaseAdmin();
+
+  if (hasPermission) {
+    const { error } = await adminClient
+      .from('role_permissions')
+      .insert({ role_id: roleId, permission_id: permissionId });
+    if (error) throw error;
+  } else {
+    const { error } = await adminClient
+      .from('role_permissions')
+      .delete()
+      .eq('role_id', roleId)
+      .eq('permission_id', permissionId);
+    if (error) throw error;
+  }
+
+  // Security audit log entry
+  await adminClient.from('audit_logs').insert({
+    user_id: adminUser.id,
+    action: 'PERMISSION_TOGGLED',
+    entity_type: 'roles',
+    entity_id: roleId,
+    details: { role_id: roleId, permission_id: permissionId, assigned: hasPermission, admin_email: adminUser.email }
+  });
+
+  return { success: true };
+}
+
+// 12. Update User Roles mapping
+export async function changeUserRoleAction(userId: string, roleId: string, actionType: 'add' | 'remove') {
+  const adminUser = await checkIsAdmin();
+  const adminClient = getSupabaseAdmin();
+
+  if (actionType === 'add') {
+    const { error } = await adminClient
+      .from('user_roles')
+      .insert({ user_id: userId, role_id: roleId });
+    if (error) throw error;
+  } else {
+    const { error } = await adminClient
+      .from('user_roles')
+      .delete()
+      .eq('user_id', userId)
+      .eq('role_id', roleId);
+    if (error) throw error;
+  }
+
+  // Security audit log entry
+  await adminClient.from('audit_logs').insert({
+    user_id: adminUser.id,
+    action: 'USER_ROLE_CHANGED',
+    entity_type: 'profiles',
+    entity_id: userId,
+    details: { target_user_id: userId, role_id: roleId, action_type: actionType, admin_email: adminUser.email }
+  });
+
+  return { success: true };
+}
+
+// 13. Fetch real platform subscriptions with pagination & filtering
+export async function getSubscriptionsAction(params: {
+  page: number;
+  pageSize: number;
+  status?: string;
+  search?: string;
+}) {
+  await checkIsSupportOrAdmin();
+  const adminClient = getSupabaseAdmin();
+
+  let query = adminClient
+    .from('subscriptions')
+    .select('*, profiles(email, first_name, last_name), subscription_plans(*)', { count: 'exact' });
+
+  if (params.status && params.status !== 'all') {
+    query = query.eq('status', params.status);
+  }
+
+  if (params.search) {
+    const q = params.search.trim();
+    const { data: matchingProfiles } = await adminClient
+      .from('profiles')
+      .select('id')
+      .or(`email.ilike.%${q}%,first_name.ilike.%${q}%,last_name.ilike.%${q}%`);
+    const userIds = matchingProfiles?.map((p) => p.id) || [];
+    query = query.in('user_id', userIds);
+  }
+
+  const from = (params.page - 1) * params.pageSize;
+  const to = from + params.pageSize - 1;
+
+  const { data: subs, error, count } = await query
+    .range(from, to)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+
+  return {
+    subscriptions: subs || [],
+    totalCount: count || 0,
+  };
+}
+
