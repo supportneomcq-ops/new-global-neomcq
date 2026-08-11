@@ -64,33 +64,11 @@ export default function SignInPage() {
       }
 
       setSuccess(true);
-      
-      // Determine user role for redirection
-      const supabase = getSupabaseClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: userRoles } = await supabase
-          .from('user_roles')
-          .select('roles(name)')
-          .eq('user_id', user.id);
+      const targetUrl = res?.redirectUrl || '/dashboard';
 
-        const roleNames = userRoles?.map((r: any) => r.roles?.name).filter(Boolean) || [];
-        
-        setTimeout(() => {
-          if (roleNames.includes('admin') || roleNames.includes('super_admin')) {
-            router.push('/admin');
-          } else if (roleNames.includes('support')) {
-            router.push('/support');
-          } else {
-            router.push('/dashboard');
-          }
-        }, 800);
-      } else {
-        // Fallback standard redirect
-        setTimeout(() => {
-          router.push('/dashboard');
-        }, 800);
-      }
+      setTimeout(() => {
+        window.location.href = targetUrl;
+      }, 800);
     } catch (err: any) {
       setError(err?.message || 'Authentication failed. Please verify your credentials.');
       setLoading(false);

@@ -350,6 +350,7 @@ export default function AdminDashboardPage() {
                     <thead className="bg-slate-100 dark:bg-gray-900/60 font-bold text-slate-600 dark:text-gray-300 border-b border-slate-200 dark:border-gray-800">
                       <tr>
                         <th className="p-4">User Details</th>
+                        <th className="p-4">Selected Exam</th>
                         <th className="p-4">Global Country</th>
                         <th className="p-4">Registered On</th>
                         <th className="p-4">Assigned Roles</th>
@@ -360,16 +361,21 @@ export default function AdminDashboardPage() {
                     <tbody className="divide-y divide-slate-200 dark:divide-gray-800 font-medium">
                       {filteredUsers.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="p-8 text-center text-slate-400">No matching user profiles found.</td>
+                          <td colSpan={7} className="p-8 text-center text-slate-400">No matching user profiles found.</td>
                         </tr>
                       ) : (
-                        filteredUsers.map((u) => {
+                        filteredUsers.map((u: any) => {
                           const isSupport = u.roles.includes('support');
                           return (
                             <tr key={u.id} className="hover:bg-slate-50/50 dark:hover:bg-gray-900/30">
                               <td className="p-4">
                                 <div className="font-bold text-slate-900 dark:text-white">{u.firstName} {u.lastName}</div>
                                 <div className="text-[10px] text-slate-500">{u.email}</div>
+                              </td>
+                              <td className="p-4">
+                                <span className="px-2.5 py-1 rounded-lg text-[10px] font-extrabold bg-[#6D5BFF]/10 text-[#6D5BFF] border border-[#6D5BFF]/20">
+                                  {u.exam || 'Not Selected'}
+                                </span>
                               </td>
                               <td className="p-4 text-slate-700 dark:text-gray-300">{u.country}</td>
                               <td className="p-4 text-slate-500">{new Date(u.createdAt).toLocaleDateString()}</td>

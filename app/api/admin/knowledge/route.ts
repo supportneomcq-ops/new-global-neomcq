@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
+import { verifyAdminApiSession } from '@/lib/admin-auth'
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = await verifyAdminApiSession()
+    if (!auth.authorized) return auth.response!
+
     const supabase = getSupabaseAdmin()
 
     // Fetch Aliases counts and lists
@@ -60,6 +64,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await verifyAdminApiSession()
+    if (!auth.authorized) return auth.response!
+
     const body = await req.json()
     const { action, entityType, entityId, alias } = body
 

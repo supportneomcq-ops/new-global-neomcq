@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
+import { verifyAdminApiSession } from '@/lib/admin-auth'
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = await verifyAdminApiSession()
+    if (!auth.authorized) return auth.response!
+
     const supabase = getSupabaseAdmin()
 
     const { data: exams, error } = await (supabase as any)
@@ -68,6 +72,9 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
+    const auth = await verifyAdminApiSession()
+    if (!auth.authorized) return auth.response!
+
     const body = await req.json()
     const { examId, approval_status, is_featured, status, difficulty } = body
 

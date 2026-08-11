@@ -97,9 +97,9 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
         return;
       }
       setSignedInSuccess(true);
-      // Seamlessly reload to update server side session and transition to DashboardView
+      const targetUrl = res?.redirectUrl || '/dashboard';
       setTimeout(() => {
-        window.location.reload();
+        window.location.href = targetUrl;
       }, 800);
     } catch (err: any) {
       setSignInError(err?.message || 'Authentication failed. Please check your credentials.');

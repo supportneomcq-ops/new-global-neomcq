@@ -69,16 +69,25 @@ export function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
           .from('profiles')
           .select('id, first_name, last_name, email, timezone, created_at');
 
+        const { data: userExams } = await supabase
+          .from('user_exams')
+          .select('user_id, exam_id, exams(name)');
+
         if (profiles && !error && profiles.length > 0) {
-          const mapped = profiles.map((p) => ({
-            id: p.id,
-            name: `${p.first_name || 'System'} ${p.last_name || 'User'}`,
-            email: p.email,
-            exam: 'USMLE Step 1 & 2 CK',
-            country: p.timezone || 'Global',
-            status: 'Active',
-            hours: '12 hrs',
-          }));
+          const mapped = profiles.map((p) => {
+            const userExamEntry = userExams?.find((ue) => ue.user_id === p.id);
+            const userExamName = (userExamEntry?.exams as any)?.name || 'Not Selected';
+
+            return {
+              id: p.id,
+              name: `${p.first_name || 'System'} ${p.last_name || 'User'}`.trim(),
+              email: p.email,
+              exam: userExamName,
+              country: p.timezone || 'Global',
+              status: 'Active',
+              hours: '12 hrs',
+            };
+          });
           setMockUsers(mapped);
         }
       } catch (err) {

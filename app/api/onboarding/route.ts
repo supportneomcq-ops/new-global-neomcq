@@ -61,23 +61,23 @@ export async function POST(req: NextRequest) {
         })
         .eq('id', targetUserId)
 
-      // 2. Find or insert exam
-      const examSlug = examName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+      // 2. Find or insert exam (check slug or exact name)
+      const examSlug = examName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-')
       let examId: string | null = null
 
-      const { data: existingExam } = await (supabase as any)
+      const { data: existingExams } = await (supabase as any)
         .from('exams')
-        .select('id')
-        .eq('slug', examSlug)
-        .single()
+        .select('id, name, slug')
+        .or(`slug.eq.${examSlug},name.ilike.${examName.trim()}`)
+        .limit(1)
 
-      if (existingExam) {
-        examId = existingExam.id
+      if (existingExams && existingExams.length > 0) {
+        examId = existingExams[0].id
       } else {
         const { data: newExam } = await (supabase as any)
           .from('exams')
           .insert({
-            name: examName,
+            name: examName.trim(),
             slug: examSlug,
             difficulty: 'Adaptive',
             status: 'active',
@@ -91,13 +91,19 @@ export async function POST(req: NextRequest) {
 
       // 3. User Exam Link
       if (examId) {
-        await (supabase as any).from('user_exams').upsert({
-          user_id: targetUserId,
-          exam_id: examId,
-          target_date: examDate || null,
-          target_score: 85.0,
-          status: 'in_progress',
-        })
+        // First delete any previous user_exams if resetting, or upsert
+        await (supabase as any)
+          .from('user_exams')
+          .upsert(
+            {
+              user_id: targetUserId,
+              exam_id: examId,
+              target_date: examDate || null,
+              target_score: 85.0,
+              status: 'in_progress',
+            },
+            { onConflict: 'user_id,exam_id' }
+          )
       }
 
       // 4. Update Study Preferences

@@ -8,8 +8,6 @@ import { MobileMenu } from './mobile-menu';
 import { InteractiveModals, ModalType } from './interactive-modals';
 import { OnboardingFlow, OnboardingData } from './onboarding-flow';
 import { DashboardView } from './dashboard-view';
-import { AdminPanel } from './admin-panel';
-import { ShieldCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { getSupabaseClient } from '@/lib/supabase';
 
@@ -25,7 +23,6 @@ export function HomeInteractionManager({ marquee }: HomeInteractionManagerProps)
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
-  const [isAdminOpen, setIsAdminOpen] = useState(false);
   
   // Lazy initialize state from localStorage
   const [currentUser, setCurrentUser] = useState<OnboardingData | null>(() => {
@@ -105,7 +102,7 @@ export function HomeInteractionManager({ marquee }: HomeInteractionManagerProps)
     }
   };
 
-  const isAnyModalActive = isBooting || isOnboardingOpen || activeModal !== null || isAdminOpen || isMobileMenuOpen;
+  const isAnyModalActive = isBooting || isOnboardingOpen || activeModal !== null || isMobileMenuOpen;
 
   // If user is authenticated & onboarded, display DashboardView
   if (currentUser) {
@@ -155,18 +152,6 @@ export function HomeInteractionManager({ marquee }: HomeInteractionManagerProps)
         {/* Pre-rendered Scrolling Marquee passed from Server side */}
         {marquee}
 
-        {/* Admin Panel Floating Launch Trigger Button */}
-        <div className="fixed bottom-4 right-4 z-40">
-          <button
-            onClick={() => setIsAdminOpen(true)}
-            className="px-3.5 py-2 rounded-full bg-slate-900/90 dark:bg-[#0E1324]/90 hover:bg-slate-800 border border-slate-700/80 dark:border-[#6D5BFF]/40 text-white text-xs font-heading font-extrabold shadow-xl backdrop-blur-md flex items-center gap-2 cursor-pointer hover:scale-105 transition-transform"
-            title="Open Production Admin Control Center"
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-[#00D4FF]" />
-            <span>Admin Portal</span>
-          </button>
-        </div>
-
         {/* Pre-rendered Mobile Drawer */}
         <MobileMenu
           isOpen={isMobileMenuOpen}
@@ -193,12 +178,6 @@ export function HomeInteractionManager({ marquee }: HomeInteractionManagerProps)
           isOpen={isOnboardingOpen}
           onClose={() => setIsOnboardingOpen(false)}
           onComplete={handleOnboardingComplete}
-        />
-
-        {/* Pre-rendered Admin Operations Operations Center */}
-        <AdminPanel
-          isOpen={isAdminOpen}
-          onClose={() => setIsAdminOpen(false)}
         />
       </div>
     </>

@@ -10,16 +10,14 @@ export async function GET() {
 
     return NextResponse.json({
       status: 'connected',
-      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://exzpqrqflfhawgtnzxqx.supabase.co',
-      tableChecked: 'contacts',
-      note: error ? `Connected (Table query response: ${error.message})` : 'Connected & Active',
+      note: 'Database service is active.',
       timestamp: new Date().toISOString(),
     });
   } catch (err: unknown) {
-    const errorMessage = err instanceof Error ? err.message : 'Connection failed';
+    console.error('Database health check error:', err);
     return NextResponse.json({
-      status: 'error',
-      error: errorMessage,
+      status: 'degraded',
+      message: 'Database check failed.',
     }, { status: 500 });
   }
 }

@@ -53,7 +53,7 @@ export default function DashboardPage() {
             countryCode: '',
             country: 'Global',
             language: 'English',
-            examName: (userExam as any)?.exams?.name || 'USMLE Step 1 & 2 CK',
+            examName: (userExam as any)?.exams?.name || 'Not Selected',
             examDate: examDateStr,
             daysLeft: daysLeftVal,
             weeksLeft: Math.ceil(daysLeftVal / 7),

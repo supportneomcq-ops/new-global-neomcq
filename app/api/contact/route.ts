@@ -31,7 +31,6 @@ export async function POST(req: NextRequest) {
         success: true,
         saved: false,
         message: 'Message received and processed.',
-        error: error.message,
       });
     }
 
@@ -41,7 +40,7 @@ export async function POST(req: NextRequest) {
       data,
     });
   } catch (err: unknown) {
-    const errorMessage = err instanceof Error ? err.message : 'Internal error';
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    console.error('Error in contact API route:', err);
+    return NextResponse.json({ error: 'Failed to deliver message. Please try again later.' }, { status: 500 });
   }
 }

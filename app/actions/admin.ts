@@ -62,6 +62,15 @@ export async function getAllUsersAction() {
 
   if (urError) throw urError;
 
+  // Fetch user exams to get user-specific selected exam
+  const { data: userExams, error: ueError } = await adminClient
+    .from('user_exams')
+    .select('user_id, exam_id, exams(name)');
+
+  if (ueError) {
+    console.error('Failed to fetch user_exams in admin action:', ueError);
+  }
+
   // Fetch Auth users to get suspended status
   const { data: { users: authUsers }, error: auError } = await adminClient.auth.admin.listUsers();
   if (auError) {
@@ -73,8 +82,11 @@ export async function getAllUsersAction() {
     const authUser = authUsers?.find((au) => au.id === p.id);
     const isSuspended = authUser?.user_metadata?.suspended === true;
     
-    const userRoleEntries = userRoles.filter((ur) => ur.user_id === p.id);
+    const userRoleEntries = userRoles ? userRoles.filter((ur) => ur.user_id === p.id) : [];
     const roles = userRoleEntries.map((ur: any) => ur.roles?.name).filter(Boolean);
+
+    const userExamEntry = userExams?.find((ue) => ue.user_id === p.id);
+    const examName = (userExamEntry?.exams as any)?.name || 'Not Selected';
 
     return {
       id: p.id,
@@ -83,6 +95,7 @@ export async function getAllUsersAction() {
       email: p.email,
       phone: p.phone || '',
       country: p.timezone || 'Global',
+      exam: examName,
       roles: roles.length > 0 ? roles : ['user'],
       isSuspended,
       createdAt: p.created_at,

@@ -28,7 +28,6 @@ export async function POST(req: NextRequest) {
         success: true,
         saved: false,
         message: 'Sign in processed successfully.',
-        error: error.message,
       });
     }
 
