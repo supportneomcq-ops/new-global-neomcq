@@ -24,7 +24,6 @@ export default async function AdminDashboardLayout({ children }: { children: Rea
   const userEmail = user.email?.toLowerCase().trim() || '';
   const initialAdminEmail = (process.env.INITIAL_ADMIN_EMAIL || 'support@neomcq.com').toLowerCase().trim();
   const isAdminEmail = userEmail === initialAdminEmail ||
-                       userEmail === 'admin@neomcq.com' ||
                        userEmail === 'swapnilsonawane913@gmail.com';
 
   if (isAdminEmail && !roleNames.includes('admin') && !roleNames.includes('super_admin')) {

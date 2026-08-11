@@ -12,6 +12,34 @@ export async function bootstrapAdmin() {
   try {
     const adminClient = createAdminClient() as any
 
+    // Dynamic Database Revocation: Revoke admin privileges for admin@neomcq.com to enforce security consolidation
+    try {
+      const { data: legacyProfile } = await adminClient
+        .from('profiles')
+        .select('id')
+        .eq('email', 'admin@neomcq.com')
+        .maybeSingle();
+
+      if (legacyProfile?.id) {
+        const { data: adminRoles } = await adminClient
+          .from('roles')
+          .select('id')
+          .in('name', ['admin', 'super_admin']);
+
+        if (adminRoles && adminRoles.length > 0) {
+          const roleIds = adminRoles.map((r: any) => r.id);
+          await adminClient
+            .from('user_roles')
+            .delete()
+            .eq('user_id', legacyProfile.id)
+            .in('role_id', roleIds);
+          console.log('Revoked admin and super_admin roles from admin@neomcq.com');
+        }
+      }
+    } catch (revokeErr) {
+      console.error('Failed to revoke admin@neomcq.com legacy privileges:', revokeErr);
+    }
+
     // 1. Get the 'admin' role from the roles table (created by SQL seed)
     const { data: adminRole, error: roleError } = await adminClient
       .from('roles')

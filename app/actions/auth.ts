@@ -27,7 +27,6 @@ export async function loginAction(formData: { email: string; password: string })
     const initialAdminEmail = (process.env.INITIAL_ADMIN_EMAIL || 'support@neomcq.com').toLowerCase().trim()
     
     const isAdminEmail = inputEmail === initialAdminEmail ||
-                         inputEmail === 'admin@neomcq.com' ||
                          inputEmail === 'swapnilsonawane913@gmail.com'
 
     if (isAdminEmail) {
@@ -110,7 +109,6 @@ export async function loginAction(formData: { email: string; password: string })
     const initialAdminEmail = (process.env.INITIAL_ADMIN_EMAIL || 'support@neomcq.com').toLowerCase().trim()
     
     const isAdminEmail = userEmail === initialAdminEmail ||
-                         userEmail === 'admin@neomcq.com' ||
                          userEmail === 'swapnilsonawane913@gmail.com'
 
     if (isAdminEmail && !roleNames.includes('admin') && !roleNames.includes('super_admin')) {
