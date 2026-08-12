@@ -34,7 +34,8 @@ import {
 } from 'lucide-react';
 import {
   getAllUsersAction,
-  getSystemMetricsAction
+  getSystemMetricsAction,
+  getLiveDashboardMetricsAction
 } from '@/app/actions/admin';
 import {
   ResponsiveContainer,
@@ -55,16 +56,19 @@ export default function AdminDashboardOverviewPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [metrics, setMetrics] = useState<any>({ jobs: [], subscriptions: [] });
   const [timeRange, setTimeRange] = useState('7_days');
+  const [liveMetrics, setLiveMetrics] = useState<any>(null);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [allUsers, allMetrics] = await Promise.all([
+      const [allUsers, allMetrics, liveData] = await Promise.all([
         getAllUsersAction(),
-        getSystemMetricsAction()
+        getSystemMetricsAction(),
+        getLiveDashboardMetricsAction(timeRange)
       ]);
       setUsers(allUsers || []);
       setMetrics(allMetrics || { jobs: [], subscriptions: [] });
+      setLiveMetrics(liveData || null);
     } catch (err) {
       console.error('Error loading dashboard overview:', err);
     } finally {
@@ -74,55 +78,78 @@ export default function AdminDashboardOverviewPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [timeRange]);
 
-  // Proportional scaling helpers to display realistic data on top of DB
-  const actualCount = users.length;
-  const displayTotalUsers = 128542 + actualCount;
-  const displayActiveUsers = Math.round(displayTotalUsers * 0.35);
-  const displayNewUsers = 8749 + actualCount;
-  const displayPremiumUsers = 22184 + metrics.subscriptions.length;
+  const formatMetric = (val: any, prefix: string = '') => {
+    if (typeof val === 'number') {
+      return `${prefix}${val.toLocaleString()}`;
+    }
+    return val || 'Awaiting first event';
+  };
 
-  const displayMonthlyRevenue = 2894350 + (metrics.subscriptions.length * 999);
-  const displayAIRequests = "2.45M";
-  const displayQuestionsGenerated = "3.21M";
-  const displayQuestionsSolved = "7.68M";
-  const displayLearningSessions = "1.92M";
-  const displayAICost = "₹2,45,230";
-  const displayStorageUsed = "1.34 TB";
-  const displayFailedJobs = 23 + metrics.jobs.filter((j: any) => j.status === 'failed').length;
+  const displayTotalUsers = formatMetric(liveMetrics?.totalUsers);
+  const displayActiveUsers = formatMetric(liveMetrics?.activeUsers);
+  const displayNewUsers = formatMetric(liveMetrics?.newUsers);
+  const displayPremiumUsers = formatMetric(liveMetrics?.premiumUsers);
+  const displayMonthlyRevenue = formatMetric(liveMetrics?.revenue, '₹');
+  const displayAIRequests = formatMetric(liveMetrics?.aiRequests);
+  const displayQuestionsGenerated = formatMetric(liveMetrics?.questionsGenerated);
+  const displayQuestionsSolved = formatMetric(liveMetrics?.questionsSolved);
+  const displayLearningSessions = formatMetric(liveMetrics?.learningSessions);
+  const displayAICost = liveMetrics?.aiCost || 'Awaiting first event';
+  const displayStorageUsed = liveMetrics?.storageUsed || 'Awaiting first event';
+  const displayFailedJobs = formatMetric(liveMetrics?.failedJobs);
 
   // Pie chart data for Exams
-  const examPieData = [
-    { name: 'NEET PG', value: 11250, color: '#6D5BFF' },
-    { name: 'USMLE Step 1', value: 8582, color: '#00D4FF' },
-    { name: 'JEE Main', value: 6561, color: '#10B981' },
-    { name: 'UPSC CSE', value: 4501, color: '#F59E0B' },
-    { name: 'GATE', value: 3485, color: '#EF4444' },
-    { name: 'Others', value: 11513, color: '#64748B' },
-  ];
+  const getRealExamPieData = () => {
+    const counts: Record<string, number> = {};
+    users.forEach(u => {
+      const examName = u.exam || 'Not Selected';
+      counts[examName] = (counts[examName] || 0) + 1;
+    });
+
+    const colors = ['#6D5BFF', '#00D4FF', '#10B981', '#F59E0B', '#EF4444', '#A855F7', '#64748B'];
+    const entries = Object.entries(counts).map(([name, value], i) => ({
+      name,
+      value,
+      color: colors[i % colors.length]
+    }));
+
+    if (entries.length === 0) {
+      return [{ name: 'No exams registered', value: 0, color: '#64748B' }];
+    }
+    return entries;
+  };
+  const examPieData = getRealExamPieData();
 
   // User Growth Chart Data
-  const userGrowthData = [
-    { name: 'May 26', total: 120000, new: 1200 },
-    { name: 'May 27', total: 122000, new: 1400 },
-    { name: 'May 28', total: 123500, new: 1100 },
-    { name: 'May 29', total: 125000, new: 1500 },
-    { name: 'May 30', total: 126800, new: 1300 },
-    { name: 'May 31', total: 128000, new: 1600 },
-    { name: 'Jun 1', total: 128542, new: 1250 },
-  ];
+  const getRealUserGrowthData = () => {
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const label = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      const dayStart = new Date(d.setHours(0, 0, 0, 0));
+      const dayEnd = new Date(d.setHours(23, 59, 59, 999));
+      
+      const newCount = users.filter(u => {
+        const created = new Date(u.createdAt);
+        return created >= dayStart && created <= dayEnd;
+      }).length;
+      
+      const runningTotal = users.filter(u => {
+        const created = new Date(u.createdAt);
+        return created <= dayEnd;
+      }).length;
+
+      days.push({ name: label, total: runningTotal, new: newCount });
+    }
+    return days;
+  };
+  const userGrowthData = getRealUserGrowthData();
 
   // Revenue Overview Chart Data
-  const revenueOverviewData = [
-    { name: 'May 26', revenue: 180000 },
-    { name: 'May 27', revenue: 150000 },
-    { name: 'May 28', revenue: 210000 },
-    { name: 'May 29', revenue: 195000 },
-    { name: 'May 30', revenue: 190000 },
-    { name: 'May 31', revenue: 205000 },
-    { name: 'Jun 1', revenue: 220000 },
-  ];
+  const revenueOverviewData = liveMetrics?.dailyRevenue || [];
 
   // Mini sparkline mock renderers
   const renderSparkline = (data: number[], color: string) => (
@@ -165,7 +192,7 @@ export default function AdminDashboardOverviewPage() {
               onChange={(e) => setTimeRange(e.target.value)}
               className="bg-transparent border-none outline-none text-slate-300 font-bold cursor-pointer"
             >
-              <option value="7_days">May 26 - Jun 1, 2026</option>
+              <option value="7_days">Last 7 Days</option>
               <option value="30_days">Last 30 Days</option>
               <option value="all">All Time</option>
             </select>
@@ -181,29 +208,29 @@ export default function AdminDashboardOverviewPage() {
       {/* Grid of 12 beautiful compact metrics cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
         {[
-          { label: 'Total Users', val: displayTotalUsers.toLocaleString(), trend: '+12.5%', isUp: true, spark: [120, 122, 123, 125, 126, 128], col: '#6D5BFF' },
-          { label: 'Active Users', val: displayActiveUsers.toLocaleString(), trend: '+8.3%', isUp: true, spark: [42, 43, 44, 45, 45, 45], col: '#10B981' },
-          { label: 'New Users', val: displayNewUsers.toLocaleString(), trend: '+15.7%', isUp: true, spark: [80, 85, 82, 87, 86, 87], col: '#A855F7' },
-          { label: 'Premium Users', val: displayPremiumUsers.toLocaleString(), trend: '+10.2%', isUp: true, spark: [20, 21, 21, 22, 22, 22], col: '#F59E0B' },
-          { label: 'Monthly Revenue', val: `₹${(displayMonthlyRevenue / 100000).toFixed(2)}L`, trend: '+18.6%', isUp: true, spark: [18, 15, 21, 19, 19, 22], col: '#10B981' },
-          { label: 'AI Requests', val: displayAIRequests, trend: '+25.3%', isUp: true, spark: [2.1, 2.2, 2.3, 2.4, 2.4, 2.45], col: '#00D4FF' },
-          { label: 'Questions Generated', val: displayQuestionsGenerated, trend: '+23.1%', isUp: true, spark: [2.8, 2.9, 3.0, 3.1, 3.1, 3.21], col: '#6D5BFF' },
-          { label: 'Questions Solved', val: displayQuestionsSolved, trend: '+17.4%', isUp: true, spark: [7.1, 7.3, 7.4, 7.5, 7.6, 7.68], col: '#10B981' },
-          { label: 'Learning Sessions', val: displayLearningSessions, trend: '+14.8%', isUp: true, spark: [1.7, 1.8, 1.8, 1.9, 1.9, 1.92], col: '#A855F7' },
-          { label: 'AI Cost', val: displayAICost, trend: '+12.7%', isUp: true, spark: [22, 23, 24, 24, 24, 24.5], col: '#F59E0B' },
-          { label: 'Storage Used', val: displayStorageUsed, trend: '+6.4%', isUp: true, spark: [1.2, 1.25, 1.28, 1.3, 1.32, 1.34], col: '#00D4FF' },
-          { label: 'Failed Jobs', val: displayFailedJobs, trend: '-24.1%', isUp: false, spark: [30, 28, 25, 24, 23, 23], col: '#EF4444' },
+          { label: 'Total Users', val: displayTotalUsers, trend: '', isUp: true, spark: [1, 2, 2, 3, 3, 4], col: '#6D5BFF' },
+          { label: 'Active Users', val: displayActiveUsers, trend: '', isUp: true, spark: [1, 1, 2, 2, 2, 2], col: '#10B981' },
+          { label: 'New Users', val: displayNewUsers, trend: '', isUp: true, spark: [2, 3, 2, 4, 3, 4], col: '#A855F7' },
+          { label: 'Premium Users', val: displayPremiumUsers, trend: '', isUp: true, spark: [0, 1, 1, 2, 2, 2], col: '#F59E0B' },
+          { label: 'Monthly Revenue', val: displayMonthlyRevenue, trend: '', isUp: true, spark: [1, 2, 1, 3, 2, 4], col: '#10B981' },
+          { label: 'AI Requests', val: displayAIRequests, trend: '', isUp: true, spark: [1, 2, 3, 2, 4, 5], col: '#00D4FF' },
+          { label: 'Questions Generated', val: displayQuestionsGenerated, trend: '', isUp: true, spark: [3, 4, 3, 5, 4, 6], col: '#6D5BFF' },
+          { label: 'Questions Solved', val: displayQuestionsSolved, trend: '', isUp: true, spark: [2, 3, 4, 3, 5, 6], col: '#10B981' },
+          { label: 'Learning Sessions', val: displayLearningSessions, trend: '', isUp: true, spark: [1, 2, 2, 3, 3, 4], col: '#A855F7' },
+          { label: 'AI Cost', val: displayAICost, trend: '', isUp: true, spark: [1, 2, 2, 3, 2, 3], col: '#F59E0B' },
+          { label: 'Storage Used', val: displayStorageUsed, trend: '', isUp: true, spark: [1, 1, 1, 2, 2, 2], col: '#00D4FF' },
+          { label: 'Failed Jobs', val: displayFailedJobs, trend: '', isUp: false, spark: [4, 3, 2, 2, 1, 0], col: '#EF4444' },
         ].map((c) => (
           <div key={c.label} className="p-4 rounded-2xl bg-[#090d1a] border border-slate-800/80 space-y-1 hover:border-slate-700/80 transition-colors">
             <div className="flex items-center justify-between text-slate-500">
               <span className="text-[10px] font-black uppercase tracking-wider">{c.label}</span>
-              <span className={`text-[10px] font-bold ${c.isUp ? 'text-emerald-500' : 'text-rose-500'}`}>{c.trend}</span>
+              {c.trend && <span className={`text-[10px] font-bold ${c.isUp ? 'text-emerald-500' : 'text-rose-500'}`}>{c.trend}</span>}
             </div>
             <div className="flex items-baseline justify-between gap-1">
               <div className="text-lg font-black text-white">{c.val}</div>
               {renderSparkline(c.spark, c.col)}
             </div>
-            <div className="text-[9px] text-slate-500">vs last 7 days</div>
+            <div className="text-[9px] text-slate-500">vs last period</div>
           </div>
         ))}
       </div>

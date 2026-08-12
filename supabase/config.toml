@@ -1,0 +1,47 @@
+# Supabase Project Configuration for NeoMCQ
+
+project_id = "exzpqrqflfhawgtnzxqx"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[auth]
+enabled = true
+site_url = "https://neomcq.com"
+additional_redirect_urls = ["https://*.neomcq.com", "http://localhost:3000"]
+jwt_expiry = 3600
+enable_signup = true
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[functions.compile-exam]
+verify_jwt = false
+
+[functions.process-ai-job]
+verify_jwt = false
+
+[functions.razorpay-webhook]
+verify_jwt = false
+
+[functions.calculate-progress]
+verify_jwt = true
+
+[functions.r2-upload]
+verify_jwt = true
+
+[functions.admin-analytics]
+verify_jwt = true
+
+[functions.ai-tutor]
+verify_jwt = true
