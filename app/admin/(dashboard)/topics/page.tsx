@@ -1,12 +1,8 @@
-'use client';
+'use client'
 
-import React from 'react';
-import { AdminHierarchyManager } from '@/components/admin-hierarchy-manager';
+import React from 'react'
+import { AdminTopicsManager } from '@/components/admin-topics-manager'
 
 export default function AdminTopicsPage() {
-  return (
-    <div className="space-y-6">
-      <AdminHierarchyManager />
-    </div>
-  );
+  return <AdminTopicsManager />
 }

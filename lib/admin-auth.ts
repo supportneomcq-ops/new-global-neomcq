@@ -23,12 +23,24 @@ export async function verifyAdminApiSession() {
 
   const userEmail = user.email?.toLowerCase().trim() || '';
   const initialAdminEmail = (process.env.INITIAL_ADMIN_EMAIL || 'support@neomcq.com').toLowerCase().trim();
-  const isAdminEmail = userEmail === initialAdminEmail ||
-                       userEmail === 'admin@neomcq.com' ||
-                       userEmail === 'swapnilsonawane913@gmail.com';
+
+  // Auto-seed initial admin email if role isn't already present
+  if (
+    (userEmail === initialAdminEmail || userEmail === 'support@neomcq.com' || userEmail === 'swapnilsonawane913@gmail.com') &&
+    !roleNames.includes('admin') &&
+    !roleNames.includes('super_admin')
+  ) {
+    const { data: adminRole } = await adminClient.from('roles').select('id').eq('name', 'admin').maybeSingle();
+    if (adminRole?.id) {
+      await adminClient.from('user_roles').upsert(
+        { user_id: user.id, role_id: adminRole.id },
+        { onConflict: 'user_id,role_id' }
+      );
+      roleNames.push('admin');
+    }
+  }
 
   const authorized =
-    isAdminEmail ||
     roleNames.includes('admin') ||
     roleNames.includes('super_admin') ||
     roleNames.includes('support') ||
@@ -43,3 +55,28 @@ export async function verifyAdminApiSession() {
 
   return { authorized: true, user, roleNames };
 }
+
+export async function logRevenueAuditEvent(entry: {
+  admin_id?: string;
+  admin_email?: string;
+  userId?: string;
+  action: string;
+  target?: string;
+  entityType?: string;
+  entityId?: string;
+  metadata?: any;
+}) {
+  try {
+    const supabase = getSupabaseAdmin();
+    await supabase.from('revenue_audit_logs').insert({
+      admin_id: entry.admin_id || entry.userId || null,
+      admin_email: entry.admin_email || 'system',
+      action: entry.action,
+      target: entry.target || entry.entityId || entry.entityType || '',
+      metadata: entry.metadata || {},
+    });
+  } catch (err) {
+    console.error('Failed to log audit event:', err);
+  }
+}
+

@@ -53,6 +53,8 @@ import {
   Timer,
   BellRing,
   HeartPulse,
+  Server,
+  Coins,
 } from 'lucide-react';
 import { Logo } from '@/components/logo';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -69,6 +71,16 @@ export function AdminShell({ userEmail, roles, children }: AdminShellProps) {
   const router = useRouter();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isProduction, setIsProduction] = useState(false);
+  const [showPreviewBanner, setShowPreviewBanner] = useState(true);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const host = window.location.hostname;
+      // Is production if domain is neomcq.com or www.neomcq.com
+      setIsProduction(host === 'neomcq.com' || host === 'www.neomcq.com');
+    }
+  }, []);
 
   // Live telemetry badge state
   const [badges, setBadges] = useState({
@@ -149,7 +161,6 @@ export function AdminShell({ userEmail, roles, children }: AdminShellProps) {
         { label: 'User Activity', href: '/admin/users/activity', icon: History },
         { label: 'Support Accounts', href: '/admin/support', icon: UserCheck, badge: badges.supportAccounts, badgeType: 'indigo' },
         { label: 'Roles & Permissions', href: '/admin/roles', icon: Lock },
-        { label: 'Subscriptions', href: '/admin/subscriptions', icon: CreditCard },
       ],
     },
     {
@@ -173,6 +184,7 @@ export function AdminShell({ userEmail, roles, children }: AdminShellProps) {
         { label: 'Revision Sheets', href: '/admin/revision-sheets', icon: Sparkles },
         { label: 'AI Tutor', href: '/admin/ai-tutor', icon: Bot },
         { label: 'Study Plans', href: '/admin/study-plans', icon: Calendar },
+        { label: 'Learning Assets', href: '/admin/learning-assets', icon: Database },
         { label: 'Content Approval', href: '/admin/content-approval', icon: CheckCircle, badge: badges.contentApproval, badgeType: 'amber' },
       ],
     },
@@ -180,11 +192,13 @@ export function AdminShell({ userEmail, roles, children }: AdminShellProps) {
       title: 'AI ENGINE',
       items: [
         { label: 'AI Jobs', href: '/admin/ai-jobs', icon: Cpu, badge: badges.aiJobs, badgeType: 'indigo' },
-        { label: 'Generation Queue', href: '/admin/generation-queue', icon: ListTodo },
-        { label: 'Failed Jobs', href: '/admin/failed-jobs', icon: AlertCircle, badge: badges.failedJobs, badgeType: 'rose' },
+        { label: 'Generation Queue', href: '/admin/ai-jobs/queue', icon: ListTodo },
+        { label: 'Failed Jobs', href: '/admin/ai-jobs/failed', icon: AlertCircle, badge: badges.failedJobs, badgeType: 'rose' },
         { label: 'AI Providers', href: '/admin/ai-providers', icon: Sliders },
         { label: 'AI Models', href: '/admin/ai-models', icon: Bot },
-        { label: 'AI Usage & Cost', href: '/admin/ai-usage', icon: BadgeDollarSign },
+        { label: 'AI Usage', href: '/admin/ai-usage', icon: Activity },
+        { label: 'AI Costs', href: '/admin/ai-costs', icon: BadgeDollarSign },
+        { label: 'AI Pricing', href: '/admin/ai-pricing', icon: Coins },
         { label: 'AI Logs', href: '/admin/ai-logs', icon: Terminal },
       ],
     },
@@ -195,6 +209,8 @@ export function AdminShell({ userEmail, roles, children }: AdminShellProps) {
         { label: 'User Analytics', href: '/admin/analytics/users', icon: Users },
         { label: 'Exam Analytics', href: '/admin/analytics/exams', icon: BookOpen },
         { label: 'Learning Analytics', href: '/admin/analytics/learning', icon: Sparkles },
+        { label: 'Content Analytics', href: '/admin/analytics/content', icon: FileCode },
+        { label: 'AI Analytics', href: '/admin/analytics/ai', icon: Cpu },
         { label: 'Retention', href: '/admin/analytics/retention', icon: Activity },
         { label: 'Engagement', href: '/admin/analytics/engagement', icon: Timer },
         { label: 'Revenue Analytics', href: '/admin/analytics/revenue', icon: BadgeDollarSign },
@@ -205,6 +221,8 @@ export function AdminShell({ userEmail, roles, children }: AdminShellProps) {
       items: [
         { label: 'Revenue', href: '/admin/revenue', icon: BadgeDollarSign },
         { label: 'Payments', href: '/admin/payments', icon: CreditCard },
+        { label: 'Razorpay', href: '/admin/razorpay', icon: Activity },
+        { label: 'Subscriptions', href: '/admin/subscriptions', icon: Layers },
         { label: 'Plans', href: '/admin/plans', icon: Sliders },
         { label: 'Coupons', href: '/admin/coupons', icon: Tags },
         { label: 'Refunds', href: '/admin/refunds', icon: AlertCircle },
@@ -218,8 +236,9 @@ export function AdminShell({ userEmail, roles, children }: AdminShellProps) {
         { label: 'Notifications', href: '/admin/notifications', icon: Bell },
         { label: 'Announcements', href: '/admin/announcements', icon: BellRing },
         { label: 'Email', href: '/admin/email', icon: MailIcon },
-        { label: 'Push', href: '/admin/push', icon: Sparkles },
-        { label: 'Support Tickets', href: '/admin/support', icon: HelpCircle },
+        { label: 'Push Notifications', href: '/admin/push', icon: Sparkles },
+        { label: 'Support', href: '/admin/support', icon: HelpCircle },
+        { label: 'Communication Logs', href: '/admin/communication-logs', icon: History },
       ],
     },
     {
@@ -229,11 +248,12 @@ export function AdminShell({ userEmail, roles, children }: AdminShellProps) {
         { label: 'Database', href: '/admin/database', icon: Database },
         { label: 'Supabase', href: '/admin/supabase', icon: CloudIcon },
         { label: 'Storage', href: '/admin/storage', icon: Database },
-        { label: 'Cloudflare R2', href: '/admin/cloudflare-r2', icon: Globe },
+        { label: 'Cloudflare R2', href: '/admin/storage/r2', icon: Globe },
         { label: 'Edge Functions', href: '/admin/edge-functions', icon: FileCode },
         { label: 'Cron Jobs', href: '/admin/cron', icon: Timer },
         { label: 'API Health', href: '/admin/api-health', icon: Activity },
         { label: 'Cache', href: '/admin/cache', icon: Sliders },
+        { label: 'Environment', href: '/admin/environment', icon: Server },
       ],
     },
     {
@@ -317,6 +337,17 @@ export function AdminShell({ userEmail, roles, children }: AdminShellProps) {
             <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-widest bg-[#6D5BFF]/10 text-[#6D5BFF] border border-[#6D5BFF]/20 hidden sm:inline">
               Control Center
             </span>
+            {isProduction ? (
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                PRODUCTION
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                PREVIEW
+              </span>
+            )}
           </Link>
 
           {/* Breadcrumbs */}
@@ -465,7 +496,25 @@ export function AdminShell({ userEmail, roles, children }: AdminShellProps) {
         )}
 
         {/* Main Content Area */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full overflow-x-hidden min-h-[calc(100vh-4rem)]">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full overflow-x-hidden min-h-[calc(100vh-4rem)] space-y-4">
+          {!isProduction && showPreviewBanner && (
+            <div className="p-3.5 px-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-medium flex items-center justify-between gap-3 shadow-sm">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
+                <span>
+                  <strong className="font-extrabold text-amber-200 uppercase tracking-wide mr-1.5">PREVIEW ENVIRONMENT</strong>
+                  Changes will affect the connected database. Exercise caution when running mutations.
+                </span>
+              </div>
+              <button
+                onClick={() => setShowPreviewBanner(false)}
+                className="text-amber-400 hover:text-amber-200 transition-colors p-1 rounded-lg hover:bg-amber-500/20 text-xs font-bold shrink-0"
+                title="Dismiss Banner"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
           {children}
         </main>
       </div>

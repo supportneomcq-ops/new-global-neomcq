@@ -62,6 +62,7 @@ export async function POST(req: NextRequest) {
 
     const userId = paymentEntity?.notes?.user_id || payload?.subscription?.entity?.notes?.user_id
     const planId = paymentEntity?.notes?.plan_id || payload?.subscription?.entity?.notes?.plan_id
+    const creditPackId = paymentEntity?.notes?.credit_pack_id
 
     // Handle key Razorpay events
     if (eventType === 'payment.captured' || eventType === 'order.paid') {
@@ -94,6 +95,108 @@ export async function POST(req: NextRequest) {
             current_period_start: startDate.toISOString(),
             current_period_end: endDate.toISOString(),
           })
+
+          // IDEMPOTENT SUBSCRIPTION CREDIT ALLOCATION
+          const { data: alreadyGrantedSub } = await (supabase as any)
+            .from('credit_ledger')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('reference_type', 'subscription')
+            .eq('reference_id', paymentId)
+            .maybeSingle()
+
+          if (!alreadyGrantedSub) {
+            const { data: planLimits } = await (supabase as any)
+              .from('plan_ai_limits')
+              .select('monthly_credit_grant')
+              .eq('plan_id', planId)
+              .maybeSingle()
+
+            if (planLimits && Number(planLimits.monthly_credit_grant) > 0) {
+              const monthlyCredits = Number(planLimits.monthly_credit_grant)
+              const { data: wallet } = await (supabase as any)
+                .from('credit_accounts')
+                .select('credit_balance, lifetime_credits_granted')
+                .eq('user_id', userId)
+                .maybeSingle()
+
+              if (wallet) {
+                const oldBal = Number(wallet.credit_balance)
+                const newBal = oldBal + monthlyCredits
+                await (supabase as any)
+                  .from('credit_accounts')
+                  .update({
+                    credit_balance: newBal,
+                    lifetime_credits_granted: Number(wallet.lifetime_credits_granted || 0) + monthlyCredits,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('user_id', userId)
+
+                await (supabase as any).from('credit_ledger').insert({
+                  user_id: userId,
+                  transaction_type: 'SUBSCRIPTION_GRANT',
+                  credits: monthlyCredits,
+                  balance_before: oldBal,
+                  balance_after: newBal,
+                  reference_type: 'subscription',
+                  reference_id: paymentId,
+                  description: `Monthly subscription AI credits allocation`
+                })
+              }
+            }
+          }
+        }
+
+        // IDEMPOTENT CREDIT PACK ALLOCATION
+        if (creditPackId) {
+          const { data: alreadyGrantedPack } = await (supabase as any)
+            .from('credit_ledger')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('reference_type', 'credit_pack')
+            .eq('reference_id', paymentId)
+            .maybeSingle()
+
+          if (!alreadyGrantedPack) {
+            const { data: pack } = await (supabase as any)
+              .from('credit_packs')
+              .select('*')
+              .eq('id', creditPackId)
+              .maybeSingle()
+
+            if (pack) {
+              const totalCredits = Number(pack.credits) + Number(pack.bonus_credits || 0)
+              const { data: wallet } = await (supabase as any)
+                .from('credit_accounts')
+                .select('credit_balance, lifetime_credits_purchased')
+                .eq('user_id', userId)
+                .maybeSingle()
+
+              if (wallet) {
+                const oldBal = Number(wallet.credit_balance)
+                const newBal = oldBal + totalCredits
+                await (supabase as any)
+                  .from('credit_accounts')
+                  .update({
+                    credit_balance: newBal,
+                    lifetime_credits_purchased: Number(wallet.lifetime_credits_purchased || 0) + totalCredits,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('user_id', userId)
+
+                await (supabase as any).from('credit_ledger').insert({
+                  user_id: userId,
+                  transaction_type: 'PURCHASE',
+                  credits: totalCredits,
+                  balance_before: oldBal,
+                  balance_after: newBal,
+                  reference_type: 'credit_pack',
+                  reference_id: paymentId,
+                  description: `Purchased credit pack: ${pack.name}`
+                })
+              }
+            }
+          }
         }
 
         // Notify user

@@ -23,10 +23,13 @@ export default async function AdminDashboardLayout({ children }: { children: Rea
 
   const userEmail = user.email?.toLowerCase().trim() || '';
   const initialAdminEmail = (process.env.INITIAL_ADMIN_EMAIL || 'support@neomcq.com').toLowerCase().trim();
-  const isAdminEmail = userEmail === initialAdminEmail ||
-                       userEmail === 'swapnilsonawane913@gmail.com';
 
-  if (isAdminEmail && !roleNames.includes('admin') && !roleNames.includes('super_admin')) {
+  // Auto-seed initial admin email if role isn't already present
+  if (
+    (userEmail === initialAdminEmail || userEmail === 'support@neomcq.com' || userEmail === 'swapnilsonawane913@gmail.com') &&
+    !roleNames.includes('admin') &&
+    !roleNames.includes('super_admin')
+  ) {
     const { data: adminRole } = await adminClient.from('roles').select('id').eq('name', 'admin').maybeSingle();
     if (adminRole?.id) {
       await adminClient.from('user_roles').upsert(
@@ -38,7 +41,6 @@ export default async function AdminDashboardLayout({ children }: { children: Rea
   }
 
   const isAuthorizedAdmin =
-    isAdminEmail ||
     roleNames.includes('admin') ||
     roleNames.includes('super_admin') ||
     roleNames.includes('support') ||

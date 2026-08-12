@@ -1,9 +1,9 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { motion } from 'motion/react'
+import React, { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Sparkles,
   Search,
   CheckCircle2,
   Clock,
@@ -17,26 +17,51 @@ import {
   SlidersHorizontal,
   Loader2,
   AlertCircle,
+  Users,
+  BookOpen,
+  Layers,
+  X,
+  AlertTriangle,
+  ExternalLink,
 } from 'lucide-react'
 
 export function AdminExamsManager() {
   const [exams, setExams] = useState<any[]>([])
   const [stats, setStats] = useState({
     totalExams: 0,
-    aiGeneratedCount: 0,
+    activeExams: 0,
+    archivedExams: 0,
     pendingReviewCount: 0,
-    autoApprovedCount: 0,
   })
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'auto_approved' | 'pending_review' | 'approved' | 'archived'>('all')
-  const [selectedExam, setSelectedExam] = useState<any | null>(null)
+  const [statusFilter, setStatusFilter] = useState<string>('all')
   const [updatingId, setUpdatingId] = useState<string | null>(null)
 
-  const fetchExams = React.useCallback(async () => {
+  // Create Exam Modal
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [formError, setFormError] = useState('')
+  const [duplicateMatch, setDuplicateMatch] = useState<any | null>(null)
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    difficulty: 'Adaptive',
+    question_count: '100',
+    time_limit_mins: '120',
+    official_website: '',
+    is_featured: false,
+    aliases: '',
+  })
+
+  const fetchExams = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/admin/exams')
+      const queryParams = new URLSearchParams()
+      if (searchQuery) queryParams.set('search', searchQuery)
+      if (statusFilter !== 'all') queryParams.set('status', statusFilter)
+
+      const res = await fetch(`/api/admin/exams?${queryParams.toString()}`)
       const data = await res.json()
       if (data.success) {
         setExams(data.exams || [])
@@ -47,209 +72,269 @@ export function AdminExamsManager() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [searchQuery, statusFilter])
 
   useEffect(() => {
-    let isMounted = true
-    const load = async () => {
-      if (isMounted) {
-        await fetchExams()
-      }
-    }
-    load()
-    return () => { isMounted = false }
+    fetchExams()
   }, [fetchExams])
 
-  const handleUpdateStatus = async (examId: string, approval_status: string) => {
-    setUpdatingId(examId)
+  const handleCreateExam = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setCreating(true)
+    setFormError('')
+    setDuplicateMatch(null)
+
     try {
       const res = await fetch('/api/admin/exams', {
-        method: 'PATCH',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ examId, approval_status }),
+        body: JSON.stringify(formData),
       })
+      const data = await res.json()
+
+      if (!res.ok) {
+        setFormError(data.error || 'Failed to create exam')
+        if (data.duplicate) {
+          setDuplicateMatch(data.duplicate)
+        }
+        return
+      }
+
+      // Success
+      setIsCreateOpen(false)
+      setFormData({
+        name: '',
+        description: '',
+        difficulty: 'Adaptive',
+        question_count: '100',
+        time_limit_mins: '120',
+        official_website: '',
+        is_featured: false,
+        aliases: '',
+      })
+      fetchExams()
+    } catch (err: any) {
+      setFormError(err.message || 'Server error')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const handleArchiveExam = async (examId: string) => {
+    if (!confirm('Are you sure you want to archive this exam?')) return
+    setUpdatingId(examId)
+    try {
+      const res = await fetch(`/api/admin/exams?id=${examId}`, { method: 'DELETE' })
       const data = await res.json()
       if (data.success) {
         fetchExams()
       }
     } catch (err) {
-      console.error('Update status error:', err)
+      console.error('Archive error:', err)
     } finally {
       setUpdatingId(null)
     }
   }
 
-  const filteredExams = exams.filter((e) => {
-    const matchesSearch =
-      e.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      e.slug.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesStatus = statusFilter === 'all' || e.approval_status === statusFilter
-    return matchesSearch && matchesStatus
-  })
-
   return (
     <div className="space-y-6">
-      {/* Top Banner & Stats */}
+      {/* Header & Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-heading font-black text-slate-900 dark:text-white flex items-center gap-2">
+            <BookOpen className="w-6 h-6 text-[#6D5BFF]" />
+            <span>Exam Management</span>
+          </h1>
+          <p className="text-xs text-slate-500 dark:text-gray-400">
+            Manage canonical exams, global regions, structure mappings, and study asset pipelines.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={fetchExams}
+            className="p-2.5 rounded-2xl border border-slate-200 dark:border-gray-800 hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors"
+            title="Refresh List"
+          >
+            <RefreshCw className={`w-4 h-4 text-slate-500 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+
+          <button
+            onClick={() => setIsCreateOpen(true)}
+            className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-[#6D5BFF] to-[#A855F7] text-white font-extrabold text-xs shadow-md shadow-[#6D5BFF]/20 flex items-center gap-2 hover:opacity-95 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Create New Exam</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Top Stats Banner */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="p-4 rounded-2xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-gray-800 shadow-sm">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Managed Exams</div>
+          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Canonical Exams</div>
           <div className="text-2xl font-heading font-black text-slate-900 dark:text-white mt-1">
             {stats.totalExams}
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white dark:bg-[#0E1324] border border-[#00D4FF]/30 shadow-sm">
-          <div className="text-[10px] font-bold text-[#00D4FF] uppercase tracking-wider flex items-center gap-1">
-            <Sparkles className="w-3 h-3" /> AI Generated
-          </div>
-          <div className="text-2xl font-heading font-black text-[#00D4FF] mt-1">
-            {stats.aiGeneratedCount}
-          </div>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white dark:bg-[#0E1324] border border-emerald-500/30 shadow-sm">
-          <div className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider flex items-center gap-1">
-            <CheckCircle2 className="w-3 h-3" /> Auto Approved
-          </div>
+        <div className="p-4 rounded-2xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-gray-800 shadow-sm">
+          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Active Exams</div>
           <div className="text-2xl font-heading font-black text-emerald-500 mt-1">
-            {stats.autoApprovedCount}
+            {stats.activeExams}
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white dark:bg-[#0E1324] border border-amber-500/30 shadow-sm">
-          <div className="text-[10px] font-bold text-amber-500 uppercase tracking-wider flex items-center gap-1">
-            <Clock className="w-3 h-3" /> Pending Review
-          </div>
+        <div className="p-4 rounded-2xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-gray-800 shadow-sm">
+          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pending Review</div>
           <div className="text-2xl font-heading font-black text-amber-500 mt-1">
             {stats.pendingReviewCount}
           </div>
         </div>
+
+        <div className="p-4 rounded-2xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-gray-800 shadow-sm">
+          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Archived</div>
+          <div className="text-2xl font-heading font-black text-slate-400 mt-1">
+            {stats.archivedExams}
+          </div>
+        </div>
       </div>
 
-      {/* Filter Toolbar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800">
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
+      {/* Search and Filters Bar */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
           <input
             type="text"
+            placeholder="Search exams by name or slug..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search exam syllabus..."
-            className="w-full pl-10 pr-4 py-2 rounded-xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-gray-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#6D5BFF]"
+            className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-gray-800 text-xs font-semibold focus:outline-none focus:border-[#6D5BFF]"
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
-          {(['all', 'auto_approved', 'pending_review', 'approved', 'archived'] as const).map((st) => (
-            <button
-              key={st}
-              onClick={() => setStatusFilter(st)}
-              className={`px-3 py-1.5 rounded-xl text-[11px] font-bold capitalize transition-all shrink-0 cursor-pointer ${
-                statusFilter === st
-                  ? 'bg-[#6D5BFF] text-white shadow'
-                  : 'bg-white dark:bg-[#0E1324] text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              {st.replace('_', ' ')}
-            </button>
-          ))}
-
-          <button
-            onClick={fetchExams}
-            className="p-2 rounded-xl bg-white dark:bg-[#0E1324] text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-gray-800 shrink-0 cursor-pointer"
-            title="Refresh exams list"
+        <div className="flex items-center gap-2">
+          <SlidersHorizontal className="w-4 h-4 text-slate-400" />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-2.5 rounded-2xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-gray-800 text-xs font-semibold focus:outline-none"
           >
-            <RefreshCw className="w-4 h-4" />
-          </button>
+            <option value="all">All Statuses</option>
+            <option value="active">Active</option>
+            <option value="draft">Draft</option>
+            <option value="archived">Archived</option>
+          </select>
         </div>
       </div>
 
       {/* Exams Data Table */}
-      {loading ? (
-        <div className="py-12 text-center text-slate-400 flex flex-col items-center justify-center gap-2">
-          <Loader2 className="w-6 h-6 animate-spin text-[#6D5BFF]" />
-          <span className="text-xs font-semibold">Loading Global AI Exams...</span>
-        </div>
-      ) : filteredExams.length === 0 ? (
-        <div className="py-12 text-center text-slate-400 bg-white dark:bg-[#0E1324] rounded-2xl border border-slate-200 dark:border-gray-800">
-          <AlertCircle className="w-8 h-8 text-slate-300 dark:text-gray-600 mx-auto mb-2" />
-          <div className="text-sm font-bold">No exams found matching your filter</div>
-        </div>
-      ) : (
-        <div className="bg-white dark:bg-[#0E1324] rounded-2xl border border-slate-200 dark:border-gray-800 overflow-hidden shadow-sm">
+      <div className="bg-white dark:bg-[#0E1324] rounded-3xl border border-slate-200 dark:border-gray-800 overflow-hidden shadow-sm">
+        {loading ? (
+          <div className="p-12 flex flex-col items-center justify-center text-slate-400 gap-3">
+            <Loader2 className="w-6 h-6 animate-spin text-[#6D5BFF]" />
+            <span className="text-xs font-semibold">Loading canonical exams...</span>
+          </div>
+        ) : exams.length === 0 ? (
+          <div className="p-12 text-center text-slate-400 text-xs font-semibold">
+            No exams found matching query.
+          </div>
+        ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 dark:bg-gray-900/60 border-b border-slate-200 dark:border-gray-800 text-slate-500 dark:text-gray-400 font-bold uppercase tracking-wider">
+              <thead className="bg-slate-50 dark:bg-gray-900/50 border-b border-slate-200 dark:border-gray-800 text-slate-500 font-bold uppercase text-[10px] tracking-wider">
                 <tr>
-                  <th className="p-4">Exam Name & Code</th>
-                  <th className="p-4">Origin / Country</th>
-                  <th className="p-4">AI Score</th>
-                  <th className="p-4">Subjects</th>
-                  <th className="p-4">Approval Status</th>
-                  <th className="p-4 text-right">Actions</th>
+                  <th className="px-5 py-3.5">Exam Name & Slug</th>
+                  <th className="px-4 py-3.5">Country / Category</th>
+                  <th className="px-4 py-3.5">Taxonomy Breakdown</th>
+                  <th className="px-4 py-3.5">Learners</th>
+                  <th className="px-4 py-3.5">Status</th>
+                  <th className="px-5 py-3.5 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-gray-800/60">
-                {filteredExams.map((exam) => (
-                  <tr key={exam.id} className="hover:bg-slate-50/50 dark:hover:bg-gray-900/30 transition-colors">
-                    <td className="p-4">
-                      <div className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                        <span>{exam.name}</span>
-                        {exam.created_by_ai && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-[#00D4FF]/10 text-[#00D4FF]">
-                            AI
+              <tbody className="divide-y divide-slate-200 dark:divide-gray-800/60 font-medium">
+                {exams.map((exam) => (
+                  <tr key={exam.id} className="hover:bg-slate-50/50 dark:hover:bg-gray-800/30 transition-colors">
+                    <td className="px-5 py-4">
+                      <div className="font-extrabold text-slate-900 dark:text-white text-sm flex items-center gap-2">
+                        <Link href={`/admin/exams/${exam.id}`} className="hover:text-[#6D5BFF] transition-colors flex items-center gap-1.5">
+                          <span>{exam.name}</span>
+                          <ExternalLink className="w-3 h-3 text-slate-400" />
+                        </Link>
+                        {exam.is_featured && (
+                          <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-500 text-[10px] font-bold">
+                            Featured
                           </span>
                         )}
                       </div>
-                      <div className="text-[10px] text-slate-400">{exam.slug}</div>
+                      <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                        /{exam.slug}
+                      </div>
                     </td>
 
-                    <td className="p-4 text-slate-600 dark:text-gray-300 font-medium">
-                      {exam.countries?.flag_emoji} {exam.countries?.name || 'Global'}
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-1.5">
+                        <span>{exam.countries?.flag_emoji || '🌐'}</span>
+                        <span className="font-semibold text-slate-700 dark:text-gray-300">
+                          {exam.countries?.name || 'Global'}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">
+                        {exam.exam_categories?.name || 'Medical Board'}
+                      </div>
                     </td>
 
-                    <td className="p-4">
-                      <span className="font-bold text-[#6D5BFF] dark:text-[#00D4FF]">
-                        {exam.ai_confidence_score || 98.5}%
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-3">
+                        <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 dark:bg-gray-800 text-[11px] font-bold">
+                          <BookOpen className="w-3 h-3 text-[#6D5BFF]" />
+                          <span>{exam.subject_count || 0} Subjects</span>
+                        </span>
+                        <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 dark:bg-gray-800 text-[11px] font-bold">
+                          <Layers className="w-3 h-3 text-emerald-500" />
+                          <span>{exam.topic_count || 0} Topics</span>
+                        </span>
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-gray-200">
+                        <Users className="w-3.5 h-3.5 text-blue-500" />
+                        <span>{exam.user_count || 0} Enrolled</span>
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-4">
+                      <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase ${
+                        exam.status === 'active'
+                          ? 'bg-emerald-500/10 text-emerald-500'
+                          : exam.status === 'archived'
+                          ? 'bg-slate-500/10 text-slate-400'
+                          : 'bg-amber-500/10 text-amber-500'
+                      }`}>
+                        {exam.status || 'Active'}
                       </span>
                     </td>
 
-                    <td className="p-4 font-semibold text-slate-700 dark:text-gray-300">
-                      {exam.exam_subjects?.length || 0} Subjects
-                    </td>
+                    <td className="px-5 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Link
+                          href={`/admin/exams/${exam.id}`}
+                          className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-gray-800 text-slate-700 dark:text-gray-300 text-[11px] font-bold hover:bg-slate-200 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          Manage
+                        </Link>
 
-                    <td className="p-4">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold capitalize ${
-                          exam.approval_status === 'approved' || exam.approval_status === 'auto_approved'
-                            ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
-                            : exam.approval_status === 'pending_review'
-                            ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
-                            : 'bg-slate-500/10 text-slate-400'
-                        }`}
-                      >
-                        {exam.approval_status.replace('_', ' ')}
-                      </span>
-                    </td>
-
-                    <td className="p-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {exam.approval_status === 'pending_review' && (
+                        {exam.status !== 'archived' && (
                           <button
-                            onClick={() => handleUpdateStatus(exam.id, 'approved')}
+                            onClick={() => handleArchiveExam(exam.id)}
                             disabled={updatingId === exam.id}
-                            className="px-2.5 py-1 rounded-lg bg-emerald-500 text-white text-[10px] font-bold hover:opacity-90 cursor-pointer"
+                            className="p-1.5 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
+                            title="Archive Exam"
                           >
-                            Approve
+                            <Archive className="w-4 h-4" />
                           </button>
                         )}
-
-                        <button
-                          onClick={() => setSelectedExam(exam)}
-                          className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-gray-800 text-slate-700 dark:text-gray-200 text-[10px] font-bold hover:bg-slate-200 dark:hover:bg-gray-700 cursor-pointer"
-                        >
-                          View Syllabus
-                        </button>
                       </div>
                     </td>
                   </tr>
@@ -257,56 +342,137 @@ export function AdminExamsManager() {
               </tbody>
             </table>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Selected Exam Hierarchy Drawer / Modal */}
-      {selectedExam && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-          <div className="bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-gray-800 rounded-3xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-gray-800 pb-4">
-              <div>
-                <h3 className="text-lg font-heading font-extrabold text-slate-900 dark:text-white">
-                  {selectedExam.name}
-                </h3>
-                <p className="text-xs text-slate-400">{selectedExam.description}</p>
+      {/* Create Exam Modal */}
+      <AnimatePresence>
+        {isCreateOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-xl bg-white dark:bg-[#0E1324] rounded-3xl border border-slate-200 dark:border-gray-800 p-6 shadow-2xl space-y-5"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-[#6D5BFF]" />
+                  <h2 className="text-lg font-heading font-extrabold text-slate-900 dark:text-white">
+                    Create Canonical Exam
+                  </h2>
+                </div>
+                <button
+                  onClick={() => setIsCreateOpen(false)}
+                  className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-gray-800 text-slate-400"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-              <button
-                onClick={() => setSelectedExam(null)}
-                className="px-3 py-1 rounded-xl bg-slate-100 dark:bg-gray-800 text-xs font-bold"
-              >
-                Close
-              </button>
-            </div>
 
-            <div className="space-y-3">
-              <div className="text-xs font-bold text-slate-400 uppercase">
-                Generated Subjects ({selectedExam.exam_subjects?.length || 0})
-              </div>
-
-              <div className="space-y-2">
-                {selectedExam.exam_subjects?.map((sub: any) => (
-                  <div key={sub.id} className="p-3.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800">
-                    <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center justify-between">
-                      <span>{sub.name}</span>
-                      <span className="text-[#00D4FF]">{sub.weight_percentage}%</span>
-                    </div>
-                    {sub.exam_topics && sub.exam_topics.length > 0 && (
-                      <div className="mt-2 text-[11px] text-slate-500 dark:text-gray-400 flex flex-wrap gap-1">
-                        {sub.exam_topics.map((t: any) => (
-                          <span key={t.id} className="px-2 py-0.5 rounded-md bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700">
-                            {t.name}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+              {formError && (
+                <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-semibold space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold">
+                    <AlertTriangle className="w-4 h-4" />
+                    <span>{formError}</span>
                   </div>
-                ))}
-              </div>
-            </div>
+                  {duplicateMatch && (
+                    <div className="mt-2 p-2.5 rounded-xl bg-red-500/5 text-[11px] text-red-400">
+                      Existing Canonical Entity: <strong>{duplicateMatch.name}</strong> ({duplicateMatch.slug})
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <form onSubmit={handleCreateExam} className="space-y-4 text-xs">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-gray-300 mb-1">
+                    Canonical Exam Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. USMLE Step 1 & 2 CK"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 font-semibold focus:outline-none focus:border-[#6D5BFF]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-gray-300 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="Brief summary of exam scope and target medical audience..."
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 font-semibold focus:outline-none focus:border-[#6D5BFF]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 dark:text-gray-300 mb-1">
+                      Target Questions
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.question_count}
+                      onChange={(e) => setFormData({ ...formData, question_count: e.target.value })}
+                      className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 font-semibold focus:outline-none focus:border-[#6D5BFF]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 dark:text-gray-300 mb-1">
+                      Time Limit (Minutes)
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.time_limit_mins}
+                      onChange={(e) => setFormData({ ...formData, time_limit_mins: e.target.value })}
+                      className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 font-semibold focus:outline-none focus:border-[#6D5BFF]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-gray-300 mb-1">
+                    Search Aliases (Comma-separated)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. step1, step 1, usmle step 1, step2, step 2 ck"
+                    value={formData.aliases}
+                    onChange={(e) => setFormData({ ...formData, aliases: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 font-semibold focus:outline-none focus:border-[#6D5BFF]"
+                  />
+                </div>
+
+                <div className="pt-2 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateOpen(false)}
+                    className="px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-gray-800 text-slate-600 dark:text-gray-400 font-extrabold hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={creating}
+                    className="px-5 py-2.5 rounded-2xl bg-[#6D5BFF] text-white font-extrabold flex items-center gap-2 hover:bg-[#5b4aee] transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    {creating && <Loader2 className="w-4 h-4 animate-spin" />}
+                    <span>Create Exam</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   )
 }

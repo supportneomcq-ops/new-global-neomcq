@@ -784,4 +784,68 @@ CREATE POLICY "Public read access to learning_content_cache" ON public.learning_
 DROP POLICY IF EXISTS "Authenticated users write learning_content_cache" ON public.learning_content_cache;
 CREATE POLICY "Authenticated users write learning_content_cache" ON public.learning_content_cache FOR ALL USING (auth.role() = 'authenticated');
 
+-- ---------------------------------------------------------------------
+-- 014. SYLLABI & EXAM STRUCTURES & ENHANCED ALIASES
+-- ---------------------------------------------------------------------
+ALTER TABLE public.exam_aliases
+  ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'Manual',
+  ADD COLUMN IF NOT EXISTS confidence NUMERIC(5,2) DEFAULT 98.00,
+  ADD COLUMN IF NOT EXISTS status TEXT CHECK (status IN ('approved', 'pending', 'rejected', 'disabled')) DEFAULT 'approved',
+  ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMPTZ;
+
+ALTER TABLE public.subject_aliases
+  ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'Manual',
+  ADD COLUMN IF NOT EXISTS confidence NUMERIC(5,2) DEFAULT 98.00,
+  ADD COLUMN IF NOT EXISTS status TEXT CHECK (status IN ('approved', 'pending', 'rejected', 'disabled')) DEFAULT 'approved',
+  ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMPTZ;
+
+ALTER TABLE public.topic_aliases
+  ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'Manual',
+  ADD COLUMN IF NOT EXISTS confidence NUMERIC(5,2) DEFAULT 98.00,
+  ADD COLUMN IF NOT EXISTS status TEXT CHECK (status IN ('approved', 'pending', 'rejected', 'disabled')) DEFAULT 'approved',
+  ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS public.syllabi (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  exam_id UUID REFERENCES public.exams(id) ON DELETE CASCADE NOT NULL,
+  title TEXT NOT NULL,
+  version TEXT DEFAULT '1.0' NOT NULL,
+  source TEXT DEFAULT 'Official Board',
+  status TEXT CHECK (status IN ('draft', 'published', 'archived', 'unpublished')) DEFAULT 'draft' NOT NULL,
+  data JSONB DEFAULT '{}'::jsonb NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_syllabi_exam_id ON public.syllabi(exam_id);
+
+CREATE TABLE IF NOT EXISTS public.exam_structures (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  exam_id UUID REFERENCES public.exams(id) ON DELETE CASCADE NOT NULL,
+  title TEXT NOT NULL,
+  version TEXT DEFAULT '1.0' NOT NULL,
+  status TEXT CHECK (status IN ('draft', 'published', 'archived')) DEFAULT 'draft' NOT NULL,
+  sections JSONB DEFAULT '[]'::jsonb NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_exam_structures_exam_id ON public.exam_structures(exam_id);
+
+ALTER TABLE public.syllabi ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_structures ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public read access to syllabi" ON public.syllabi;
+CREATE POLICY "Public read access to syllabi" ON public.syllabi FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Authenticated users write syllabi" ON public.syllabi;
+CREATE POLICY "Authenticated users write syllabi" ON public.syllabi FOR ALL USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Public read access to exam_structures" ON public.exam_structures;
+CREATE POLICY "Public read access to exam_structures" ON public.exam_structures FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Authenticated users write exam_structures" ON public.exam_structures;
+CREATE POLICY "Authenticated users write exam_structures" ON public.exam_structures FOR ALL USING (auth.role() = 'authenticated');
+
+
 

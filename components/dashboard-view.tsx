@@ -23,7 +23,11 @@ import {
   HelpCircle,
   Database,
   Layers,
-  ChevronDown
+  ChevronDown,
+  Coins,
+  DollarSign,
+  History,
+  Loader2,
 } from 'lucide-react';
 import { OnboardingData } from './onboarding-flow';
 import { Logo } from './logo';
@@ -66,8 +70,56 @@ const itemVariants = {
 export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardViewProps) {
   const [completedHours, setCompletedHours] = useState<number>(1.5);
   const [streakDays, setStreakDays] = useState<number>(5);
-  const [activeTab, setActiveTab] = useState<'learning' | 'overview' | 'analytics' | 'qbank' | 'coach'>('learning');
+  const [activeTab, setActiveTab] = useState<'learning' | 'overview' | 'analytics' | 'qbank' | 'coach' | 'credits'>('learning');
   
+  // Credits & Wallet state
+  const [creditsData, setCreditsData] = useState<any>(null);
+  const [loadingCredits, setLoadingCredits] = useState(false);
+  const [purchasingPackId, setPurchasingPackId] = useState<string | null>(null);
+
+  const fetchCredits = async () => {
+    try {
+      setLoadingCredits(true);
+      const res = await fetch('/api/credits');
+      const data = await res.json();
+      if (data.success) {
+        setCreditsData(data);
+      }
+    } catch (err) {
+      console.error('Error querying credits account:', err);
+    } finally {
+      setLoadingCredits(false);
+    }
+  };
+
+  const handlePurchasePack = async (packId: string) => {
+    try {
+      setPurchasingPackId(packId);
+      const res = await fetch('/api/credits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ packId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+        fetchCredits();
+      } else {
+        alert(data.error || 'Checkout error');
+      }
+    } catch (err) {
+      alert('Failed to connect to secure billing engine.');
+    } finally {
+      setPurchasingPackId(null);
+    }
+  };
+
+  React.useEffect(() => {
+    if (activeTab === 'credits') {
+      fetchCredits();
+    }
+  }, [activeTab]);
+
   // Profile Modal
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
@@ -294,6 +346,7 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
             { id: 'analytics', label: 'Weakness Radar' },
             { id: 'qbank', label: 'Adaptive Q-Bank' },
             { id: 'coach', label: 'AI Coach Chat' },
+            { id: 'credits', label: 'My AI Wallet 💎' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -514,6 +567,228 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
             <p className="text-xs text-slate-500">
               Neo AI has indexed official guidelines for {selection.exam?.name || user.examName} ({user.country}). Target: {user.examDate} ({user.daysLeft} days remaining).
             </p>
+          </motion.div>
+        )}
+
+        {/* MY AI WALLET TAB CONTENT */}
+        {activeTab === 'credits' && (
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Wallet Card */}
+              <div className="p-6 rounded-3xl bg-gradient-to-br from-[#10142A] to-[#1D2447] text-white border border-[#6D5BFF]/30 space-y-4 shadow-xl">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-[#00D4FF]">Current Balance</span>
+                    <h3 className="text-4xl font-heading font-black mt-1 text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-200">
+                      {loadingCredits ? '...' : (Number(creditsData?.wallet?.credit_balance || 0).toFixed(1))}
+                    </h3>
+                  </div>
+                  <div className="bg-[#6D5BFF]/30 text-[#00D4FF] rounded-full p-2.5">
+                    <Coins className="h-6 w-6" />
+                  </div>
+                </div>
+
+                <div className="border-t border-white/10 pt-3 flex justify-between text-xs text-slate-400">
+                  <span>Reserved credits:</span>
+                  <span className="font-bold text-white">{creditsData?.wallet?.reserved_credits || 0}</span>
+                </div>
+
+                {creditsData?.subscription ? (
+                  <div className="bg-white/5 rounded-xl p-3 border border-white/10 text-[11px] space-y-1">
+                    <span className="font-bold text-slate-200 block">Plan: {creditsData.subscription.subscription_plans?.name}</span>
+                    <span className="text-slate-400">Monthly AI credits allocation automatically refreshed.</span>
+                  </div>
+                ) : (
+                  <div className="bg-amber-500/10 rounded-xl p-3 border border-amber-500/20 text-[11px] text-amber-300">
+                    No active subscription. Standard rates apply. Purchase credit packs below to power your adaptive AI tools.
+                  </div>
+                )}
+              </div>
+
+              {/* Warnings and predictability guide */}
+              <div className="md:col-span-2 p-6 rounded-3xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-gray-800 space-y-4">
+                <h3 className="font-heading font-bold text-lg flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-[#6D5BFF]" /> Predictive AI Value Guide
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-gray-400">
+                  AI generations on NeoMCQ utilize advanced LLMs mapped to custom task routing rules. Know your estimated consumption in advance:
+                </p>
+
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="p-3 border border-slate-100 dark:border-gray-800 rounded-2xl">
+                    <span className="font-bold block text-[#6D5BFF]">Adaptive MCQ generation</span>
+                    <span className="text-slate-400">~1.5 credits per block</span>
+                  </div>
+                  <div className="p-3 border border-slate-100 dark:border-gray-800 rounded-2xl">
+                    <span className="font-bold block text-emerald-500">AI Tutor Chat consultation</span>
+                    <span className="text-slate-400">~1.0 credits per turn</span>
+                  </div>
+                  <div className="p-3 border border-slate-100 dark:border-gray-800 rounded-2xl">
+                    <span className="font-bold block text-purple-500">Study Guide / Revision sheets</span>
+                    <span className="text-slate-400">~2.5 credits per guide</span>
+                  </div>
+                  <div className="p-3 border border-slate-100 dark:border-gray-800 rounded-2xl">
+                    <span className="font-bold block text-amber-500">Concept explanation lookup</span>
+                    <span className="text-slate-400">~0.5 credits per lookup</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Buy Credit Packs Section */}
+            <div className="space-y-4">
+              <div>
+                <h3 className="font-heading font-black text-xl text-slate-900 dark:text-white">Purchase Additional AI Credits</h3>
+                <p className="text-xs text-slate-500">Instant top-up to unleash premium AI high-yield features.</p>
+              </div>
+
+              {loadingCredits ? (
+                <div className="flex justify-center py-10">
+                  <Loader2 className="h-6 w-6 animate-spin text-[#6D5BFF]" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                  {(creditsData?.creditPacks && creditsData.creditPacks.length > 0) ? (
+                    creditsData.creditPacks.map((pack: any) => (
+                      <div
+                        key={pack.id}
+                        className="p-5 border border-slate-200 dark:border-gray-800 rounded-3xl bg-white dark:bg-[#0E1324] hover:shadow-lg transition-all flex flex-col justify-between"
+                      >
+                        <div>
+                          <h4 className="font-bold text-slate-900 dark:text-white text-base">{pack.name}</h4>
+                          <div className="flex items-baseline gap-1 mt-2">
+                            <span className="text-3xl font-black text-[#6D5BFF]">
+                              {Number(pack.credits) + Number(pack.bonus_credits || 0)}
+                            </span>
+                            <span className="text-xs text-slate-400 font-bold">credits</span>
+                          </div>
+                          {Number(pack.bonus_credits) > 0 && (
+                            <span className="inline-block bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full mt-1.5 border border-emerald-500/20">
+                              Includes {pack.bonus_credits} bonus credits!
+                            </span>
+                          )}
+                        </div>
+
+                        <button
+                          disabled={purchasingPackId !== null}
+                          onClick={() => handlePurchasePack(pack.id)}
+                          className="w-full mt-5 py-2.5 bg-[#6D5BFF] hover:bg-[#5b4aee] text-white font-extrabold text-xs rounded-xl shadow transition-colors cursor-pointer flex items-center justify-center gap-2"
+                        >
+                          {purchasingPackId === pack.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <>Purchase Pack • ${Number(pack.price_usd).toFixed(2)}</>
+                          )}
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    // Fallback visual cards
+                    [
+                      { id: '1', name: 'Standard Boost', credits: 50, price: 5.00, bonus: 0 },
+                      { id: '2', name: 'Professional Tier', credits: 120, price: 9.99, bonus: 20 },
+                      { id: '3', name: 'Ultimate Powerpack', credits: 300, price: 19.99, bonus: 50 },
+                    ].map((pack) => (
+                      <div
+                        key={pack.id}
+                        className="p-5 border border-slate-200 dark:border-gray-800 rounded-3xl bg-white dark:bg-[#0E1324] hover:shadow-lg transition-all flex flex-col justify-between"
+                      >
+                        <div>
+                          <h4 className="font-bold text-slate-900 dark:text-white text-base">{pack.name}</h4>
+                          <div className="flex items-baseline gap-1 mt-2">
+                            <span className="text-3xl font-black text-[#6D5BFF]">
+                              {pack.credits + pack.bonus}
+                            </span>
+                            <span className="text-xs text-slate-400 font-bold">credits</span>
+                          </div>
+                          {pack.bonus > 0 && (
+                            <span className="inline-block bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full mt-1.5 border border-emerald-500/20">
+                              Includes {pack.bonus} bonus credits!
+                            </span>
+                          )}
+                        </div>
+
+                        <button
+                          onClick={() => alert('Checkout initiated for standard sandbox booster.')}
+                          className="w-full mt-5 py-2.5 bg-[#6D5BFF] hover:bg-[#5b4aee] text-white font-extrabold text-xs rounded-xl shadow transition-colors cursor-pointer"
+                        >
+                          Purchase Pack • ${pack.price.toFixed(2)}
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Audit History / Transaction Ledger */}
+            <div className="space-y-4">
+              <h3 className="font-heading font-black text-xl text-slate-900 dark:text-white flex items-center gap-2">
+                <History className="h-5 w-5 text-[#6D5BFF]" /> Wallet Transaction History
+              </h3>
+
+              <div className="border border-slate-200 dark:border-gray-800 rounded-3xl overflow-hidden bg-white dark:bg-[#0E1324]">
+                {creditsData?.ledger && creditsData.ledger.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-slate-200 dark:divide-gray-800 text-xs">
+                      <thead className="bg-slate-50 dark:bg-gray-900/50">
+                        <tr>
+                          <th className="px-6 py-3 text-left font-semibold text-slate-500 uppercase tracking-wider">Date</th>
+                          <th className="px-6 py-3 text-left font-semibold text-slate-500 uppercase tracking-wider">Transaction Type</th>
+                          <th className="px-6 py-3 text-left font-semibold text-slate-500 uppercase tracking-wider">Credits</th>
+                          <th className="px-6 py-3 text-left font-semibold text-slate-500 uppercase tracking-wider">Balance Before/After</th>
+                          <th className="px-6 py-3 text-left font-semibold text-slate-500 uppercase tracking-wider">Description</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 dark:divide-gray-800">
+                        {creditsData.ledger.map((log: any) => (
+                          <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-gray-900/30 transition">
+                            <td className="px-6 py-3.5 whitespace-nowrap text-slate-500 dark:text-gray-400">
+                              {new Date(log.created_at).toLocaleString()}
+                            </td>
+                            <td className="px-6 py-3.5 whitespace-nowrap">
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  log.transaction_type === 'PURCHASE' || log.transaction_type === 'SUBSCRIPTION_GRANT'
+                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                    : log.transaction_type === 'RESERVATION'
+                                    ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                                    : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                                }`}
+                              >
+                                {log.transaction_type}
+                              </span>
+                            </td>
+                            <td className={`px-6 py-3.5 whitespace-nowrap font-bold ${
+                              log.transaction_type === 'PURCHASE' || log.transaction_type === 'SUBSCRIPTION_GRANT' || log.transaction_type === 'RELEASE'
+                                ? 'text-emerald-500'
+                                : 'text-rose-500'
+                            }`}>
+                              {log.transaction_type === 'PURCHASE' || log.transaction_type === 'SUBSCRIPTION_GRANT' || log.transaction_type === 'RELEASE' ? '+' : '-'}
+                              {log.credits}
+                            </td>
+                            <td className="px-6 py-3.5 whitespace-nowrap text-slate-400">
+                              {log.balance_before} → {log.balance_after}
+                            </td>
+                            <td className="px-6 py-3.5 text-slate-600 dark:text-gray-300">
+                              {log.description}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center py-10 text-slate-400 text-xs">
+                    No transactions recorded on this wallet yet. Play with adaptive features to record usage logs!
+                  </div>
+                )}
+              </div>
+            </div>
           </motion.div>
         )}
       </main>
