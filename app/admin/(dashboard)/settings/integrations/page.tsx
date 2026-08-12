@@ -23,7 +23,7 @@ interface IntegrationStatus {
   lastChecked: string | null;
   error?: string | null;
   details?: any;
-  results?: any;
+  results?: Record<string, any> | any;
 }
 
 export default function IntegrationsSettingsPage() {
