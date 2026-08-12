@@ -23,6 +23,7 @@ interface IntegrationStatus {
   lastChecked: string | null;
   error?: string | null;
   details?: any;
+  results?: any;
 }
 
 export default function IntegrationsSettingsPage() {
@@ -136,6 +137,7 @@ export default function IntegrationsSettingsPage() {
             lastChecked: new Date().toLocaleTimeString(),
             error: json.error || null,
             details: json.results || null,
+            results: json.results || null,
           },
         }));
       } else {
