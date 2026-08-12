@@ -66,24 +66,15 @@ export default function AdminFeatureFlagSettingsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-heading font-black flex items-center gap-2">
-            <Sliders className="w-6 h-6 text-[#6D5BFF]" />
-            <span>Application Feature Flags</span>
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-gray-400">
-            Real-time toggles to dynamically enable or disable student features without requiring application redeployments.
-          </p>
-        </div>
-
+      {/* Dynamic refresh bar */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider">Dynamically Toggle Learner Capabilities</h3>
         <button
           onClick={loadFlags}
-          className="p-2.5 px-4 rounded-2xl bg-slate-100 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-slate-300 text-xs font-bold flex items-center gap-2"
+          className="p-2 px-3 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-slate-300 text-xs font-bold flex items-center gap-1.5"
         >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          <span>Refresh Flags</span>
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          <span>Refresh Status</span>
         </button>
       </div>
 

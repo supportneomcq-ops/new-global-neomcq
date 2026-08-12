@@ -1,25 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAdminApiSession } from '@/lib/admin-auth';
+import { verifyAdminApiSession, logRevenueAuditEvent } from '@/lib/admin-auth';
 import { getSupabaseAdmin } from '@/lib/supabase';
-
-// In-memory / server-side system settings cache (or query settings table if available)
-let systemSettings = {
-  maintenanceMode: false,
-  registrationEnabled: true,
-  contentGenerationEnabled: true,
-  aiGenerationEnabled: true,
-  paymentsEnabled: true,
-  notificationsEnabled: true,
-  defaultPagination: 25,
-  systemAnnouncement: 'Welcome to NeoMCQ Pro Entrance Preparation Platform!',
-};
 
 export async function GET(req: NextRequest) {
   try {
     const auth = await verifyAdminApiSession();
     if (!auth.authorized) return auth.response!;
 
-    return NextResponse.json({ success: true, settings: systemSettings });
+    const adminClient = getSupabaseAdmin();
+    const { data } = await adminClient
+      .from('system_settings')
+      .select('*')
+      .eq('key', 'general')
+      .maybeSingle();
+
+    const settings = data?.value || {
+      platformName: 'NeoMCQ',
+      platformDescription: 'AI-Powered High-Yield MCQ Sprints, Comprehensive Study Guides, and Adaptive Learning System.',
+      supportEmail: 'support@neomcq.com',
+      defaultLanguage: 'English',
+      defaultCountry: 'United States',
+      defaultCurrency: 'USD',
+      defaultTimezone: 'UTC',
+      termsUrl: 'https://neomcq.com/terms',
+      privacyUrl: 'https://neomcq.com/privacy',
+      supportUrl: 'https://neomcq.com/support',
+      registrationEnabled: true,
+      maintenanceMode: false,
+      maintenanceMessage: 'NeoMCQ is currently undergoing scheduled maintenance. We will be back online shortly!'
+    };
+
+    return NextResponse.json({ success: true, settings });
   } catch (err: any) {
     console.error('Admin GET system settings error:', err);
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
@@ -32,19 +43,31 @@ export async function POST(req: NextRequest) {
     if (!auth.authorized) return auth.response!;
 
     const newSettings = await req.json();
-    systemSettings = { ...systemSettings, ...newSettings };
+
+    const adminClient = getSupabaseAdmin();
+    const { error } = await adminClient
+      .from('system_settings')
+      .upsert(
+        {
+          key: 'general',
+          value: newSettings,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'key' }
+      );
+
+    if (error) throw error;
 
     // Audit action
-    const supabase = getSupabaseAdmin();
-    await supabase.from('revenue_audit_logs').insert({
-      admin_id: auth.user?.id || null,
-      admin_email: auth.user?.email || 'system',
+    await logRevenueAuditEvent({
+      admin_id: auth.user?.id,
+      admin_email: auth.user?.email,
       action: 'SYSTEM_SETTINGS_UPDATE',
-      target: 'system_settings',
-      metadata: systemSettings,
+      target: 'system_settings:general',
+      metadata: newSettings,
     });
 
-    return NextResponse.json({ success: true, settings: systemSettings });
+    return NextResponse.json({ success: true, settings: newSettings });
   } catch (err: any) {
     console.error('Admin POST system settings error:', err);
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
