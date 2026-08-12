@@ -1,26 +1,77 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Save, RefreshCw, CheckCircle, AlertCircle, RotateCcw, Smartphone } from 'lucide-react';
+import { Save, RefreshCw, CheckCircle, AlertCircle, RotateCcw, Smartphone, ShieldCheck, Activity } from 'lucide-react';
+
+interface AuditItem {
+  key: string;
+  label: string;
+  url: string;
+  status: 'pending' | 'checking' | 'pass' | 'fail';
+  message?: string;
+}
 
 export default function PWASettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [auditRunning, setAuditRunning] = useState(false);
+  const [auditTimestamp, setAuditTimestamp] = useState<string | null>(null);
+
+  const [auditItems, setAuditItems] = useState<AuditItem[]>([
+    { key: 'manifest', label: 'Web Manifest (/manifest.webmanifest)', url: '/manifest.webmanifest', status: 'pending' },
+    { key: 'sw', label: 'Service Worker (/sw.js)', url: '/sw.js', status: 'pending' },
+    { key: 'icon192', label: '192x192 Icon (/icon-192.png)', url: '/icon-192.png', status: 'pending' },
+    { key: 'icon512', label: '512x512 Icon (/icon-512.png)', url: '/icon-512.png', status: 'pending' },
+    { key: 'maskable', label: 'Maskable Icon (/icon-512-maskable.png)', url: '/icon-512-maskable.png', status: 'pending' },
+    { key: 'favicon', label: 'Favicon (/favicon.ico)', url: '/favicon.ico', status: 'pending' },
+    { key: 'apple', label: 'Apple Touch Icon (/apple-touch-icon.png)', url: '/apple-touch-icon.png', status: 'pending' },
+    { key: 'offline', label: 'Offline Fallback Page (/offline)', url: '/offline', status: 'pending' },
+  ]);
+
   const [form, setForm] = useState({
     pwaEnabled: true,
-    name: 'NeoMCQ Clinical Exam Prep',
+    name: 'NeoMCQ — Global Exam Preparation',
     shortName: 'NeoMCQ',
-    description: 'AI-Powered Clinical MCQ Practice Platform',
+    description: 'AI-Powered Global Exam Preparation & Learning Platform',
     startUrl: '/',
     display: 'standalone',
     orientation: 'portrait',
     themeColor: '#090D1E',
     backgroundColor: '#090D1E',
-    icon192: '/icons/icon-192.png',
-    icon512: '/icons/icon-512.png',
+    icon192: '/icon-192.png',
+    icon512: '/icon-512.png',
   });
+
+  const runPwaAudit = async () => {
+    setAuditRunning(true);
+    const updated = [...auditItems];
+
+    for (let i = 0; i < updated.length; i++) {
+      updated[i].status = 'checking';
+      setAuditItems([...updated]);
+
+      try {
+        const res = await fetch(updated[i].url, { method: 'HEAD' });
+        if (res.ok) {
+          updated[i].status = 'pass';
+          updated[i].message = `HTTP ${res.status} OK`;
+        } else {
+          updated[i].status = 'fail';
+          updated[i].message = `HTTP ${res.status}`;
+        }
+      } catch (err: any) {
+        updated[i].status = 'fail';
+        updated[i].message = err.message || 'Fetch failed';
+      }
+
+      setAuditItems([...updated]);
+    }
+
+    setAuditTimestamp(new Date().toLocaleTimeString());
+    setAuditRunning(false);
+  };
 
   const loadSettings = async () => {
     setLoading(true);
@@ -29,7 +80,7 @@ export default function PWASettingsPage() {
       const res = await fetch('/api/admin/settings/pwa');
       const json = await res.json();
       if (json.success) {
-        setForm(json.settings);
+        setForm({ ...form, ...json.settings });
       } else {
         setError(json.error || 'Failed to load PWA settings');
       }
@@ -42,6 +93,7 @@ export default function PWASettingsPage() {
 
   useEffect(() => {
     loadSettings();
+    runPwaAudit();
   }, []);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -58,8 +110,9 @@ export default function PWASettingsPage() {
       const json = await res.json();
       if (json.success) {
         setSuccess(true);
-        setForm(json.settings);
+        setForm({ ...form, ...json.settings });
         setTimeout(() => setSuccess(false), 3000);
+        runPwaAudit();
       } else {
         setError(json.error || 'Failed to save settings');
       }
@@ -78,6 +131,8 @@ export default function PWASettingsPage() {
     );
   }
 
+  const allPassed = auditItems.every((item) => item.status === 'pass');
+
   return (
     <form onSubmit={handleSave} className="space-y-6 max-w-4xl">
       {success && (
@@ -93,6 +148,89 @@ export default function PWASettingsPage() {
           <span>{error}</span>
         </div>
       )}
+
+      {/* PWA Audit & Health Check Panel */}
+      <div className="p-6 rounded-3xl bg-white dark:bg-[#090D1E] border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+          <div className="flex items-center gap-2.5">
+            <ShieldCheck className="w-5 h-5 text-[#00D4FF]" />
+            <div>
+              <h3 className="font-bold text-xs text-slate-900 dark:text-white uppercase tracking-wider">
+                Production PWA System Health Check
+              </h3>
+              <p className="text-[10px] text-slate-500 dark:text-gray-400">
+                Verifies manifest endpoints, service worker file, icons, and offline fallback route.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {auditTimestamp && (
+              <span className="text-[10px] text-slate-400 font-mono">
+                Last Audit: {auditTimestamp}
+              </span>
+            )}
+
+            <button
+              type="button"
+              onClick={runPwaAudit}
+              disabled={auditRunning}
+              className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-bold transition-all flex items-center gap-1.5"
+            >
+              <Activity className={`w-3.5 h-3.5 ${auditRunning ? 'animate-spin text-[#00D4FF]' : ''}`} />
+              <span>{auditRunning ? 'Auditing...' : 'Run Audit'}</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          {auditItems.map((item) => (
+            <div
+              key={item.key}
+              className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between"
+            >
+              <div className="space-y-0.5">
+                <p className="text-[11px] font-bold text-slate-800 dark:text-slate-200">{item.label}</p>
+                <p className="text-[9px] font-mono text-slate-400">{item.message || 'Pending check'}</p>
+              </div>
+
+              <div>
+                {item.status === 'pass' && (
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    PASS
+                  </span>
+                )}
+                {item.status === 'fail' && (
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                    FAIL
+                  </span>
+                )}
+                {item.status === 'checking' && (
+                  <RefreshCw className="w-3.5 h-3.5 text-[#00D4FF] animate-spin" />
+                )}
+                {item.status === 'pending' && (
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-500/10 text-slate-400 border border-slate-500/20">
+                    WAIT
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="pt-2 flex items-center justify-between text-[11px]">
+          <span className="text-slate-400">PWA Installability Status:</span>
+          {allPassed ? (
+            <span className="font-extrabold text-emerald-400 flex items-center gap-1">
+              <CheckCircle className="w-3.5 h-3.5" /> 100% Ready (Chromium / Safari / Edge / Android)
+            </span>
+          ) : (
+            <span className="font-bold text-amber-400 flex items-center gap-1">
+              <AlertCircle className="w-3.5 h-3.5" /> Audit Warning — Check Failed Assets Above
+            </span>
+          )}
+        </div>
+      </div>
 
       <div className="p-5 rounded-3xl bg-white dark:bg-[#090D1E] border border-slate-200 dark:border-gray-800 shadow-sm flex items-center justify-between gap-4">
         <div className="space-y-1">
@@ -281,3 +419,4 @@ export default function PWASettingsPage() {
     </form>
   );
 }
+

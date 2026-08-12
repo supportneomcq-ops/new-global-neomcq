@@ -1,0 +1,64 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#0F172A" />
+        <stop offset="50%" stop-color="#090D1E" />
+        <stop offset="100%" stop-color="#05070F" />
+      </linearGradient>
+
+      <linearGradient id="mainGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#00D4FF" />
+        <stop offset="45%" stop-color="#6D5BFF" />
+        <stop offset="100%" stop-color="#A855F7" />
+      </linearGradient>
+
+      <linearGradient id="accentGrad" x1="100%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="#38BDF8" />
+        <stop offset="100%" stop-color="#818CF8" />
+      </linearGradient>
+
+      <filter id="coreGlow" x="-20%" y="-20%" width="140%" height="140%">
+        <feGaussianBlur stdDeviation="1.28" result="blur" />
+        <feComposite in="SourceGraphic" in2="blur" operator="over" />
+      </filter>
+    </defs>
+
+    <!-- Background Card -->
+    <rect width="64" height="64" rx="14" fill="url(#bgGrad)" />
+
+    <!-- Icon Content Area -->
+    <g transform="translate(3, 3) scale(0.58)">
+      <!-- Outer Precision Orbital Ring -->
+      <circle
+        cx="50" cy="50" r="40"
+        stroke="url(#mainGrad)" stroke-width="2.5"
+        stroke-dasharray="6 14 18 10" opacity="0.9"
+      />
+
+      <!-- Secondary Orbit Ring -->
+      <circle
+        cx="50" cy="50" r="32"
+        stroke="#00D4FF" stroke-width="1.5"
+        stroke-dasharray="4 20" opacity="0.65"
+      />
+
+      <!-- Orbiting Satellite Nodes -->
+      <circle cx="50" cy="10" r="4" fill="#00D4FF" filter="url(#coreGlow)" />
+      <circle cx="50" cy="90" r="3" fill="#A855F7" opacity="0.85" />
+
+      <!-- Geometric Core -->
+      <!-- Outer Diamond -->
+      <path d="M50 18 L78 50 L50 82 L22 50 Z" stroke="url(#mainGrad)" stroke-width="3" fill="none" opacity="0.95" />
+
+      <!-- Inner Prism -->
+      <path d="M50 28 L68 50 L50 72 L32 50 Z" fill="url(#accentGrad)" opacity="0.55" />
+
+      <!-- Neural Beam Axis -->
+      <line x1="50" y1="22" x2="50" y2="78" stroke="#FFFFFF" stroke-width="2" opacity="0.8" />
+      <line x1="22" y1="50" x2="78" y2="50" stroke="#FFFFFF" stroke-width="2" opacity="0.8" />
+
+      <!-- Pulsing Center -->
+      <circle cx="50" cy="50" r="7" fill="url(#mainGrad)" filter="url(#coreGlow)" />
+      <circle cx="50" cy="50" r="3" fill="#FFFFFF" />
+    </g>
+  </svg>

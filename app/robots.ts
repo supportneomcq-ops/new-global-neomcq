@@ -6,9 +6,27 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: '/',
-        disallow: ['/admin/', '/admin/*', '/api/admin/'],
+        disallow: [
+          '/admin',
+          '/admin/*',
+          '/dashboard',
+          '/dashboard/*',
+          '/profile',
+          '/settings',
+          '/mcq',
+          '/mcq/*',
+          '/notes',
+          '/flashcards',
+          '/revision',
+          '/ai-tutor',
+          '/api',
+          '/api/*',
+          '/auth/private',
+          '/private/*',
+        ],
       },
     ],
     sitemap: 'https://neomcq.com/sitemap.xml',
   };
 }
+
