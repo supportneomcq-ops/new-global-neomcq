@@ -43,6 +43,7 @@ interface OnboardingState {
   language: string;
   examSearchQuery: string;
   selectedExam: string;
+  selectedExamId: string;
   customExamInput: string;
   examDate: string;
   learningStyle: 'Rapid Learning' | 'Balanced Study';
@@ -121,6 +122,12 @@ export default function OnboardingPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
+  // Live database states
+  const [dbCountries, setDbCountries] = useState<any[]>([]);
+  const [dbLanguages, setDbLanguages] = useState<any[]>([]);
+  const [dbExams, setDbExams] = useState<any[]>([]);
+  const [isLoadingDB, setIsLoadingDB] = useState(true);
+
   // Core Form State
   const [formData, setFormData] = useState<OnboardingState>({
     firstName: '',
@@ -132,6 +139,7 @@ export default function OnboardingPage() {
     language: 'English (US/UK)',
     examSearchQuery: '',
     selectedExam: 'USMLE Step 1 & 2 CK',
+    selectedExamId: '',
     customExamInput: '',
     examDate: '',
     learningStyle: 'Balanced Study',
@@ -140,6 +148,50 @@ export default function OnboardingPage() {
     studyGoals: ['Pass Exam', 'High Score'],
     password: '',
   });
+
+  // Fetch reference data from database
+  useEffect(() => {
+    async function loadReferenceData() {
+      try {
+        const [countriesRes, languagesRes, examsRes] = await Promise.all([
+          fetch('/api/countries'),
+          fetch('/api/languages'),
+          fetch('/api/exams'),
+        ]);
+
+        const [countriesData, languagesData, examsData] = await Promise.all([
+          countriesRes.json(),
+          languagesRes.json(),
+          examsRes.json(),
+        ]);
+
+        if (countriesData.success && countriesData.countries?.length > 0) {
+          setDbCountries(countriesData.countries);
+        }
+        if (languagesData.success && languagesData.languages?.length > 0) {
+          setDbLanguages(languagesData.languages);
+        }
+        if (examsData.success && examsData.exams?.length > 0) {
+          setDbExams(examsData.exams);
+          // Auto select first live exam if state not set yet
+          setFormData((prev) => {
+            if (prev.selectedExam && prev.selectedExam !== 'USMLE Step 1 & 2 CK') return prev;
+            const liveMatch = examsData.exams.find((e: any) => e.slug === 'usmle-step-1') || examsData.exams[0];
+            return {
+              ...prev,
+              selectedExam: liveMatch.name,
+              selectedExamId: liveMatch.id,
+            };
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load database reference data:', err);
+      } finally {
+        setIsLoadingDB(false);
+      }
+    }
+    loadReferenceData();
+  }, []);
 
   // Refs for focusing elements on validation error
   const firstNameRef = useRef<HTMLInputElement>(null);
@@ -222,7 +274,9 @@ export default function OnboardingPage() {
 
   const activeExamName = formData.customExamInput.trim() || formData.selectedExam;
 
-  const filteredExams = PRESET_EXAMS.filter(
+  const activeExamsSource = dbExams.length > 0 ? dbExams : PRESET_EXAMS;
+
+  const filteredExams = activeExamsSource.filter(
     (e) =>
       e.name.toLowerCase().includes(formData.examSearchQuery.toLowerCase()) ||
       e.category.toLowerCase().includes(formData.examSearchQuery.toLowerCase())
@@ -261,6 +315,11 @@ export default function OnboardingPage() {
     } else if (currentStep === 3) {
       if (!formData.examDate || daysLeft <= 0) {
         setFormError('Please choose a valid future official exam date.');
+        setTimeout(() => dateRef.current?.focus(), 100);
+        return false;
+      }
+      if (learningPhaseDays <= 0) {
+        setFormError('The 5-Day Lockout Rule requires your exam date to be at least 6 days in the future to allow for a learning curriculum and revision buffer.');
         setTimeout(() => dateRef.current?.focus(), 100);
         return false;
       }
@@ -354,6 +413,7 @@ export default function OnboardingPage() {
           country: formData.country,
           language: formData.language,
           examName: activeExamName,
+          examId: formData.selectedExamId || null,
           examDate: formData.examDate,
           daysLeft,
           learningStyle: formData.learningStyle === 'Rapid Learning' ? 'rapid' : 'balanced',
@@ -576,14 +636,29 @@ export default function OnboardingPage() {
                     <div className="flex gap-2">
                       <select
                         value={formData.countryCode}
-                        onChange={(e) => updateField('countryCode', e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          updateField('countryCode', val);
+                          const match = dbCountries.find((c) => c.phone_code === val);
+                          if (match) {
+                            updateField('country', match.name);
+                          }
+                        }}
                         className="px-2.5 py-3 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-xs font-bold focus:outline-none focus:border-[#6D5BFF] text-slate-900 dark:text-white cursor-pointer"
                       >
-                        {COUNTRY_CODES.map((c) => (
-                          <option key={c.code} value={c.code}>
-                            {c.flag} {c.code}
-                          </option>
-                        ))}
+                        {dbCountries.length > 0 ? (
+                          dbCountries.map((c) => (
+                            <option key={c.id} value={c.phone_code}>
+                              {c.flag_emoji} {c.phone_code}
+                            </option>
+                          ))
+                        ) : (
+                          COUNTRY_CODES.map((c) => (
+                            <option key={c.code} value={c.code}>
+                              {c.flag} {c.code}
+                            </option>
+                          ))
+                        )}
                       </select>
 
                       <div className="relative flex-1">
@@ -609,14 +684,29 @@ export default function OnboardingPage() {
                       <Globe className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
                       <select
                         value={formData.country}
-                        onChange={(e) => updateField('country', e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          updateField('country', val);
+                          const match = dbCountries.find((c) => c.name === val);
+                          if (match) {
+                            updateField('countryCode', match.phone_code);
+                          }
+                        }}
                         className="w-full pl-11 pr-4 py-3 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm text-slate-900 dark:text-white cursor-pointer"
                       >
-                        {COUNTRIES.map((cnt) => (
-                          <option key={cnt} value={cnt}>
-                            {cnt}
-                          </option>
-                        ))}
+                        {dbCountries.length > 0 ? (
+                          dbCountries.map((cnt) => (
+                            <option key={cnt.id} value={cnt.name}>
+                              {cnt.flag_emoji} {cnt.name}
+                            </option>
+                          ))
+                        ) : (
+                          COUNTRIES.map((cnt) => (
+                            <option key={cnt} value={cnt}>
+                              {cnt}
+                            </option>
+                          ))
+                        )}
                       </select>
                     </div>
                   </div>
@@ -632,11 +722,19 @@ export default function OnboardingPage() {
                         onChange={(e) => updateField('language', e.target.value)}
                         className="w-full pl-11 pr-4 py-3 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm text-slate-900 dark:text-white cursor-pointer"
                       >
-                        {LANGUAGES.map((lang) => (
-                          <option key={lang} value={lang}>
-                            {lang}
-                          </option>
-                        ))}
+                        {dbLanguages.length > 0 ? (
+                          dbLanguages.map((lang) => (
+                            <option key={lang.id} value={lang.name}>
+                              {lang.name} {lang.native_name ? `(${lang.native_name})` : ''}
+                            </option>
+                          ))
+                        ) : (
+                          LANGUAGES.map((lang) => (
+                            <option key={lang} value={lang}>
+                              {lang}
+                            </option>
+                          ))
+                        )}
                       </select>
                     </div>
                   </div>
@@ -686,6 +784,7 @@ export default function OnboardingPage() {
                           type="button"
                           onClick={() => {
                             updateField('selectedExam', ex.name);
+                            updateField('selectedExamId', ex.id || '');
                             updateField('customExamInput', '');
                           }}
                           className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
@@ -1132,6 +1231,7 @@ export default function OnboardingPage() {
         initialQuery={formData.customExamInput || formData.examSearchQuery}
         onExamSelected={(exam) => {
           updateField('selectedExam', exam.name);
+          updateField('selectedExamId', exam.id);
           updateField('customExamInput', '');
           setIsAIModalOpen(false);
         }}

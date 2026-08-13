@@ -5,20 +5,34 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: '*',
-        allow: '/',
+        allow: [
+          '/',
+          '/exams',
+          '/exams/*',
+          '/mcq',
+          '/mcq/*',
+          '/support',
+          '/terms',
+          '/privacy',
+        ],
         disallow: [
           '/admin',
           '/admin/*',
           '/dashboard',
           '/dashboard/*',
-          '/profile',
+          '/account',
+          '/account/*',
+          '/billing',
+          '/billing/*',
+          '/credits',
+          '/credits/*',
           '/settings',
-          '/mcq',
-          '/mcq/*',
-          '/notes',
-          '/flashcards',
-          '/revision',
-          '/ai-tutor',
+          '/settings/*',
+          '/my-notes',
+          '/my-mcqs',
+          '/my-flashcards',
+          '/my-tests',
+          '/my-ai-tutor',
           '/api',
           '/api/*',
           '/auth/private',
@@ -29,4 +43,5 @@ export default function robots(): MetadataRoute.Robots {
     sitemap: 'https://neomcq.com/sitemap.xml',
   };
 }
+
 

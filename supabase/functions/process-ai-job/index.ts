@@ -10,6 +10,7 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY") || "";
+    const openaiApiKey = Deno.env.get("OPENAI_API_KEY") || "";
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const body = await req.json();
@@ -22,9 +23,9 @@ serve(async (req) => {
       );
     }
 
-    // Fetch queued job
+    // Fetch queued job from ai_jobs
     const { data: job, error: jobErr } = await supabase
-      .from("ai_generation_jobs")
+      .from("ai_jobs")
       .select("*")
       .eq("id", jobId)
       .single();
@@ -38,129 +39,81 @@ serve(async (req) => {
 
     if (job.status === "completed") {
       return new Response(
-        JSON.stringify({ status: "already_completed", result: job.result }),
+        JSON.stringify({ status: "already_completed", output: job.output_payload }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Mark job as processing
+    // Mark job as running
     await supabase
-      .from("ai_generation_jobs")
-      .update({ status: "processing", updated_at: new Date().toISOString() })
-      .eq("id", jobId);
-
-    // Deduct user credits atomically
-    const creditCost = 5;
-    const { data: deductResult } = await supabase.rpc("deduct_user_credits_atomic", {
-      p_user_id: job.user_id,
-      p_amount: creditCost,
-      p_description: `AI Job ${job.job_type}`,
-      p_reference_id: jobId,
-    });
-
-    if (deductResult && !deductResult.success) {
-      await supabase
-        .from("ai_generation_jobs")
-        .update({
-          status: "failed",
-          error_message: deductResult.error || "Insufficient credit balance",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", jobId);
-
-      return new Response(
-        JSON.stringify({ error: "Insufficient user credit balance", details: deductResult }),
-        { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Process Job Types
-    const params = job.input_params || {};
-    let prompt = "";
-
-    if (job.job_type === "mcq_generation") {
-      prompt = `Generate ${params.count || 5} high-yield multiple choice questions for Topic: "${params.topicName || "General Topic"}" in Exam: "${params.examName || "Standard Exam"}".
-Return ONLY valid JSON matching:
-{
-  "mcqs": [
-    {
-      "question": "Question text?",
-      "options": ["Option A", "Option B", "Option C", "Option D"],
-      "correct_index": 0,
-      "explanation": "Detailed step-by-step explanation.",
-      "difficulty": "medium"
-    }
-  ]
-}`;
-    } else {
-      prompt = `Generate high-yield study material for Job Type: "${job.job_type}" with parameters: ${JSON.stringify(params)}.
-Return a clean, structured JSON payload.`;
-    }
-
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
-        }),
-      }
-    );
-
-    if (!geminiRes.ok) {
-      const errText = await geminiRes.text();
-      await supabase
-        .from("ai_generation_jobs")
-        .update({
-          status: "failed",
-          error_message: `Gemini API error: ${errText}`,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", jobId);
-
-      return new Response(
-        JSON.stringify({ error: "Gemini API error", details: errText }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const geminiData = await geminiRes.json();
-    const resultJson = JSON.parse(geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "{}");
-
-    // Save generated MCQs to database if applicable
-    if (job.job_type === "mcq_generation" && Array.isArray(resultJson.mcqs)) {
-      for (const item of resultJson.mcqs) {
-        await supabase.from("mcqs").insert({
-          exam_id: params.examId,
-          subject_id: params.subjectId,
-          topic_id: params.topicId,
-          question: item.question,
-          options: item.options,
-          correct_index: item.correct_index,
-          explanation: item.explanation,
-          difficulty: item.difficulty || "medium",
-        });
-      }
-    }
-
-    // Mark job completed
-    await supabase
-      .from("ai_generation_jobs")
+      .from("ai_jobs")
       .update({
-        status: "completed",
-        result: resultJson,
-        updated_at: new Date().toISOString(),
+        status: "running",
+        started_at: new Date().toISOString(),
+        attempts: (job.attempts || 0) + 1
       })
       .eq("id", jobId);
 
+    const prompt = job.input_payload?.prompt || `Generate learning material for task ${job.task}`;
+    let resultText = "";
+    let provider = "gemini";
+    let model = "gemini-2.0-flash";
+
+    if (geminiApiKey) {
+      const gRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        }
+      );
+      if (gRes.ok) {
+        const data = await gRes.json();
+        resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      }
+    } else if (openaiApiKey) {
+      provider = "openai";
+      model = "gpt-4o-mini";
+      const oRes = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${openaiApiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }] })
+      });
+      if (oRes.ok) {
+        const data = await oRes.json();
+        resultText = data.choices?.[0]?.message?.content || "";
+      }
+    }
+
+    if (!resultText) {
+      throw new Error("AI provider execution failed to generate content");
+    }
+
+    // Mark job as completed
+    await supabase
+      .from("ai_jobs")
+      .update({
+        status: "completed",
+        provider,
+        model,
+        output_payload: { text: resultText },
+        completed_at: new Date().toISOString()
+      })
+      .eq("id", jobId);
+
+    // Consume credits
+    if (job.user_id) {
+      await supabase.rpc("credit_consume", {
+        p_user_id: job.user_id,
+        p_amount: 10,
+        p_task: job.task,
+        p_job_id: jobId
+      });
+    }
+
     return new Response(
-      JSON.stringify({
-        status: "success",
-        jobId,
-        result: resultJson,
-      }),
+      JSON.stringify({ status: "completed", jobId, result: resultText }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: any) {

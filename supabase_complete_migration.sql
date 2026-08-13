@@ -49,7 +49,10 @@ CREATE TRIGGER trigger_profiles_updated_at
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+  v_role_id UUID;
 BEGIN
+  -- Insert profile
   INSERT INTO public.profiles (id, auth_user_id, email, first_name, last_name, avatar_url)
   VALUES (
     NEW.id,
@@ -62,6 +65,17 @@ BEGIN
   ON CONFLICT (id) DO UPDATE SET
     email = EXCLUDED.email,
     updated_at = NOW();
+
+  -- Get canonical 'user' role ID
+  SELECT id INTO v_role_id FROM public.roles WHERE name = 'user';
+
+  -- Explicitly assign default user role
+  IF v_role_id IS NOT NULL THEN
+    INSERT INTO public.user_roles (user_id, role_id)
+    VALUES (NEW.id, v_role_id)
+    ON CONFLICT (user_id, role_id) DO NOTHING;
+  END IF;
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

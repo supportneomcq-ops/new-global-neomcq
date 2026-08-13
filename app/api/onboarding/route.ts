@@ -11,6 +11,7 @@ const onboardingSchema = z.object({
   country: z.string().optional(),
   language: z.string().optional(),
   examName: z.string().min(1),
+  examId: z.string().nullable().optional(),
   examDate: z.string().optional(),
   daysLeft: z.number().optional(),
   learningStyle: z.string().optional(),
@@ -37,11 +38,30 @@ export async function POST(req: NextRequest) {
       country,
       language,
       examName,
+      examId: inputExamId,
       examDate,
       studyHours,
       studyTime,
       studyGoals,
     } = validation.data
+
+    // Check 5-Day Lockout Rule
+    if (examDate) {
+      const parsedExamDate = new Date(examDate)
+      const now = new Date()
+      // Normalize to midnight
+      parsedExamDate.setHours(0, 0, 0, 0)
+      now.setHours(0, 0, 0, 0)
+      const diffTime = parsedExamDate.getTime() - now.getTime()
+      const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+      const learningPhaseDays = totalDays - 5
+      if (learningPhaseDays <= 0) {
+        return NextResponse.json(
+          { error: 'The 5-Day Lockout Rule requires your exam date to be at least 6 days in the future to allow for a learning curriculum and revision buffer.' },
+          { status: 400 }
+        );
+      }
+    }
 
     const supabase = await createClient()
 
@@ -50,54 +70,101 @@ export async function POST(req: NextRequest) {
     const targetUserId = user?.id || authId
 
     if (targetUserId) {
-      // 1. Update Profile (Profile creation is handled by trigger on_auth_user_created)
+      // 1. Resolve country_id and language_id from database
+      let resolvedCountryId: string | null = null
+      let resolvedLanguageId: string | null = null
+      let resolvedTimezone = 'UTC'
+
+      if (country) {
+        const { data: countryData } = await (supabase as any)
+          .from('countries')
+          .select('id, default_timezone')
+          .ilike('name', country.trim())
+          .limit(1)
+
+        if (countryData && countryData.length > 0) {
+          resolvedCountryId = countryData[0].id
+          if (countryData[0].default_timezone) {
+            resolvedTimezone = countryData[0].default_timezone
+          }
+        }
+      }
+
+      if (language) {
+        const { data: langData } = await (supabase as any)
+          .from('languages')
+          .select('id')
+          .ilike('name', language.trim())
+          .limit(1)
+
+        if (langData && langData.length > 0) {
+          resolvedLanguageId = langData[0].id
+        }
+      }
+
+      // Update Profile (Profile creation is handled by trigger on_auth_user_created or manual signup)
       await (supabase as any)
         .from('profiles')
         .update({
           first_name: firstName,
           last_name: lastName || '',
           phone: phone || null,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+          country_id: resolvedCountryId,
+          language_id: resolvedLanguageId,
+          timezone: resolvedTimezone,
         })
         .eq('id', targetUserId)
 
-      // 2. Find or insert exam (check slug or exact name)
-      const examSlug = examName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-')
-      let examId: string | null = null
+      // 2. Find or insert exam (check slug or exact name, or direct inputExamId)
+      let finalExamId: string | null = null
 
-      const { data: existingExams } = await (supabase as any)
-        .from('exams')
-        .select('id, name, slug')
-        .or(`slug.eq.${examSlug},name.ilike.${examName.trim()}`)
-        .limit(1)
-
-      if (existingExams && existingExams.length > 0) {
-        examId = existingExams[0].id
-      } else {
-        const { data: newExam } = await (supabase as any)
+      if (inputExamId) {
+        const { data: matchedExam } = await (supabase as any)
           .from('exams')
-          .insert({
-            name: examName.trim(),
-            slug: examSlug,
-            difficulty: 'Adaptive',
-            status: 'active',
-            created_by_ai: true,
-          })
           .select('id')
-          .single()
+          .eq('id', inputExamId)
+          .limit(1)
+        if (matchedExam && matchedExam.length > 0) {
+          finalExamId = matchedExam[0].id
+        }
+      }
 
-        if (newExam) examId = newExam.id
+      if (!finalExamId) {
+        const examSlug = examName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-')
+        const { data: existingExams } = await (supabase as any)
+          .from('exams')
+          .select('id, name, slug')
+          .or(`slug.eq.${examSlug},name.ilike.${examName.trim()}`)
+          .limit(1)
+
+        if (existingExams && existingExams.length > 0) {
+          finalExamId = existingExams[0].id
+        } else {
+          const { data: newExam } = await (supabase as any)
+            .from('exams')
+            .insert({
+              name: examName.trim(),
+              slug: examSlug,
+              difficulty: 'Adaptive',
+              status: 'active',
+              created_by_ai: true,
+            })
+            .select('id')
+            .single()
+
+          if (newExam) finalExamId = newExam.id
+        }
       }
 
       // 3. User Exam Link
-      if (examId) {
+      if (finalExamId) {
         // First delete any previous user_exams if resetting, or upsert
         await (supabase as any)
           .from('user_exams')
           .upsert(
             {
               user_id: targetUserId,
-              exam_id: examId,
+              exam_id: finalExamId,
               target_date: examDate || null,
               target_score: 85.0,
               status: 'in_progress',
@@ -113,6 +180,8 @@ export async function POST(req: NextRequest) {
         preferred_time: (studyTime?.toLowerCase() as any) || 'morning',
         learning_mode: 'balanced',
         reminders_enabled: true,
+        language_id: resolvedLanguageId,
+        timezone: resolvedTimezone,
       })
 
       // 5. Enqueue Async AI Study Plan Generation Job
@@ -122,6 +191,7 @@ export async function POST(req: NextRequest) {
         status: 'pending',
         input_params: {
           examName,
+          examId: finalExamId,
           examDate,
           studyHours,
           studyTime,

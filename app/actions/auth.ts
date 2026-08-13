@@ -90,7 +90,31 @@ export async function loginAction(formData: { email: string; password: string })
   }
 
   if (error) {
-    return { error: error.message }
+    const errMsg = error.message || '';
+    const status = (error as any).status;
+    const code = (error as any).code;
+
+    console.error('[AUTH_DIAGNOSTIC]', {
+      type: 'SUPABASE_AUTH_ERROR',
+      message: errMsg,
+      status,
+      code,
+    });
+
+    if (errMsg.toLowerCase().includes('invalid login credentials') || errMsg.toLowerCase().includes('invalid credentials')) {
+      return { error: 'Invalid login credentials. Please verify your email and password.', code: 'INVALID_CREDENTIALS' };
+    }
+    if (errMsg.toLowerCase().includes('email not confirmed') || errMsg.toLowerCase().includes('confirm your email')) {
+      return { error: 'Your email address is not confirmed. Please check your inbox.', code: 'EMAIL_NOT_CONFIRMED' };
+    }
+    if (status === 429 || errMsg.toLowerCase().includes('rate limit') || errMsg.toLowerCase().includes('too many requests')) {
+      return { error: 'Too many login attempts. Please try again later.', code: 'RATE_LIMITED' };
+    }
+    if (errMsg.toLowerCase().includes('fetch') || errMsg.toLowerCase().includes('network') || errMsg.toLowerCase().includes('connection') || errMsg.toLowerCase().includes('api_key')) {
+      return { error: 'Could not connect to the authentication server. Please try again.', code: 'SUPABASE_CONNECTION_ERROR' };
+    }
+    
+    return { error: 'Authentication failed. Please verify your credentials.', code: 'UNKNOWN_ERROR' };
   }
 
   let redirectUrl = '/dashboard'
