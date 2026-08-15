@@ -47,12 +47,17 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
   // Sync to local storage & Supabase
   const persistSelection = useCallback(async (newSelection: SelectionState) => {
     try {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(newSelection));
-      }
-
       const supabase = getSupabaseClient();
       const { data: { user } } = await supabase.auth.getUser();
+      const userStorageKey = user ? `${STORAGE_KEY}_${user.id}` : `${STORAGE_KEY}_guest`;
+      const userActiveKey = user ? `neomcq_active_exam_${user.id}` : 'neomcq_active_exam_guest';
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(userStorageKey, JSON.stringify(newSelection));
+        if (newSelection.exam) {
+          localStorage.setItem(userActiveKey, newSelection.exam.id);
+        }
+      }
 
       if (user && newSelection.exam) {
         // Upsert user exam selection
@@ -78,76 +83,70 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     try {
       const supabase = getSupabaseClient();
 
-      // 1. Fetch Exams
+      // Fetch User's primary exam from Supabase if logged in (Source of Truth)
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      let userExamsList: SelectedItem[] = [];
+
+      if (user) {
+        const { data: userExamsData } = await supabase
+          .from('user_exams')
+          .select('exam_id, exams(id, name, slug)')
+          .eq('user_id', user.id);
+
+        if (userExamsData && userExamsData.length > 0) {
+          userExamsList = userExamsData
+            .filter((ue) => ue.exams)
+            .map((ue) => ({
+              id: (ue.exams as any).id,
+              name: (ue.exams as any).name,
+              slug: (ue.exams as any).slug || (ue.exams as any).id,
+            }));
+        }
+      }
+
+      // Fetch all active exams from the platform
       const { data: examsData } = await supabase
         .from('exams')
         .select('id, name, slug')
         .eq('status', 'active')
         .order('name');
 
-      if (examsData && examsData.length > 0) {
-        const examsList = examsData.map((e) => ({ id: e.id, name: e.name, slug: e.slug || e.id }));
-        setAvailableExams(examsList);
+      const allActiveExams: SelectedItem[] = (examsData && examsData.length > 0)
+        ? examsData.map((e) => ({ id: e.id, name: e.name, slug: e.slug || e.id }))
+        : [];
 
-        // Fetch User's primary exam from Supabase if logged in (Source of Truth)
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data: userExam } = await supabase
-            .from('user_exams')
-            .select('exam_id, exams(id, name, slug)')
-            .eq('user_id', user.id)
-            .maybeSingle();
+      // Combine user enrolled exams first, followed by remaining active exams
+      const combinedMap = new Map<string, SelectedItem>();
+      for (const ue of userExamsList) {
+        combinedMap.set(ue.id, ue);
+      }
+      for (const ae of allActiveExams) {
+        if (!combinedMap.has(ae.id)) {
+          combinedMap.set(ae.id, ae);
+        }
+      }
 
-          if (userExam?.exams) {
-            const examObj = {
-              id: (userExam.exams as any).id,
-              name: (userExam.exams as any).name,
-              slug: (userExam.exams as any).slug || (userExam.exams as any).id,
-            };
+      const examsList = Array.from(combinedMap.values());
+      setAvailableExams(examsList);
 
-            // Fetch subjects for this exam
-            const { data: subjectsData } = await supabase
-              .from('exam_subjects')
-              .select('id, name, slug')
-              .eq('exam_id', examObj.id)
-              .order('order_index');
-
-            const subjList = (subjectsData && subjectsData.length > 0)
-              ? subjectsData.map((s) => ({ id: s.id, name: s.name, slug: s.slug || s.id }))
-              : [{ id: `subj-${examObj.id}`, name: 'Core Foundations', slug: 'foundations' }];
-
-            setAvailableSubjects(subjList);
-
-            // Fetch topics for top subject
-            const { data: topicsData } = await supabase
-              .from('exam_topics')
-              .select('id, name, slug')
-              .eq('subject_id', subjList[0].id)
-              .order('order_index');
-
-            const topicList = (topicsData && topicsData.length > 0)
-              ? topicsData.map((t) => ({ id: t.id, name: t.name, slug: t.slug || t.id }))
-              : [{ id: `top-${subjList[0].id}`, name: 'General Overview', slug: 'overview' }];
-
-            setAvailableTopics(topicList);
-
-            const newSel = {
-              exam: examObj,
-              subject: subjList[0],
-              topic: topicList[0],
-            };
-            setSelection(newSel);
-            setIsLoading(false);
-            return;
-          }
+      if (examsList.length > 0) {
+        // Find active exam
+        let activeExam = examsList[0];
+        const userActiveKey = user ? `neomcq_active_exam_${user.id}` : 'neomcq_active_exam_guest';
+        const savedActiveId = typeof window !== 'undefined' ? localStorage.getItem(userActiveKey) : null;
+        if (savedActiveId) {
+          const matched = examsList.find((e) => e.id === savedActiveId);
+          if (matched) activeExam = matched;
         }
 
-        // Check if cached selection exists in localStorage (Guest / unauthenticated fallback)
-        const cached = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
+        // Check if user-scoped cached selection exists in localStorage (Guest / unauthenticated fallback)
+        const userStorageKey = user ? `${STORAGE_KEY}_${user.id}` : `${STORAGE_KEY}_guest`;
+        const cached = typeof window !== 'undefined' ? localStorage.getItem(userStorageKey) : null;
         if (cached) {
           try {
             const parsed = JSON.parse(cached);
-            if (parsed.exam && parsed.subject && parsed.topic) {
+            if (parsed.exam && parsed.exam.id === activeExam.id) {
               setSelection(parsed);
               
               // Load subjects for cached exam
@@ -159,19 +158,22 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
               const subjList = (subjectsData && subjectsData.length > 0)
                 ? subjectsData.map((s) => ({ id: s.id, name: s.name, slug: s.slug || s.id }))
-                : [parsed.subject];
+                : [];
               setAvailableSubjects(subjList);
 
               // Load topics for cached subject
-              const { data: topicsData } = await supabase
-                .from('exam_topics')
-                .select('id, name, slug')
-                .eq('subject_id', parsed.subject.id)
-                .order('order_index');
+              let topicList: SelectedItem[] = [];
+              if (parsed.subject && subjList.some((s) => s.id === parsed.subject.id)) {
+                const { data: topicsData } = await supabase
+                  .from('exam_topics')
+                  .select('id, name, slug')
+                  .eq('subject_id', parsed.subject.id)
+                  .order('order_index');
 
-              const topicList = (topicsData && topicsData.length > 0)
-                ? topicsData.map((t) => ({ id: t.id, name: t.name, slug: t.slug || t.id }))
-                : [parsed.topic];
+                topicList = (topicsData && topicsData.length > 0)
+                  ? topicsData.map((t) => ({ id: t.id, name: t.name, slug: t.slug || t.id }))
+                  : [];
+              }
               setAvailableTopics(topicList);
 
               setIsLoading(false);
@@ -182,39 +184,41 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        // Fallback: Default to first available exam if no selection exists
-        if (examsList.length > 0) {
-          const defaultExam = examsList[0];
-          const { data: subjectsData } = await supabase
-            .from('exam_subjects')
-            .select('id, name, slug')
-            .eq('exam_id', defaultExam.id)
-            .order('order_index');
+        // Fetch subjects for active exam
+        const { data: subjectsData } = await supabase
+          .from('exam_subjects')
+          .select('id, name, slug')
+          .eq('exam_id', activeExam.id)
+          .order('order_index');
 
-          const subjList = (subjectsData && subjectsData.length > 0)
-            ? subjectsData.map((s) => ({ id: s.id, name: s.name, slug: s.slug || s.id }))
-            : [{ id: `subj-${defaultExam.id}`, name: 'Core Foundations', slug: 'foundations' }];
+        const subjList = (subjectsData && subjectsData.length > 0)
+          ? subjectsData.map((s) => ({ id: s.id, name: s.name, slug: s.slug || s.id }))
+          : [];
 
-          setAvailableSubjects(subjList);
+        setAvailableSubjects(subjList);
 
+        // Fetch topics for top subject
+        let topicList: SelectedItem[] = [];
+        if (subjList.length > 0) {
           const { data: topicsData } = await supabase
             .from('exam_topics')
             .select('id, name, slug')
             .eq('subject_id', subjList[0].id)
             .order('order_index');
 
-          const topicList = (topicsData && topicsData.length > 0)
+          topicList = (topicsData && topicsData.length > 0)
             ? topicsData.map((t) => ({ id: t.id, name: t.name, slug: t.slug || t.id }))
-            : [{ id: `top-${subjList[0].id}`, name: 'General Overview', slug: 'overview' }];
-
-          setAvailableTopics(topicList);
-
-          setSelection({
-            exam: defaultExam,
-            subject: subjList[0],
-            topic: topicList[0],
-          });
+            : [];
         }
+
+        setAvailableTopics(topicList);
+
+        const newSel = {
+          exam: activeExam,
+          subject: subjList.length > 0 ? subjList[0] : null,
+          topic: topicList.length > 0 ? topicList[0] : null,
+        };
+        setSelection(newSel);
       }
     } catch (err) {
       console.error('Error refreshing selection hierarchy:', err);
@@ -231,13 +235,24 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
       }
     };
     runRefresh();
+
+    // Listen for auth state changes to re-evaluate the hierarchy immediately
+    const supabase = getSupabaseClient();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (mounted) {
+        await refreshHierarchy();
+      }
+    });
+
     return () => {
       mounted = false;
+      subscription.unsubscribe();
     };
   }, [refreshHierarchy]);
 
   // Load subjects when exam changes
   const setExam = useCallback(async (exam: SelectedItem) => {
+    setIsLoading(true);
     try {
       const supabase = getSupabaseClient();
       const { data: subjectsData } = await supabase
@@ -248,37 +263,43 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
       const subjList = (subjectsData && subjectsData.length > 0)
         ? subjectsData.map((s) => ({ id: s.id, name: s.name, slug: s.slug || s.id }))
-        : [{ id: `subj-${exam.id}`, name: 'Core Foundations', slug: 'foundations' }];
+        : [];
 
       setAvailableSubjects(subjList);
 
-      // Load topics for first subject
-      const { data: topicsData } = await supabase
-        .from('exam_topics')
-        .select('id, name, slug')
-        .eq('subject_id', subjList[0].id)
-        .order('order_index');
+      let topicList: SelectedItem[] = [];
+      if (subjList.length > 0) {
+        // Load topics for first subject
+        const { data: topicsData } = await supabase
+          .from('exam_topics')
+          .select('id, name, slug')
+          .eq('subject_id', subjList[0].id)
+          .order('order_index');
 
-      const topicList = (topicsData && topicsData.length > 0)
-        ? topicsData.map((t) => ({ id: t.id, name: t.name, slug: t.slug || t.id }))
-        : [{ id: `top-${subjList[0].id}`, name: 'Key Concepts & High Yield', slug: 'key-concepts' }];
+        topicList = (topicsData && topicsData.length > 0)
+          ? topicsData.map((t) => ({ id: t.id, name: t.name, slug: t.slug || t.id }))
+          : [];
+      }
 
       setAvailableTopics(topicList);
 
       const newSel = {
         exam,
-        subject: subjList[0],
-        topic: topicList[0],
+        subject: subjList.length > 0 ? subjList[0] : null,
+        topic: topicList.length > 0 ? topicList[0] : null,
       };
       setSelection(newSel);
       persistSelection(newSel);
     } catch (err) {
       console.error('Error setting exam:', err);
+    } finally {
+      setIsLoading(false);
     }
   }, [persistSelection]);
 
   // Load topics when subject changes
   const setSubject = useCallback(async (subject: SelectedItem) => {
+    setIsLoading(true);
     try {
       const supabase = getSupabaseClient();
       const { data: topicsData } = await supabase
@@ -289,17 +310,19 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
       const topicList = (topicsData && topicsData.length > 0)
         ? topicsData.map((t) => ({ id: t.id, name: t.name, slug: t.slug || t.id }))
-        : [{ id: `top-${subject.id}`, name: 'Core Topic Practice', slug: 'core-topic' }];
+        : [];
 
       setAvailableTopics(topicList);
 
       setSelection((prev) => {
-        const newSel = { ...prev, subject, topic: topicList[0] };
+        const newSel = { ...prev, subject, topic: topicList.length > 0 ? topicList[0] : null };
         persistSelection(newSel);
         return newSel;
       });
     } catch (err) {
       console.error('Error setting subject:', err);
+    } finally {
+      setIsLoading(false);
     }
   }, [persistSelection]);
 

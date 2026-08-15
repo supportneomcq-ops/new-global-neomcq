@@ -131,8 +131,75 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
     setTopic,
     availableExams,
     availableSubjects,
-    availableTopics
+    availableTopics,
+    refreshHierarchy,
   } = useSelection();
+
+  const handleCreateSubject = async () => {
+    if (!selection.exam?.id) {
+      alert('Please select an active exam first.');
+      return;
+    }
+    const name = window.prompt(`Enter new subject name for ${selection.exam.name}:`);
+    if (!name || !name.trim()) return;
+
+    try {
+      const res = await fetch('/api/subjects/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          examId: selection.exam.id,
+          subjectName: name.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.subject) {
+        await refreshHierarchy();
+        setSubject({
+          id: data.subject.id,
+          name: data.subject.name,
+          slug: data.subject.slug,
+        });
+      } else {
+        alert(data.error || 'Failed to create subject');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error creating subject');
+    }
+  };
+
+  const handleCreateTopic = async () => {
+    if (!selection.subject?.id) {
+      alert('Please select an active subject first.');
+      return;
+    }
+    const name = window.prompt(`Enter new topic name under ${selection.subject.name}:`);
+    if (!name || !name.trim()) return;
+
+    try {
+      const res = await fetch('/api/topics/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subjectId: selection.subject.id,
+          topicName: name.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.topic) {
+        await refreshHierarchy();
+        setTopic({
+          id: data.topic.id,
+          name: data.topic.name,
+          slug: data.topic.slug,
+        });
+      } else {
+        alert(data.error || 'Failed to create topic');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error creating topic');
+    }
+  };
 
   // Quick AI Chat prompt state
   const [chatMessage, setChatMessage] = useState('');
@@ -268,48 +335,68 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
                 </select>
 
                 <span className="text-slate-400 font-semibold">Subject:</span>
-                <select
-                  value={selection.subject?.id || ''}
-                  onChange={(e) => {
-                    const target = availableSubjects.find((s) => s.id === e.target.value);
-                    if (target) setSubject(target);
-                  }}
-                  className="bg-white/10 hover:bg-white/15 transition-colors text-[#00D4FF] rounded-xl px-3 py-1 font-bold border border-white/15 focus:outline-none cursor-pointer"
-                >
-                  {availableSubjects.length > 0 ? (
-                    availableSubjects.map((s) => (
-                      <option key={s.id} value={s.id} className="bg-[#0E1324] text-white">
-                        {s.name}
+                <div className="flex items-center gap-1">
+                  <select
+                    value={selection.subject?.id || ''}
+                    onChange={(e) => {
+                      const target = availableSubjects.find((s) => s.id === e.target.value);
+                      if (target) setSubject(target);
+                    }}
+                    className="bg-white/10 hover:bg-white/15 transition-colors text-[#00D4FF] rounded-xl px-3 py-1 font-bold border border-white/15 focus:outline-none cursor-pointer"
+                  >
+                    {availableSubjects.length > 0 ? (
+                      availableSubjects.map((s) => (
+                        <option key={s.id} value={s.id} className="bg-[#0E1324] text-white">
+                          {s.name}
+                        </option>
+                      ))
+                    ) : (
+                      <option value={selection.subject?.id || ''} className="bg-[#0E1324] text-white">
+                        {selection.subject?.name || 'Select Subject'}
                       </option>
-                    ))
-                  ) : (
-                    <option value={selection.subject?.id || ''} className="bg-[#0E1324] text-white">
-                      {selection.subject?.name || 'Human Anatomy'}
-                    </option>
-                  )}
-                </select>
+                    )}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleCreateSubject}
+                    className="px-2 py-1 bg-white/10 hover:bg-white/20 text-[#00D4FF] rounded-lg text-[10px] font-bold border border-white/10 cursor-pointer"
+                    title="Create custom subject"
+                  >
+                    + Subject
+                  </button>
+                </div>
 
                 <span className="text-slate-400 font-semibold">Topic:</span>
-                <select
-                  value={selection.topic?.id || ''}
-                  onChange={(e) => {
-                    const target = availableTopics.find((t) => t.id === e.target.value);
-                    if (target) setTopic(target);
-                  }}
-                  className="bg-white/10 hover:bg-white/15 transition-colors text-emerald-400 rounded-xl px-3 py-1 font-bold border border-white/15 focus:outline-none cursor-pointer"
-                >
-                  {availableTopics.length > 0 ? (
-                    availableTopics.map((t) => (
-                      <option key={t.id} value={t.id} className="bg-[#0E1324] text-white">
-                        {t.name}
+                <div className="flex items-center gap-1">
+                  <select
+                    value={selection.topic?.id || ''}
+                    onChange={(e) => {
+                      const target = availableTopics.find((t) => t.id === e.target.value);
+                      if (target) setTopic(target);
+                    }}
+                    className="bg-white/10 hover:bg-white/15 transition-colors text-emerald-400 rounded-xl px-3 py-1 font-bold border border-white/15 focus:outline-none cursor-pointer"
+                  >
+                    {availableTopics.length > 0 ? (
+                      availableTopics.map((t) => (
+                        <option key={t.id} value={t.id} className="bg-[#0E1324] text-white">
+                          {t.name}
+                        </option>
+                      ))
+                    ) : (
+                      <option value={selection.topic?.id || ''} className="bg-[#0E1324] text-white">
+                        {selection.topic?.name || 'Select Topic'}
                       </option>
-                    ))
-                  ) : (
-                    <option value={selection.topic?.id || ''} className="bg-[#0E1324] text-white">
-                      {selection.topic?.name || 'Cardiovascular Anatomy'}
-                    </option>
-                  )}
-                </select>
+                    )}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleCreateTopic}
+                    className="px-2 py-1 bg-white/10 hover:bg-white/20 text-emerald-400 rounded-lg text-[10px] font-bold border border-white/10 cursor-pointer"
+                    title="Create custom topic"
+                  >
+                    + Topic
+                  </button>
+                </div>
               </div>
             </div>
 

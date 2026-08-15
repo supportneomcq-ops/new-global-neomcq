@@ -60,14 +60,16 @@ export function LearningContentEngine({
   initialExamName = 'USMLE Step 1 & 2 CK',
   initialSubjectName = 'Human Anatomy',
 }: LearningContentEngineProps) {
-  const { selection, setTopic } = useSelection()
+  const { selection, setTopic, refreshHierarchy } = useSelection()
 
   // Navigation & Entity State
   const examName = selection.exam?.name || initialExamName
   const subjectName = selection.subject?.name || initialSubjectName
-  const selectedTopic = selection.topic || { id: 't1', name: 'Neuroanatomy & Cranial Nerves' }
+  const selectedTopic = selection.topic
   const setSelectedTopic = useCallback((t: any) => {
-    setTopic({ id: t.id || `t-${t.name}`, name: t.name, slug: t.slug })
+    if (t) {
+      setTopic({ id: t.id || `t-${t.name}`, name: t.name, slug: t.slug })
+    }
   }, [setTopic])
   
   // Custom Search & Suggestions Input
@@ -332,29 +334,38 @@ export function LearningContentEngine({
   useEffect(() => {
     let isMounted = true
     const loadTopics = async () => {
+      if (!selection.subject) {
+        if (isMounted) {
+          setAvailableTopics([])
+        }
+        return
+      }
+
       try {
         const supabase = getSupabaseClient()
-        const { data: subjectData } = await supabase
-          .from('exam_subjects')
-          .select('id, name, exam_topics(*)')
-          .ilike('name', `%${subjectName}%`)
-          .maybeSingle()
+        const { data: topicsData } = await supabase
+          .from('exam_topics')
+          .select('*')
+          .eq('subject_id', selection.subject.id)
+          .order('created_at', { ascending: true })
 
         if (!isMounted) return
 
-        if (subjectData && subjectData.exam_topics && subjectData.exam_topics.length > 0) {
-          setAvailableTopics(subjectData.exam_topics)
-          handleSelectTopic(subjectData.exam_topics[0])
+        if (topicsData && topicsData.length > 0) {
+          setAvailableTopics(topicsData)
+          // If current selected topic is not in the newly loaded list, auto-select the first one
+          const hasCurrent = topicsData.some((t) => t.id === selection.topic?.id)
+          if (!hasCurrent && topicsData[0]) {
+            handleSelectTopic(topicsData[0])
+          } else {
+            // Restored initial selection: fetch content if not already loaded
+            const matchedCurrent = topicsData.find((t) => t.id === selection.topic?.id)
+            if (matchedCurrent) {
+              fetchTopicContent(matchedCurrent.id, matchedCurrent.name)
+            }
+          }
         } else {
-          // Fallback default topics list
-          const defaultTopics = [
-            { id: 't1', name: 'Neuroanatomy & Cranial Nerves', tags: ['high-yield', 'core'] },
-            { id: 't2', name: 'Cardiovascular Physiology', tags: ['core'] },
-            { id: 't3', name: 'Thorax & Lungs Pathology', tags: ['high-yield'] },
-            { id: 't4', name: 'Renal Glomerular Disorders', tags: ['high-yield'] },
-          ]
-          setAvailableTopics(defaultTopics)
-          handleSelectTopic(defaultTopics[0])
+          setAvailableTopics([])
         }
       } catch (err) {
         console.error('Error loading topics:', err)
@@ -366,7 +377,7 @@ export function LearningContentEngine({
     return () => {
       isMounted = false
     }
-  }, [subjectName, handleSelectTopic])
+  }, [selection.subject, selection.topic, handleSelectTopic, fetchTopicContent])
 
   // Handle custom topic creation
   const handleAddCustomTopic = async (e: React.FormEvent) => {
@@ -376,14 +387,40 @@ export function LearningContentEngine({
     const newTopicName = customTopicInput.trim()
     setCustomTopicInput('')
 
-    const newTopicObj = {
-      id: `custom-${Date.now()}`,
-      name: newTopicName,
-      tags: ['custom-ai'],
-    }
+    try {
+      let newTopicObj = {
+        id: `custom-${Date.now()}`,
+        name: newTopicName,
+        tags: ['custom-ai'],
+      }
 
-    setAvailableTopics((prev) => [newTopicObj, ...prev])
-    handleSelectTopic(newTopicObj)
+      if (selection.subject?.id) {
+        const res = await fetch('/api/topics/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            subjectId: selection.subject.id,
+            topicName: newTopicName,
+          }),
+        })
+        const data = await res.json()
+        if (data.success && data.topic) {
+          newTopicObj = {
+            id: data.topic.id,
+            name: data.topic.name,
+            tags: ['custom-ai'],
+          }
+        }
+      }
+
+      setAvailableTopics((prev) => [newTopicObj, ...prev])
+      handleSelectTopic(newTopicObj)
+      
+      // Update Selection Context
+      await refreshHierarchy()
+    } catch (err) {
+      console.error('Failed to create custom topic via API:', err)
+    }
   }
 
   // Handle Sticky Note Creation
@@ -493,7 +530,70 @@ export function LearningContentEngine({
       </div>
 
       {/* Main Grid: Topic Selector (Left) & Content Workspace (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      {!selection.subject ? (
+        <div className="p-12 rounded-3xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-gray-800 text-center space-y-6 shadow-sm max-w-2xl mx-auto my-8">
+          <div className="mx-auto w-16 h-16 bg-[#6D5BFF]/10 text-[#6D5BFF] rounded-full flex items-center justify-center">
+            <Layers className="w-8 h-8" />
+          </div>
+          <h3 className="font-heading font-bold text-2xl text-slate-900 dark:text-white">
+            No subjects prepared yet.
+          </h3>
+          <p className="text-sm text-slate-500 dark:text-gray-400 max-w-md mx-auto">
+            No custom curriculum or subjects are currently loaded for {examName}. Get started by preparing the core syllabus now.
+          </p>
+          <div className="flex justify-center gap-3">
+            <button
+              type="button"
+              onClick={async () => {
+                const subjName = prompt('Enter new subject name:')
+                if (subjName && subjName.trim()) {
+                  try {
+                    const supabase = getSupabaseClient()
+                    await supabase
+                      .from('exam_subjects')
+                      .insert({
+                        exam_id: selection.exam?.id,
+                        name: subjName.trim(),
+                        slug: subjName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-'),
+                      })
+                    await refreshHierarchy()
+                  } catch (err) {
+                    console.error('Failed to create subject:', err)
+                  }
+                }
+              }}
+              className="px-5 py-2.5 rounded-xl bg-[#6D5BFF] text-white text-xs font-bold hover:opacity-90 cursor-pointer"
+            >
+              Prepare Subjects
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                const subjName = prompt('Enter new subject name:')
+                if (subjName && subjName.trim()) {
+                  try {
+                    const supabase = getSupabaseClient()
+                    await supabase
+                      .from('exam_subjects')
+                      .insert({
+                        exam_id: selection.exam?.id,
+                        name: subjName.trim(),
+                        slug: subjName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-'),
+                      })
+                    await refreshHierarchy()
+                  } catch (err) {
+                    console.error('Failed to create subject:', err)
+                  }
+                }
+              }}
+              className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-gray-800 text-xs font-bold hover:bg-slate-50 dark:hover:bg-gray-800 text-slate-700 dark:text-gray-300 cursor-pointer"
+            >
+              Create Subject
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Left Column: Topic Search & Selector Sidebar */}
         <div className="lg:col-span-1 space-y-4">
           <div className="p-5 rounded-3xl bg-white dark:bg-[#0B0F19] border border-slate-200/80 dark:border-[#1E293B] shadow-sm space-y-4">
@@ -543,37 +643,96 @@ export function LearningContentEngine({
 
             {/* Topic List */}
             <div className="space-y-1.5 max-h-[380px] overflow-y-auto pr-1">
-              {availableTopics
-                .filter((t) => t.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                .map((topic) => {
-                  const isSelected = selectedTopic?.id === topic.id
-                  return (
-                    <button
-                      key={topic.id}
-                      onClick={() => handleSelectTopic(topic)}
-                      className={`w-full p-3 rounded-2xl text-left text-xs font-semibold transition-all flex items-center justify-between cursor-pointer border ${
-                        isSelected
-                          ? 'bg-gradient-to-r from-[#6D5BFF] to-[#4F46E5] text-white border-transparent shadow-md'
-                          : 'bg-slate-50 dark:bg-[#111827] text-slate-700 dark:text-gray-300 border-slate-200 dark:border-[#1E293B] hover:bg-slate-100 dark:hover:bg-gray-800'
-                      }`}
-                    >
-                      <span className="line-clamp-2">{topic.name}</span>
-                      {isSelected ? (
-                        <Check className="w-4 h-4 shrink-0 ml-2 text-white" />
-                      ) : (
-                        <ChevronRight className="w-3.5 h-3.5 shrink-0 ml-2 text-slate-400" />
-                      )}
-                    </button>
-                  )
-                })}
+              {availableTopics.length > 0 ? (
+                availableTopics
+                  .filter((t) => t.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                  .map((topic) => {
+                    const isSelected = selectedTopic?.id === topic.id
+                    return (
+                      <button
+                        key={topic.id}
+                        onClick={() => handleSelectTopic(topic)}
+                        className={`w-full p-3 rounded-2xl text-left text-xs font-semibold transition-all flex items-center justify-between cursor-pointer border ${
+                          isSelected
+                            ? 'bg-gradient-to-r from-[#6D5BFF] to-[#4F46E5] text-white border-transparent shadow-md'
+                            : 'bg-slate-50 dark:bg-[#111827] text-slate-700 dark:text-gray-300 border-slate-200 dark:border-[#1E293B] hover:bg-slate-100 dark:hover:bg-gray-800'
+                        }`}
+                      >
+                        <span className="line-clamp-2">{topic.name}</span>
+                        {isSelected ? (
+                          <Check className="w-4 h-4 shrink-0 ml-2 text-white" />
+                        ) : (
+                          <ChevronRight className="w-3.5 h-3.5 shrink-0 ml-2 text-slate-400" />
+                        )}
+                      </button>
+                    )
+                  })
+              ) : (
+                <div className="p-4 text-center border-2 border-dashed border-slate-200 dark:border-gray-800 rounded-2xl">
+                  <p className="text-xs text-slate-500 dark:text-gray-400">No topics available yet.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const topicName = prompt('Enter new topic name:')
+                      if (topicName && topicName.trim()) {
+                        setCustomTopicInput(topicName.trim())
+                        handleAddCustomTopic({ preventDefault: () => {} } as any)
+                      }
+                    }}
+                    className="mt-2 text-xs font-bold text-[#6D5BFF] hover:underline"
+                  >
+                    Create Topic
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
         {/* Right Column: Intelligent Asset Queue Workspace */}
         <div className="lg:col-span-3 space-y-6">
-          {/* AI PREPARATION SCREEN (If resolving or preparing topic) */}
-          {isResolvingTopic && (
+          {!selection.topic ? (
+            <div className="p-8 rounded-3xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-gray-800 text-center space-y-4 shadow-sm">
+              <div className="mx-auto w-16 h-16 bg-[#6D5BFF]/10 text-[#6D5BFF] rounded-full flex items-center justify-center">
+                <BookOpen className="w-8 h-8" />
+              </div>
+              <h3 className="font-heading font-bold text-lg text-slate-900 dark:text-white">
+                No topics available yet.
+              </h3>
+              <p className="text-sm text-slate-500 dark:text-gray-400 max-w-md mx-auto">
+                No specific topics are currently generated under the subject "{subjectName}". Let's initialize your first topics!
+              </p>
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const tName = prompt('Enter new topic name:')
+                    if (tName && tName.trim()) {
+                      try {
+                        const supabase = getSupabaseClient()
+                        await supabase
+                          .from('exam_topics')
+                          .insert({
+                            subject_id: selection.subject?.id,
+                            name: tName.trim(),
+                            slug: tName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-'),
+                          })
+                        await refreshHierarchy()
+                      } catch (err) {
+                        console.error(err)
+                      }
+                    }
+                  }}
+                  className="px-5 py-2.5 rounded-xl bg-[#6D5BFF] text-white text-xs font-bold hover:opacity-90 cursor-pointer"
+                >
+                  Create Topic
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* AI PREPARATION SCREEN (If resolving or preparing topic) */}
+              {isResolvingTopic && (
             <div className="p-8 rounded-3xl bg-gradient-to-br from-[#0B0F19] to-[#121824] border border-[#6D5BFF]/30 text-white space-y-6 shadow-xl relative overflow-hidden">
               <div className="absolute top-0 right-0 p-6 opacity-10">
                 <Brain className="w-40 h-40 text-[#6D5BFF]" />
@@ -1512,8 +1671,11 @@ export function LearningContentEngine({
               )}
             </div>
           )}
+            </>
+          )}
         </div>
       </div>
+      )}
     </div>
   )
 }

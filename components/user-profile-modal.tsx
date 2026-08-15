@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   User,
@@ -19,6 +19,7 @@ import {
   Lock
 } from 'lucide-react';
 import { getSupabaseClient } from '@/lib/supabase';
+import { GLOBAL_COUNTRIES } from '@/lib/data/countries';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -29,6 +30,7 @@ interface UserProfileModalProps {
     email: string;
     phone?: string;
     country?: string;
+    language?: string;
   };
   onUpdateProfile?: (updatedData: any) => void;
 }
@@ -40,11 +42,21 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile }: Use
   const [firstName, setFirstName] = useState(user.firstName || '');
   const [lastName, setLastName] = useState(user.lastName || '');
   const [phone, setPhone] = useState(user.phone || '');
+  const [country, setCountry] = useState(user.country || 'United States');
   const [college, setCollege] = useState('Harvard Medical School');
   const [bio, setBio] = useState('Medical student aspiring for high-yield mastery.');
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    if (user) {
+      setFirstName(user.firstName || '');
+      setLastName(user.lastName || '');
+      setPhone(user.phone || '');
+      if (user.country) setCountry(user.country);
+    }
+  }, [user]);
 
   // Password Change State
   const [currentPassword, setCurrentPassword] = useState('');
@@ -57,6 +69,15 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile }: Use
     { id: 'dev_2', name: 'iPhone 15 Pro', location: 'California, USA', lastActive: '2 hours ago', current: false },
     { id: 'dev_3', name: 'iPad Air 5th Gen', location: 'California, USA', lastActive: 'Yesterday', current: false },
   ]);
+
+  const handleCountryChange = (selectedCountryName: string) => {
+    setCountry(selectedCountryName);
+    const cObj = GLOBAL_COUNTRIES.find((c) => c.name === selectedCountryName);
+    if (cObj && (!phone || phone.startsWith('+'))) {
+      const code = cObj.phone_code.startsWith('+') ? cObj.phone_code : `+${cObj.phone_code}`;
+      setPhone(`${code} `);
+    }
+  };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,6 +96,7 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile }: Use
             first_name: firstName,
             last_name: lastName,
             phone: phone,
+            country: country,
             updated_at: new Date().toISOString(),
           })
           .eq('id', authUser.id);
@@ -83,7 +105,7 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile }: Use
       }
 
       if (onUpdateProfile) {
-        onUpdateProfile({ firstName, lastName, phone, college, bio });
+        onUpdateProfile({ firstName, lastName, phone, country, college, bio });
       }
 
       setSuccessMessage('Profile updated successfully!');
@@ -259,6 +281,20 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile }: Use
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
+                    <label className="block text-slate-500 mb-1">Country / Region</label>
+                    <select
+                      value={country}
+                      onChange={(e) => handleCountryChange(e.target.value)}
+                      className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-900 dark:text-white focus:outline-none focus:border-[#6D5BFF]"
+                    >
+                      {GLOBAL_COUNTRIES.map((c) => (
+                        <option key={c.iso2} value={c.name} className="bg-white dark:bg-gray-900">
+                          {c.flag_emoji} {c.name} ({c.phone_code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
                     <label className="block text-slate-500 mb-1">Phone Number</label>
                     <input
                       type="text"
@@ -268,15 +304,16 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile }: Use
                       className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-900 dark:text-white focus:outline-none focus:border-[#6D5BFF]"
                     />
                   </div>
-                  <div>
-                    <label className="block text-slate-500 mb-1">Target College / Institution</label>
-                    <input
-                      type="text"
-                      value={college}
-                      onChange={(e) => setCollege(e.target.value)}
-                      className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-900 dark:text-white focus:outline-none focus:border-[#6D5BFF]"
-                    />
-                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-500 mb-1">Target College / Institution</label>
+                  <input
+                    type="text"
+                    value={college}
+                    onChange={(e) => setCollege(e.target.value)}
+                    className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-900 dark:text-white focus:outline-none focus:border-[#6D5BFF]"
+                  />
                 </div>
 
                 <div>

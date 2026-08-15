@@ -89,27 +89,6 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.webmanifest" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              try {
-                if (typeof window !== 'undefined') {
-                  const originalFetch = window.fetch;
-                  const desc = Object.getOwnPropertyDescriptor(window, 'fetch') || 
-                               Object.getOwnPropertyDescriptor(Object.getPrototypeOf(window), 'fetch');
-                  if (desc && !desc.writable && desc.configurable) {
-                    Object.defineProperty(window, 'fetch', {
-                      value: originalFetch,
-                      writable: true,
-                      configurable: true,
-                      enumerable: true
-                    });
-                  }
-                }
-              } catch (e) {}
-            `,
-          }}
-        />
       </head>
       <body
         className="min-h-screen bg-background text-foreground antialiased selection:bg-[#6D5BFF] selection:text-white"

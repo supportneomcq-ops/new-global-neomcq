@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { getSupabaseClient } from '@/lib/supabase';
 import { Logo } from './logo';
+import { GLOBAL_COUNTRIES } from '@/lib/data/countries';
 
 interface OnboardingFlowProps {
   isOpen: boolean;
@@ -58,13 +59,15 @@ export interface OnboardingData {
 }
 
 const PRESET_EXAMS = [
-  { name: 'USMLE Step 1 & 2 CK', category: 'Medical USA', code: 'USMLE' },
-  { name: 'NEET PG / INI-CET', category: 'Medical India', code: 'NEETPG' },
+  { name: 'USMLE Step 1', category: 'Medical USA', code: 'USMLE' },
+  { name: 'NEET PG Medical', category: 'Medical India', code: 'NEETPG' },
+  { name: 'NCLEX-RN', category: 'Nursing USA/CA', code: 'NCLEX' },
+  { name: 'UPSC Civil Services (IAS/IPS)', category: 'Civil Services India', code: 'UPSC' },
+  { name: 'AWS Certified Solutions Architect - Associate', category: 'Technical IT', code: 'AWS' },
+  { name: 'US CPA Certification', category: 'Accounting/Finance', code: 'CPA' },
   { name: 'PLAB 1 / UKMLA', category: 'Medical UK', code: 'PLAB' },
-  { name: 'NCLEX-RN Nursing', category: 'Nursing USA/CA', code: 'NCLEX' },
   { name: 'FMGE Medical Licensing', category: 'Medical India', code: 'FMGE' },
   { name: 'AMC MCQ Exam', category: 'Medical Australia', code: 'AMC' },
-  { name: 'UPSC Civil Services', category: 'Civil Services India', code: 'UPSC' },
   { name: 'CA Final / Inter', category: 'Accounting India', code: 'CA' },
   { name: 'CFA Level I / II / III', category: 'Finance Global', code: 'CFA' },
   { name: 'SAT / ACT College Entrance', category: 'Global High School', code: 'SAT' },
@@ -74,33 +77,23 @@ const PRESET_EXAMS = [
   { name: 'TOEFL iBT', category: 'Language Global', code: 'TOEFL' },
 ];
 
-const COUNTRY_CODES = [
-  { code: '+1', flag: '🇺🇸', name: 'USA/Canada' },
-  { code: '+91', flag: '🇮🇳', name: 'India' },
-  { code: '+44', flag: '🇬🇧', name: 'United Kingdom' },
-  { code: '+61', flag: '🇦🇺', name: 'Australia' },
-  { code: '+49', flag: '🇩🇪', name: 'Germany' },
-  { code: '+33', flag: '🇫🇷', name: 'France' },
-  { code: '+81', flag: '🇯🇵', name: 'Japan' },
-  { code: '+971', flag: '🇦🇪', name: 'UAE' },
-  { code: '+65', flag: '🇸🇬', name: 'Singapore' },
-  { code: '+27', flag: '🇿🇦', name: 'South Africa' },
-];
+const COUNTRY_CODES = Array.from(
+  new Map(
+    GLOBAL_COUNTRIES.map((c) => {
+      const code = c.phone_code.startsWith('+') ? c.phone_code : `+${c.phone_code}`;
+      return [
+        code,
+        {
+          code,
+          flag: c.flag_emoji || '🌐',
+          name: c.name,
+        },
+      ];
+    })
+  ).values()
+).sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
 
-const COUNTRIES = [
-  'United States',
-  'India',
-  'United Kingdom',
-  'Canada',
-  'Australia',
-  'Germany',
-  'France',
-  'United Arab Emirates',
-  'Singapore',
-  'Japan',
-  'South Africa',
-  'Other Global Location',
-];
+const COUNTRIES = GLOBAL_COUNTRIES.map((c) => c.name);
 
 const LANGUAGES = [
   'English (US/UK)',
@@ -125,9 +118,20 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
   const [country, setCountry] = useState('United States');
   const [language, setLanguage] = useState('English (US/UK)');
 
+  const handleCountrySelect = (newCountryName: string) => {
+    setCountry(newCountryName);
+    const matched = GLOBAL_COUNTRIES.find((c) => c.name === newCountryName);
+    if (matched && matched.phone_code) {
+      const formattedCode = matched.phone_code.startsWith('+')
+        ? matched.phone_code
+        : `+${matched.phone_code}`;
+      setCountryCode(formattedCode);
+    }
+  };
+
   // 2. Exam
   const [examSearchQuery, setExamSearchQuery] = useState('');
-  const [selectedExam, setSelectedExam] = useState('USMLE Step 1 & 2 CK');
+  const [selectedExam, setSelectedExam] = useState('USMLE Step 1');
   const [customExamInput, setCustomExamInput] = useState('');
 
   // 3. Exam Date
@@ -586,7 +590,7 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                         <Globe className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
                         <select
                           value={country}
-                          onChange={(e) => setCountry(e.target.value)}
+                          onChange={(e) => handleCountrySelect(e.target.value)}
                           className="w-full pl-11 pr-4 py-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
                         >
                           {COUNTRIES.map((cnt) => (

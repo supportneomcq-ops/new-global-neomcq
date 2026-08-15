@@ -94,7 +94,7 @@ export async function loginAction(formData: { email: string; password: string })
     const status = (error as any).status;
     const code = (error as any).code;
 
-    console.error('[AUTH_DIAGNOSTIC]', {
+    console.warn('[AUTH_DIAGNOSTIC]', {
       type: 'SUPABASE_AUTH_ERROR',
       message: errMsg,
       status,
@@ -111,10 +111,10 @@ export async function loginAction(formData: { email: string; password: string })
       return { error: 'Too many login attempts. Please try again later.', code: 'RATE_LIMITED' };
     }
     if (errMsg.toLowerCase().includes('fetch') || errMsg.toLowerCase().includes('network') || errMsg.toLowerCase().includes('connection') || errMsg.toLowerCase().includes('api_key')) {
-      return { error: 'Could not connect to the authentication server. Please try again.', code: 'SUPABASE_CONNECTION_ERROR' };
+      return { error: 'Could not connect to the authentication server. Please check your network and try again.', code: 'SUPABASE_CONNECTION_ERROR' };
     }
     
-    return { error: 'Authentication failed. Please verify your credentials.', code: 'UNKNOWN_ERROR' };
+    return { error: errMsg || 'Authentication failed. Please verify your credentials.', code: 'AUTH_FAILED' };
   }
 
   let redirectUrl = '/dashboard'

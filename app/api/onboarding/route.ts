@@ -140,19 +140,30 @@ export async function POST(req: NextRequest) {
         if (existingExams && existingExams.length > 0) {
           finalExamId = existingExams[0].id
         } else {
-          const { data: newExam } = await (supabase as any)
-            .from('exams')
-            .insert({
-              name: examName.trim(),
-              slug: examSlug,
-              difficulty: 'Adaptive',
-              status: 'active',
-              created_by_ai: true,
-            })
-            .select('id')
-            .single()
+          // Check exam_aliases before inserting a new custom exam
+          const { data: aliasExams } = await (supabase as any)
+            .from('exam_aliases')
+            .select('exam_id')
+            .ilike('alias', examName.trim())
+            .limit(1)
 
-          if (newExam) finalExamId = newExam.id
+          if (aliasExams && aliasExams.length > 0) {
+            finalExamId = aliasExams[0].exam_id
+          } else {
+            const { data: newExam } = await (supabase as any)
+              .from('exams')
+              .insert({
+                name: examName.trim(),
+                slug: examSlug,
+                difficulty: 'Adaptive',
+                status: 'active',
+                created_by_ai: true,
+              })
+              .select('id')
+              .single()
+
+            if (newExam) finalExamId = newExam.id
+          }
         }
       }
 

@@ -153,3 +153,182 @@ export async function matchExamSmart(supabase: any, rawInput: string): Promise<M
     normalizedSlug: norm.slug,
   }
 }
+
+/**
+ * Smart Subject Matcher
+ * Resolves whether a subject already exists under a given exam before creating a duplicate.
+ */
+export async function matchSubjectSmart(
+  supabase: any,
+  examId: string,
+  rawInput: string
+): Promise<MatchResult> {
+  const norm = normalizeInput(rawInput)
+
+  if (!norm.canonical || !examId) {
+    return {
+      matched: false,
+      confidence: 0,
+      matchType: 'none',
+      entity: null,
+      canonicalName: '',
+      normalizedSlug: '',
+    }
+  }
+
+  // 1. Exact match by slug or name under this exam
+  const { data: directMatches } = await supabase
+    .from('exam_subjects')
+    .select('*, exam_topics(*)')
+    .eq('exam_id', examId)
+    .or(`slug.eq.${norm.slug},name.ilike.${norm.canonical}`)
+    .limit(5)
+
+  if (directMatches && directMatches.length > 0) {
+    const exact = directMatches.find(
+      (s: any) => s.slug === norm.slug || s.name.toLowerCase() === norm.canonical
+    )
+    if (exact) {
+      return {
+        matched: true,
+        confidence: 100.0,
+        matchType: exact.slug === norm.slug ? 'slug' : 'exact',
+        entity: exact,
+        canonicalName: exact.name,
+        normalizedSlug: exact.slug,
+      }
+    }
+  }
+
+  // 2. Fuzzy search across all subjects for this exam
+  const { data: allSubjects } = await supabase
+    .from('exam_subjects')
+    .select('*, exam_topics(*)')
+    .eq('exam_id', examId)
+
+  let bestMatch: any = null
+  let maxConfidence = 0.0
+
+  if (allSubjects && allSubjects.length > 0) {
+    for (const subj of allSubjects) {
+      const nameSim = calculateLevenshteinSimilarity(norm.canonical, subj.name)
+      const slugSim = calculateLevenshteinSimilarity(norm.slug, subj.slug)
+      const sim = Math.max(nameSim, slugSim)
+
+      if (sim > maxConfidence) {
+        maxConfidence = sim
+        bestMatch = subj
+      }
+    }
+  }
+
+  if (bestMatch && maxConfidence >= CONFIDENCE_THRESHOLD) {
+    return {
+      matched: true,
+      confidence: maxConfidence,
+      matchType: 'fuzzy',
+      entity: bestMatch,
+      canonicalName: bestMatch.name,
+      normalizedSlug: bestMatch.slug,
+    }
+  }
+
+  return {
+    matched: false,
+    confidence: maxConfidence,
+    matchType: 'none',
+    entity: null,
+    canonicalName: norm.canonical,
+    normalizedSlug: norm.slug,
+  }
+}
+
+/**
+ * Smart Topic Matcher
+ * Resolves whether a topic already exists under a given subject before creating a duplicate.
+ */
+export async function matchTopicSmart(
+  supabase: any,
+  subjectId: string,
+  rawInput: string
+): Promise<MatchResult> {
+  const norm = normalizeInput(rawInput)
+
+  if (!norm.canonical || !subjectId) {
+    return {
+      matched: false,
+      confidence: 0,
+      matchType: 'none',
+      entity: null,
+      canonicalName: '',
+      normalizedSlug: '',
+    }
+  }
+
+  // 1. Exact match by slug or name under this subject
+  const { data: directMatches } = await supabase
+    .from('exam_topics')
+    .select('*')
+    .eq('subject_id', subjectId)
+    .or(`slug.eq.${norm.slug},name.ilike.${norm.canonical}`)
+    .limit(5)
+
+  if (directMatches && directMatches.length > 0) {
+    const exact = directMatches.find(
+      (t: any) => t.slug === norm.slug || t.name.toLowerCase() === norm.canonical
+    )
+    if (exact) {
+      return {
+        matched: true,
+        confidence: 100.0,
+        matchType: exact.slug === norm.slug ? 'slug' : 'exact',
+        entity: exact,
+        canonicalName: exact.name,
+        normalizedSlug: exact.slug,
+      }
+    }
+  }
+
+  // 2. Fuzzy search across all topics for this subject
+  const { data: allTopics } = await supabase
+    .from('exam_topics')
+    .select('*')
+    .eq('subject_id', subjectId)
+
+  let bestMatch: any = null
+  let maxConfidence = 0.0
+
+  if (allTopics && allTopics.length > 0) {
+    for (const top of allTopics) {
+      const nameSim = calculateLevenshteinSimilarity(norm.canonical, top.name)
+      const slugSim = calculateLevenshteinSimilarity(norm.slug, top.slug)
+      const sim = Math.max(nameSim, slugSim)
+
+      if (sim > maxConfidence) {
+        maxConfidence = sim
+        bestMatch = top
+      }
+    }
+  }
+
+  if (bestMatch && maxConfidence >= CONFIDENCE_THRESHOLD) {
+    return {
+      matched: true,
+      confidence: maxConfidence,
+      matchType: 'fuzzy',
+      entity: bestMatch,
+      canonicalName: bestMatch.name,
+      normalizedSlug: bestMatch.slug,
+    }
+  }
+
+  return {
+    matched: false,
+    confidence: maxConfidence,
+    matchType: 'none',
+    entity: null,
+    canonicalName: norm.canonical,
+    normalizedSlug: norm.slug,
+  }
+}
+
