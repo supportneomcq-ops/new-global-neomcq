@@ -53,7 +53,7 @@ export interface NormalizedResult {
   tokens: string[]
 }
 
-export function normalizeInput(input: string): NormalizedResult {
+export function normalizeInput(input?: string | null): NormalizedResult {
   if (!input || typeof input !== 'string') {
     return { raw: '', canonical: '', slug: '', tokens: [] }
   }
@@ -100,7 +100,11 @@ export function normalizeInput(input: string): NormalizedResult {
   }
 }
 
-export function calculateLevenshteinSimilarity(str1: string, str2: string): number {
+export function calculateLevenshteinSimilarity(str1?: string | null, str2?: string | null): number {
+  if (!str1 || !str2 || typeof str1 !== 'string' || typeof str2 !== 'string') {
+    return 0.0
+  }
+
   const s1 = str1.toLowerCase().trim()
   const s2 = str2.toLowerCase().trim()
 

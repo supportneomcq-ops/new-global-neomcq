@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
       .from('exam_subjects')
       .select('*')
       .eq('exam_id', examId)
-      .order('order_index', { ascending: true });
+      .order('created_at', { ascending: true });
 
     if (sError) throw sError;
 
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
         .from('exam_topics')
         .select('*')
         .in('subject_id', subjectIds)
-        .order('order_index', { ascending: true });
+        .order('created_at', { ascending: true });
 
       if (tError) throw tError;
       topics = tData || [];

@@ -60,7 +60,7 @@ export function LearningContentEngine({
   initialExamName = 'USMLE Step 1 & 2 CK',
   initialSubjectName = 'Human Anatomy',
 }: LearningContentEngineProps) {
-  const { selection, setTopic, refreshHierarchy } = useSelection()
+  const { selection, setSubject, setTopic, refreshHierarchy } = useSelection()
 
   // Navigation & Entity State
   const examName = selection.exam?.name || initialExamName
@@ -545,18 +545,27 @@ export function LearningContentEngine({
             <button
               type="button"
               onClick={async () => {
+                if (!selection.exam?.id) return
                 const subjName = prompt('Enter new subject name:')
                 if (subjName && subjName.trim()) {
                   try {
-                    const supabase = getSupabaseClient()
-                    await supabase
-                      .from('exam_subjects')
-                      .insert({
-                        exam_id: selection.exam?.id,
-                        name: subjName.trim(),
-                        slug: subjName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-'),
+                    const res = await fetch('/api/subjects/create', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        examId: selection.exam.id,
+                        subjectName: subjName.trim(),
+                      }),
+                    })
+                    const data = await res.json()
+                    if (data.success && data.subject) {
+                      await refreshHierarchy()
+                      setSubject({
+                        id: data.subject.id,
+                        name: data.subject.name,
+                        slug: data.subject.slug,
                       })
-                    await refreshHierarchy()
+                    }
                   } catch (err) {
                     console.error('Failed to create subject:', err)
                   }
@@ -569,18 +578,27 @@ export function LearningContentEngine({
             <button
               type="button"
               onClick={async () => {
+                if (!selection.exam?.id) return
                 const subjName = prompt('Enter new subject name:')
                 if (subjName && subjName.trim()) {
                   try {
-                    const supabase = getSupabaseClient()
-                    await supabase
-                      .from('exam_subjects')
-                      .insert({
-                        exam_id: selection.exam?.id,
-                        name: subjName.trim(),
-                        slug: subjName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-'),
+                    const res = await fetch('/api/subjects/create', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        examId: selection.exam.id,
+                        subjectName: subjName.trim(),
+                      }),
+                    })
+                    const data = await res.json()
+                    if (data.success && data.subject) {
+                      await refreshHierarchy()
+                      setSubject({
+                        id: data.subject.id,
+                        name: data.subject.name,
+                        slug: data.subject.slug,
                       })
-                    await refreshHierarchy()
+                    }
                   } catch (err) {
                     console.error('Failed to create subject:', err)
                   }
@@ -706,20 +724,29 @@ export function LearningContentEngine({
                 <button
                   type="button"
                   onClick={async () => {
+                    if (!selection.subject?.id) return
                     const tName = prompt('Enter new topic name:')
                     if (tName && tName.trim()) {
                       try {
-                        const supabase = getSupabaseClient()
-                        await supabase
-                          .from('exam_topics')
-                          .insert({
-                            subject_id: selection.subject?.id,
-                            name: tName.trim(),
-                            slug: tName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-'),
+                        const res = await fetch('/api/topics/create', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            subjectId: selection.subject.id,
+                            topicName: tName.trim(),
+                          }),
+                        })
+                        const data = await res.json()
+                        if (data.success && data.topic) {
+                          await refreshHierarchy()
+                          setTopic({
+                            id: data.topic.id,
+                            name: data.topic.name,
+                            slug: data.topic.slug,
                           })
-                        await refreshHierarchy()
+                        }
                       } catch (err) {
-                        console.error(err)
+                        console.error('Failed to create topic:', err)
                       }
                     }
                   }}

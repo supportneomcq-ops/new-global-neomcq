@@ -33,25 +33,25 @@ export async function matchExamSmart(supabase: any, rawInput: string): Promise<M
   const { data: directMatches } = await supabase
     .from('exams')
     .select(`
-      *,
+      id,
+      name,
+      slug,
+      description,
+      difficulty,
+      status,
       exam_subjects (
         id,
+        exam_id,
         name,
-        slug,
         description,
         weight_percentage,
-        topic_count,
-        order_index,
+        created_at,
         exam_topics (
           id,
-          parent_id,
+          subject_id,
           name,
-          slug,
           description,
-          level,
-          target_weight,
-          order_index,
-          tags
+          created_at
         )
       )
     `)
@@ -59,7 +59,10 @@ export async function matchExamSmart(supabase: any, rawInput: string): Promise<M
     .limit(5)
 
   if (directMatches && directMatches.length > 0) {
-    const exact = directMatches.find((e: any) => e.slug === norm.slug || e.name.toLowerCase() === norm.canonical)
+    const exact = directMatches.find((e: any) => 
+      e.slug === norm.slug || 
+      (e.name && e.name.toLowerCase().trim() === norm.canonical)
+    )
     if (exact) {
       return {
         matched: true,
@@ -67,33 +70,37 @@ export async function matchExamSmart(supabase: any, rawInput: string): Promise<M
         matchType: exact.slug === norm.slug ? 'slug' : 'exact',
         entity: exact,
         canonicalName: exact.name,
-        normalizedSlug: exact.slug,
+        normalizedSlug: exact.slug || norm.slug,
       }
     }
   }
 
   // 2. Check exam_aliases table
-  const { data: aliasMatch } = await supabase
-    .from('exam_aliases')
-    .select('exam_id, alias, exams(*)')
-    .ilike('alias', norm.canonical)
-    .maybeSingle()
+  try {
+    const { data: aliasMatch } = await supabase
+      .from('exam_aliases')
+      .select('exam_id, alias, exams(*)')
+      .ilike('alias', norm.canonical)
+      .maybeSingle()
 
-  if (aliasMatch && aliasMatch.exams) {
-    return {
-      matched: true,
-      confidence: 95.0,
-      matchType: 'alias',
-      entity: aliasMatch.exams,
-      canonicalName: aliasMatch.exams.name,
-      normalizedSlug: aliasMatch.exams.slug,
+    if (aliasMatch && aliasMatch.exams) {
+      return {
+        matched: true,
+        confidence: 95.0,
+        matchType: 'alias',
+        entity: aliasMatch.exams,
+        canonicalName: aliasMatch.exams.name,
+        normalizedSlug: aliasMatch.exams.slug || norm.slug,
+      }
     }
+  } catch (aliasErr) {
+    // Ignore if exam_aliases does not exist
   }
 
   // 3. Fuzzy search or string distance check on all exams
   const { data: allExams } = await supabase
     .from('exams')
-    .select('*, exam_subjects(id, name, slug, weight_percentage)')
+    .select('id, name, slug, description, difficulty, status')
     .neq('status', 'archived')
     .limit(50)
 
@@ -104,7 +111,8 @@ export async function matchExamSmart(supabase: any, rawInput: string): Promise<M
     for (const exam of allExams) {
       const nameSim = calculateLevenshteinSimilarity(norm.canonical, exam.name)
       const slugSim = calculateLevenshteinSimilarity(norm.slug, exam.slug)
-      const bestLocalSim = Math.max(nameSim, slugSim)
+      const rawSim = calculateLevenshteinSimilarity(rawInput.trim(), exam.name)
+      const bestLocalSim = Math.max(nameSim, slugSim, rawSim)
 
       // Also check aliases array on exam record
       let aliasSim = 0
@@ -125,21 +133,13 @@ export async function matchExamSmart(supabase: any, rawInput: string): Promise<M
   }
 
   if (bestMatch && maxConfidence >= CONFIDENCE_THRESHOLD) {
-    // Dynamically store new alias for future speed!
-    if (rawInput && rawInput.trim().length > 2) {
-      await supabase
-        .from('exam_aliases')
-        .insert({ exam_id: bestMatch.id, alias: rawInput.trim() })
-        .catch(() => {}) // Ignore if alias already recorded
-    }
-
     return {
       matched: true,
       confidence: maxConfidence,
       matchType: 'fuzzy',
       entity: bestMatch,
       canonicalName: bestMatch.name,
-      normalizedSlug: bestMatch.slug,
+      normalizedSlug: bestMatch.slug || norm.slug,
     }
   }
 
@@ -176,34 +176,61 @@ export async function matchSubjectSmart(
     }
   }
 
-  // 1. Exact match by slug or name under this exam
+  // 1. Exact match by name under this exam
   const { data: directMatches } = await supabase
     .from('exam_subjects')
-    .select('*, exam_topics(*)')
+    .select('id, exam_id, name, description, weight_percentage, created_at, exam_topics(id, subject_id, name, description, created_at)')
     .eq('exam_id', examId)
-    .or(`slug.eq.${norm.slug},name.ilike.${norm.canonical}`)
+    .ilike('name', norm.canonical)
     .limit(5)
 
   if (directMatches && directMatches.length > 0) {
     const exact = directMatches.find(
-      (s: any) => s.slug === norm.slug || s.name.toLowerCase() === norm.canonical
-    )
+      (s: any) =>
+        (s.name && s.name.toLowerCase().trim() === norm.canonical) ||
+        (s.name && s.name.toLowerCase().trim() === (rawInput || '').toLowerCase().trim())
+    ) || directMatches[0]
     if (exact) {
       return {
         matched: true,
         confidence: 100.0,
-        matchType: exact.slug === norm.slug ? 'slug' : 'exact',
+        matchType: 'exact',
         entity: exact,
         canonicalName: exact.name,
-        normalizedSlug: exact.slug,
+        normalizedSlug: norm.slug,
       }
     }
   }
 
-  // 2. Fuzzy search across all subjects for this exam
+  // 2. Check subject_aliases table if present
+  try {
+    const { data: aliasMatch } = await supabase
+      .from('subject_aliases')
+      .select('subject_id, alias, exam_subjects(id, exam_id, name, description, weight_percentage, created_at, exam_topics(id, subject_id, name, description, created_at))')
+      .ilike('alias', norm.canonical)
+      .limit(5)
+
+    if (aliasMatch && aliasMatch.length > 0) {
+      const matchForExam = aliasMatch.find((a: any) => a.exam_subjects && a.exam_subjects.exam_id === examId)
+      if (matchForExam && matchForExam.exam_subjects) {
+        return {
+          matched: true,
+          confidence: 95.0,
+          matchType: 'alias',
+          entity: matchForExam.exam_subjects,
+          canonicalName: matchForExam.exam_subjects.name,
+          normalizedSlug: norm.slug,
+        }
+      }
+    }
+  } catch (aliasErr) {
+    // Ignore if table has strict RLS or alias lookup error
+  }
+
+  // 3. Fuzzy search across all subjects for this exam
   const { data: allSubjects } = await supabase
     .from('exam_subjects')
-    .select('*, exam_topics(*)')
+    .select('id, exam_id, name, description, weight_percentage, created_at, exam_topics(id, subject_id, name, description, created_at)')
     .eq('exam_id', examId)
 
   let bestMatch: any = null
@@ -212,8 +239,8 @@ export async function matchSubjectSmart(
   if (allSubjects && allSubjects.length > 0) {
     for (const subj of allSubjects) {
       const nameSim = calculateLevenshteinSimilarity(norm.canonical, subj.name)
-      const slugSim = calculateLevenshteinSimilarity(norm.slug, subj.slug)
-      const sim = Math.max(nameSim, slugSim)
+      const rawSim = calculateLevenshteinSimilarity(rawInput.trim(), subj.name)
+      const sim = Math.max(nameSim, rawSim)
 
       if (sim > maxConfidence) {
         maxConfidence = sim
@@ -229,7 +256,7 @@ export async function matchSubjectSmart(
       matchType: 'fuzzy',
       entity: bestMatch,
       canonicalName: bestMatch.name,
-      normalizedSlug: bestMatch.slug,
+      normalizedSlug: norm.slug,
     }
   }
 
@@ -265,34 +292,61 @@ export async function matchTopicSmart(
     }
   }
 
-  // 1. Exact match by slug or name under this subject
+  // 1. Exact match by name under this subject
   const { data: directMatches } = await supabase
     .from('exam_topics')
-    .select('*')
+    .select('id, subject_id, name, description, created_at')
     .eq('subject_id', subjectId)
-    .or(`slug.eq.${norm.slug},name.ilike.${norm.canonical}`)
+    .ilike('name', norm.canonical)
     .limit(5)
 
   if (directMatches && directMatches.length > 0) {
     const exact = directMatches.find(
-      (t: any) => t.slug === norm.slug || t.name.toLowerCase() === norm.canonical
-    )
+      (t: any) =>
+        (t.name && t.name.toLowerCase().trim() === norm.canonical) ||
+        (t.name && t.name.toLowerCase().trim() === (rawInput || '').toLowerCase().trim())
+    ) || directMatches[0]
     if (exact) {
       return {
         matched: true,
         confidence: 100.0,
-        matchType: exact.slug === norm.slug ? 'slug' : 'exact',
+        matchType: 'exact',
         entity: exact,
         canonicalName: exact.name,
-        normalizedSlug: exact.slug,
+        normalizedSlug: norm.slug,
       }
     }
   }
 
-  // 2. Fuzzy search across all topics for this subject
+  // 2. Check topic_aliases table if present
+  try {
+    const { data: aliasMatch } = await supabase
+      .from('topic_aliases')
+      .select('topic_id, alias, exam_topics(id, subject_id, name, description, created_at)')
+      .ilike('alias', norm.canonical)
+      .limit(5)
+
+    if (aliasMatch && aliasMatch.length > 0) {
+      const matchForSubj = aliasMatch.find((a: any) => a.exam_topics && a.exam_topics.subject_id === subjectId)
+      if (matchForSubj && matchForSubj.exam_topics) {
+        return {
+          matched: true,
+          confidence: 95.0,
+          matchType: 'alias',
+          entity: matchForSubj.exam_topics,
+          canonicalName: matchForSubj.exam_topics.name,
+          normalizedSlug: norm.slug,
+        }
+      }
+    }
+  } catch (aliasErr) {
+    // Ignore
+  }
+
+  // 3. Fuzzy search across all topics for this subject
   const { data: allTopics } = await supabase
     .from('exam_topics')
-    .select('*')
+    .select('id, subject_id, name, description, created_at')
     .eq('subject_id', subjectId)
 
   let bestMatch: any = null
@@ -301,8 +355,8 @@ export async function matchTopicSmart(
   if (allTopics && allTopics.length > 0) {
     for (const top of allTopics) {
       const nameSim = calculateLevenshteinSimilarity(norm.canonical, top.name)
-      const slugSim = calculateLevenshteinSimilarity(norm.slug, top.slug)
-      const sim = Math.max(nameSim, slugSim)
+      const rawSim = calculateLevenshteinSimilarity(rawInput.trim(), top.name)
+      const sim = Math.max(nameSim, rawSim)
 
       if (sim > maxConfidence) {
         maxConfidence = sim
@@ -318,7 +372,7 @@ export async function matchTopicSmart(
       matchType: 'fuzzy',
       entity: bestMatch,
       canonicalName: bestMatch.name,
-      normalizedSlug: bestMatch.slug,
+      normalizedSlug: norm.slug,
     }
   }
 

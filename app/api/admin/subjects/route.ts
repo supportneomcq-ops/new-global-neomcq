@@ -20,9 +20,9 @@ export async function GET(req: NextRequest) {
       .select(`
         *,
         exams(id, name, slug, status, countries(name, flag_emoji)),
-        exam_topics(id, name, slug, level)
+        exam_topics(id, name, description)
       `)
-      .order('order_index', { ascending: true })
+      .order('created_at', { ascending: true })
 
     if (examId) {
       query = query.eq('exam_id', examId)

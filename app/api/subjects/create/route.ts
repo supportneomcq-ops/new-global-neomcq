@@ -9,13 +9,14 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { examId, subjectName } = body
 
-    if (!examId || !subjectName || !subjectName.trim()) {
+    if (!examId || !subjectName || typeof subjectName !== 'string' || !subjectName.trim()) {
       return NextResponse.json(
-        { success: false, error: 'examId and subjectName are required' },
+        { success: false, error: 'examId and a valid subjectName are required' },
         { status: 400 }
       )
     }
 
+    const trimmedSubjectName = subjectName.trim()
     const supabase = getSupabaseAdmin()
 
     // 1. Verify exam exists
@@ -33,44 +34,66 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Smart Match to prevent duplicate subjects
-    const matchResult = await matchSubjectSmart(supabase, examId, subjectName.trim())
+    const matchResult = await matchSubjectSmart(supabase, examId, trimmedSubjectName)
 
     if (matchResult.matched && matchResult.entity) {
+      // Return existing subject with its topics
+      const { data: existingTopics } = await (supabase as any)
+        .from('exam_topics')
+        .select('id, subject_id, name, description, created_at')
+        .eq('subject_id', matchResult.entity.id)
+        .order('created_at', { ascending: true })
+
       return NextResponse.json({
         success: true,
         reused: true,
-        subject: matchResult.entity,
+        subject: {
+          id: matchResult.entity.id,
+          name: matchResult.entity.name,
+          slug: matchResult.normalizedSlug || normalizeInput(matchResult.entity.name).slug,
+          description: matchResult.entity.description,
+          exam_topics: existingTopics || [],
+        },
         message: `Reused existing subject '${matchResult.canonicalName}'`,
       })
     }
 
     // 3. Create new canonical subject under this exam
-    const norm = normalizeInput(subjectName)
+    const norm = normalizeInput(trimmedSubjectName)
     const { data: insertedSubject, error: insertErr } = await (supabase as any)
       .from('exam_subjects')
       .insert({
         exam_id: examId,
-        name: subjectName.trim(),
-        slug: norm.slug || subjectName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-        description: `Subject ${subjectName.trim()} for ${examData.name}`,
+        name: trimmedSubjectName,
+        description: `Subject ${trimmedSubjectName} for ${examData.name}`,
         weight_percentage: 10,
-        order_index: 100,
-        version: 1,
-        ai_confidence: 95.0,
       })
-      .select('id, name, slug, description, order_index')
+      .select('id, exam_id, name, description, weight_percentage, created_at')
       .single()
 
     if (insertErr || !insertedSubject) {
-      throw new Error(`Failed to create subject: ${insertErr?.message}`)
+      console.error('Insert exam_subjects error:', insertErr)
+      throw new Error(`Failed to create subject: ${insertErr?.message || 'Database error'}`)
     }
 
-    // 4. Generate initial topics using Gemini if available
+    // Also record alias if subject_aliases table exists
+    try {
+      await (supabase as any)
+        .from('subject_aliases')
+        .insert({
+          subject_id: insertedSubject.id,
+          alias: norm.canonical || trimmedSubjectName.toLowerCase(),
+        })
+    } catch (aliasErr) {
+      // Non-blocking
+    }
+
+    // 4. Generate initial starter topics
     let starterTopics: any[] = []
     if (process.env.GEMINI_API_KEY) {
       try {
         const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
-        const prompt = `You are a curriculum expert. For the exam "${examData.name}", generate 4-6 high-yield, core topics for the subject "${subjectName.trim()}". Return ONLY a valid JSON array of strings containing the topic names, e.g. ["Topic 1", "Topic 2", "Topic 3"].`
+        const prompt = `You are a curriculum expert. For the exam "${examData.name}", generate 4-6 core high-yield topics for the subject "${trimmedSubjectName}". Return ONLY a valid JSON array of strings containing the topic names, e.g. ["Topic 1", "Topic 2", "Topic 3"].`
         const response = await ai.models.generateContent({
           model: 'gemini-2.5-flash',
           contents: prompt,
@@ -88,15 +111,16 @@ export async function POST(req: NextRequest) {
                 .insert({
                   subject_id: insertedSubject.id,
                   name: tName.trim(),
-                  slug: tName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-                  level: 'topic',
-                  order_index: i + 1,
-                  version: 1,
-                  ai_confidence: 95.0,
+                  description: `Topic ${tName.trim()} under ${trimmedSubjectName}`,
                 })
-                .select('id, name, slug, order_index')
+                .select('id, subject_id, name, description, created_at')
                 .single()
-              if (top) starterTopics.push(top)
+              if (top) {
+                starterTopics.push({
+                  ...top,
+                  slug: normalizeInput(top.name).slug,
+                })
+              }
             }
           }
         }
@@ -111,24 +135,30 @@ export async function POST(req: NextRequest) {
         .from('exam_topics')
         .insert({
           subject_id: insertedSubject.id,
-          name: `Core Principles of ${subjectName.trim()}`,
-          slug: `core-principles-${norm.slug}`,
-          level: 'topic',
-          order_index: 1,
+          name: `Core Principles of ${trimmedSubjectName}`,
+          description: `Foundational overview and core concepts of ${trimmedSubjectName}`,
         })
-        .select('id, name, slug, order_index')
+        .select('id, subject_id, name, description, created_at')
         .single()
-      if (defaultTop) starterTopics.push(defaultTop)
+      if (defaultTop) {
+        starterTopics.push({
+          ...defaultTop,
+          slug: normalizeInput(defaultTop.name).slug,
+        })
+      }
     }
 
     return NextResponse.json({
       success: true,
       reused: false,
       subject: {
-        ...insertedSubject,
+        id: insertedSubject.id,
+        name: insertedSubject.name,
+        slug: norm.slug,
+        description: insertedSubject.description,
         exam_topics: starterTopics,
       },
-      message: `Created new subject '${subjectName.trim()}' with ${starterTopics.length} topics`,
+      message: `Created new subject '${trimmedSubjectName}' with ${starterTopics.length} topics`,
     })
   } catch (error: any) {
     console.error('Subject Create API Error:', error)

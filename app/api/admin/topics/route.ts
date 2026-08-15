@@ -22,12 +22,11 @@ export async function GET(req: NextRequest) {
         exam_subjects!inner(
           id,
           name,
-          slug,
           exam_id,
           exams!inner(id, name, slug)
         )
       `)
-      .order('order_index', { ascending: true })
+      .order('created_at', { ascending: true })
 
     if (subjectId) {
       query = query.eq('subject_id', subjectId)

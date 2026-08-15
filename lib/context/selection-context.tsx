@@ -152,12 +152,16 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
               // Load subjects for cached exam
               const { data: subjectsData } = await supabase
                 .from('exam_subjects')
-                .select('id, name, slug')
+                .select('id, name, description, created_at')
                 .eq('exam_id', parsed.exam.id)
-                .order('order_index');
+                .order('created_at', { ascending: true });
 
               const subjList = (subjectsData && subjectsData.length > 0)
-                ? subjectsData.map((s) => ({ id: s.id, name: s.name, slug: s.slug || s.id }))
+                ? subjectsData.map((s) => ({
+                    id: s.id,
+                    name: s.name,
+                    slug: (s.name || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-'),
+                  }))
                 : [];
               setAvailableSubjects(subjList);
 
@@ -166,12 +170,16 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
               if (parsed.subject && subjList.some((s) => s.id === parsed.subject.id)) {
                 const { data: topicsData } = await supabase
                   .from('exam_topics')
-                  .select('id, name, slug')
+                  .select('id, name, description, created_at')
                   .eq('subject_id', parsed.subject.id)
-                  .order('order_index');
+                  .order('created_at', { ascending: true });
 
                 topicList = (topicsData && topicsData.length > 0)
-                  ? topicsData.map((t) => ({ id: t.id, name: t.name, slug: t.slug || t.id }))
+                  ? topicsData.map((t) => ({
+                      id: t.id,
+                      name: t.name,
+                      slug: (t.name || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-'),
+                    }))
                   : [];
               }
               setAvailableTopics(topicList);
@@ -187,12 +195,16 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         // Fetch subjects for active exam
         const { data: subjectsData } = await supabase
           .from('exam_subjects')
-          .select('id, name, slug')
+          .select('id, name, description, created_at')
           .eq('exam_id', activeExam.id)
-          .order('order_index');
+          .order('created_at', { ascending: true });
 
         const subjList = (subjectsData && subjectsData.length > 0)
-          ? subjectsData.map((s) => ({ id: s.id, name: s.name, slug: s.slug || s.id }))
+          ? subjectsData.map((s) => ({
+              id: s.id,
+              name: s.name,
+              slug: (s.name || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-'),
+            }))
           : [];
 
         setAvailableSubjects(subjList);
@@ -202,12 +214,16 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         if (subjList.length > 0) {
           const { data: topicsData } = await supabase
             .from('exam_topics')
-            .select('id, name, slug')
+            .select('id, name, description, created_at')
             .eq('subject_id', subjList[0].id)
-            .order('order_index');
+            .order('created_at', { ascending: true });
 
           topicList = (topicsData && topicsData.length > 0)
-            ? topicsData.map((t) => ({ id: t.id, name: t.name, slug: t.slug || t.id }))
+            ? topicsData.map((t) => ({
+                id: t.id,
+                name: t.name,
+                slug: (t.name || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-'),
+              }))
             : [];
         }
 
@@ -257,12 +273,16 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
       const supabase = getSupabaseClient();
       const { data: subjectsData } = await supabase
         .from('exam_subjects')
-        .select('id, name, slug')
+        .select('id, name, description, created_at')
         .eq('exam_id', exam.id)
-        .order('order_index');
+        .order('created_at', { ascending: true });
 
       const subjList = (subjectsData && subjectsData.length > 0)
-        ? subjectsData.map((s) => ({ id: s.id, name: s.name, slug: s.slug || s.id }))
+        ? subjectsData.map((s) => ({
+            id: s.id,
+            name: s.name,
+            slug: (s.name || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-'),
+          }))
         : [];
 
       setAvailableSubjects(subjList);
@@ -272,12 +292,16 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         // Load topics for first subject
         const { data: topicsData } = await supabase
           .from('exam_topics')
-          .select('id, name, slug')
+          .select('id, name, description, created_at')
           .eq('subject_id', subjList[0].id)
-          .order('order_index');
+          .order('created_at', { ascending: true });
 
         topicList = (topicsData && topicsData.length > 0)
-          ? topicsData.map((t) => ({ id: t.id, name: t.name, slug: t.slug || t.id }))
+          ? topicsData.map((t) => ({
+              id: t.id,
+              name: t.name,
+              slug: (t.name || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-'),
+            }))
           : [];
       }
 
@@ -304,12 +328,16 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
       const supabase = getSupabaseClient();
       const { data: topicsData } = await supabase
         .from('exam_topics')
-        .select('id, name, slug')
+        .select('id, name, description, created_at')
         .eq('subject_id', subject.id)
-        .order('order_index');
+        .order('created_at', { ascending: true });
 
       const topicList = (topicsData && topicsData.length > 0)
-        ? topicsData.map((t) => ({ id: t.id, name: t.name, slug: t.slug || t.id }))
+        ? topicsData.map((t) => ({
+            id: t.id,
+            name: t.name,
+            slug: (t.name || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-'),
+          }))
         : [];
 
       setAvailableTopics(topicList);
