@@ -197,6 +197,11 @@ export function LearningContentEngine({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           topicId,
+          topicName: topicNameParam || selectedTopic?.name,
+          subjectId: selection.subject?.id,
+          subjectName: selection.subject?.name,
+          examId: selection.exam?.id,
+          examName: selection.exam?.name,
           contentType: 'full_pack',
           difficulty: 'Intermediate',
         }),
