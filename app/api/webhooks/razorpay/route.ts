@@ -63,11 +63,14 @@ export async function POST(req: NextRequest) {
     const userId = paymentEntity?.notes?.user_id || payload?.subscription?.entity?.notes?.user_id
     const planId = paymentEntity?.notes?.plan_id || payload?.subscription?.entity?.notes?.plan_id
     const creditPackId = paymentEntity?.notes?.credit_pack_id
+    const isExamSwitch = paymentEntity?.notes?.type === 'exam_switch' || !!paymentEntity?.notes?.to_exam_id
+    const toExamId = paymentEntity?.notes?.to_exam_id
+    const fromExamId = paymentEntity?.notes?.from_exam_id
 
     // Handle key Razorpay events
     if (eventType === 'payment.captured' || eventType === 'order.paid') {
-      const amount = (paymentEntity?.amount || 0) / 100 // Convert paise to INR
-      const currency = paymentEntity?.currency || 'INR'
+      const amount = (paymentEntity?.amount || 0) / 100 // Convert cents/paise
+      const currency = paymentEntity?.currency || 'USD'
 
       if (userId) {
         // Record or update payment
@@ -80,6 +83,54 @@ export async function POST(req: NextRequest) {
           status: 'captured',
           webhook_payload: event,
         })
+
+        // ATOMIC EXAM SWITCH PROCESSING
+        if (isExamSwitch && toExamId) {
+          try {
+            await (supabase as any).rpc('execute_exam_switch_atomic', {
+              p_user_id: userId,
+              p_switch_request_id: null,
+              p_razorpay_payment_id: paymentId,
+              p_razorpay_order_id: paymentEntity?.order_id || null,
+              p_razorpay_signature: null,
+              p_amount: amount,
+              p_currency: currency,
+            });
+
+            // Fallback updates in case RPC not loaded
+            await (supabase as any)
+              .from('profiles')
+              .update({
+                current_exam_id: toExamId,
+                exam_locked: true,
+                exam_selected_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', userId);
+
+            await (supabase as any)
+              .from('user_exams')
+              .upsert({
+                user_id: userId,
+                exam_id: toExamId,
+                status: 'in_progress',
+              }, { onConflict: 'user_id,exam_id' });
+
+            if (fromExamId) {
+              await (supabase as any).from('exam_switch_history').insert({
+                user_id: userId,
+                from_exam_id: fromExamId,
+                to_exam_id: toExamId,
+                amount,
+                currency,
+                payment_reference: paymentId,
+                switched_at: new Date().toISOString(),
+              });
+            }
+          } catch (switchErr) {
+            console.error('Webhook failed to execute atomic exam switch:', switchErr);
+          }
+        }
 
         // Activate or extend subscription if plan specified
         if (planId) {

@@ -7,6 +7,7 @@ export interface SelectedItem {
   id: string;
   name: string;
   slug?: string;
+  description?: string;
 }
 
 export interface SelectionState {
@@ -25,6 +26,9 @@ interface SelectionContextType {
   availableSubjects: SelectedItem[];
   availableTopics: SelectedItem[];
   isLoading: boolean;
+  isExamLocked: boolean;
+  examSwitchCount: number;
+  applyExamSwitch: (newExam: SelectedItem) => Promise<void>;
   refreshHierarchy: () => Promise<void>;
 }
 
@@ -43,8 +47,10 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
   const [availableSubjects, setAvailableSubjects] = useState<SelectedItem[]>([]);
   const [availableTopics, setAvailableTopics] = useState<SelectedItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExamLocked, setIsExamLocked] = useState(true);
+  const [examSwitchCount, setExamSwitchCount] = useState(0);
 
-  // Sync to local storage & Supabase
+  // Sync to local storage
   const persistSelection = useCallback(async (newSelection: SelectionState) => {
     try {
       const supabase = getSupabaseClient();
@@ -58,140 +64,97 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
           localStorage.setItem(userActiveKey, newSelection.exam.id);
         }
       }
-
-      if (user && newSelection.exam) {
-        // Upsert user exam selection
-        await supabase
-          .from('user_exams')
-          .upsert(
-            {
-              user_id: user.id,
-              exam_id: newSelection.exam.id,
-              status: 'in_progress',
-            },
-            { onConflict: 'user_id,exam_id' }
-          );
-      }
     } catch (err) {
       console.error('Failed to persist selection:', err);
     }
   }, []);
 
-  // Fetch initial hierarchy from Supabase
+  // Fetch initial hierarchy from Supabase and Server
   const refreshHierarchy = useCallback(async () => {
     setIsLoading(true);
     try {
       const supabase = getSupabaseClient();
-
-      // Fetch User's primary exam from Supabase if logged in (Source of Truth)
       const { data: { user } } = await supabase.auth.getUser();
-      
-      let userExamsList: SelectedItem[] = [];
+
+      let currentLockedExam: SelectedItem | null = null;
+      let userLocked = true;
+      let switchCount = 0;
 
       if (user) {
-        const { data: userExamsData } = await supabase
-          .from('user_exams')
-          .select('exam_id, exams(id, name, slug)')
-          .eq('user_id', user.id);
+        // Fetch server-authoritative exam state from API
+        try {
+          const res = await fetch('/api/exams/current');
+          const data = await res.json();
+          if (data.success && data.currentExam) {
+            currentLockedExam = {
+              id: data.currentExam.id,
+              name: data.currentExam.name,
+              slug: data.currentExam.slug || data.currentExam.id,
+              description: data.currentExam.description,
+            };
+            userLocked = data.examLocked;
+            switchCount = data.switchCount || 0;
+            setIsExamLocked(userLocked);
+            setExamSwitchCount(switchCount);
+          }
+        } catch (apiErr) {
+          console.error('Failed to query /api/exams/current, falling back to direct query:', apiErr);
+        }
 
-        if (userExamsData && userExamsData.length > 0) {
-          userExamsList = userExamsData
-            .filter((ue) => ue.exams)
-            .map((ue) => ({
-              id: (ue.exams as any).id,
-              name: (ue.exams as any).name,
-              slug: (ue.exams as any).slug || (ue.exams as any).id,
-            }));
+        // Direct DB fallback if API fails
+        if (!currentLockedExam) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('current_exam_id, exam_locked, exam_switch_count')
+            .eq('id', user.id)
+            .maybeSingle();
+
+          if (profile) {
+            userLocked = profile.exam_locked !== false;
+            switchCount = profile.exam_switch_count || 0;
+            setIsExamLocked(userLocked);
+            setExamSwitchCount(switchCount);
+
+            if (profile.current_exam_id) {
+              const { data: examData } = await supabase
+                .from('exams')
+                .select('id, name, slug, description')
+                .eq('id', profile.current_exam_id)
+                .maybeSingle();
+
+              if (examData) {
+                currentLockedExam = {
+                  id: examData.id,
+                  name: examData.name,
+                  slug: examData.slug || examData.id,
+                  description: examData.description,
+                };
+              }
+            }
+          }
         }
       }
 
-      // Fetch all active exams from the platform
+      // Fetch all active exams from platform
       const { data: examsData } = await supabase
         .from('exams')
-        .select('id, name, slug')
+        .select('id, name, slug, description')
         .eq('status', 'active')
         .order('name');
 
       const allActiveExams: SelectedItem[] = (examsData && examsData.length > 0)
-        ? examsData.map((e) => ({ id: e.id, name: e.name, slug: e.slug || e.id }))
+        ? examsData.map((e) => ({ id: e.id, name: e.name, slug: e.slug || e.id, description: e.description }))
         : [];
 
-      // Combine user enrolled exams first, followed by remaining active exams
-      const combinedMap = new Map<string, SelectedItem>();
-      for (const ue of userExamsList) {
-        combinedMap.set(ue.id, ue);
-      }
-      for (const ae of allActiveExams) {
-        if (!combinedMap.has(ae.id)) {
-          combinedMap.set(ae.id, ae);
-        }
+      setAvailableExams(allActiveExams);
+
+      // Determine active exam
+      let activeExam = currentLockedExam;
+      if (!activeExam && allActiveExams.length > 0) {
+        activeExam = allActiveExams[0];
       }
 
-      const examsList = Array.from(combinedMap.values());
-      setAvailableExams(examsList);
-
-      if (examsList.length > 0) {
-        // Find active exam
-        let activeExam = examsList[0];
-        const userActiveKey = user ? `neomcq_active_exam_${user.id}` : 'neomcq_active_exam_guest';
-        const savedActiveId = typeof window !== 'undefined' ? localStorage.getItem(userActiveKey) : null;
-        if (savedActiveId) {
-          const matched = examsList.find((e) => e.id === savedActiveId);
-          if (matched) activeExam = matched;
-        }
-
-        // Check if user-scoped cached selection exists in localStorage (Guest / unauthenticated fallback)
-        const userStorageKey = user ? `${STORAGE_KEY}_${user.id}` : `${STORAGE_KEY}_guest`;
-        const cached = typeof window !== 'undefined' ? localStorage.getItem(userStorageKey) : null;
-        if (cached) {
-          try {
-            const parsed = JSON.parse(cached);
-            if (parsed.exam && parsed.exam.id === activeExam.id) {
-              setSelection(parsed);
-              
-              // Load subjects for cached exam
-              const { data: subjectsData } = await supabase
-                .from('exam_subjects')
-                .select('id, name, description, created_at')
-                .eq('exam_id', parsed.exam.id)
-                .order('created_at', { ascending: true });
-
-              const subjList = (subjectsData && subjectsData.length > 0)
-                ? subjectsData.map((s) => ({
-                    id: s.id,
-                    name: s.name,
-                    slug: (s.name || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-'),
-                  }))
-                : [];
-              setAvailableSubjects(subjList);
-
-              // Load topics for cached subject
-              let topicList: SelectedItem[] = [];
-              if (parsed.subject && subjList.some((s) => s.id === parsed.subject.id)) {
-                const { data: topicsData } = await supabase
-                  .from('exam_topics')
-                  .select('id, name, description, created_at')
-                  .eq('subject_id', parsed.subject.id)
-                  .order('created_at', { ascending: true });
-
-                topicList = (topicsData && topicsData.length > 0)
-                  ? topicsData.map((t) => ({
-                      id: t.id,
-                      name: t.name,
-                      slug: (t.name || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-'),
-                    }))
-                  : [];
-              }
-              setAvailableTopics(topicList);
-
-              setIsLoading(false);
-              return;
-            }
-          } catch (e) {
-            // fallback
-          }
-        }
-
+      if (activeExam) {
         // Fetch subjects for active exam
         const { data: subjectsData } = await supabase
           .from('exam_subjects')
@@ -235,46 +198,26 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
           topic: topicList.length > 0 ? topicList[0] : null,
         };
         setSelection(newSel);
+        persistSelection(newSel);
       }
     } catch (err) {
       console.error('Error refreshing selection hierarchy:', err);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [persistSelection]);
 
-  useEffect(() => {
-    let mounted = true;
-    const runRefresh = async () => {
-      if (mounted) {
-        await refreshHierarchy();
-      }
-    };
-    runRefresh();
-
-    // Listen for auth state changes to re-evaluate the hierarchy immediately
-    const supabase = getSupabaseClient();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (mounted) {
-        await refreshHierarchy();
-      }
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, [refreshHierarchy]);
-
-  // Load subjects when exam changes
-  const setExam = useCallback(async (exam: SelectedItem) => {
+  // Apply atomic switch to a new target exam
+  const applyExamSwitch = useCallback(async (newExam: SelectedItem) => {
     setIsLoading(true);
     try {
       const supabase = getSupabaseClient();
+      
+      // Load subjects for new target exam
       const { data: subjectsData } = await supabase
         .from('exam_subjects')
         .select('id, name, description, created_at')
-        .eq('exam_id', exam.id)
+        .eq('exam_id', newExam.id)
         .order('created_at', { ascending: true });
 
       const subjList = (subjectsData && subjectsData.length > 0)
@@ -289,7 +232,6 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
       let topicList: SelectedItem[] = [];
       if (subjList.length > 0) {
-        // Load topics for first subject
         const { data: topicsData } = await supabase
           .from('exam_topics')
           .select('id, name, description, created_at')
@@ -308,18 +250,51 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
       setAvailableTopics(topicList);
 
       const newSel = {
-        exam,
+        exam: newExam,
         subject: subjList.length > 0 ? subjList[0] : null,
         topic: topicList.length > 0 ? topicList[0] : null,
       };
+
       setSelection(newSel);
       persistSelection(newSel);
+      setExamSwitchCount((prev) => prev + 1);
     } catch (err) {
-      console.error('Error setting exam:', err);
+      console.error('Error applying exam switch in selection context:', err);
     } finally {
       setIsLoading(false);
     }
   }, [persistSelection]);
+
+  useEffect(() => {
+    let mounted = true;
+    const runRefresh = async () => {
+      if (mounted) {
+        await refreshHierarchy();
+      }
+    };
+    runRefresh();
+
+    const supabase = getSupabaseClient();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async () => {
+      if (mounted) {
+        await refreshHierarchy();
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [refreshHierarchy]);
+
+  // Set Exam (Allowed only if unlocked or during initialization)
+  const setExam = useCallback(async (exam: SelectedItem) => {
+    if (isExamLocked && selection.exam && selection.exam.id !== exam.id) {
+      console.warn('Exam is locked on Free Plan. Please use the official $2 USD switch flow.');
+      return;
+    }
+    await applyExamSwitch(exam);
+  }, [isExamLocked, selection.exam, applyExamSwitch]);
 
   // Load topics when subject changes
   const setSubject = useCallback(async (subject: SelectedItem) => {
@@ -380,6 +355,9 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         availableSubjects,
         availableTopics,
         isLoading,
+        isExamLocked,
+        examSwitchCount,
+        applyExamSwitch,
         refreshHierarchy,
       }}
     >

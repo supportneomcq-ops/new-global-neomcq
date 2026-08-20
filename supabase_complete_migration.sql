@@ -861,5 +861,72 @@ CREATE POLICY "Public read access to exam_structures" ON public.exam_structures 
 DROP POLICY IF EXISTS "Authenticated users write exam_structures" ON public.exam_structures;
 CREATE POLICY "Authenticated users write exam_structures" ON public.exam_structures FOR ALL USING (auth.role() = 'authenticated');
 
+-- =====================================================================
+-- 018. EXAM LOCK & PAID EXAM SWITCH ($2 USD) ARCHITECTURE
+-- =====================================================================
+
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS current_exam_id UUID REFERENCES public.exams(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS exam_locked BOOLEAN DEFAULT TRUE NOT NULL,
+  ADD COLUMN IF NOT EXISTS exam_selected_at TIMESTAMPTZ DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS exam_switch_count INTEGER DEFAULT 0 NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_profiles_current_exam_id ON public.profiles(current_exam_id);
+
+CREATE TABLE IF NOT EXISTS public.exam_switch_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  from_exam_id UUID REFERENCES public.exams(id) ON DELETE RESTRICT NOT NULL,
+  to_exam_id UUID REFERENCES public.exams(id) ON DELETE RESTRICT NOT NULL,
+  amount NUMERIC(10,2) NOT NULL DEFAULT 2.00,
+  currency TEXT NOT NULL DEFAULT 'USD',
+  status TEXT CHECK (status IN ('created', 'payment_pending', 'paid', 'switch_completed', 'failed', 'cancelled')) DEFAULT 'created' NOT NULL,
+  razorpay_order_id TEXT UNIQUE,
+  razorpay_payment_id TEXT,
+  razorpay_signature TEXT,
+  metadata JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  completed_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_exam_switch_requests_user_id ON public.exam_switch_requests(user_id);
+CREATE INDEX IF NOT EXISTS idx_exam_switch_requests_order_id ON public.exam_switch_requests(razorpay_order_id);
+CREATE INDEX IF NOT EXISTS idx_exam_switch_requests_status ON public.exam_switch_requests(status);
+
+CREATE TABLE IF NOT EXISTS public.exam_switch_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  from_exam_id UUID REFERENCES public.exams(id) ON DELETE RESTRICT NOT NULL,
+  to_exam_id UUID REFERENCES public.exams(id) ON DELETE RESTRICT NOT NULL,
+  amount NUMERIC(10,2) NOT NULL DEFAULT 2.00,
+  currency TEXT NOT NULL DEFAULT 'USD',
+  payment_reference TEXT,
+  switch_request_id UUID REFERENCES public.exam_switch_requests(id) ON DELETE SET NULL,
+  switched_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_exam_switch_history_user_id ON public.exam_switch_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_exam_switch_history_switched_at ON public.exam_switch_history(switched_at DESC);
+
+ALTER TABLE public.exam_switch_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_switch_history ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view own switch requests" ON public.exam_switch_requests;
+CREATE POLICY "Users can view own switch requests" ON public.exam_switch_requests
+  FOR SELECT USING (auth.uid() = user_id OR public.is_admin(auth.uid()));
+
+DROP POLICY IF EXISTS "Users can view own switch history" ON public.exam_switch_history;
+CREATE POLICY "Users can view own switch history" ON public.exam_switch_history
+  FOR SELECT USING (auth.uid() = user_id OR public.is_admin(auth.uid()));
+
+DROP POLICY IF EXISTS "Admins manage all switch requests" ON public.exam_switch_requests;
+CREATE POLICY "Admins manage all switch requests" ON public.exam_switch_requests
+  FOR ALL USING (public.is_admin(auth.uid()));
+
+DROP POLICY IF EXISTS "Admins manage all switch history" ON public.exam_switch_history;
+CREATE POLICY "Admins manage all switch history" ON public.exam_switch_history
+  FOR ALL USING (public.is_admin(auth.uid()));
+
+
 
 

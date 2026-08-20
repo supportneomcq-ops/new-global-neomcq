@@ -1031,3 +1031,115 @@ export async function getLiveDashboardMetricsAction(timeRange: string = '7_days'
   return results;
 }
 
+// 18. Fetch all Exam Switch Requests (for admin audit & monitoring)
+export async function getAllExamSwitchRequestsAction() {
+  await checkIsSupportOrAdmin();
+  const adminClient = getSupabaseAdmin();
+
+  const { data, error } = await adminClient
+    .from('exam_switch_requests')
+    .select(`
+      *,
+      profiles:user_id(id, email, first_name, last_name),
+      from_exam:from_exam_id(id, name),
+      to_exam:to_exam_id(id, name)
+    `)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+// 19. Fetch Exam Switch History
+export async function getAllExamSwitchHistoryAction() {
+  await checkIsSupportOrAdmin();
+  const adminClient = getSupabaseAdmin();
+
+  const { data, error } = await adminClient
+    .from('exam_switch_history')
+    .select(`
+      *,
+      profiles:user_id(id, email, first_name, last_name),
+      from_exam:from_exam_id(id, name),
+      to_exam:to_exam_id(id, name)
+    `)
+    .order('switched_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+// 20. Admin Manual Exam Switch (Overrides/Corrections)
+export async function adminManualExamSwitchAction(params: {
+  userId: string;
+  targetExamId: string;
+  reason?: string;
+}) {
+  const adminUser = await checkIsAdmin();
+  const adminClient = getSupabaseAdmin();
+
+  const { data: targetExam, error: examErr } = await adminClient
+    .from('exams')
+    .select('id, name')
+    .eq('id', params.targetExamId)
+    .single();
+
+  if (examErr || !targetExam) throw new Error('Target exam not found');
+
+  const { data: profile } = await adminClient
+    .from('profiles')
+    .select('current_exam_id, exam_switch_count')
+    .eq('id', params.userId)
+    .single();
+
+  const fromExamId = profile?.current_exam_id || params.targetExamId;
+  const newCount = (profile?.exam_switch_count || 0) + 1;
+
+  // Update Profile
+  await adminClient
+    .from('profiles')
+    .update({
+      current_exam_id: params.targetExamId,
+      exam_locked: true,
+      exam_selected_at: new Date().toISOString(),
+      exam_switch_count: newCount,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', params.userId);
+
+  // Upsert user_exams
+  await adminClient.from('user_exams').upsert({
+    user_id: params.userId,
+    exam_id: params.targetExamId,
+    status: 'in_progress',
+    target_score: 85.0,
+  }, { onConflict: 'user_id,exam_id' });
+
+  // Record audit history
+  await adminClient.from('exam_switch_history').insert({
+    user_id: params.userId,
+    from_exam_id: fromExamId,
+    to_exam_id: params.targetExamId,
+    amount: 0.00,
+    currency: 'USD',
+    payment_reference: `admin_override_by_${adminUser.id}`,
+    switched_at: new Date().toISOString(),
+  });
+
+  revalidatePath('/admin');
+  return { success: true, message: `Exam manually switched to ${targetExam.name}` };
+}
+
+// 21. Fetch all Exams for Admin selectors
+export async function getAllExamsAction() {
+  await checkIsSupportOrAdmin();
+  const adminClient = getSupabaseAdmin();
+  const { data, error } = await adminClient
+    .from('exams')
+    .select('*')
+    .order('name', { ascending: true });
+
+  if (error) throw error;
+  return data || [];
+}
+

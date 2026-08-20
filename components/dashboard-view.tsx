@@ -28,12 +28,14 @@ import {
   DollarSign,
   History,
   Loader2,
+  Lock,
 } from 'lucide-react';
 import { OnboardingData } from './onboarding-flow';
 import { Logo } from './logo';
 import { ThemeToggle } from './theme-toggle';
 import { LearningContentEngine } from './learning-content-engine';
 import { UserProfileModal } from './user-profile-modal';
+import { ExamSwitchModal } from './exam-switch-modal';
 import { useSelection } from '@/lib/context/selection-context';
 
 interface DashboardViewProps {
@@ -122,16 +124,17 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
 
   // Profile Modal
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isExamSwitchModalOpen, setIsExamSwitchModalOpen] = useState(false);
 
   // Selection Context
   const {
     selection,
-    setExam,
     setSubject,
     setTopic,
-    availableExams,
     availableSubjects,
     availableTopics,
+    isExamLocked,
+    examSwitchCount,
     refreshHierarchy,
   } = useSelection();
 
@@ -238,23 +241,20 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
         <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <Logo size="md" />
 
-          {/* Quick Active Exam Selector in Header */}
+          {/* Quick Active Exam Display in Header */}
           <div className="hidden md:flex items-center gap-2 bg-slate-100 dark:bg-gray-900/80 px-3 py-1.5 rounded-2xl border border-slate-200 dark:border-gray-800 text-xs font-bold">
             <span className="text-slate-400">Exam:</span>
-            <select
-              value={selection.exam?.id || ''}
-              onChange={(e) => {
-                const target = availableExams.find((ex) => ex.id === e.target.value);
-                if (target) setExam(target);
-              }}
-              className="bg-transparent text-[#6D5BFF] dark:text-[#00D4FF] focus:outline-none font-black cursor-pointer"
+            <span className="flex items-center gap-1 text-[#6D5BFF] dark:text-[#00D4FF] font-black">
+              <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              {selection.exam?.name || user.examName}
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsExamSwitchModalOpen(true)}
+              className="ml-1 text-[11px] text-amber-600 dark:text-amber-400 hover:text-amber-500 underline font-extrabold cursor-pointer"
             >
-              {availableExams.map((ex) => (
-                <option key={ex.id} value={ex.id} className="bg-white dark:bg-[#0E1324] text-slate-900 dark:text-white">
-                  {ex.name}
-                </option>
-              ))}
-            </select>
+              Switch ($2)
+            </button>
           </div>
 
           <div className="flex items-center gap-3">
@@ -311,28 +311,27 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
               </p>
 
               {/* Dynamic Exam, Subject & Topic Selector Controls */}
-              <div className="flex flex-wrap items-center gap-2 pt-2 text-xs">
-                <span className="text-slate-400 font-semibold">Exam:</span>
-                <select
-                  value={selection.exam?.id || ''}
-                  onChange={(e) => {
-                    const target = availableExams.find((ex) => ex.id === e.target.value);
-                    if (target) setExam(target);
-                  }}
-                  className="bg-white/10 hover:bg-white/15 transition-colors text-white rounded-xl px-3 py-1 font-bold border border-white/15 focus:outline-none cursor-pointer"
-                >
-                  {availableExams.length > 0 ? (
-                    availableExams.map((ex) => (
-                      <option key={ex.id} value={ex.id} className="bg-[#0E1324] text-white">
-                        {ex.name}
-                      </option>
-                    ))
-                  ) : (
-                    <option value={selection.exam?.id || ''} className="bg-[#0E1324] text-white">
-                      {selection.exam?.name || user.examName}
-                    </option>
-                  )}
-                </select>
+              <div className="flex flex-wrap items-center gap-2.5 pt-2 text-xs">
+                {/* Locked Primary Exam Display with Switch Button */}
+                <div className="flex items-center gap-2 bg-white/10 dark:bg-black/30 border border-white/15 px-3 py-1.5 rounded-2xl shadow-sm">
+                  <span className="text-[11px] uppercase font-bold text-slate-300">Your Exam:</span>
+                  <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-xl bg-gradient-to-r from-[#6D5BFF]/30 to-[#00D4FF]/20 border border-[#6D5BFF]/40 text-white font-extrabold text-xs">
+                    <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span>{selection.exam?.name || user.examName}</span>
+                  </div>
+                  <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-md bg-amber-400/15 text-amber-300 border border-amber-400/30">
+                    {isExamLocked ? 'LOCKED (FREE PLAN)' : 'ACTIVE'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsExamSwitchModalOpen(true)}
+                    className="ml-1 px-3 py-1 rounded-xl bg-gradient-to-r from-[#6D5BFF] via-[#5B4AEB] to-[#00D4FF] hover:opacity-90 text-white text-[11px] font-heading font-extrabold flex items-center gap-1 shadow-md cursor-pointer transition-all shrink-0"
+                    title="Switch your official exam for $2 USD"
+                  >
+                    <Sparkles className="w-3 h-3 animate-pulse" />
+                    <span>Switch Exam ($2 USD)</span>
+                  </button>
+                </div>
 
                 <span className="text-slate-400 font-semibold">Subject:</span>
                 <div className="flex items-center gap-1">
@@ -889,6 +888,16 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
           lastName: user.lastName,
           email: user.email,
           country: user.country,
+        }}
+      />
+
+      {/* Exam Switch Modal ($2 USD Razorpay Flow) */}
+      <ExamSwitchModal
+        isOpen={isExamSwitchModalOpen}
+        onClose={() => setIsExamSwitchModalOpen(false)}
+        currentExam={selection.exam}
+        onSwitchSuccess={() => {
+          refreshHierarchy();
         }}
       />
     </div>

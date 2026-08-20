@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { matchSubjectSmart } from '@/lib/knowledge/matcher'
 import { normalizeInput } from '@/lib/knowledge/normalizer'
+import { classifyUserInput } from '@/lib/knowledge/classifier'
 import { GoogleGenAI } from '@google/genai'
 
 export async function POST(req: NextRequest) {
@@ -33,7 +34,24 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 2. Smart Match to prevent duplicate subjects
+    // 2. Input Classification Guard (e.g. Prevent Country names like "India" from becoming subjects)
+    const classification = classifyUserInput(trimmedSubjectName, {
+      targetLevel: 'subject',
+      activeExamName: examData.name,
+    })
+
+    if (classification.type === 'COUNTRY' && !classification.isCurricularValid) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `"${trimmedSubjectName}" is country or geographical metadata, not an academic subject for ${examData.name}.`,
+          classification,
+        },
+        { status: 400 }
+      )
+    }
+
+    // 3. Smart Match to prevent duplicate subjects
     const matchResult = await matchSubjectSmart(supabase, examId, trimmedSubjectName)
 
     if (matchResult.matched && matchResult.entity) {
@@ -58,14 +76,14 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // 3. Create new canonical subject under this exam
+    // 4. Create new canonical subject under this exam
     const norm = normalizeInput(trimmedSubjectName)
     const { data: insertedSubject, error: insertErr } = await (supabase as any)
       .from('exam_subjects')
       .insert({
         exam_id: examId,
         name: trimmedSubjectName,
-        description: `Subject ${trimmedSubjectName} for ${examData.name}`,
+        description: `Curricular subject ${trimmedSubjectName} for ${examData.name}`,
         weight_percentage: 10,
       })
       .select('id, exam_id, name, description, weight_percentage, created_at')
@@ -88,12 +106,12 @@ export async function POST(req: NextRequest) {
       // Non-blocking
     }
 
-    // 4. Generate initial starter topics
+    // 5. Generate initial starter topics
     let starterTopics: any[] = []
     if (process.env.GEMINI_API_KEY) {
       try {
         const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
-        const prompt = `You are a curriculum expert. For the exam "${examData.name}", generate 4-6 core high-yield topics for the subject "${trimmedSubjectName}". Return ONLY a valid JSON array of strings containing the topic names, e.g. ["Topic 1", "Topic 2", "Topic 3"].`
+        const prompt = `You are an academic curriculum designer. For the exam "${examData.name}", generate 4-5 core high-yield topics strictly belonging to the subject "${trimmedSubjectName}". Return ONLY a valid JSON array of strings containing the topic names, e.g. ["Topic 1", "Topic 2", "Topic 3"].`
         const response = await ai.models.generateContent({
           model: 'gemini-2.5-flash',
           contents: prompt,
@@ -106,20 +124,27 @@ export async function POST(req: NextRequest) {
           for (let i = 0; i < topicNames.length; i++) {
             const tName = topicNames[i]
             if (typeof tName === 'string' && tName.trim()) {
-              const { data: top } = await (supabase as any)
-                .from('exam_topics')
-                .insert({
-                  subject_id: insertedSubject.id,
-                  name: tName.trim(),
-                  description: `Topic ${tName.trim()} under ${trimmedSubjectName}`,
-                })
-                .select('id, subject_id, name, description, created_at')
-                .single()
-              if (top) {
-                starterTopics.push({
-                  ...top,
-                  slug: normalizeInput(top.name).slug,
-                })
+              // Ensure topic name is not just a country name
+              const topicClassification = classifyUserInput(tName.trim(), {
+                targetLevel: 'topic',
+                activeSubjectName: trimmedSubjectName,
+              })
+              if (topicClassification.type !== 'COUNTRY' || topicClassification.isCurricularValid) {
+                const { data: top } = await (supabase as any)
+                  .from('exam_topics')
+                  .insert({
+                    subject_id: insertedSubject.id,
+                    name: tName.trim(),
+                    description: `Topic ${tName.trim()} under ${trimmedSubjectName}`,
+                  })
+                  .select('id, subject_id, name, description, created_at')
+                  .single()
+                if (top) {
+                  starterTopics.push({
+                    ...top,
+                    slug: normalizeInput(top.name).slug,
+                  })
+                }
               }
             }
           }

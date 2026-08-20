@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   X,
@@ -27,11 +27,13 @@ import {
   Zap,
   SlidersHorizontal,
   Target,
-  Languages
+  Languages,
+  Award,
 } from 'lucide-react';
 import { getSupabaseClient } from '@/lib/supabase';
 import { Logo } from './logo';
 import { GLOBAL_COUNTRIES } from '@/lib/data/countries';
+import { GLOBAL_EXAM_REGISTRY } from '@/lib/data/exam-registry';
 
 interface OnboardingFlowProps {
   isOpen: boolean;
@@ -57,25 +59,6 @@ export interface OnboardingData {
   studyTime: 'Morning' | 'Afternoon' | 'Evening' | 'Night' | 'Flexible';
   studyGoals: string[];
 }
-
-const PRESET_EXAMS = [
-  { name: 'USMLE Step 1', category: 'Medical USA', code: 'USMLE' },
-  { name: 'NEET PG Medical', category: 'Medical India', code: 'NEETPG' },
-  { name: 'NCLEX-RN', category: 'Nursing USA/CA', code: 'NCLEX' },
-  { name: 'UPSC Civil Services (IAS/IPS)', category: 'Civil Services India', code: 'UPSC' },
-  { name: 'AWS Certified Solutions Architect - Associate', category: 'Technical IT', code: 'AWS' },
-  { name: 'US CPA Certification', category: 'Accounting/Finance', code: 'CPA' },
-  { name: 'PLAB 1 / UKMLA', category: 'Medical UK', code: 'PLAB' },
-  { name: 'FMGE Medical Licensing', category: 'Medical India', code: 'FMGE' },
-  { name: 'AMC MCQ Exam', category: 'Medical Australia', code: 'AMC' },
-  { name: 'CA Final / Inter', category: 'Accounting India', code: 'CA' },
-  { name: 'CFA Level I / II / III', category: 'Finance Global', code: 'CFA' },
-  { name: 'SAT / ACT College Entrance', category: 'Global High School', code: 'SAT' },
-  { name: 'GRE General Test', category: 'Graduate Entrance', code: 'GRE' },
-  { name: 'GMAT Focus Edition', category: 'MBA Entrance', code: 'GMAT' },
-  { name: 'IELTS Academic', category: 'Language Global', code: 'IELTS' },
-  { name: 'TOEFL iBT', category: 'Language Global', code: 'TOEFL' },
-];
 
 const COUNTRY_CODES = Array.from(
   new Map(
@@ -109,7 +92,7 @@ const LANGUAGES = [
 export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowProps) {
   const [step, setStep] = useState<number>(1);
 
-  // 1. Personal
+  // 1. Personal Details
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -129,10 +112,65 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
     }
   };
 
-  // 2. Exam
+  // 2. Exam Discovery & Selection
   const [examSearchQuery, setExamSearchQuery] = useState('');
-  const [selectedExam, setSelectedExam] = useState('USMLE Step 1');
+  const [selectedExam, setSelectedExam] = useState('FMGE (Foreign Medical Graduate Examination)');
+  const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
+  const [selectedExamCountry, setSelectedExamCountry] = useState('India');
+  const [selectedExamFlag, setSelectedExamFlag] = useState('🇮🇳');
+  const [selectedExamCategory, setSelectedExamCategory] = useState('Medical & Healthcare Licensing');
   const [customExamInput, setCustomExamInput] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearchingExams, setIsSearchingExams] = useState(false);
+  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Load default featured exams from Registry / API on mount
+  useEffect(() => {
+    const fetchDefaultExams = async () => {
+      try {
+        const res = await fetch('/api/exams/search?featured=true');
+        const data = await res.json();
+        if (data.success && Array.isArray(data.exams)) {
+          setSearchResults(data.exams);
+        }
+      } catch (err) {
+        // Fallback to local registry
+        const fallback = GLOBAL_EXAM_REGISTRY.slice(0, 12).map((r) => ({
+          id: `reg-${r.slug}`,
+          name: r.canonicalName,
+          slug: r.slug,
+          category: r.category,
+          country: r.country,
+          flag: r.country === 'India' ? '🇮🇳' : r.country === 'United States' ? '🇺🇸' : r.country === 'United Kingdom' ? '🇬🇧' : '🌐',
+          description: r.organization,
+          difficulty: r.difficulty,
+        }));
+        setSearchResults(fallback);
+      }
+    };
+    fetchDefaultExams();
+  }, []);
+
+  // Handle Search Input Change with Debounce
+  const handleSearchChange = (query: string) => {
+    setExamSearchQuery(query);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+
+    searchDebounceRef.current = setTimeout(async () => {
+      setIsSearchingExams(true);
+      try {
+        const res = await fetch(`/api/exams/search?q=${encodeURIComponent(query.trim())}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.exams)) {
+          setSearchResults(data.exams);
+        }
+      } catch (err) {
+        console.error('Search error:', err);
+      } finally {
+        setIsSearchingExams(false);
+      }
+    }, 250);
+  };
 
   // 3. Exam Date
   const defaultFutureDate = () => {
@@ -150,16 +188,19 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
   const [studyTime, setStudyTime] = useState<'Morning' | 'Afternoon' | 'Evening' | 'Night' | 'Flexible'>('Morning');
 
   // 6. Goals & Password
-  const [studyGoals, setStudyGoals] = useState<string[]>(['Pass with High Score', 'Improve Weak Areas']);
+  const [studyGoals, setStudyGoals] = useState<string[]>([
+    'Pass with High Score',
+    'Improve Weak Areas',
+    'High-Yield Revision',
+  ]);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState('');
 
-  // Submission
+  // Submission State
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPreparingAI, setIsPreparingAI] = useState(false);
   const [showVerificationScreen, setShowVerificationScreen] = useState(false);
-  const [resendSent, setResendSent] = useState(false);
 
   // Time calculations
   const calculateTimeLeft = (targetDateStr: string) => {
@@ -181,12 +222,6 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
 
   const activeExamName = customExamInput.trim() || selectedExam;
 
-  const filteredExams = PRESET_EXAMS.filter(
-    (e) =>
-      e.name.toLowerCase().includes(examSearchQuery.toLowerCase()) ||
-      e.category.toLowerCase().includes(examSearchQuery.toLowerCase())
-  );
-
   // Step Validations
   const validateStep1 = () => {
     if (!firstName.trim()) {
@@ -206,8 +241,21 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
   };
 
   const validateStep2 = () => {
-    if (!activeExamName) {
-      setFormError('Please select or specify your exam name.');
+    const rawExam = activeExamName.trim().toLowerCase();
+    if (!rawExam) {
+      setFormError('Please select or search for your exam.');
+      return false;
+    }
+    // Country name guard: do not allow pure country name as exam
+    if (
+      rawExam === 'india' ||
+      rawExam === 'united states' ||
+      rawExam === 'usa' ||
+      rawExam === 'uk' ||
+      rawExam === 'canada' ||
+      rawExam === 'australia'
+    ) {
+      setFormError(`"${activeExamName}" is a country name, not an examination. Please select a recognized exam (e.g. FMGE, NEET PG, USMLE, UPSC, CFA, NCLEX, AWS).`);
       return false;
     }
     setFormError('');
@@ -217,6 +265,10 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
   const validateStep3 = () => {
     if (!examDate || daysLeft <= 0) {
       setFormError('Please select a valid future exam date.');
+      return false;
+    }
+    if (daysLeft < 6) {
+      setFormError('The 5-Day Lockout Rule requires an exam date at least 6 days in the future.');
       return false;
     }
     setFormError('');
@@ -263,7 +315,7 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
     }
   };
 
-  // Final Account Creation
+  // Final Account Creation & Onboarding Submission
   const handleCreateAccount = async () => {
     if (!validateStep5()) return;
     setIsSubmitting(true);
@@ -292,6 +344,8 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
       }
 
       setIsPreparingAI(true);
+
+      // Save onboarding preferences & link canonical exam
       await fetch('/api/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -304,6 +358,7 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
           country,
           language,
           examName: activeExamName,
+          examId: selectedExamId,
           examDate,
           daysLeft,
           weeksLeft,
@@ -315,11 +370,23 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
         }),
       });
 
+      // Ensure canonical exam resolution in background
+      fetch('/api/exams/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          examQuery: activeExamName,
+          country: selectedExamCountry,
+          category: selectedExamCategory,
+          userId: authData?.user?.id || null,
+        }),
+      }).catch((e) => console.warn('Background exam resolve note:', e));
+
       setTimeout(() => {
         setIsSubmitting(false);
         setIsPreparingAI(false);
         setShowVerificationScreen(true);
-      }, 1000);
+      }, 900);
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : 'Account creation failed';
       setFormError(errMsg);
@@ -370,70 +437,67 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
       }`}
     >
       {/* Backdrop overlay click */}
-      <div
-        onClick={onClose}
-        className="absolute inset-0 bg-transparent cursor-pointer"
-      />
+      <div onClick={onClose} className="absolute inset-0 bg-transparent cursor-pointer" />
 
       {/* Centered Responsive Modal Card */}
       <div
-        className={`relative w-full max-w-2xl sm:max-w-3xl h-[min(88dvh,660px)] max-h-[88dvh] flex flex-col rounded-3xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-[#6D5BFF]/30 shadow-2xl overflow-hidden z-10 my-auto transition-all duration-300 transform ${
+        className={`relative w-full max-w-2xl sm:max-w-3xl h-[min(90dvh,700px)] max-h-[90dvh] flex flex-col rounded-3xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-[#6D5BFF]/30 shadow-2xl overflow-hidden z-10 my-auto transition-all duration-300 transform ${
           isOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-4'
         }`}
       >
-          {/* HEADER & PROGRESS BAR */}
-          <header className="shrink-0 bg-white/95 dark:bg-[#0E1324]/95 border-b border-slate-200/90 dark:border-gray-800/80 backdrop-blur-xl px-4 sm:px-8 py-3.5 z-20">
-            <div className="max-w-3xl mx-auto flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {step > 1 && !showVerificationScreen ? (
-                  <button
-                    onClick={handlePrevStep}
-                    className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-slate-700 dark:text-gray-200 transition-colors cursor-pointer"
-                    aria-label="Previous step"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                ) : (
-                  <Logo size="sm" />
-                )}
-              </div>
-
-              {!showVerificationScreen && (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-heading font-extrabold px-3 py-1 rounded-full bg-[#6D5BFF]/10 text-[#6D5BFF] dark:text-[#00D4FF] border border-[#6D5BFF]/20">
-                    Step {step} of 5
-                  </span>
-                </div>
+        {/* HEADER & PROGRESS BAR */}
+        <header className="shrink-0 bg-white/95 dark:bg-[#0E1324]/95 border-b border-slate-200/90 dark:border-gray-800/80 backdrop-blur-xl px-4 sm:px-8 py-3.5 z-20">
+          <div className="max-w-3xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {step > 1 && !showVerificationScreen ? (
+                <button
+                  onClick={handlePrevStep}
+                  className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-slate-700 dark:text-gray-200 transition-colors cursor-pointer"
+                  aria-label="Previous step"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+              ) : (
+                <Logo size="sm" />
               )}
-
-              <button
-                onClick={onClose}
-                className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-slate-600 dark:text-gray-300 transition-colors cursor-pointer"
-                aria-label="Exit onboarding"
-              >
-                <X className="w-5 h-5" />
-              </button>
             </div>
 
             {!showVerificationScreen && (
-              <div className="max-w-3xl mx-auto mt-3 w-full h-1.5 rounded-full bg-slate-200 dark:bg-gray-800/80 overflow-hidden">
-                <motion.div
-                  className="h-full bg-gradient-to-r from-[#6D5BFF] via-[#00D4FF] to-[#A855F7]"
-                  initial={{ width: '20%' }}
-                  animate={{ width: `${(step / 5) * 100}%` }}
-                  transition={{ duration: 0.35, ease: 'easeInOut' }}
-                />
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-heading font-extrabold px-3 py-1 rounded-full bg-[#6D5BFF]/10 text-[#6D5BFF] dark:text-[#00D4FF] border border-[#6D5BFF]/20">
+                  Step {step} of 5
+                </span>
               </div>
             )}
-          </header>
 
-          {/* MAIN FORM STEP CONTENT - SCROLLABLE INSIDE CARD */}
-          <main className="flex-1 min-h-0 overflow-y-auto w-full max-w-2xl mx-auto px-4 sm:px-6 py-4 sm:py-6 flex flex-col justify-start">
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-slate-600 dark:text-gray-300 transition-colors cursor-pointer"
+              aria-label="Exit onboarding"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {!showVerificationScreen && (
+            <div className="max-w-3xl mx-auto mt-3 w-full h-1.5 rounded-full bg-slate-200 dark:bg-gray-800/80 overflow-hidden">
+              <motion.div
+                className="h-full bg-gradient-to-r from-[#6D5BFF] via-[#00D4FF] to-[#A855F7]"
+                initial={{ width: '20%' }}
+                animate={{ width: `${(step / 5) * 100}%` }}
+                transition={{ duration: 0.35, ease: 'easeInOut' }}
+              />
+            </div>
+          )}
+        </header>
+
+        {/* MAIN FORM STEP CONTENT */}
+        <main className="flex-1 min-h-0 overflow-y-auto w-full max-w-2xl mx-auto px-4 sm:px-6 py-4 sm:py-6 flex flex-col justify-start">
           {formError && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mb-6 p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs sm:text-sm font-semibold flex items-center justify-between"
+              className="mb-4 p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs sm:text-sm font-semibold flex items-center justify-between"
             >
               <span>{formError}</span>
               <button onClick={() => setFormError('')} className="p-1 hover:opacity-75">
@@ -456,22 +520,22 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
 
               <div className="space-y-2">
                 <span className="px-3.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                  Supabase Backend Profile Active
+                  Global Curriculum Initialized
                 </span>
-                <h2 className="text-2xl sm:text-3xl font-heading font-extrabold">Verify Your Email</h2>
+                <h2 className="text-2xl sm:text-3xl font-heading font-extrabold">Welcome to NeoMCQ</h2>
                 <p className="text-sm text-slate-600 dark:text-[#A6ADC8] max-w-md mx-auto">
-                  We sent a confirmation link to <strong className="text-slate-900 dark:text-white">{email}</strong>.
+                  Configured personalized curriculum for <strong className="text-slate-900 dark:text-white">{activeExamName}</strong>.
                 </p>
               </div>
 
               <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-gray-800 text-left max-w-md mx-auto space-y-2.5 text-xs sm:text-sm shadow-sm">
                 <div className="flex items-center gap-2.5 font-bold text-slate-800 dark:text-gray-200">
                   <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                  <span>AI Learning Engine Configured for {activeExamName}</span>
+                  <span>Curriculum Blueprint: {activeExamName} ({selectedExamCountry})</span>
                 </div>
                 <div className="flex items-center gap-2.5 text-slate-600 dark:text-[#A6ADC8]">
                   <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                  <span>5-Day Rule Syllabus Lock: {learningPhaseDays} Days Learning + {finalRevisionDays} Days Lockout Revision</span>
+                  <span>5-Day Rule Active: {learningPhaseDays} Days Learning + {finalRevisionDays} Days Revision Buffer</span>
                 </div>
               </div>
 
@@ -495,10 +559,10 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -25 }}
                   transition={{ duration: 0.25 }}
-                  className="space-y-6"
+                  className="space-y-5"
                 >
-                  <div className="space-y-2 text-center sm:text-left">
-                    <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-semibold bg-[#6D5BFF]/10 text-[#6D5BFF] border border-[#6D5BFF]/20">
+                  <div className="space-y-1.5 text-center sm:text-left">
+                    <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full text-xs font-semibold bg-[#6D5BFF]/10 text-[#6D5BFF] border border-[#6D5BFF]/20">
                       <User className="w-3.5 h-3.5" /> Personal Details
                     </div>
                     <h2 className="text-2xl sm:text-3xl font-heading font-extrabold tracking-tight">
@@ -509,9 +573,9 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1.5">
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
                         First Name <span className="text-rose-500">*</span>
                       </label>
                       <input
@@ -519,12 +583,12 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                         value={firstName}
                         onChange={(e) => setFirstName(e.target.value)}
                         placeholder="e.g. Sarah"
-                        className="w-full px-4 py-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
+                        className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1.5">
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
                         Last Name
                       </label>
                       <input
@@ -532,35 +596,35 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                         value={lastName}
                         onChange={(e) => setLastName(e.target.value)}
                         placeholder="e.g. Connor"
-                        className="w-full px-4 py-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
+                        className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
                       />
                     </div>
 
                     <div className="sm:col-span-2">
-                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1.5">
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
                         Email Address <span className="text-rose-500">*</span>
                       </label>
                       <div className="relative">
-                        <Mail className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
+                        <Mail className="absolute left-4 top-3 w-4 h-4 text-slate-400" />
                         <input
                           type="email"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           placeholder="sarah@university.edu"
-                          className="w-full pl-11 pr-4 py-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
+                          className="w-full pl-11 pr-4 py-2.5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1.5">
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
                         Country Code & Mobile <span className="text-rose-500">*</span>
                       </label>
                       <div className="flex gap-2">
                         <select
                           value={countryCode}
                           onChange={(e) => setCountryCode(e.target.value)}
-                          className="px-2.5 py-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 text-xs font-bold focus:outline-none focus:border-[#6D5BFF] shadow-sm"
+                          className="px-2.5 py-2.5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 text-xs font-bold focus:outline-none focus:border-[#6D5BFF] shadow-sm"
                         >
                           {COUNTRY_CODES.map((c) => (
                             <option key={c.code} value={c.code}>
@@ -570,28 +634,28 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                         </select>
 
                         <div className="relative flex-1">
-                          <Phone className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+                          <Phone className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
                           <input
                             type="tel"
                             value={phone}
                             onChange={(e) => setPhone(e.target.value)}
                             placeholder="555-0199"
-                            className="w-full pl-10 pr-3 py-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
+                            className="w-full pl-10 pr-3 py-2.5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
                           />
                         </div>
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1.5">
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
                         Country
                       </label>
                       <div className="relative">
-                        <Globe className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
+                        <Globe className="absolute left-4 top-3 w-4 h-4 text-slate-400" />
                         <select
                           value={country}
                           onChange={(e) => handleCountrySelect(e.target.value)}
-                          className="w-full pl-11 pr-4 py-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
+                          className="w-full pl-11 pr-4 py-2.5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
                         >
                           {COUNTRIES.map((cnt) => (
                             <option key={cnt} value={cnt}>
@@ -603,15 +667,15 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                     </div>
 
                     <div className="sm:col-span-2">
-                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1.5">
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
                         Preferred Learning Language
                       </label>
                       <div className="relative">
-                        <Languages className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
+                        <Languages className="absolute left-4 top-3 w-4 h-4 text-slate-400" />
                         <select
                           value={language}
                           onChange={(e) => setLanguage(e.target.value)}
-                          className="w-full pl-11 pr-4 py-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
+                          className="w-full pl-11 pr-4 py-2.5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
                         >
                           {LANGUAGES.map((lang) => (
                             <option key={lang} value={lang}>
@@ -625,7 +689,7 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                 </motion.div>
               )}
 
-              {/* STEP 2: EXAM SELECTION */}
+              {/* STEP 2: GLOBAL EXAM DISCOVERY & SELECTION */}
               {step === 2 && (
                 <motion.div
                   key="step-2"
@@ -633,73 +697,130 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -25 }}
                   transition={{ duration: 0.25 }}
-                  className="space-y-6"
+                  className="space-y-4"
                 >
-                  <div className="space-y-2 text-center sm:text-left">
-                    <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-semibold bg-[#00D4FF]/10 text-[#00D4FF] border border-[#00D4FF]/20">
-                      <BookOpen className="w-3.5 h-3.5" /> Exam Selection
+                  <div className="space-y-1 text-center sm:text-left">
+                    <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full text-xs font-semibold bg-[#00D4FF]/10 text-[#00D4FF] border border-[#00D4FF]/20">
+                      <BookOpen className="w-3.5 h-3.5" /> Worldwide Exam Discovery
                     </div>
                     <h2 className="text-2xl sm:text-3xl font-heading font-extrabold tracking-tight">
                       What exam are you preparing for?
                     </h2>
                     <p className="text-xs sm:text-sm text-slate-600 dark:text-[#A6ADC8]">
-                      Select from 180+ global exam blueprints or specify your custom curriculum.
+                      Search the global exam registry or select from top recognized licensing & entrance boards.
                     </p>
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="space-y-3 pt-1">
+                    {/* Live Search Input */}
                     <div className="relative">
-                      <Search className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
+                      <Search className="absolute left-4 top-3 w-4 h-4 text-slate-400" />
                       <input
                         type="text"
                         value={examSearchQuery}
-                        onChange={(e) => setExamSearchQuery(e.target.value)}
-                        placeholder="Search exam (e.g. USMLE, NEET, PLAB, NCLEX, CA, GRE)..."
-                        className="w-full pl-11 pr-4 py-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
+                        onChange={(e) => handleSearchChange(e.target.value)}
+                        placeholder="Search exam (e.g. FMGE, NEET PG, USMLE, NCLEX, UPSC, CFA, AWS, PLAB)..."
+                        className="w-full pl-11 pr-10 py-2.5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
                       />
+                      {isSearchingExams && (
+                        <Loader2 className="absolute right-3.5 top-3 w-4 h-4 text-[#6D5BFF] animate-spin" />
+                      )}
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto pr-1">
-                      {filteredExams.map((ex) => {
+                    {/* Active Selected Exam Card */}
+                    <div className="p-3 rounded-2xl bg-gradient-to-r from-[#6D5BFF]/10 via-[#00D4FF]/10 to-transparent border border-[#6D5BFF]/30 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{selectedExamFlag}</span>
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wider font-bold text-[#6D5BFF] dark:text-[#00D4FF]">
+                            {selectedExamCategory} • {selectedExamCountry}
+                          </div>
+                          <div className="text-sm font-heading font-bold text-slate-900 dark:text-white">
+                            {activeExamName}
+                          </div>
+                        </div>
+                      </div>
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                        <Check className="w-3 h-3" /> Selected
+                      </span>
+                    </div>
+
+                    {/* Results / Recommended Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                      {searchResults.map((ex) => {
                         const isSelected = selectedExam === ex.name && !customExamInput;
+                        const flag =
+                          ex.flag ||
+                          (ex.country === 'India'
+                            ? '🇮🇳'
+                            : ex.country === 'United States'
+                            ? '🇺🇸'
+                            : ex.country === 'United Kingdom'
+                            ? '🇬🇧'
+                            : ex.country === 'Canada'
+                            ? '🇨🇦'
+                            : ex.country === 'Australia'
+                            ? '🇦🇺'
+                            : '🌐');
+
                         return (
                           <button
-                            key={ex.name}
+                            key={ex.id || ex.slug || ex.name}
                             type="button"
                             onClick={() => {
                               setSelectedExam(ex.name);
+                              setSelectedExamId(ex.in_database ? ex.id : null);
+                              setSelectedExamCountry(ex.country || 'Global');
+                              setSelectedExamFlag(flag);
+                              setSelectedExamCategory(ex.category || 'Professional Licensure');
                               setCustomExamInput('');
                             }}
-                            className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                            className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
                               isSelected
                                 ? 'border-[#6D5BFF] bg-[#6D5BFF]/15 ring-2 ring-[#6D5BFF]/30 font-bold'
-                                : 'border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900/40 hover:border-slate-300'
+                                : 'border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900/40 hover:border-slate-300 dark:hover:border-gray-700'
                             }`}
                           >
-                            <div className="text-[10px] text-[#6D5BFF] dark:text-[#00D4FF] font-semibold">{ex.category}</div>
-                            <div className="text-xs font-heading font-bold truncate mt-0.5">{ex.name}</div>
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className="text-lg shrink-0">{flag}</span>
+                              <div className="min-w-0">
+                                <div className="text-[10px] text-slate-500 dark:text-gray-400 truncate">
+                                  {ex.category} • {ex.country}
+                                </div>
+                                <div className="text-xs font-heading font-bold truncate text-slate-900 dark:text-white">
+                                  {ex.name}
+                                </div>
+                              </div>
+                            </div>
+                            {isSelected && <CheckCircle2 className="w-4 h-4 text-[#6D5BFF] shrink-0" />}
                           </button>
                         );
                       })}
                     </div>
 
-                    <div className="pt-2">
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">
-                        Not in the list? Custom Exam Entry:
+                    {/* Custom Exam Input */}
+                    <div className="pt-1">
+                      <label className="block text-xs font-semibold text-slate-500 dark:text-gray-400 mb-1">
+                        Can&apos;t find your exam? Enter custom name:
                       </label>
                       <input
                         type="text"
                         value={customExamInput}
-                        onChange={(e) => setCustomExamInput(e.target.value)}
-                        placeholder="Type custom exam name..."
-                        className="w-full px-4 py-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-xs shadow-sm"
+                        onChange={(e) => {
+                          setCustomExamInput(e.target.value);
+                          if (e.target.value.trim()) {
+                            setSelectedExamId(null);
+                          }
+                        }}
+                        placeholder="e.g. FRCR Part 1, MRCOG Part 2, DNB General Surgery..."
+                        className="w-full px-4 py-2 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-xs shadow-sm"
                       />
                     </div>
                   </div>
                 </motion.div>
               )}
 
-              {/* STEP 3: EXAM DATE & 5-DAY RULE CALCULATION */}
+              {/* STEP 3: EXAM DATE & TIMELINE */}
               {step === 3 && (
                 <motion.div
                   key="step-3"
@@ -707,69 +828,64 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -25 }}
                   transition={{ duration: 0.25 }}
-                  className="space-y-6"
+                  className="space-y-4"
                 >
-                  <div className="space-y-2 text-center sm:text-left">
-                    <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-semibold bg-[#A855F7]/10 text-[#A855F7] border border-[#A855F7]/20">
-                      <Calendar className="w-3.5 h-3.5" /> Exam Date
+                  <div className="space-y-1 text-center sm:text-left">
+                    <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                      <Calendar className="w-3.5 h-3.5" /> Exam Date & 5-Day Rule
                     </div>
                     <h2 className="text-2xl sm:text-3xl font-heading font-extrabold tracking-tight">
-                      When is your official exam day?
+                      When is your target exam date?
                     </h2>
                     <p className="text-xs sm:text-sm text-slate-600 dark:text-[#A6ADC8]">
-                      Neo AI enforces the <strong className="text-[#00D4FF]">5-Day Lockout Rule</strong>: complete the full syllabus before the final 5 days.
+                      NeoMCQ automatically locks the final 5 days before your exam exclusively for revision and active recall.
                     </p>
                   </div>
 
-                  <div className="p-5 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 space-y-4 shadow-sm">
+                  <div className="space-y-3 pt-1">
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1.5">
-                        Select Exam Date
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                        Select Target Date <span className="text-rose-500">*</span>
                       </label>
                       <input
                         type="date"
                         value={examDate}
                         onChange={(e) => setExamDate(e.target.value)}
-                        className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-gray-800 border border-slate-300 dark:border-gray-700 text-sm font-bold shadow-sm"
+                        className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
                       />
                     </div>
 
-                    {/* Instant Time Calculations */}
-                    <div className="grid grid-cols-3 gap-2 sm:gap-3 text-center">
-                      <div className="p-3 rounded-2xl bg-[#6D5BFF]/10 border border-[#6D5BFF]/30">
-                        <div className="text-xl sm:text-2xl font-black text-[#6D5BFF]">{daysLeft}</div>
-                        <div className="text-[10px] font-bold text-slate-500 uppercase">Days Left</div>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="p-3 rounded-2xl bg-slate-50 dark:bg-gray-900/60 border border-slate-200 dark:border-gray-800">
+                        <div className="text-2xl font-black text-[#6D5BFF]">{daysLeft}</div>
+                        <div className="text-[10px] uppercase font-bold text-slate-400">Total Days</div>
                       </div>
-                      <div className="p-3 rounded-2xl bg-[#00D4FF]/10 border border-[#00D4FF]/30">
-                        <div className="text-xl sm:text-2xl font-black text-[#00D4FF]">{weeksLeft}</div>
-                        <div className="text-[10px] font-bold text-slate-500 uppercase">Weeks Left</div>
+                      <div className="p-3 rounded-2xl bg-slate-50 dark:bg-gray-900/60 border border-slate-200 dark:border-gray-800">
+                        <div className="text-2xl font-black text-[#00D4FF]">{weeksLeft}</div>
+                        <div className="text-[10px] uppercase font-bold text-slate-400">Weeks</div>
                       </div>
-                      <div className="p-3 rounded-2xl bg-[#A855F7]/10 border border-[#A855F7]/30">
-                        <div className="text-xl sm:text-2xl font-black text-[#A855F7]">{monthsLeft}</div>
-                        <div className="text-[10px] font-bold text-slate-500 uppercase">Months Left</div>
+                      <div className="p-3 rounded-2xl bg-slate-50 dark:bg-gray-900/60 border border-slate-200 dark:border-gray-800">
+                        <div className="text-2xl font-black text-amber-400">{monthsLeft}</div>
+                        <div className="text-[10px] uppercase font-bold text-slate-400">Months</div>
                       </div>
                     </div>
 
-                    {/* 5-Day Rule Breakdown */}
-                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-800/80 border border-slate-200 dark:border-gray-700 space-y-2 text-xs">
-                      <div className="font-bold text-slate-800 dark:text-gray-200 flex items-center gap-2">
-                        <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                        <span>Syllabus Allocation (5-Day Rule Applied)</span>
+                    <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs space-y-1">
+                      <div className="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4" /> 5-Day Lockout Protocol
                       </div>
-                      <div className="flex items-center justify-between text-slate-600 dark:text-gray-300 pt-1">
-                        <span>Phase 1: Full Syllabus & Q-Bank</span>
-                        <strong className="text-[#00D4FF]">Days 1 – {learningPhaseDays}</strong>
+                      <div className="text-slate-600 dark:text-gray-300">
+                        • <strong>{learningPhaseDays} Days</strong> of Active Learning & Topic Completion
                       </div>
-                      <div className="flex items-center justify-between text-slate-600 dark:text-gray-300">
-                        <span>Phase 2: Final 5-Day Revision Only</span>
-                        <strong className="text-[#A855F7]">Days {learningPhaseDays + 1} – {daysLeft}</strong>
+                      <div className="text-slate-600 dark:text-gray-300">
+                        • <strong>{finalRevisionDays} Days</strong> Final High-Yield Lockout & Mock Exams
                       </div>
                     </div>
                   </div>
                 </motion.div>
               )}
 
-              {/* STEP 4: LEARNING STYLE & STUDY HOURS */}
+              {/* STEP 4: STUDY PREFERENCES */}
               {step === 4 && (
                 <motion.div
                   key="step-4"
@@ -777,106 +893,93 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -25 }}
                   transition={{ duration: 0.25 }}
-                  className="space-y-6"
+                  className="space-y-4"
                 >
-                  <div className="space-y-2 text-center sm:text-left">
-                    <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                      <Zap className="w-3.5 h-3.5" /> Learning Style & Hours
+                  <div className="space-y-1 text-center sm:text-left">
+                    <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-500 border border-purple-500/20">
+                      <SlidersHorizontal className="w-3.5 h-3.5" /> Study Habits
                     </div>
                     <h2 className="text-2xl sm:text-3xl font-heading font-extrabold tracking-tight">
-                      How would you like to prepare?
+                      Customize your daily cadence
                     </h2>
                     <p className="text-xs sm:text-sm text-slate-600 dark:text-[#A6ADC8]">
-                      Configure your preferred learning style and daily study window.
+                      Align your AI Coach reminders and question quotas with your daily schedule.
                     </p>
                   </div>
 
-                  {/* Option A vs Option B Cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setLearningStyle('Rapid Learning')}
-                      className={`p-4 rounded-3xl border text-left transition-all cursor-pointer ${
-                        learningStyle === 'Rapid Learning'
-                          ? 'border-[#6D5BFF] bg-[#6D5BFF]/15 ring-2 ring-[#6D5BFF]/30 font-bold'
-                          : 'border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900/40'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 text-[#6D5BFF] font-heading font-extrabold text-sm">
-                        <Zap className="w-4 h-4 text-amber-400" />
-                        <span>Rapid Learning</span>
+                  <div className="space-y-3 pt-1">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                        Daily Study Target (Hours/Day): <span className="text-[#6D5BFF]">{studyHours} hrs</span>
+                      </label>
+                      <input
+                        type="range"
+                        min={1}
+                        max={12}
+                        step={0.5}
+                        value={studyHours}
+                        onChange={(e) => setStudyHours(parseFloat(e.target.value))}
+                        className="w-full accent-[#6D5BFF]"
+                      />
+                      <div className="flex justify-between text-[10px] text-slate-400 font-bold">
+                        <span>1 Hour</span>
+                        <span>4 Hours</span>
+                        <span>8 Hours</span>
+                        <span>12 Hours</span>
                       </div>
-                      <p className="text-xs text-slate-600 dark:text-gray-300 mt-2 leading-relaxed">
-                        Fast-paced preparation focused on completing the syllabus quickly with high-yield focus.
-                      </p>
-                    </button>
+                    </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setLearningStyle('Balanced Study')}
-                      className={`p-4 rounded-3xl border text-left transition-all cursor-pointer ${
-                        learningStyle === 'Balanced Study'
-                          ? 'border-[#00D4FF] bg-[#00D4FF]/15 ring-2 ring-[#00D4FF]/30 font-bold'
-                          : 'border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900/40'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 text-[#00D4FF] font-heading font-extrabold text-sm">
-                        <Clock className="w-4 h-4 text-[#00D4FF]" />
-                        <span>Balanced Study</span>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                        Peak Study Time
+                      </label>
+                      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                        {(['Morning', 'Afternoon', 'Evening', 'Night', 'Flexible'] as const).map((t) => (
+                          <button
+                            key={t}
+                            type="button"
+                            onClick={() => setStudyTime(t)}
+                            className={`py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                              studyTime === t
+                                ? 'bg-[#6D5BFF] text-white border-[#6D5BFF]'
+                                : 'bg-slate-50 dark:bg-gray-900 border-slate-200 dark:border-gray-800 text-slate-600 dark:text-gray-400'
+                            }`}
+                          >
+                            {t}
+                          </button>
+                        ))}
                       </div>
-                      <p className="text-xs text-slate-600 dark:text-gray-300 mt-2 leading-relaxed">
-                        Steady learning with balanced revision, spaced repetition, and deep concept practice.
-                      </p>
-                    </button>
-                  </div>
-
-                  {/* Study Hours Slider (1 to 12) */}
-                  <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 space-y-3">
-                    <div className="flex items-center justify-between text-xs font-bold">
-                      <span className="text-slate-700 dark:text-gray-300">Daily Study Target</span>
-                      <span className="text-sm font-extrabold text-[#00D4FF]">{studyHours} Hours / Day</span>
                     </div>
-                    <input
-                      type="range"
-                      min="1"
-                      max="12"
-                      value={studyHours}
-                      onChange={(e) => setStudyHours(Number(e.target.value))}
-                      className="w-full accent-[#6D5BFF] cursor-pointer"
-                    />
-                    <div className="flex justify-between text-[10px] text-slate-400 font-bold">
-                      <span>1 hr (Light)</span>
-                      <span>6 hrs (Standard)</span>
-                      <span>12 hrs (Full-time)</span>
-                    </div>
-                  </div>
 
-                  {/* Peak Time */}
-                  <div className="space-y-2">
-                    <label className="block text-xs font-bold text-slate-700 dark:text-gray-300">
-                      Preferred Study Time Window
-                    </label>
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                      {(['Morning', 'Afternoon', 'Evening', 'Night', 'Flexible'] as const).map((t) => (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => setStudyTime(t)}
-                          className={`p-2.5 rounded-2xl border text-xs font-semibold transition-all cursor-pointer ${
-                            studyTime === t
-                              ? 'border-[#6D5BFF] bg-[#6D5BFF]/15 text-[#6D5BFF] dark:text-[#00D4FF] font-extrabold shadow-sm'
-                              : 'border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900/40'
-                          }`}
-                        >
-                          {t}
-                        </button>
-                      ))}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                        Learning Pace
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(['Rapid Learning', 'Balanced Study'] as const).map((style) => (
+                          <button
+                            key={style}
+                            type="button"
+                            onClick={() => setLearningStyle(style)}
+                            className={`p-3 rounded-2xl text-left border transition-all cursor-pointer ${
+                              learningStyle === style
+                                ? 'bg-[#6D5BFF]/15 border-[#6D5BFF] text-[#6D5BFF] dark:text-[#00D4FF]'
+                                : 'bg-slate-50 dark:bg-gray-900 border-slate-200 dark:border-gray-800 text-slate-600 dark:text-gray-400'
+                            }`}
+                          >
+                            <div className="text-xs font-bold">{style}</div>
+                            <div className="text-[10px] text-slate-400 mt-0.5">
+                              {style === 'Rapid Learning' ? 'High-density MCQs & quick reviews' : 'In-depth notes, flashcards & mastery'}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </motion.div>
               )}
 
-              {/* STEP 5: GOAL & PASSWORD CREATION */}
+              {/* STEP 5: GOALS & ACCOUNT PASSWORD */}
               {step === 5 && (
                 <motion.div
                   key="step-5"
@@ -884,74 +987,73 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -25 }}
                   transition={{ duration: 0.25 }}
-                  className="space-y-6"
+                  className="space-y-4"
                 >
-                  <div className="space-y-2 text-center sm:text-left">
-                    <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-semibold bg-amber-400/10 text-amber-500 border border-amber-400/20">
-                      <Target className="w-3.5 h-3.5" /> Goals & Account
+                  <div className="space-y-1 text-center sm:text-left">
+                    <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                      <Lock className="w-3.5 h-3.5" /> Secure Password & Goals
                     </div>
                     <h2 className="text-2xl sm:text-3xl font-heading font-extrabold tracking-tight">
-                      Final Step: Set Password & Goals
+                      Finalize your learning account
                     </h2>
                     <p className="text-xs sm:text-sm text-slate-600 dark:text-[#A6ADC8]">
-                      Secure your Supabase profile and choose your primary preparation target.
+                      Set a password to securely protect your curriculum progress and exam analytics.
                     </p>
                   </div>
 
-                  {/* Primary Target Goal */}
-                  <div className="space-y-2">
-                    <label className="block text-xs font-bold text-slate-700 dark:text-gray-300">
-                      Target Goal
-                    </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      {[
-                        'Pass Exam',
-                        'High Score',
-                        'Top Rank',
-                        'Revision Only',
-                        'Improve Weak Areas',
-                      ].map((goal) => {
-                        const isSelected = studyGoals.includes(goal);
-                        return (
-                          <button
-                            key={goal}
-                            type="button"
-                            onClick={() => handleGoalToggle(goal)}
-                            className={`p-3 rounded-2xl border text-left text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${
-                              isSelected
-                                ? 'border-[#6D5BFF] bg-[#6D5BFF]/10 text-slate-900 dark:text-white shadow-sm'
-                                : 'border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900/30 text-slate-600 dark:text-gray-400'
-                            }`}
-                          >
-                            <span>{goal}</span>
-                            {isSelected && <Check className="w-4 h-4 text-[#6D5BFF] shrink-0" />}
-                          </button>
-                        );
-                      })}
+                  <div className="space-y-3 pt-1">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                        Select Study Goals <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          'Pass with High Score',
+                          'Improve Weak Areas',
+                          'High-Yield Revision',
+                          'Master Timed Exam Simulations',
+                        ].map((goal) => {
+                          const active = studyGoals.includes(goal);
+                          return (
+                            <button
+                              key={goal}
+                              type="button"
+                              onClick={() => handleGoalToggle(goal)}
+                              className={`p-2.5 rounded-xl border text-xs font-bold text-left transition-all cursor-pointer flex items-center justify-between ${
+                                active
+                                  ? 'bg-[#6D5BFF]/15 border-[#6D5BFF] text-[#6D5BFF] dark:text-[#00D4FF]'
+                                  : 'bg-slate-50 dark:bg-gray-900 border-slate-200 dark:border-gray-800 text-slate-600 dark:text-gray-400'
+                              }`}
+                            >
+                              <span>{goal}</span>
+                              {active && <Check className="w-3.5 h-3.5 shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Password Creation */}
-                  <div className="space-y-2 pt-2">
-                    <label className="block text-xs font-bold text-slate-700 dark:text-gray-300">
-                      Create Password <span className="text-rose-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <Lock className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="At least 8 characters..."
-                        className="w-full pl-11 pr-11 py-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-4 top-3.5 text-slate-400 hover:text-slate-600"
-                      >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                        Account Password <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <Lock className="absolute left-4 top-3 w-4 h-4 text-slate-400" />
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="At least 8 characters"
+                          className="w-full pl-11 pr-11 py-2.5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-4 top-3 text-slate-400 hover:text-slate-600"
+                        >
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </motion.div>
@@ -960,28 +1062,26 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
           )}
         </main>
 
-        {/* BOTTOM STEP NAVIGATION */}
+        {/* FOOTER ACTIONS */}
         {!showVerificationScreen && (
-          <footer className="shrink-0 bg-white dark:bg-[#0E1324] border-t border-slate-200/90 dark:border-gray-800/80 px-4 sm:px-8 py-3.5 z-20">
-            <div className="max-w-2xl mx-auto flex items-center justify-between gap-4">
-              {step > 1 ? (
-                <button
-                  type="button"
-                  onClick={handlePrevStep}
-                  disabled={isSubmitting}
-                  className="px-5 py-3 rounded-2xl border border-slate-300 dark:border-gray-700 text-xs font-bold hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors flex items-center gap-1.5 cursor-pointer"
-                >
-                  <ChevronLeft className="w-4 h-4" /> Back
-                </button>
-              ) : (
-                <div />
-              )}
+          <footer className="shrink-0 px-4 sm:px-8 py-3.5 bg-white/95 dark:bg-[#0E1324]/95 border-t border-slate-200/90 dark:border-gray-800/80 backdrop-blur-xl flex items-center justify-between">
+            <button
+              type="button"
+              onClick={handlePrevStep}
+              disabled={step === 1 || isSubmitting}
+              className={`px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors cursor-pointer ${
+                step === 1 ? 'opacity-0 pointer-events-none' : 'opacity-100'
+              }`}
+            >
+              Back
+            </button>
 
+            <div className="flex items-center gap-3">
               {step < 5 ? (
                 <button
                   type="button"
                   onClick={handleNextStep}
-                  className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-[#6D5BFF] via-[#5B4AEB] to-[#A855F7] text-white text-xs sm:text-sm font-extrabold shadow-lg shadow-[#6D5BFF]/30 hover:opacity-95 transition-opacity flex items-center gap-2 cursor-pointer ml-auto"
+                  className="px-6 py-2.5 rounded-2xl bg-[#6D5BFF] hover:bg-[#5C4AE4] text-white text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer"
                 >
                   <span>Continue</span>
                   <ChevronRight className="w-4 h-4" />
@@ -991,17 +1091,17 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                   type="button"
                   onClick={handleCreateAccount}
                   disabled={isSubmitting}
-                  className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-[#6D5BFF] via-[#00D4FF] to-[#A855F7] text-white text-xs sm:text-sm font-extrabold shadow-xl shadow-[#6D5BFF]/35 hover:opacity-95 transition-opacity flex items-center gap-2 cursor-pointer ml-auto"
+                  className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-[#6D5BFF] via-[#00D4FF] to-[#A855F7] text-white text-xs sm:text-sm font-bold shadow-lg hover:opacity-95 transition-opacity flex items-center gap-2 cursor-pointer"
                 >
                   {isSubmitting ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>{isPreparingAI ? 'Generating Study Plan...' : 'Creating Account...'}</span>
+                      <span>{isPreparingAI ? 'Initializing Curriculum...' : 'Creating Account...'}</span>
                     </>
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4" />
-                      <span>Generate AI Study Plan</span>
+                      <span>Complete & Launch</span>
                     </>
                   )}
                 </button>

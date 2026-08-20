@@ -393,29 +393,29 @@ export function LearningContentEngine({
     setCustomTopicInput('')
 
     try {
-      let newTopicObj = {
-        id: `custom-${Date.now()}`,
-        name: newTopicName,
-        tags: ['custom-ai'],
+      if (!selection.subject?.id) {
+        alert('Please select an active subject first.')
+        return
       }
 
-      if (selection.subject?.id) {
-        const res = await fetch('/api/topics/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            subjectId: selection.subject.id,
-            topicName: newTopicName,
-          }),
-        })
-        const data = await res.json()
-        if (data.success && data.topic) {
-          newTopicObj = {
-            id: data.topic.id,
-            name: data.topic.name,
-            tags: ['custom-ai'],
-          }
-        }
+      const res = await fetch('/api/topics/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subjectId: selection.subject.id,
+          topicName: newTopicName,
+        }),
+      })
+      const data = await res.json()
+      if (!data.success || !data.topic) {
+        alert(data.error || 'Failed to add topic.')
+        return
+      }
+
+      const newTopicObj = {
+        id: data.topic.id,
+        name: data.topic.name,
+        tags: ['custom-ai'],
       }
 
       setAvailableTopics((prev) => [newTopicObj, ...prev])
@@ -423,8 +423,9 @@ export function LearningContentEngine({
       
       // Update Selection Context
       await refreshHierarchy()
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to create custom topic via API:', err)
+      alert(err.message || 'Network error creating custom topic')
     }
   }
 

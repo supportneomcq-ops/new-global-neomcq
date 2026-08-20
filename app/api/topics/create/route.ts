@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { matchTopicSmart } from '@/lib/knowledge/matcher'
 import { normalizeInput } from '@/lib/knowledge/normalizer'
+import { classifyUserInput } from '@/lib/knowledge/classifier'
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
     // 1. Verify subject exists
     const { data: subjectData, error: subjErr } = await (supabase as any)
       .from('exam_subjects')
-      .select('id, exam_id, name')
+      .select('id, exam_id, name, exams(name)')
       .eq('id', subjectId)
       .single()
 
@@ -32,7 +33,25 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 2. Smart Match to prevent duplicate topics
+    // 2. Input Classification Guard (e.g. Prevent Country names like "India" from becoming topics)
+    const classification = classifyUserInput(trimmedTopicName, {
+      targetLevel: 'topic',
+      activeExamName: subjectData.exams?.name,
+      activeSubjectName: subjectData.name,
+    })
+
+    if (classification.type === 'COUNTRY' && !classification.isCurricularValid) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `"${trimmedTopicName}" is country or geographical metadata, not a curricular topic under ${subjectData.name}.`,
+          classification,
+        },
+        { status: 400 }
+      )
+    }
+
+    // 3. Smart Match to prevent duplicate topics
     const matchResult = await matchTopicSmart(supabase, subjectId, trimmedTopicName)
 
     if (matchResult.matched && matchResult.entity) {
@@ -50,7 +69,7 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // 3. Create new canonical topic under this subject
+    // 4. Create new canonical topic under this subject
     const norm = normalizeInput(trimmedTopicName)
     const { data: insertedTopic, error: insertErr } = await (supabase as any)
       .from('exam_topics')

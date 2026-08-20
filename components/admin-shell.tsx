@@ -167,6 +167,7 @@ export function AdminShell({ userEmail, roles, children }: AdminShellProps) {
       title: 'EXAM & KNOWLEDGE',
       items: [
         { label: 'Exams', href: '/admin/exams', icon: BookOpen },
+        { label: 'Exam Switches ($2)', href: '/admin/exam-switches', icon: Lock },
         { label: 'Subjects', href: '/admin/subjects', icon: FolderTree },
         { label: 'Topics', href: '/admin/topics', icon: FileText },
         { label: 'Aliases', href: '/admin/aliases', icon: Tags },

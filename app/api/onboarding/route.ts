@@ -167,8 +167,20 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // 3. User Exam Link
+      // 3. User Exam Link & Profile Exam Lock
       if (finalExamId) {
+        // Set as initial locked exam on profile
+        await (supabase as any)
+          .from('profiles')
+          .update({
+            current_exam_id: finalExamId,
+            exam_locked: true,
+            exam_selected_at: new Date().toISOString(),
+            exam_switch_count: 0,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', targetUserId);
+
         // First delete any previous user_exams if resetting, or upsert
         await (supabase as any)
           .from('user_exams')
