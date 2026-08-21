@@ -50,6 +50,7 @@ import {
 } from 'lucide-react'
 import { getSupabaseClient } from '@/lib/supabase'
 import { useSelection } from '@/lib/context/selection-context'
+import { AddTopicModal } from './add-topic-modal'
 
 interface LearningContentEngineProps {
   initialExamName?: string
@@ -76,6 +77,7 @@ export function LearningContentEngine({
   const [searchQuery, setSearchQuery] = useState('')
   const [customTopicInput, setCustomTopicInput] = useState('')
   const [availableTopics, setAvailableTopics] = useState<any[]>([])
+  const [isAddTopicModalOpen, setIsAddTopicModalOpen] = useState(false)
 
   // Engine Statuses
   const [isResolvingTopic, setIsResolvingTopic] = useState(false)
@@ -103,6 +105,9 @@ export function LearningContentEngine({
   // Asset Payload Data
   const [contentPayload, setContentPayload] = useState<any | null>(null)
   const [loadingContent, setLoadingContent] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [topicState, setTopicState] = useState<any>(null)
+  const [refreshNotice, setRefreshNotice] = useState<string | null>(null)
 
   // MCQ State
   const [mcqCount, setMcqCount] = useState(20)
@@ -189,112 +194,207 @@ export function LearningContentEngine({
   }
 
   // Fetch topic learning content package from cache / AI route
-  const fetchTopicContent = useCallback(async (topicId: string, topicNameParam?: string) => {
-    setLoadingContent(true)
-    try {
-      const res = await fetch('/api/knowledge/topic-content', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          topicId,
-          topicName: topicNameParam || selectedTopic?.name,
-          subjectId: selection.subject?.id,
-          subjectName: selection.subject?.name,
-          examId: selection.exam?.id,
-          examName: selection.exam?.name,
-          contentType: 'full_pack',
-          difficulty: 'Intermediate',
-        }),
-      })
-      const data = await res.json()
-      if (data.success && data.content) {
-        setContentPayload(data.content)
-        if (data.content.flashcards) {
-          setFlashcardDeck(data.content.flashcards)
+  const fetchTopicContent = useCallback(
+    async (topicId: string, topicNameParam?: string, forceRefresh = false) => {
+      setLoadingContent(true)
+      try {
+        const res = await fetch('/api/knowledge/topic-content', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            topicId,
+            topicName: topicNameParam || selectedTopic?.name,
+            subjectId: selection.subject?.id,
+            subjectName: selection.subject?.name,
+            examId: selection.exam?.id,
+            examName: selection.exam?.name,
+            contentType: 'full_pack',
+            difficulty: 'Intermediate',
+            forceRefresh,
+          }),
+        })
+        const data = await res.json()
+        if (data.success && data.content) {
+          setContentPayload(data.content)
+          setIsRefreshing(Boolean(data.isRefreshing))
+          if (data.topicState) {
+            setTopicState(data.topicState)
+          }
+          if (data.isRefreshing) {
+            setRefreshNotice(
+              '⚡ 15-Day Auto-Refresh Active: Appending fresh MCQs in background while you study existing questions.'
+            )
+          } else {
+            setRefreshNotice(null)
+          }
+          if (data.content.flashcards) {
+            setFlashcardDeck(data.content.flashcards)
+          }
+        } else {
+          // Fallback robust structured data
+          const fallbackContent = {
+            mcqs: [
+              {
+                question:
+                  'A 45-year-old male presents with acute severe chest pain radiating to the jaw. ECG shows ST elevation in leads II, III, and aVF. Which artery is most likely occluded?',
+                options: [
+                  'Left anterior descending artery (LAD)',
+                  'Right coronary artery (RCA)',
+                  'Left circumflex artery (LCX)',
+                  'Marginal artery',
+                ],
+                correct_index: 1,
+                explanation:
+                  'ST elevation in inferior leads II, III, and aVF strongly indicates an inferior wall myocardial infarction, supplied by the Right Coronary Artery (RCA) in 85-90% of individuals.',
+                high_yield_tag: 'Cardiology - Inferior MI',
+                difficulty: 'Medium',
+              },
+              {
+                question:
+                  'Which cranial nerve passes through the jugular foramen along with the internal jugular vein?',
+                options: [
+                  'Cranial Nerves IX, X, XI',
+                  'Cranial Nerves VII, VIII',
+                  'Cranial Nerves V1, V2, V3',
+                  'Cranial Nerves III, IV, VI',
+                ],
+                correct_index: 0,
+                explanation:
+                  'The jugular foramen transmits CN IX (Glossopharyngeal), CN X (Vagus), and CN XI (Accessory) along with the internal jugular vein.',
+                high_yield_tag: 'Neuroanatomy - Foramina',
+                difficulty: 'Hard',
+              },
+              {
+                question:
+                  'A 54-year-old female presents with persistent dry cough and fatigue. Laboratory findings indicate elevated serum calcium and elevated ACE levels. A chest X-ray reveals bilateral hilar adenopathy. Which histological feature is most characteristic of this condition?',
+                options: [
+                  'Caseating granulomas with Langhans giant cells',
+                  'Non-caseating granulomas with asteroid bodies',
+                  'Intrabronchial mucus plugs with eosinophils',
+                  'Fibroblastic foci with honeycomb lung appearance',
+                ],
+                correct_index: 1,
+                explanation:
+                  'Bilateral hilar lymphadenopathy, elevated ACE, hypercalcemia, and dry cough point towards Sarcoidosis. Histology classically shows non-caseating granulomas containing Schaumann or asteroid bodies.',
+                high_yield_tag: 'Pulmonology - Sarcoidosis',
+                difficulty: 'Hard',
+              },
+            ],
+            notes:
+              '📚 CORONARY CIRCULATION PRINCIPLES\n\n• High-Yield Anatomy:\n- LAD supplies anterior 2/3 of the interventricular septum, anterior LV wall, and the apex of the heart.\n- RCA supplies inferior LV wall, posterior 1/3 of the septum, and the RV wall in 85% of cases (right dominance).\n- LCX supplies lateral LV wall.\n\n• Clinical Correlation:\nInferior MI is highly associated with sinus bradycardia and heart block because the RCA supplies both the Sinoatrial (SA) and Atrioventricular (AV) nodes in most patients.\n\n⭐ MEMORY TRICK / MNEMONIC:\n"L-A-D" stands for "Left Anterior Descent" which goes straight down the front like a tie, feeding the powerhouse anterior wall of the LV! Look for ST elevations in V1-V4.',
+            flashcards: [
+              {
+                front: 'What artery supplies the Inferior Wall of the Left Ventricle?',
+                back: 'Right Coronary Artery (RCA) in right-dominant hearts (~85%).',
+                category: 'Anatomy',
+              },
+              {
+                front: 'Which cranial nerve provides parasympathetic innervation to the heart?',
+                back: 'Vagus Nerve (CN X).',
+                category: 'Physiology',
+              },
+              {
+                front: 'What is the classic histological finding in Sarcoidosis?',
+                back: 'Non-caseating granulomas with Schaumann and Asteroid bodies.',
+                category: 'Pathology',
+              },
+            ],
+            tutor_explanation:
+              'Hello! I am your Neo private professor. Let us decompose this topic systematically. Let us look at the cardiac ischemia profiles, anatomical margins, and the diagnostic pathognomonic cues.',
+            revision_sheet:
+              'Rapid Review Sheet for ' + (topicNameParam || 'Topic'),
+          }
+          setContentPayload(fallbackContent)
+          setFlashcardDeck(fallbackContent.flashcards)
         }
-      } else {
-        // Fallback robust structured data
-        const fallbackContent = {
-          mcqs: [
-            {
-              question:
-                'A 45-year-old male presents with acute severe chest pain radiating to the jaw. ECG shows ST elevation in leads II, III, and aVF. Which artery is most likely occluded?',
-              options: [
-                'Left anterior descending artery (LAD)',
-                'Right coronary artery (RCA)',
-                'Left circumflex artery (LCX)',
-                'Marginal artery',
-              ],
-              correct_index: 1,
-              explanation:
-                'ST elevation in inferior leads II, III, and aVF strongly indicates an inferior wall myocardial infarction, supplied by the Right Coronary Artery (RCA) in 85-90% of individuals.',
-              high_yield_tag: 'Cardiology - Inferior MI',
-              difficulty: 'Medium',
-            },
-            {
-              question:
-                'Which cranial nerve passes through the jugular foramen along with the internal jugular vein?',
-              options: [
-                'Cranial Nerves IX, X, XI',
-                'Cranial Nerves VII, VIII',
-                'Cranial Nerves V1, V2, V3',
-                'Cranial Nerves III, IV, VI',
-              ],
-              correct_index: 0,
-              explanation:
-                'The jugular foramen transmits CN IX (Glossopharyngeal), CN X (Vagus), and CN XI (Accessory) along with the internal jugular vein.',
-              high_yield_tag: 'Neuroanatomy - Foramina',
-              difficulty: 'Hard',
-            },
-            {
-              question:
-                'A 54-year-old female presents with persistent dry cough and fatigue. Laboratory findings indicate elevated serum calcium and elevated ACE levels. A chest X-ray reveals bilateral hilar adenopathy. Which histological feature is most characteristic of this condition?',
-              options: [
-                'Caseating granulomas with Langhans giant cells',
-                'Non-caseating granulomas with asteroid bodies',
-                'Intrabronchial mucus plugs with eosinophils',
-                'Fibroblastic foci with honeycomb lung appearance',
-              ],
-              correct_index: 1,
-              explanation:
-                'Bilateral hilar lymphadenopathy, elevated ACE, hypercalcemia, and dry cough point towards Sarcoidosis. Histology classically shows non-caseating granulomas containing Schaumann or asteroid bodies.',
-              high_yield_tag: 'Pulmonology - Sarcoidosis',
-              difficulty: 'Hard',
-            },
-          ],
-          notes:
-            '📚 CORONARY CIRCULATION PRINCIPLES\n\n• High-Yield Anatomy:\n- LAD supplies anterior 2/3 of the interventricular septum, anterior LV wall, and the apex of the heart.\n- RCA supplies inferior LV wall, posterior 1/3 of the septum, and the RV wall in 85% of cases (right dominance).\n- LCX supplies lateral LV wall.\n\n• Clinical Correlation:\nInferior MI is highly associated with sinus bradycardia and heart block because the RCA supplies both the Sinoatrial (SA) and Atrioventricular (AV) nodes in most patients.\n\n⭐ MEMORY TRICK / MNEMONIC:\n"L-A-D" stands for "Left Anterior Descent" which goes straight down the front like a tie, feeding the powerhouse anterior wall of the LV! Look for ST elevations in V1-V4.',
-          flashcards: [
-            {
-              front: 'What artery supplies the Inferior Wall of the Left Ventricle?',
-              back: 'Right Coronary Artery (RCA) in right-dominant hearts (~85%).',
-              category: 'Anatomy',
-            },
-            {
-              front: 'Which cranial nerve provides parasympathetic innervation to the heart?',
-              back: 'Vagus Nerve (CN X).',
-              category: 'Physiology',
-            },
-            {
-              front: 'What is the classic histological finding in Sarcoidosis?',
-              back: 'Non-caseating granulomas with Schaumann and Asteroid bodies.',
-              category: 'Pathology',
-            },
-          ],
-          tutor_explanation:
-            'Hello! I am your Neo private professor. Let us decompose this topic systematically. Let us look at the cardiac ischemia profiles, anatomical margins, and the diagnostic pathognomonic cues.',
-          revision_sheet:
-            'Rapid Review Sheet for ' + (topicNameParam || 'Topic'),
-        }
-        setContentPayload(fallbackContent)
-        setFlashcardDeck(fallbackContent.flashcards)
+      } catch (err) {
+        console.error('Failed to load topic content:', err)
+      } finally {
+        setLoadingContent(false)
       }
-    } catch (err) {
-      console.error('Failed to load topic content:', err)
-    } finally {
-      setLoadingContent(false)
+    },
+    [selection.subject, selection.exam, selectedTopic]
+  )
+
+  // Background refresh polling when isRefreshing is active
+  useEffect(() => {
+    if (!isRefreshing || !selectedTopic?.id) return
+
+    let isMounted = true
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/knowledge/topic-refresh?topicId=${selectedTopic.id}`)
+        const data = await res.json()
+        if (data.success && isMounted) {
+          if (data.topicState?.total_mcq_count && data.topicState.total_mcq_count > (contentPayload?.mcqs?.length || 0)) {
+            // Silently fetch updated content package to merge fresh questions
+            const contentRes = await fetch('/api/knowledge/topic-content', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                topicId: selectedTopic.id,
+                topicName: selectedTopic.name,
+                subjectId: selection.subject?.id,
+                examId: selection.exam?.id,
+              }),
+            })
+            const fresh = await contentRes.json()
+            if (fresh.success && fresh.content && isMounted) {
+              setContentPayload(fresh.content)
+              setTopicState(fresh.topicState)
+              setIsRefreshing(false)
+              setRefreshNotice('✨ Fresh questions successfully appended to your topic!')
+              setTimeout(() => {
+                if (isMounted) setRefreshNotice(null)
+              }, 6000)
+            }
+          } else if (data.topicState?.refresh_status === 'idle' || data.topicState?.refresh_status === 'completed') {
+            setIsRefreshing(false)
+          }
+        }
+      } catch (e) {
+        console.error('Error polling refresh state:', e)
+      }
+    }, 5000)
+
+    return () => {
+      isMounted = false
+      clearInterval(interval)
     }
-  }, [])
+  }, [isRefreshing, selectedTopic, contentPayload?.mcqs?.length, selection.subject, selection.exam])
+
+  // Load user sticky notes for topic
+  useEffect(() => {
+    if (!selectedTopic?.id) return
+    let isMounted = true
+
+    const loadStickyNotes = async () => {
+      try {
+        const res = await fetch(`/api/user/sticky-notes?topicId=${selectedTopic.id}`)
+        const data = await res.json()
+        if (data.success && Array.isArray(data.notes) && isMounted) {
+          if (data.notes.length > 0) {
+            setStickyNotes(
+              data.notes.map((n: any) => ({
+                id: n.id,
+                text: n.text,
+                color: n.color || 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200',
+                pinned: Boolean(n.pinned),
+                size: (n.size as any) || 'md',
+              }))
+            )
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load user sticky notes:', err)
+      }
+    }
+
+    loadStickyNotes()
+    return () => {
+      isMounted = false
+    }
+  }, [selectedTopic?.id])
 
   // Select topic and trigger background preparation sequence
   const handleSelectTopic = useCallback(async (topic: any) => {
@@ -430,7 +530,7 @@ export function LearningContentEngine({
   }
 
   // Handle Sticky Note Creation
-  const handleAddSticky = (e: React.FormEvent) => {
+  const handleAddSticky = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newStickyText.trim()) return
 
@@ -441,26 +541,77 @@ export function LearningContentEngine({
       'bg-rose-50 dark:bg-rose-950/60 border-rose-300 dark:border-rose-700 text-rose-900 dark:text-rose-200',
     ]
 
-    const newSticky = {
-      id: String(Date.now()),
-      text: newStickyText.trim(),
-      color: colors[stickyNotes.length % colors.length],
+    const textToSave = newStickyText.trim()
+    const colorToSave = colors[stickyNotes.length % colors.length]
+    setNewStickyText('')
+
+    const tempId = String(Date.now())
+    const optimisticNote = {
+      id: tempId,
+      text: textToSave,
+      color: colorToSave,
       pinned: false,
       size: 'md' as const,
     }
+    setStickyNotes((prev) => [optimisticNote, ...prev])
 
-    setStickyNotes((prev) => [newSticky, ...prev])
-    setNewStickyText('')
+    try {
+      const res = await fetch('/api/user/sticky-notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topicId: selectedTopic?.id,
+          text: textToSave,
+          color: colorToSave,
+          pinned: false,
+        }),
+      })
+      const data = await res.json()
+      if (data.success && data.note) {
+        setStickyNotes((prev) =>
+          prev.map((n) => (n.id === tempId ? { ...n, id: data.note.id } : n))
+        )
+      }
+    } catch (err) {
+      console.error('Failed to save sticky note:', err)
+    }
   }
 
-  const handleDeleteSticky = (id: string) => {
+  const handleDeleteSticky = async (id: string) => {
     setStickyNotes((prev) => prev.filter((s) => s.id !== id))
+    try {
+      await fetch(`/api/user/sticky-notes?noteId=${id}`, {
+        method: 'DELETE',
+      })
+    } catch (err) {
+      console.error('Failed to delete sticky note:', err)
+    }
   }
 
-  const handleTogglePinSticky = (id: string) => {
+  const handleTogglePinSticky = async (id: string) => {
+    let newPinned = false
     setStickyNotes((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, pinned: !s.pinned } : s))
+      prev.map((s) => {
+        if (s.id === id) {
+          newPinned = !s.pinned
+          return { ...s, pinned: newPinned }
+        }
+        return s
+      })
     )
+
+    try {
+      await fetch('/api/user/sticky-notes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          noteId: id,
+          pinned: newPinned,
+        }),
+      })
+    } catch (err) {
+      console.error('Failed to toggle pin state:', err)
+    }
   }
 
   // AI Tutor prompt actions
@@ -528,12 +679,46 @@ export function LearningContentEngine({
         </div>
 
         <div className="flex items-center gap-3">
+          {isRefreshing && (
+            <span className="text-[11px] font-bold text-amber-500 bg-amber-500/10 px-3 py-1 rounded-full flex items-center gap-1.5 border border-amber-500/20 animate-pulse">
+              <Sparkles className="w-3 h-3 text-amber-500" />
+              Appending Fresh MCQs in Background...
+            </span>
+          )}
+          {selectedTopic && (
+            <button
+              type="button"
+              onClick={() => {
+                fetchTopicContent(selectedTopic.id, selectedTopic.name, true)
+              }}
+              className="text-[11px] font-bold text-[#6D5BFF] bg-[#6D5BFF]/10 hover:bg-[#6D5BFF]/20 px-3 py-1 rounded-full flex items-center gap-1.5 border border-[#6D5BFF]/20 cursor-pointer transition-colors"
+              title="Force refresh to append fresh high-yield questions"
+            >
+              <Zap className="w-3 h-3 text-[#6D5BFF]" />
+              Sync & Add New MCQs
+            </button>
+          )}
           <span className="text-[11px] font-bold text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-full flex items-center gap-1.5 border border-emerald-500/20">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-            Autonomous AI Engine Online
+            15-Day Auto-Refresh Active
           </span>
         </div>
       </div>
+
+      {refreshNotice && (
+        <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-[#6D5BFF]/10 to-teal-500/10 border border-emerald-500/30 text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-emerald-500 shrink-0" />
+            <span>{refreshNotice}</span>
+          </div>
+          <button
+            onClick={() => setRefreshNotice(null)}
+            className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-white px-2 py-0.5 rounded cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Main Grid: Topic Selector (Left) & Content Workspace (Right) */}
       {!selection.subject ? (
@@ -666,7 +851,7 @@ export function LearningContentEngine({
             <hr className="border-slate-200/60 dark:border-slate-800" />
 
             {/* Topic List */}
-            <div className="space-y-1.5 max-h-[380px] overflow-y-auto pr-1">
+            <div className="space-y-1.5 max-h-[340px] overflow-y-auto pr-1">
               {availableTopics.length > 0 ? (
                 availableTopics
                   .filter((t) => t.name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -694,22 +879,18 @@ export function LearningContentEngine({
               ) : (
                 <div className="p-4 text-center border-2 border-dashed border-slate-200 dark:border-gray-800 rounded-2xl">
                   <p className="text-xs text-slate-500 dark:text-gray-400">No topics available yet.</p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const topicName = prompt('Enter new topic name:')
-                      if (topicName && topicName.trim()) {
-                        setCustomTopicInput(topicName.trim())
-                        handleAddCustomTopic({ preventDefault: () => {} } as any)
-                      }
-                    }}
-                    className="mt-2 text-xs font-bold text-[#6D5BFF] hover:underline"
-                  >
-                    Create Topic
-                  </button>
                 </div>
               )}
             </div>
+
+            <button
+              type="button"
+              onClick={() => setIsAddTopicModalOpen(true)}
+              className="w-full py-2.5 px-3 rounded-2xl bg-[#6D5BFF]/10 hover:bg-[#6D5BFF]/20 text-[#6D5BFF] dark:text-[#00D4FF] text-xs font-extrabold border border-[#6D5BFF]/30 flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>+ Add / Request New Topic</span>
+            </button>
           </div>
         </div>
 
@@ -1709,6 +1890,17 @@ export function LearningContentEngine({
         </div>
       </div>
       )}
+
+      {/* Add / Request Topic Modal */}
+      <AddTopicModal
+        isOpen={isAddTopicModalOpen}
+        onClose={() => setIsAddTopicModalOpen(false)}
+        onTopicSelected={(subj, top) => {
+          setSubject(subj)
+          setTopic(top)
+          fetchTopicContent(top.id, top.name)
+        }}
+      />
     </div>
   )
 }

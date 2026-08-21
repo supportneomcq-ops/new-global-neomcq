@@ -36,6 +36,7 @@ import { ThemeToggle } from './theme-toggle';
 import { LearningContentEngine } from './learning-content-engine';
 import { UserProfileModal } from './user-profile-modal';
 import { ExamSwitchModal } from './exam-switch-modal';
+import { AddTopicModal } from './add-topic-modal';
 import { useSelection } from '@/lib/context/selection-context';
 
 interface DashboardViewProps {
@@ -125,6 +126,7 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
   // Profile Modal
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isExamSwitchModalOpen, setIsExamSwitchModalOpen] = useState(false);
+  const [isAddTopicModalOpen, setIsAddTopicModalOpen] = useState(false);
 
   // Selection Context
   const {
@@ -389,11 +391,12 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
                   </select>
                   <button
                     type="button"
-                    onClick={handleCreateTopic}
-                    className="px-2 py-1 bg-white/10 hover:bg-white/20 text-emerald-400 rounded-lg text-[10px] font-bold border border-white/10 cursor-pointer"
-                    title="Create custom topic"
+                    onClick={() => setIsAddTopicModalOpen(true)}
+                    className="px-3 py-1 bg-gradient-to-r from-emerald-500 to-teal-400 hover:opacity-90 text-white rounded-xl text-[11px] font-heading font-extrabold flex items-center gap-1 shadow-md cursor-pointer transition-all"
+                    title="Add / Study New Topic within your current active exam"
                   >
-                    + Topic
+                    <Sparkles className="w-3 h-3" />
+                    <span>+ Add New Topic</span>
                   </button>
                 </div>
               </div>
@@ -527,6 +530,74 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
                   >
                     <Zap className="w-4 h-4" /> Start 10-Question Sprint <ChevronRight className="w-4 h-4" />
                   </button>
+                </div>
+              </motion.div>
+
+              {/* Study Topics & 15-Day Auto-Refresh Hub */}
+              <motion.div variants={itemVariants} className="p-6 rounded-3xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-heading font-black text-lg text-slate-900 dark:text-white">
+                        Study Topics in {selection.exam?.name || user.examName}
+                      </h3>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        15-Day Refresh Active
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-gray-400">
+                      Existing content loads instantly while new high-yield MCQs append automatically every 15 days.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddTopicModalOpen(true)}
+                    className="px-3.5 py-1.5 rounded-xl bg-[#6D5BFF] hover:bg-[#5B4AEB] text-white text-xs font-heading font-extrabold flex items-center gap-1.5 shadow-md cursor-pointer transition-all shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add New Topic</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                  {availableTopics.slice(0, 4).map((topic) => (
+                    <div
+                      key={topic.id}
+                      onClick={() => {
+                        setTopic(topic);
+                        setActiveTab('learning');
+                      }}
+                      className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-900/60 border border-slate-200 dark:border-gray-800 hover:border-[#6D5BFF] hover:bg-slate-100/80 dark:hover:bg-[#141A33] transition-all cursor-pointer flex flex-col justify-between group"
+                    >
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold text-[#6D5BFF] uppercase tracking-wider">
+                          {selection.subject?.name || 'High-Yield Subject'}
+                        </span>
+                        <h4 className="text-xs font-heading font-extrabold text-slate-900 dark:text-white group-hover:text-[#6D5BFF] dark:group-hover:text-[#00D4FF] line-clamp-1">
+                          {topic.name}
+                        </h4>
+                      </div>
+                      <div className="flex items-center justify-between pt-3 text-[11px] text-slate-500 dark:text-gray-400">
+                        <span className="font-semibold text-slate-700 dark:text-gray-300">20+ Questions</span>
+                        <span className="text-[#6D5BFF] dark:text-[#00D4FF] font-bold flex items-center gap-0.5 group-hover:translate-x-1 transition-transform">
+                          Study Now →
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Add New Topic Quick Card */}
+                  <div
+                    onClick={() => setIsAddTopicModalOpen(true)}
+                    className="p-4 rounded-2xl bg-[#6D5BFF]/5 border border-dashed border-[#6D5BFF]/30 hover:border-[#6D5BFF] transition-all cursor-pointer flex flex-col items-center justify-center text-center space-y-1.5 group min-h-[96px]"
+                  >
+                    <div className="w-8 h-8 rounded-xl bg-[#6D5BFF]/15 text-[#6D5BFF] flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Plus className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-heading font-extrabold text-[#6D5BFF] dark:text-[#00D4FF]">
+                      + Add / Request New Topic
+                    </span>
+                  </div>
                 </div>
               </motion.div>
             </div>
@@ -898,6 +969,17 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
         currentExam={selection.exam}
         onSwitchSuccess={() => {
           refreshHierarchy();
+        }}
+      />
+
+      {/* Add / Study Exam Topic Modal */}
+      <AddTopicModal
+        isOpen={isAddTopicModalOpen}
+        onClose={() => setIsAddTopicModalOpen(false)}
+        onTopicSelected={(subj, top) => {
+          setSubject(subj);
+          setTopic(top);
+          setActiveTab('learning');
         }}
       />
     </div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { GoogleGenAI } from '@google/genai'
+import { executeAppendOnlyTopicRefresh } from '@/lib/knowledge/topic-refresher'
 
 interface ContentPayload {
   mcqs: Array<{
@@ -23,7 +24,12 @@ interface ContentPayload {
   revision_sheet: string
 }
 
-function generateDynamicHighYieldContent(examName: string, subjectName: string, topicName: string, difficulty: string): ContentPayload {
+function generateDynamicHighYieldContent(
+  examName: string,
+  subjectName: string,
+  topicName: string,
+  difficulty: string
+): ContentPayload {
   const safeExam = examName || 'Professional Entrance'
   const safeSubject = subjectName || 'Core Foundations'
   const safeTopic = topicName || 'High-Yield Principles'
@@ -258,13 +264,29 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Fallback: If still no topicRecord, check if topic exists anywhere with that name
+    // Fallback: If still no topicRecord, check if topic exists anywhere with that UUID
     if (!topicRecord && topicId) {
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(topicId)
       if (isUUID) {
         const { data } = await (supabase as any)
           .from('exam_topics')
-          .select('id, name, subject_id, description, created_at')
+          .select(`
+            id,
+            name,
+            subject_id,
+            description,
+            created_at,
+            exam_subjects (
+              id,
+              name,
+              exam_id,
+              exams (
+                id,
+                name,
+                difficulty
+              )
+            )
+          `)
           .eq('id', topicId)
           .maybeSingle()
         if (data) {
@@ -285,7 +307,8 @@ export async function POST(req: NextRequest) {
     const topicName = topicRecord?.name || topicNameInput || 'High-Yield Principles'
     const resolvedSubjectId = topicRecord?.subject_id || subjectId || null
     const subjectName = topicRecord?.exam_subjects?.name || body.subjectName || 'Medical Sciences'
-    const resolvedExamId = topicRecord?.exam_subjects?.exam_id || topicRecord?.exam_subjects?.exams?.id || examId || null
+    const resolvedExamId =
+      topicRecord?.exam_subjects?.exam_id || topicRecord?.exam_subjects?.exams?.id || examId || null
     const examName = topicRecord?.exam_subjects?.exams?.name || body.examName || 'USMLE Step 1 & 2 CK'
 
     // Validate Hierarchy Integrity (subject & exam relations)
@@ -303,31 +326,102 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const isRealUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resolvedTopicId)
+
     // 2. Query Existing Canonical Database Records (mcqs, notes, flashcards, revision_sheets)
     let dbMcqs: any[] = []
     let dbNotes: any[] = []
     let dbFlashcards: any[] = []
     let dbRevisionSheets: any[] = []
+    let topicState: any = null
 
-    if (!forceRefresh && resolvedTopicId) {
+    if (isRealUUID) {
       try {
-        const [mcqsRes, notesRes, flashcardsRes, revRes] = await Promise.all([
-          (supabase as any).from('mcqs').select('*').eq('topic_id', resolvedTopicId).limit(10),
-          (supabase as any).from('notes').select('*').eq('topic_id', resolvedTopicId).limit(5),
-          (supabase as any).from('flashcards').select('*').eq('topic_id', resolvedTopicId).limit(10),
-          (supabase as any).from('revision_sheets').select('*').eq('topic_id', resolvedTopicId).limit(5),
+        const [mcqsRes, notesRes, flashcardsRes, revRes, stateRes] = await Promise.all([
+          (supabase as any).from('mcqs').select('*').eq('topic_id', resolvedTopicId).order('created_at', { ascending: true }),
+          (supabase as any).from('notes').select('*').eq('topic_id', resolvedTopicId).order('created_at', { ascending: true }),
+          (supabase as any).from('flashcards').select('*').eq('topic_id', resolvedTopicId).order('created_at', { ascending: true }),
+          (supabase as any).from('revision_sheets').select('*').eq('topic_id', resolvedTopicId).order('created_at', { ascending: true }),
+          (supabase as any).from('topic_content_state').select('*').eq('topic_id', resolvedTopicId).maybeSingle(),
         ])
 
         dbMcqs = mcqsRes.data || []
         dbNotes = notesRes.data || []
         dbFlashcards = flashcardsRes.data || []
         dbRevisionSheets = revRes.data || []
+        topicState = stateRes.data || null
       } catch (dbErr) {
-        console.warn('Non-blocking DB query notice:', dbErr)
+        console.warn('[TopicContent] Non-blocking DB query notice:', dbErr)
       }
     }
 
-    // If canonical content already exists in database, format and return immediately
+    // 3. 15-Day Refresh Eligibility Check
+    let isRefreshing = false
+    let refreshJobId: string | null = null
+    const FIFTEEN_DAYS_MS = 15 * 24 * 60 * 60 * 1000
+    const now = Date.now()
+
+    let shouldTriggerRefresh = forceRefresh
+
+    if (!shouldTriggerRefresh && isRealUUID && resolvedExamId && resolvedSubjectId) {
+      if (topicState) {
+        const lastRefreshed = topicState.last_refreshed_at ? new Date(topicState.last_refreshed_at).getTime() : 0
+        const isPast15Days = now - lastRefreshed >= FIFTEEN_DAYS_MS
+        const isPastNextRefresh = topicState.next_refresh_at ? new Date(topicState.next_refresh_at).getTime() <= now : false
+        const notInProgress = topicState.refresh_status !== 'in_progress' || (topicState.updated_at && now - new Date(topicState.updated_at).getTime() > 10 * 60 * 1000)
+
+        if ((isPast15Days || isPastNextRefresh) && notInProgress) {
+          shouldTriggerRefresh = true
+        }
+      } else if (dbMcqs.length > 0) {
+        // Content exists but no state tracked yet
+        shouldTriggerRefresh = true
+      }
+    }
+
+    // Trigger Background Refresh if Eligible (DO NOT BLOCK RESPONSE!)
+    if (shouldTriggerRefresh && isRealUUID && resolvedExamId && resolvedSubjectId) {
+      const jobId = `refresh-${resolvedTopicId}-${Date.now()}`
+      refreshJobId = jobId
+
+      // Atomic lock acquisition
+      try {
+        const { data: lockAcquired } = await (supabase as any).rpc('acquire_topic_refresh_lock', {
+          p_exam_id: resolvedExamId,
+          p_subject_id: resolvedSubjectId,
+          p_topic_id: resolvedTopicId,
+          p_job_id: jobId,
+        })
+
+        if (lockAcquired !== false) {
+          isRefreshing = true
+
+          // Fire and forget background worker (never blocks user response!)
+          setTimeout(async () => {
+            try {
+              console.log(`[TopicRefresh] Starting background 15-day refresh for topic: ${topicName} (${resolvedTopicId})`)
+              await executeAppendOnlyTopicRefresh({
+                examId: resolvedExamId,
+                examName,
+                subjectId: resolvedSubjectId,
+                subjectName,
+                topicId: resolvedTopicId,
+                topicName,
+                difficulty,
+                language,
+              })
+              console.log(`[TopicRefresh] Background refresh completed successfully for topic: ${topicName}`)
+            } catch (bgErr) {
+              console.error(`[TopicRefresh] Error during background refresh:`, bgErr)
+            }
+          }, 0)
+        }
+      } catch (lockErr) {
+        console.warn('[TopicContent] Lock RPC notice (continuing):', lockErr)
+      }
+    }
+
+    // If canonical content already exists in database, return saved content immediately!
     if (dbMcqs.length > 0 || dbNotes.length > 0 || dbFlashcards.length > 0 || dbRevisionSheets.length > 0) {
       const formattedMcqs = dbMcqs.map((m: any) => {
         let correctIdx = 0
@@ -369,6 +463,15 @@ export async function POST(req: NextRequest) {
         success: true,
         source: 'database_canonical',
         cached: true,
+        isRefreshing,
+        refreshJobId,
+        topicState: topicState || {
+          last_refreshed_at: new Date().toISOString(),
+          next_refresh_at: new Date(Date.now() + FIFTEEN_DAYS_MS).toISOString(),
+          refresh_status: isRefreshing ? 'in_progress' : 'completed',
+          total_mcq_count: payload.mcqs.length,
+          content_version: topicState?.content_version || 1,
+        },
         contentType,
         difficulty,
         topic: {
@@ -390,7 +493,7 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // 3. AI Generation via Platform-Funded Routing (Zero user credit charge)
+    // 4. Initial Generation for Brand New Topic (AI or dynamic synthesis)
     let generatedPayload: ContentPayload | null = null
     const apiKey = process.env.GEMINI_API_KEY
 
@@ -400,7 +503,7 @@ export async function POST(req: NextRequest) {
           apiKey,
           httpOptions: {
             headers: {
-              'User-Agent': 'aistudio-build',
+              'User-Agent': 'neomcq-topic-generator',
             },
           },
         })
@@ -428,7 +531,7 @@ Generate a complete learning asset JSON package with the following items:
 Respond strictly in valid JSON format.`
 
         const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.7-flash',
           contents: prompt,
           config: {
             responseMimeType: 'application/json',
@@ -446,23 +549,20 @@ Respond strictly in valid JSON format.`
           }
         }
       } catch (aiErr) {
-        console.warn('AI generation graceful fallback notice:', aiErr)
+        console.warn('[TopicContent] AI generation graceful fallback notice:', aiErr)
       }
     }
 
-    // If AI generation did not run or returned empty, use the high-yield dynamic synthesizer
     if (!generatedPayload) {
       generatedPayload = generateDynamicHighYieldContent(examName, subjectName, topicName, difficulty)
     }
 
-    // 4. Save canonical assets to database if valid topic UUID exists (Platform-funded, non-blocking)
-    const isRealUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resolvedTopicId)
+    // 5. Save initial canonical assets to database if valid topic UUID exists
     if (isRealUUID && resolvedExamId && resolvedSubjectId && generatedPayload) {
       try {
-        // Insert MCQs
         if (Array.isArray(generatedPayload.mcqs) && generatedPayload.mcqs.length > 0) {
           const mcqRows = generatedPayload.mcqs.map((m: any, idx: number) => {
-            const correctOpt = Array.isArray(m.options) && m.options[m.correct_index] ? m.options[m.correct_index] : (m.options?.[0] || 'A')
+            const correctOpt = Array.isArray(m.options) && m.options[m.correct_index] ? m.options[m.correct_index] : (m.options?.[0] || 'Option A')
             return {
               exam_id: resolvedExamId,
               subject_id: resolvedSubjectId,
@@ -483,7 +583,6 @@ Respond strictly in valid JSON format.`
           await (supabase as any).from('mcqs').insert(mcqRows)
         }
 
-        // Insert Note
         if (generatedPayload.notes) {
           await (supabase as any).from('notes').insert({
             exam_id: resolvedExamId,
@@ -497,7 +596,6 @@ Respond strictly in valid JSON format.`
           })
         }
 
-        // Insert Flashcards
         if (Array.isArray(generatedPayload.flashcards) && generatedPayload.flashcards.length > 0) {
           const flashRows = generatedPayload.flashcards.map((f: any) => ({
             exam_id: resolvedExamId,
@@ -512,7 +610,6 @@ Respond strictly in valid JSON format.`
           await (supabase as any).from('flashcards').insert(flashRows)
         }
 
-        // Insert Revision Sheet
         if (generatedPayload.revision_sheet) {
           await (supabase as any).from('revision_sheets').insert({
             exam_id: resolvedExamId,
@@ -524,9 +621,25 @@ Respond strictly in valid JSON format.`
             ai_generated: true,
           })
         }
+
+        // Initialize topic_content_state
+        await (supabase as any).from('topic_content_state').upsert(
+          {
+            exam_id: resolvedExamId,
+            subject_id: resolvedSubjectId,
+            topic_id: resolvedTopicId,
+            last_accessed_at: new Date().toISOString(),
+            last_refreshed_at: new Date().toISOString(),
+            next_refresh_at: new Date(Date.now() + FIFTEEN_DAYS_MS).toISOString(),
+            refresh_status: 'completed',
+            content_version: 1,
+            total_mcq_count: generatedPayload.mcqs?.length || 0,
+            recent_added_mcqs: generatedPayload.mcqs?.length || 0,
+          },
+          { onConflict: 'exam_id,subject_id,topic_id' }
+        )
       } catch (saveErr) {
-        // Non-blocking catch
-        console.warn('Canonical DB caching notice (non-fatal):', saveErr)
+        console.warn('[TopicContent] Canonical DB caching notice (non-fatal):', saveErr)
       }
     }
 
@@ -534,6 +647,14 @@ Respond strictly in valid JSON format.`
       success: true,
       source: apiKey ? 'ai_generated' : 'high_yield_synthesis',
       cached: false,
+      isRefreshing: false,
+      topicState: {
+        last_refreshed_at: new Date().toISOString(),
+        next_refresh_at: new Date(Date.now() + FIFTEEN_DAYS_MS).toISOString(),
+        refresh_status: 'completed',
+        total_mcq_count: generatedPayload.mcqs?.length || 0,
+        content_version: 1,
+      },
       contentType,
       difficulty,
       topic: {
