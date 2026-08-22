@@ -439,40 +439,10 @@ export async function getPublicTopicMcqs({
     console.warn('[SEO] getPublicTopicMcqs error:', err);
   }
 
-  // Fallback mock questions for topic if DB has not yet populated it
-  const sampleItems: McqSeoData[] = [
-    {
-      id: `sample-mcq-${page}-1`,
-      slug: `high-yield-clinical-scenario-1`,
-      question: `A 45-year-old patient presents with acute onset dyspnea and chest discomfort. Which diagnostic biomarker offers the highest specificity for myocardial cellular injury in this acute window?`,
-      options: [
-        'High-sensitivity Cardiac Troponin (hs-cTnI / hs-cTnT)',
-        'Creatine Kinase Muscle-Brain Isoenzyme (CK-MB) in first 60 minutes',
-        'Serum Lactate Dehydrogenase (LDH) isoenzyme 1:2 reversal',
-        'Myoglobin qualitative point-of-care rapid lateral flow assay',
-      ],
-      difficulty: 'Expert',
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: `sample-mcq-${page}-2`,
-      slug: `pathophysiological-mechanism-differential-2`,
-      question: `In evaluating refractory secondary hypertension with hypokalemia and metabolic alkalosis, which laboratory index is essential to differentiate primary aldosteronism from renal artery stenosis?`,
-      options: [
-        'Plasma Aldosterone Concentration to Plasma Renin Activity (PAC:PRA) Ratio',
-        '24-hour urinary free cortisol excretion rate under baseline stress',
-        'Serum intact parathyroid hormone (PTH) and ionized calcium level',
-        'Fractional excretion of sodium (FENa) and urinary specific gravity',
-      ],
-      difficulty: 'Advanced',
-      created_at: new Date().toISOString(),
-    },
-  ];
-
   return {
-    mcqs: sampleItems,
-    total: sampleItems.length,
-    totalPages: 1,
+    mcqs: [],
+    total: 0,
+    totalPages: 0,
   };
 }
 
@@ -526,30 +496,8 @@ export async function getPublicMcqByHierarchicalSlugs({
     console.warn('[SEO] getPublicMcq lookup failed:', err);
   }
 
-  // Fallback sample if not found in DB
   if (!mcqRecord) {
-    const readableQuestion = mcqSlug
-      .replace(/-/g, ' ')
-      .replace(/^\w/, (c) => c.toUpperCase());
-
-    mcqRecord = {
-      id: `mcq-${cleanMcqSlug}`,
-      slug: cleanMcqSlug,
-      question: `Regarding ${readableQuestion}: Which clinical diagnostic or therapeutic principle represents the current first-line standard of care?`,
-      options: [
-        `Targeted risk-stratified protocol with early biomarker confirmation and monitoring`,
-        `Empirical broad-spectrum monotherapy without baseline organ function assessment`,
-        `Immediate surgical exploration without initial non-invasive imaging`,
-        `Complete observational withholding of pharmacological support for 72 hours`,
-      ],
-      difficulty: 'Expert',
-      status: 'approved',
-      visibility: 'PUBLIC_CANONICAL',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      correct_answer: `Targeted risk-stratified protocol with early biomarker confirmation and monitoring`,
-      explanation: `Modern guidelines require rapid risk stratification, pathognomonic biomarker confirmation, and organ-preserving targeted intervention.`,
-    };
+    return null;
   }
 
   // Quality gate classification

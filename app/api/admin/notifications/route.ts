@@ -42,76 +42,7 @@ export async function GET(req: NextRequest) {
     const { data: notifications, error } = await query;
 
     if (error || !notifications || notifications.length === 0) {
-      // Fallback structured data if table is empty or loading initial seed
-      const mockNotifications = [
-        {
-          id: 'notif-101',
-          title: 'NEET 2026 Grand Mock Test Available',
-          message: 'The full syllabus national grand mock test is now open for all Pro Pass subscribers.',
-          type: 'Learning',
-          audience: 'NEET Aspirants',
-          status: 'Sent',
-          priority: 'high',
-          channel: 'In-App',
-          scheduled_at: null,
-          delivered_count: 14200,
-          failed_count: 12,
-          created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-        },
-        {
-          id: 'notif-102',
-          title: 'System Maintenance Scheduled',
-          message: 'AI Engine cluster upgrading tonight between 02:00 AM - 03:00 AM IST.',
-          type: 'System',
-          audience: 'All Users',
-          status: 'Scheduled',
-          priority: 'normal',
-          channel: 'In-App',
-          scheduled_at: new Date(Date.now() + 86400000).toISOString(),
-          delivered_count: 0,
-          failed_count: 0,
-          created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
-        },
-        {
-          id: 'notif-103',
-          title: 'Payment Invoice Generated',
-          message: 'Your monthly Pro Pass renewal invoice #INV-9281 has been issued successfully.',
-          type: 'Payment',
-          audience: 'Subscribed Users',
-          status: 'Delivered',
-          priority: 'low',
-          channel: 'Email',
-          scheduled_at: null,
-          delivered_count: 3890,
-          failed_count: 0,
-          created_at: new Date(Date.now() - 3600000 * 12).toISOString(),
-        },
-        {
-          id: 'notif-104',
-          title: 'Daily High-Yield MCQ Streak Reminder',
-          message: 'Keep your 14-day study streak alive! Practice 10 Pharmacology MCQs today.',
-          type: 'Study Reminder',
-          audience: 'Active Users',
-          status: 'Sent',
-          priority: 'normal',
-          channel: 'Push',
-          scheduled_at: null,
-          delivered_count: 8540,
-          failed_count: 45,
-          created_at: new Date(Date.now() - 3600000 * 24).toISOString(),
-        },
-      ];
-
-      const filtered = mockNotifications.filter((n) => {
-        if (type && type !== 'ALL' && n.type.toLowerCase() !== type.toLowerCase()) return false;
-        if (search) {
-          const s = search.toLowerCase();
-          return n.title.toLowerCase().includes(s) || n.message.toLowerCase().includes(s) || n.audience.toLowerCase().includes(s);
-        }
-        return true;
-      });
-
-      return NextResponse.json({ success: true, notifications: filtered });
+      return NextResponse.json({ success: true, notifications: [] });
     }
 
     const filtered = notifications.filter((n: any) => {

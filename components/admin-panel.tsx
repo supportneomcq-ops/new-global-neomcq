@@ -46,12 +46,9 @@ export function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
 
   // Search & Filter state for Users tab
   const [userSearch, setUserSearch] = useState('');
-  const [mockUsers, setMockUsers] = useState([
-    { id: 'usr_1', name: 'Dr. Sarah Connor', email: 'sarah@med.edu', exam: 'USMLE Step 1', country: 'United States', status: 'Active', hours: '142 hrs' },
-    { id: 'usr_2', name: 'Rahul Sharma', email: 'rahul@aiims.ac.in', exam: 'NEET PG', country: 'India', status: 'Active', hours: '98 hrs' },
-    { id: 'usr_3', name: 'James Wilson', email: 'j.wilson@nhs.uk', exam: 'PLAB 1', country: 'United Kingdom', status: 'Suspended', hours: '45 hrs' },
-    { id: 'usr_4', name: 'Aisha Patel', email: 'aisha@sydney.edu.au', exam: 'AMC MCQ', country: 'Australia', status: 'Active', hours: '112 hrs' },
-  ]);
+  const [mockUsers, setMockUsers] = useState<
+    Array<{ id: string; name: string; email: string; exam: string; country: string; status: string; hours: string }>
+  >([]);
 
   // System Flags
   const [featureFlags, setFeatureFlags] = useState({

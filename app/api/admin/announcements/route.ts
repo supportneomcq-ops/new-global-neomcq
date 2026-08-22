@@ -15,44 +15,7 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: false });
 
     if (error || !announcements || announcements.length === 0) {
-      // Fallback structured data
-      const mockAnnouncements = [
-        {
-          id: 'anc-101',
-          title: 'NeoMCQ 3.0 Platform Upgrade & AI High-Yield Questions',
-          message: 'We have updated our AI Question Generator engine with 15,000+ new clinical vignette MCQs verified by AI and senior faculties.',
-          status: 'published',
-          target_audience: 'All Platform Users',
-          scheduled_at: null,
-          published_at: new Date(Date.now() - 86400000 * 3).toISOString(),
-          created_at: new Date(Date.now() - 86400000 * 4).toISOString(),
-          updated_at: new Date(Date.now() - 86400000 * 3).toISOString(),
-        },
-        {
-          id: 'anc-102',
-          title: 'Upcoming National All India INI-CET Mock Test',
-          message: 'Register now for the National Grand Live Test happening on Sunday. Real-time percentile scoring and AI strength analysis.',
-          status: 'scheduled',
-          target_audience: 'INICET Aspirants',
-          scheduled_at: new Date(Date.now() + 86400000 * 2).toISOString(),
-          published_at: null,
-          created_at: new Date(Date.now() - 86400000).toISOString(),
-          updated_at: new Date(Date.now() - 86400000).toISOString(),
-        },
-        {
-          id: 'anc-103',
-          title: 'Special Diwali Pro Pass Discount Offer',
-          message: 'Get 50% flat discount on Annual Ultra Pass using coupon code DIWALI50.',
-          status: 'draft',
-          target_audience: 'Free Tier Users',
-          scheduled_at: null,
-          published_at: null,
-          created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
-          updated_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-        },
-      ];
-
-      return NextResponse.json({ success: true, announcements: mockAnnouncements });
+      return NextResponse.json({ success: true, announcements: [] });
     }
 
     return NextResponse.json({ success: true, announcements });

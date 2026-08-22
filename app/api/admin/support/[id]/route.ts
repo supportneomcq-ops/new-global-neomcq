@@ -23,59 +23,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .order('created_at', { ascending: true });
 
     if (!ticket) {
-      // Mock ticket detail fallback
-      const mockTicket = {
-        id: ticketId,
-        ticket_number: ticketId,
-        user_id: 'usr-101',
-        user_email: 'dr.anil.kumar@mednet.org',
-        user_name: 'Dr. Anil Kumar',
-        subject: 'Payment deducted via Razorpay but Pro Pass not unlocked',
-        category: 'Billing & Payment',
-        priority: 'high',
-        status: 'Open',
-        assigned_admin_email: 'support@neomcq.com',
-        created_at: new Date(Date.now() - 3600000 * 3).toISOString(),
-        updated_at: new Date(Date.now() - 3600000 * 1).toISOString(),
-      };
-
-      const mockMessages = [
-        {
-          id: 'msg-1',
-          ticket_id: ticketId,
-          sender_id: 'usr-101',
-          sender_email: 'dr.anil.kumar@mednet.org',
-          sender_name: 'Dr. Anil Kumar',
-          sender_type: 'user',
-          message: 'Hello Support Team, I paid ₹2,999 for the 1-Year Ultra Pro Pass via Razorpay UPI transaction ID #pay_Op8921x. Money was debited from my bank account, but my dashboard still shows Free Tier.',
-          is_internal: false,
-          created_at: new Date(Date.now() - 3600000 * 3).toISOString(),
-        },
-        {
-          id: 'msg-2',
-          ticket_id: ticketId,
-          sender_id: auth.user?.id || 'admin',
-          sender_email: auth.user?.email || 'support@neomcq.com',
-          sender_name: 'Support Operations',
-          sender_type: 'admin',
-          message: 'Internal Note: Checked Razorpay webhook logs. Webhook failed with 500 error due to timeout. Verified payment #pay_Op8921x status is captured.',
-          is_internal: true,
-          created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-        },
-        {
-          id: 'msg-3',
-          ticket_id: ticketId,
-          sender_id: auth.user?.id || 'admin',
-          sender_email: auth.user?.email || 'support@neomcq.com',
-          sender_name: 'NeoMCQ Support Team',
-          sender_type: 'admin',
-          message: 'Dear Dr. Anil Kumar, Thank you for reaching out. We verified payment #pay_Op8921x in our Razorpay system. Your Pro Pass subscription has now been manually activated on your account. Please refresh your dashboard.',
-          is_internal: false,
-          created_at: new Date(Date.now() - 3600000 * 1).toISOString(),
-        },
-      ];
-
-      return NextResponse.json({ success: true, ticket: mockTicket, messages: mockMessages });
+      return NextResponse.json({ success: false, error: 'Support ticket not found' }, { status: 404 });
     }
 
     return NextResponse.json({ success: true, ticket, messages: messages || [] });
