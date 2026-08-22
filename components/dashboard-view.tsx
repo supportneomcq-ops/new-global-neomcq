@@ -29,6 +29,7 @@ import {
   History,
   Loader2,
   Lock,
+  Plus,
 } from 'lucide-react';
 import { OnboardingData } from './onboarding-flow';
 import { Logo } from './logo';

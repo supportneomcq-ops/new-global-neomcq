@@ -5,12 +5,16 @@ import { PublicMcqViewer } from '@/components/public-mcq-viewer';
 import Link from 'next/link';
 import { ArrowLeft, ShieldCheck, Sparkles } from 'lucide-react';
 
+import { getSiteUrl } from '@/lib/seo/config';
+import { slugify } from '@/lib/seo/db-queries';
+
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
+  const siteUrl = getSiteUrl();
   const supabaseAdmin = getSupabaseAdmin();
   const { data } = await supabaseAdmin.rpc('get_public_mcq_by_slug', { p_slug: slug });
 
@@ -26,7 +30,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const truncatedQuestion = mcq.question.length > 150 ? `${mcq.question.substring(0, 147)}...` : mcq.question;
   const title = `${mcq.exam_name ? `${mcq.exam_name}: ` : ''}${truncatedQuestion} — NeoMCQ`;
   const description = `Practice high-yield ${mcq.exam_name || 'exam'} question: "${truncatedQuestion}". Learn with detailed rationale and clinical pearls.`;
-  const canonicalUrl = `https://neomcq.com/mcq/${slug}`;
+  
+  // Direct canonical to hierarchical structure if possible
+  const examSlug = slugify(mcq.exam_name || 'neet-pg');
+  const subjectSlug = slugify(mcq.subject_name || 'medicine');
+  const topicSlug = slugify(mcq.topic_name || 'clinical-cases');
+  const canonicalUrl = `${siteUrl}/${examSlug}/${subjectSlug}/${topicSlug}/mcq/${slug}`;
 
   return {
     title,
@@ -62,9 +71,12 @@ export default async function PublicMcqPage({ params }: PageProps) {
 
   const mcq = data[0];
 
-  // Strictly ensure correct_answer is never present in serialized server payload
+  // Strictly ensure correct_answer and protected explanation are never present in serialized server payload
   delete mcq.correct_answer;
   delete mcq.answer_key;
+  delete mcq.explanation;
+  delete mcq.clinical_pearl;
+  delete mcq.rationale;
 
   // Generate Google Structured Data (Quiz format WITHOUT hidden answer key)
   const jsonLd = {

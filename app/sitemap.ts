@@ -1,94 +1,109 @@
 import { MetadataRoute } from 'next';
-import { getSupabaseAdmin } from '@/lib/supabase';
+import { getSiteUrl } from '@/lib/seo/config';
+import { getAllIndexableUrls } from '@/lib/seo/db-queries';
 
 export const revalidate = 3600; // Revalidate sitemap every hour
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = 'https://neomcq.com';
+  const baseUrl = getSiteUrl();
+  const now = new Date();
 
-  // 1. Static Public Pages
+  // 1. Static Core Hub Pages
   const staticPages: MetadataRoute.Sitemap = [
     {
       url: `${baseUrl}`,
-      lastModified: new Date(),
+      lastModified: now,
       changeFrequency: 'daily',
       priority: 1.0,
     },
     {
       url: `${baseUrl}/exams`,
-      lastModified: new Date(),
+      lastModified: now,
       changeFrequency: 'daily',
       priority: 0.9,
     },
     {
-      url: `${baseUrl}/auth/sign-in`,
-      lastModified: new Date(),
-      changeFrequency: 'monthly',
-      priority: 0.5,
-    },
-    {
-      url: `${baseUrl}/auth/sign-up`,
-      lastModified: new Date(),
-      changeFrequency: 'monthly',
-      priority: 0.5,
+      url: `${baseUrl}/blog`,
+      lastModified: now,
+      changeFrequency: 'daily',
+      priority: 0.8,
     },
     {
       url: `${baseUrl}/support`,
-      lastModified: new Date(),
+      lastModified: now,
       changeFrequency: 'monthly',
       priority: 0.4,
     },
     {
       url: `${baseUrl}/terms`,
-      lastModified: new Date(),
+      lastModified: now,
       changeFrequency: 'monthly',
       priority: 0.3,
     },
     {
       url: `${baseUrl}/privacy`,
-      lastModified: new Date(),
+      lastModified: now,
       changeFrequency: 'monthly',
       priority: 0.3,
     },
   ];
 
   try {
-    const supabaseAdmin = getSupabaseAdmin();
+    const { exams, subjects, topics, mcqs, blogs } = await getAllIndexableUrls();
 
-    // 2. Dynamic Public Active Exams
-    const { data: exams } = await supabaseAdmin
-      .from('exams')
-      .select('slug, updated_at')
-      .eq('status', 'active');
+    // 2. Exam pages
+    const examEntries: MetadataRoute.Sitemap = exams.map((e) => ({
+      url: `${baseUrl}${e.url}`,
+      lastModified: new Date(e.lastmod),
+      changeFrequency: 'weekly',
+      priority: 0.85,
+    }));
 
-    const examPages: MetadataRoute.Sitemap = (exams || []).map((exam) => ({
-      url: `${baseUrl}/exams/${exam.slug}`,
-      lastModified: exam.updated_at ? new Date(exam.updated_at) : new Date(),
+    // 3. Subject pages
+    const subjectEntries: MetadataRoute.Sitemap = subjects.map((s) => ({
+      url: `${baseUrl}${s.url}`,
+      lastModified: new Date(s.lastmod),
       changeFrequency: 'weekly',
       priority: 0.8,
     }));
 
-    // 3. Dynamic Public Canonical MCQs
-    const { data: mcqs } = await supabaseAdmin
-      .from('mcqs')
-      .select('slug, updated_at')
-      .eq('status', 'approved')
-      .in('visibility', ['PUBLIC_CANONICAL', 'PUBLIC_DISCOVERABLE'])
-      .not('slug', 'is', null)
-      .limit(1000);
+    // 4. Topic pages
+    const topicEntries: MetadataRoute.Sitemap = topics.map((t) => ({
+      url: `${baseUrl}${t.url}`,
+      lastModified: new Date(t.lastmod),
+      changeFrequency: 'weekly',
+      priority: 0.75,
+    }));
 
-    const mcqPages: MetadataRoute.Sitemap = (mcqs || []).map((mcq) => ({
-      url: `${baseUrl}/mcq/${mcq.slug}`,
-      lastModified: mcq.updated_at ? new Date(mcq.updated_at) : new Date(),
+    // 5. Individual MCQs
+    const mcqEntries: MetadataRoute.Sitemap = mcqs.map((m) => ({
+      url: `${baseUrl}${m.url}`,
+      lastModified: new Date(m.lastmod),
       changeFrequency: 'weekly',
       priority: 0.7,
     }));
 
-    return [...staticPages, ...examPages, ...mcqPages];
+    // 6. Blog posts
+    const blogEntries: MetadataRoute.Sitemap = blogs.map((b) => ({
+      url: `${baseUrl}${b.url}`,
+      lastModified: new Date(b.lastmod),
+      changeFrequency: 'monthly',
+      priority: 0.7,
+    }));
+
+    return [
+      ...staticPages,
+      ...examEntries,
+      ...subjectEntries,
+      ...topicEntries,
+      ...mcqEntries,
+      ...blogEntries,
+    ];
   } catch (err) {
     console.error('Failed to generate dynamic sitemap entries:', err);
     return staticPages;
   }
 }
+
 
 

@@ -5,6 +5,8 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { SelectionProvider } from '@/lib/context/selection-context';
 import { ServiceWorkerRegister } from '@/components/pwa/sw-register';
 import { PWAInstallPrompt } from '@/components/pwa/install-prompt';
+import { generateOrganizationSchema, generateWebSiteSchema } from '@/lib/seo/structured-data';
+import { getSiteUrl } from '@/lib/seo/config';
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -78,6 +80,9 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const orgSchema = generateOrganizationSchema();
+  const webSiteSchema = generateWebSiteSchema();
+
   return (
     <html
       lang="en"
@@ -89,6 +94,16 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.webmanifest" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        {/* Schema.org Organization Structured Data */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }}
+        />
+        {/* Schema.org WebSite Structured Data with Sitelinks Searchbox */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(webSiteSchema) }}
+        />
       </head>
       <body
         className="min-h-screen bg-background text-foreground antialiased selection:bg-[#6D5BFF] selection:text-white"

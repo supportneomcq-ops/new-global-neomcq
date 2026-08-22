@@ -1,16 +1,17 @@
 import { Metadata } from 'next';
-import { getSupabaseAdmin } from '@/lib/supabase';
 import Link from 'next/link';
 import { BookOpen, ChevronRight, GraduationCap, Globe } from 'lucide-react';
+import { getAllPublicExams } from '@/lib/seo/db-queries';
+import { Breadcrumbs } from '@/components/seo/breadcrumbs';
 
 export const metadata: Metadata = {
-  title: 'Global AI Exam Directory — NeoMCQ',
-  description: 'Explore AI-curated practice questions and syllabi for medical, nursing, legal, financial, and professional exams worldwide.',
+  title: 'Global Medical & Licensure Exam Directory — NeoMCQ',
+  description: 'Explore AI-curated practice questions and syllabi for medical, USMLE, NEET PG, PLAB, and professional board exams worldwide.',
   alternates: {
     canonical: 'https://neomcq.com/exams',
   },
   openGraph: {
-    title: 'Global AI Exam Directory — NeoMCQ',
+    title: 'Global Medical & Licensure Exam Directory — NeoMCQ',
     description: 'AI-powered practice questions and comprehensive syllabi for global professional exams.',
     url: 'https://neomcq.com/exams',
   },
@@ -19,17 +20,17 @@ export const metadata: Metadata = {
 export const revalidate = 3600; // Revalidate every hour
 
 export default async function ExamsDirectoryPage() {
-  const supabaseAdmin = getSupabaseAdmin();
-  const { data: exams } = await supabaseAdmin
-    .from('exams')
-    .select('id, name, slug, description, difficulty, question_count, is_featured')
-    .eq('status', 'active')
-    .order('is_featured', { ascending: false })
-    .order('name', { ascending: true });
+  const exams = await getAllPublicExams();
+
+  const breadcrumbs = [
+    { name: 'All Exams', url: '/exams' },
+  ];
 
   return (
     <main className="min-h-screen bg-[#070B19] text-slate-100 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto space-y-10">
+        <Breadcrumbs items={breadcrumbs} />
+
         {/* Header Hero */}
         <div className="text-center space-y-4 max-w-3xl mx-auto">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold uppercase tracking-wider">
@@ -46,10 +47,10 @@ export default async function ExamsDirectoryPage() {
 
         {/* Exams Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {(exams || []).map((exam) => (
+          {(exams || []).map((exam: any) => (
             <Link
               key={exam.id}
-              href={`/exams/${exam.slug}`}
+              href={`/${exam.slug}`}
               className="group bg-[#0D1326] border border-slate-800 hover:border-indigo-500/50 rounded-2xl p-6 transition-all duration-200 hover:shadow-xl hover:shadow-indigo-500/5 flex flex-col justify-between"
             >
               <div className="space-y-3">

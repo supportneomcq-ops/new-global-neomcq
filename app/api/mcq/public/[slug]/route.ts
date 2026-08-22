@@ -25,10 +25,13 @@ export async function GET(
       return NextResponse.json({ error: 'MCQ not found or not public' }, { status: 404 });
     }
 
-    // Double check that correct_answer is never present in returned JSON payload
+    // Double check that answer and explanation are never present in returned JSON payload
     const publicMcq = data[0];
     delete publicMcq.correct_answer;
     delete publicMcq.answer_key;
+    delete publicMcq.explanation;
+    delete publicMcq.clinical_pearl;
+    delete publicMcq.rationale;
 
     return NextResponse.json(publicMcq, {
       headers: {
