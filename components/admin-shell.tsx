@@ -84,11 +84,11 @@ export function AdminShell({ userEmail, roles, children }: AdminShellProps) {
 
   // Live telemetry badge state
   const [badges, setBadges] = useState({
-    supportAccounts: 12,
-    contentApproval: 23,
-    aiJobs: 15,
-    failedJobs: 3,
-    notifications: 8,
+    supportAccounts: 0,
+    contentApproval: 0,
+    aiJobs: 0,
+    failedJobs: 0,
+    notifications: 0,
   });
 
   useEffect(() => {
@@ -98,7 +98,7 @@ export function AdminShell({ userEmail, roles, children }: AdminShellProps) {
         
         // Fetch support accounts count
         const { data: supportRole } = await supabase.from('roles').select('id').eq('name', 'support').maybeSingle();
-        let supportCount = 12;
+        let supportCount = 0;
         if (supportRole?.id) {
           const { count } = await supabase
             .from('user_roles')
@@ -108,17 +108,17 @@ export function AdminShell({ userEmail, roles, children }: AdminShellProps) {
         }
 
         // Fetch failed jobs
-        let failedCount = 3;
+        let failedCount = 0;
         const { count: failedJobsCount } = await supabase
-          .from('ai_generation_jobs')
+          .from('ai_jobs')
           .select('*', { count: 'exact', head: true })
           .eq('status', 'failed');
         if (failedJobsCount !== null) failedCount = failedJobsCount;
 
         // Fetch pending/processing jobs
-        let pendingCount = 15;
+        let pendingCount = 0;
         const { count: pendingJobsCount } = await supabase
-          .from('ai_generation_jobs')
+          .from('ai_jobs')
           .select('*', { count: 'exact', head: true })
           .in('status', ['pending', 'processing']);
         if (pendingJobsCount !== null) pendingCount = pendingJobsCount;

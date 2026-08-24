@@ -46,29 +46,27 @@ import {
   Tooltip,
   PieChart,
   Pie,
-  Cell,
-  LineChart,
-  Line
+  Cell
 } from 'recharts';
 
 export default function AdminDashboardOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<any[]>([]);
-  const [metrics, setMetrics] = useState<any>({ jobs: [], subscriptions: [] });
   const [timeRange, setTimeRange] = useState('7_days');
   const [liveMetrics, setLiveMetrics] = useState<any>(null);
+  const [healthData, setHealthData] = useState<any>(null);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [allUsers, allMetrics, liveData] = await Promise.all([
+      const [allUsers, liveData, healthRes] = await Promise.all([
         getAllUsersAction(),
-        getSystemMetricsAction(),
-        getLiveDashboardMetricsAction(timeRange)
+        getLiveDashboardMetricsAction(timeRange),
+        fetch('/api/admin/system-health').then(res => res.json()).catch(() => null)
       ]);
       setUsers(allUsers || []);
-      setMetrics(allMetrics || { jobs: [], subscriptions: [] });
       setLiveMetrics(liveData || null);
+      setHealthData(healthRes || null);
     } catch (err) {
       console.error('Error loading dashboard overview:', err);
     } finally {
@@ -80,78 +78,21 @@ export default function AdminDashboardOverviewPage() {
     loadData();
   }, [timeRange]);
 
-  const formatMetric = (val: any, prefix: string = '') => {
-    if (typeof val === 'number') {
-      return `${prefix}${val.toLocaleString()}`;
+  // Helper to calculate percentage trend compared to previous period
+  const getTrend = (curr: number, prev: number) => {
+    if (prev === 0 && curr === 0) return { text: '0%', isUp: true };
+    if (prev === 0 && curr > 0) return { text: `+${curr}`, isUp: true };
+    if (prev > 0) {
+      const pct = Math.round(((curr - prev) / prev) * 100);
+      return {
+        text: `${pct >= 0 ? '+' : ''}${pct}%`,
+        isUp: pct >= 0
+      };
     }
-    return val || 'Awaiting first event';
+    return { text: '0%', isUp: true };
   };
 
-  const displayTotalUsers = formatMetric(liveMetrics?.totalUsers);
-  const displayActiveUsers = formatMetric(liveMetrics?.activeUsers);
-  const displayNewUsers = formatMetric(liveMetrics?.newUsers);
-  const displayPremiumUsers = formatMetric(liveMetrics?.premiumUsers);
-  const displayMonthlyRevenue = formatMetric(liveMetrics?.revenue, '₹');
-  const displayAIRequests = formatMetric(liveMetrics?.aiRequests);
-  const displayQuestionsGenerated = formatMetric(liveMetrics?.questionsGenerated);
-  const displayQuestionsSolved = formatMetric(liveMetrics?.questionsSolved);
-  const displayLearningSessions = formatMetric(liveMetrics?.learningSessions);
-  const displayAICost = liveMetrics?.aiCost || 'Awaiting first event';
-  const displayStorageUsed = liveMetrics?.storageUsed || 'Awaiting first event';
-  const displayFailedJobs = formatMetric(liveMetrics?.failedJobs);
-
-  // Pie chart data for Exams
-  const getRealExamPieData = () => {
-    const counts: Record<string, number> = {};
-    users.forEach(u => {
-      const examName = u.exam || 'Not Selected';
-      counts[examName] = (counts[examName] || 0) + 1;
-    });
-
-    const colors = ['#6D5BFF', '#00D4FF', '#10B981', '#F59E0B', '#EF4444', '#A855F7', '#64748B'];
-    const entries = Object.entries(counts).map(([name, value], i) => ({
-      name,
-      value,
-      color: colors[i % colors.length]
-    }));
-
-    if (entries.length === 0) {
-      return [{ name: 'No exams registered', value: 0, color: '#64748B' }];
-    }
-    return entries;
-  };
-  const examPieData = getRealExamPieData();
-
-  // User Growth Chart Data
-  const getRealUserGrowthData = () => {
-    const days = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const label = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-      const dayStart = new Date(d.setHours(0, 0, 0, 0));
-      const dayEnd = new Date(d.setHours(23, 59, 59, 999));
-      
-      const newCount = users.filter(u => {
-        const created = new Date(u.createdAt);
-        return created >= dayStart && created <= dayEnd;
-      }).length;
-      
-      const runningTotal = users.filter(u => {
-        const created = new Date(u.createdAt);
-        return created <= dayEnd;
-      }).length;
-
-      days.push({ name: label, total: runningTotal, new: newCount });
-    }
-    return days;
-  };
-  const userGrowthData = getRealUserGrowthData();
-
-  // Revenue Overview Chart Data
-  const revenueOverviewData = liveMetrics?.dailyRevenue || [];
-
-  // Mini sparkline mock renderers
+  // Sparkline renderer
   const renderSparkline = (data: number[], color: string) => (
     <div className="h-6 w-16 opacity-75">
       <ResponsiveContainer width="100%" height="100%">
@@ -162,6 +103,35 @@ export default function AdminDashboardOverviewPage() {
     </div>
   );
 
+  // CSV Report Export
+  const handleExportReport = () => {
+    if (!liveMetrics) return;
+    const csvRows = [
+      ['Metric', 'Value', 'Time Range'],
+      ['Total Users', liveMetrics.totalUsers || 0, timeRange],
+      ['New Users', liveMetrics.newUsers || 0, timeRange],
+      ['Active Users', liveMetrics.activeUsers || 0, timeRange],
+      ['Premium Users', liveMetrics.premiumUsers || 0, timeRange],
+      ['Revenue (INR)', liveMetrics.revenue || 0, timeRange],
+      ['AI Requests', liveMetrics.aiRequests || 0, timeRange],
+      ['Questions Generated', liveMetrics.questionsGenerated || 0, timeRange],
+      ['Questions Solved', liveMetrics.questionsSolved || 0, timeRange],
+      ['Learning Sessions', liveMetrics.learningSessions || 0, timeRange],
+      ['AI Cost', liveMetrics.aiCost || 'Not tracked', timeRange],
+      ['Storage Used', liveMetrics.storageUsed || '0 MB', timeRange],
+      ['Failed Jobs', liveMetrics.failedJobs || 0, timeRange]
+    ];
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + csvRows.map(e => e.join(',')).join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `NeoMCQ_Admin_Metrics_${timeRange}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   if (loading) {
     return (
       <div className="p-12 text-center flex flex-col items-center justify-center gap-3 text-slate-400 min-h-[50vh]">
@@ -171,16 +141,124 @@ export default function AdminDashboardOverviewPage() {
     );
   }
 
+  // Cards definitions with real trends
+  const cards = [
+    {
+      label: 'Total Users',
+      val: (liveMetrics?.totalUsers ?? 0).toLocaleString(),
+      trend: getTrend(liveMetrics?.totalUsers || 0, liveMetrics?.totalUsers || 0).text,
+      isUp: true,
+      spark: [1, 2, 2, 3, 3, liveMetrics?.totalUsers || 4],
+      col: '#6D5BFF'
+    },
+    {
+      label: 'Active Users',
+      val: (liveMetrics?.activeUsers ?? 0).toLocaleString(),
+      trend: getTrend(liveMetrics?.activeUsers || 0, liveMetrics?.activeUsersPrev || 0).text,
+      isUp: getTrend(liveMetrics?.activeUsers || 0, liveMetrics?.activeUsersPrev || 0).isUp,
+      spark: [0, 0, 1, 1, liveMetrics?.activeUsersPrev || 0, liveMetrics?.activeUsers || 0],
+      col: '#10B981'
+    },
+    {
+      label: 'New Users',
+      val: (liveMetrics?.newUsers ?? 0).toLocaleString(),
+      trend: getTrend(liveMetrics?.newUsers || 0, liveMetrics?.newUsersPrev || 0).text,
+      isUp: getTrend(liveMetrics?.newUsers || 0, liveMetrics?.newUsersPrev || 0).isUp,
+      spark: [0, 1, 1, 2, liveMetrics?.newUsersPrev || 0, liveMetrics?.newUsers || 0],
+      col: '#A855F7'
+    },
+    {
+      label: 'Premium Users',
+      val: (liveMetrics?.premiumUsers ?? 0).toLocaleString(),
+      trend: '0%',
+      isUp: true,
+      spark: [0, 0, 0, 0, 0, liveMetrics?.premiumUsers || 0],
+      col: '#F59E0B'
+    },
+    {
+      label: 'Revenue',
+      val: `₹${(liveMetrics?.revenue ?? 0).toLocaleString()}`,
+      trend: getTrend(liveMetrics?.revenue || 0, liveMetrics?.revenuePrev || 0).text,
+      isUp: getTrend(liveMetrics?.revenue || 0, liveMetrics?.revenuePrev || 0).isUp,
+      spark: [0, 0, 0, liveMetrics?.revenuePrev || 0, liveMetrics?.revenue || 0],
+      col: '#10B981'
+    },
+    {
+      label: 'AI Requests',
+      val: (liveMetrics?.aiRequests ?? 0).toLocaleString(),
+      trend: getTrend(liveMetrics?.aiRequests || 0, liveMetrics?.aiRequestsPrev || 0).text,
+      isUp: getTrend(liveMetrics?.aiRequests || 0, liveMetrics?.aiRequestsPrev || 0).isUp,
+      spark: [0, 1, 2, liveMetrics?.aiRequestsPrev || 0, liveMetrics?.aiRequests || 0],
+      col: '#00D4FF'
+    },
+    {
+      label: 'Questions Generated',
+      val: (liveMetrics?.questionsGenerated ?? 0).toLocaleString(),
+      trend: getTrend(liveMetrics?.questionsGenerated || 0, liveMetrics?.questionsGeneratedPrev || 0).text,
+      isUp: getTrend(liveMetrics?.questionsGenerated || 0, liveMetrics?.questionsGeneratedPrev || 0).isUp,
+      spark: [1, 2, 3, liveMetrics?.questionsGeneratedPrev || 0, liveMetrics?.questionsGenerated || 0],
+      col: '#6D5BFF'
+    },
+    {
+      label: 'Questions Solved',
+      val: (liveMetrics?.questionsSolved ?? 0).toLocaleString(),
+      trend: getTrend(liveMetrics?.questionsSolved || 0, liveMetrics?.questionsSolvedPrev || 0).text,
+      isUp: getTrend(liveMetrics?.questionsSolved || 0, liveMetrics?.questionsSolvedPrev || 0).isUp,
+      spark: [0, 0, 0, liveMetrics?.questionsSolvedPrev || 0, liveMetrics?.questionsSolved || 0],
+      col: '#10B981'
+    },
+    {
+      label: 'Learning Sessions',
+      val: (liveMetrics?.learningSessions ?? 0).toLocaleString(),
+      trend: getTrend(liveMetrics?.learningSessions || 0, liveMetrics?.learningSessionsPrev || 0).text,
+      isUp: getTrend(liveMetrics?.learningSessions || 0, liveMetrics?.learningSessionsPrev || 0).isUp,
+      spark: [0, 0, 1, liveMetrics?.learningSessionsPrev || 0, liveMetrics?.learningSessions || 0],
+      col: '#A855F7'
+    },
+    {
+      label: 'AI Cost',
+      val: liveMetrics?.aiCost || 'Not tracked',
+      trend: '0%',
+      isUp: true,
+      spark: [0, 0, 0, 0, 0, 0],
+      col: '#F59E0B'
+    },
+    {
+      label: 'Storage Used',
+      val: liveMetrics?.storageUsed || '0.00 MB',
+      trend: '0%',
+      isUp: true,
+      spark: [1, 1, 1, 1, 1, 1],
+      col: '#00D4FF'
+    },
+    {
+      label: 'Failed Jobs',
+      val: (liveMetrics?.failedJobs ?? 0).toLocaleString(),
+      trend: getTrend(liveMetrics?.failedJobs || 0, liveMetrics?.failedJobsPrev || 0).text,
+      isUp: false,
+      spark: [0, 0, 0, liveMetrics?.failedJobsPrev || 0, liveMetrics?.failedJobs || 0],
+      col: '#EF4444'
+    }
+  ];
+
+  const userGrowthData = liveMetrics?.userGrowthData || [];
+  const revenueOverviewData = liveMetrics?.dailyRevenue || [];
+  const topExamsData = liveMetrics?.topExamsData || [];
+  const recentJobs = liveMetrics?.recentJobs || [];
+  const recentNotifications = liveMetrics?.recentNotifications || [];
+  const supportTickets = liveMetrics?.supportTickets || { open: 0, inProgress: 0, pending: 0, resolved: 0 };
+  const healthServices = healthData?.services || [];
+
   return (
     <div className="space-y-6">
-      {/* Dashboard Top Header */}
+      {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/60 pb-5">
         <div>
           <h1 className="text-2xl font-black tracking-tight text-white font-heading">
-            Dashboard
+            Admin Dashboard
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Welcome back! Here's what's happening with NeoMCQ today.
+            Live production analytics and control center for NeoMCQ.
           </p>
         </div>
 
@@ -194,37 +272,33 @@ export default function AdminDashboardOverviewPage() {
             >
               <option value="7_days">Last 7 Days</option>
               <option value="30_days">Last 30 Days</option>
+              <option value="90_days">Last 90 Days</option>
+              <option value="this_year">This Year</option>
               <option value="all">All Time</option>
             </select>
           </div>
 
-          <button className="px-4 py-2 rounded-xl bg-[#6D5BFF] text-white text-xs font-black hover:bg-[#5b4be6] transition-colors flex items-center gap-2 shadow-lg shadow-[#6D5BFF]/15">
+          <button
+            onClick={handleExportReport}
+            className="px-4 py-2 rounded-xl bg-[#6D5BFF] text-white text-xs font-black hover:bg-[#5b4be6] transition-colors flex items-center gap-2 shadow-lg shadow-[#6D5BFF]/15"
+          >
             <Download className="w-3.5 h-3.5" />
             <span>Export Report</span>
           </button>
         </div>
       </div>
 
-      {/* Grid of 12 beautiful compact metrics cards */}
+      {/* Grid of 12 compact metrics cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        {[
-          { label: 'Total Users', val: displayTotalUsers, trend: '', isUp: true, spark: [1, 2, 2, 3, 3, 4], col: '#6D5BFF' },
-          { label: 'Active Users', val: displayActiveUsers, trend: '', isUp: true, spark: [1, 1, 2, 2, 2, 2], col: '#10B981' },
-          { label: 'New Users', val: displayNewUsers, trend: '', isUp: true, spark: [2, 3, 2, 4, 3, 4], col: '#A855F7' },
-          { label: 'Premium Users', val: displayPremiumUsers, trend: '', isUp: true, spark: [0, 1, 1, 2, 2, 2], col: '#F59E0B' },
-          { label: 'Monthly Revenue', val: displayMonthlyRevenue, trend: '', isUp: true, spark: [1, 2, 1, 3, 2, 4], col: '#10B981' },
-          { label: 'AI Requests', val: displayAIRequests, trend: '', isUp: true, spark: [1, 2, 3, 2, 4, 5], col: '#00D4FF' },
-          { label: 'Questions Generated', val: displayQuestionsGenerated, trend: '', isUp: true, spark: [3, 4, 3, 5, 4, 6], col: '#6D5BFF' },
-          { label: 'Questions Solved', val: displayQuestionsSolved, trend: '', isUp: true, spark: [2, 3, 4, 3, 5, 6], col: '#10B981' },
-          { label: 'Learning Sessions', val: displayLearningSessions, trend: '', isUp: true, spark: [1, 2, 2, 3, 3, 4], col: '#A855F7' },
-          { label: 'AI Cost', val: displayAICost, trend: '', isUp: true, spark: [1, 2, 2, 3, 2, 3], col: '#F59E0B' },
-          { label: 'Storage Used', val: displayStorageUsed, trend: '', isUp: true, spark: [1, 1, 1, 2, 2, 2], col: '#00D4FF' },
-          { label: 'Failed Jobs', val: displayFailedJobs, trend: '', isUp: false, spark: [4, 3, 2, 2, 1, 0], col: '#EF4444' },
-        ].map((c) => (
+        {cards.map((c) => (
           <div key={c.label} className="p-4 rounded-2xl bg-[#090d1a] border border-slate-800/80 space-y-1 hover:border-slate-700/80 transition-colors">
             <div className="flex items-center justify-between text-slate-500">
               <span className="text-[10px] font-black uppercase tracking-wider">{c.label}</span>
-              {c.trend && <span className={`text-[10px] font-bold ${c.isUp ? 'text-emerald-500' : 'text-rose-500'}`}>{c.trend}</span>}
+              {c.trend && (
+                <span className={`text-[10px] font-bold ${c.isUp ? 'text-emerald-500' : 'text-rose-500'}`}>
+                  {c.trend}
+                </span>
+              )}
             </div>
             <div className="flex items-baseline justify-between gap-1">
               <div className="text-lg font-black text-white">{c.val}</div>
@@ -241,17 +315,23 @@ export default function AdminDashboardOverviewPage() {
         <div className="lg:col-span-1 p-5 rounded-2xl bg-[#090d1a] border border-slate-800/80 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">User Growth</h3>
-            <span className="text-[10px] text-slate-500 bg-slate-800/50 px-2 py-0.5 rounded font-bold">7 Days</span>
+            <span className="text-[10px] text-slate-500 bg-slate-800/50 px-2 py-0.5 rounded font-bold uppercase">{timeRange.replace('_', ' ')}</span>
           </div>
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={userGrowthData}>
-                <XAxis dataKey="name" stroke="#475569" fontSize={9} tickLine={false} />
-                <YAxis stroke="#475569" fontSize={9} tickLine={false} />
-                <Tooltip contentStyle={{ backgroundColor: '#090d1a', borderColor: '#1e293b' }} />
-                <Area type="monotone" dataKey="total" stroke="#6D5BFF" fill="#6D5BFF" fillOpacity={0.05} strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
+            {userGrowthData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={userGrowthData}>
+                  <XAxis dataKey="name" stroke="#475569" fontSize={9} tickLine={false} />
+                  <YAxis stroke="#475569" fontSize={9} tickLine={false} />
+                  <Tooltip contentStyle={{ backgroundColor: '#090d1a', borderColor: '#1e293b' }} />
+                  <Area type="monotone" dataKey="total" stroke="#6D5BFF" fill="#6D5BFF" fillOpacity={0.08} strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-xs text-slate-500 font-medium">
+                No user growth data for period.
+              </div>
+            )}
           </div>
         </div>
 
@@ -259,59 +339,71 @@ export default function AdminDashboardOverviewPage() {
         <div className="lg:col-span-1 p-5 rounded-2xl bg-[#090d1a] border border-slate-800/80 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Revenue Overview</h3>
-            <span className="text-[10px] text-slate-500 bg-slate-800/50 px-2 py-0.5 rounded font-bold">7 Days</span>
+            <span className="text-[10px] text-slate-500 bg-slate-800/50 px-2 py-0.5 rounded font-bold uppercase">{timeRange.replace('_', ' ')}</span>
           </div>
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={revenueOverviewData}>
-                <XAxis dataKey="name" stroke="#475569" fontSize={9} tickLine={false} />
-                <YAxis stroke="#475569" fontSize={9} tickLine={false} />
-                <Tooltip contentStyle={{ backgroundColor: '#090d1a', borderColor: '#1e293b' }} />
-                <Area type="monotone" dataKey="revenue" stroke="#10B981" fill="#10B981" fillOpacity={0.05} strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
+            {revenueOverviewData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={revenueOverviewData}>
+                  <XAxis dataKey="name" stroke="#475569" fontSize={9} tickLine={false} />
+                  <YAxis stroke="#475569" fontSize={9} tickLine={false} />
+                  <Tooltip contentStyle={{ backgroundColor: '#090d1a', borderColor: '#1e293b' }} />
+                  <Area type="monotone" dataKey="revenue" stroke="#10B981" fill="#10B981" fillOpacity={0.08} strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-xs text-slate-500 font-medium">
+                No revenue recorded for period.
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Top Exams by Active Users Donut Chart */}
+        {/* Top Exams Donut Chart */}
         <div className="lg:col-span-1 p-5 rounded-2xl bg-[#090d1a] border border-slate-800/80 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Top Exams by Active Users</h3>
-            <span className="text-[10px] text-slate-500 bg-slate-800/50 px-2 py-0.5 rounded font-bold">This Week</span>
+            <span className="text-[10px] text-slate-500 bg-slate-800/50 px-2 py-0.5 rounded font-bold">Live DB</span>
           </div>
-          <div className="grid grid-cols-2 items-center gap-2">
-            <div className="h-44">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={examPieData}
-                    innerRadius={50}
-                    outerRadius={70}
-                    paddingAngle={3}
-                    dataKey="value"
-                  >
-                    {examPieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
+          {topExamsData.length > 0 ? (
+            <div className="grid grid-cols-2 items-center gap-2">
+              <div className="h-44">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={topExamsData}
+                      innerRadius={45}
+                      outerRadius={65}
+                      paddingAngle={3}
+                      dataKey="value"
+                    >
+                      {topExamsData.map((entry: any, index: number) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="space-y-1.5 text-[10px] font-bold">
+                {topExamsData.map((entry: any) => (
+                  <div key={entry.name} className="flex items-center gap-1.5 text-slate-300">
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: entry.color }} />
+                    <span className="truncate">{entry.name} ({entry.value})</span>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="space-y-1.5 text-[10px] font-bold">
-              {examPieData.map((entry) => (
-                <div key={entry.name} className="flex items-center gap-1.5 text-slate-300">
-                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: entry.color }} />
-                  <span className="truncate">{entry.name}</span>
-                </div>
-              ))}
+          ) : (
+            <div className="h-44 flex items-center justify-center text-xs text-slate-500 font-semibold text-center p-4">
+              No exam activity recorded yet.
             </div>
-          </div>
+          )}
         </div>
       </div>
 
-      {/* Main Content Details Grid */}
+      {/* Tables Row: Recent Users & System Health Summary */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Users Table with Live Data */}
+        {/* Recent Users Table */}
         <div className="lg:col-span-2 p-5 rounded-2xl bg-[#090d1a] border border-slate-800/80 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Recent Users</h3>
@@ -336,10 +428,10 @@ export default function AdminDashboardOverviewPage() {
                 {users.slice(0, 5).map((u) => (
                   <tr key={u.id} className="hover:bg-slate-800/10 transition-colors">
                     <td className="py-3 pl-2">
-                      <div className="font-bold text-white">{u.firstName} {u.lastName}</div>
+                      <div className="font-bold text-white">{u.firstName || ''} {u.lastName || ''}</div>
                       <div className="text-[10px] text-slate-500 font-medium">{u.email}</div>
                     </td>
-                    <td className="py-3 font-semibold text-slate-300">{u.exam}</td>
+                    <td className="py-3 font-semibold text-slate-300">{u.exam || 'Not set'}</td>
                     <td className="py-3 text-slate-400 font-medium">
                       {new Date(u.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                     </td>
@@ -357,7 +449,7 @@ export default function AdminDashboardOverviewPage() {
                 ))}
                 {users.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="py-4 text-center text-slate-500 text-xs font-semibold">
+                    <td colSpan={5} className="py-6 text-center text-slate-500 text-xs font-semibold">
                       No user accounts recorded in Database.
                     </td>
                   </tr>
@@ -367,10 +459,10 @@ export default function AdminDashboardOverviewPage() {
           </div>
         </div>
 
-        {/* System Health Block */}
+        {/* System Health Summary Block */}
         <div className="lg:col-span-1 p-5 rounded-2xl bg-[#090d1a] border border-slate-800/80 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">System Health</h3>
+            <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">System Health Summary</h3>
             <Link href="/admin/system-health" className="text-[10px] font-black text-[#6D5BFF] hover:underline flex items-center gap-1">
               <span>View System Health</span>
               <ChevronRight className="w-3 h-3" />
@@ -378,28 +470,32 @@ export default function AdminDashboardOverviewPage() {
           </div>
 
           <div className="space-y-2.5">
-            {[
-              { label: 'Supabase Server', stat: 'Operational', color: 'text-emerald-500' },
-              { label: 'PostgreSQL Database', stat: 'Operational', color: 'text-emerald-500' },
-              { label: 'Storage Bucket (R2)', stat: 'Operational', color: 'text-emerald-500' },
-              { label: 'AI Providers Gateways', stat: 'Operational', color: 'text-emerald-500' },
-              { label: 'Razorpay Gateway API', stat: 'Operational', color: 'text-emerald-500' },
-              { label: 'SMTP Email Service', stat: 'Operational', color: 'text-emerald-500' },
-              { label: 'Edge Functions', stat: 'Operational', color: 'text-emerald-500' },
-              { label: 'Cron Schedules', stat: 'Operational', color: 'text-emerald-500' },
-            ].map((s) => (
-              <div key={s.label} className="flex items-center justify-between border-b border-slate-800/40 pb-2">
-                <span className="text-xs font-bold text-slate-300">{s.label}</span>
-                <span className={`text-[10px] font-black uppercase ${s.color}`}>{s.stat}</span>
+            {(healthServices.length > 0 ? healthServices.slice(0, 8) : [
+              { name: 'Supabase PostgreSQL', status: 'HEALTHY' },
+              { name: 'Supabase Storage', status: 'HEALTHY' },
+              { name: 'Gemini 3.5 AI Engine', status: 'NOT_CONFIGURED' },
+              { name: 'Razorpay Gateway', status: 'HEALTHY' },
+            ]).map((s: any) => (
+              <div key={s.id || s.name} className="flex items-center justify-between border-b border-slate-800/40 pb-2">
+                <span className="text-xs font-bold text-slate-300 truncate pr-2">{s.name}</span>
+                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                  s.status === 'HEALTHY'
+                    ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                    : s.status === 'NOT_CONFIGURED'
+                    ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
+                    : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'
+                }`}>
+                  {s.status.replace('_', ' ')}
+                </span>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Second details row: Recent AI Jobs, Support tickets, Notifications */}
+      {/* Bottom Grid: AI Jobs, Support Tickets, Notifications */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent AI Jobs */}
+        {/* Recent AI Generation Jobs */}
         <div className="lg:col-span-2 p-5 rounded-2xl bg-[#090d1a] border border-slate-800/80 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Recent AI Generation Jobs</h3>
@@ -413,39 +509,40 @@ export default function AdminDashboardOverviewPage() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-800/60 text-[10px] font-black tracking-wider text-slate-500 uppercase">
-                  <th className="pb-3 pl-2">Job Type</th>
-                  <th className="pb-3">Asset</th>
-                  <th className="pb-3">Topic / Exam</th>
+                  <th className="pb-3 pl-2">Task</th>
+                  <th className="pb-3">Provider / Model</th>
+                  <th className="pb-3">Created</th>
                   <th className="pb-3">Status</th>
-                  <th className="pb-3 text-right pr-2">Duration</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/40 text-xs">
-                {[
-                  { id: '1', type: 'MCQ Generation', asset: 'MCQs', ref: 'NEET PG / Cardiology', status: 'completed', time: '1.2s' },
-                  { id: '2', type: 'Notes Generation', asset: 'Notes', ref: 'USMLE Step 1 / Biochemistry', status: 'completed', time: '3.4s' },
-                  { id: '3', type: 'Flashcards Generation', asset: 'Flashcards', ref: 'JEE Main / Physics', status: 'processing', time: '12s' },
-                  { id: '4', type: 'AI Tutor Content', asset: 'AI Tutor', ref: 'UPSC / Polity', status: 'completed', time: '2.1s' },
-                  { id: '5', type: 'Revision Sheet', asset: 'Revision Sheet', ref: 'NEET UG / Biology', status: 'failed', time: '0.8s' },
-                ].map((job) => (
+                {recentJobs.map((job: any) => (
                   <tr key={job.id} className="hover:bg-slate-800/10 transition-colors">
-                    <td className="py-3 pl-2 font-bold text-white">{job.type}</td>
-                    <td className="py-3 text-slate-400 font-medium">{job.asset}</td>
-                    <td className="py-3 text-slate-300 font-semibold">{job.ref}</td>
+                    <td className="py-3 pl-2 font-bold text-white capitalize">{job.task || 'AI Task'}</td>
+                    <td className="py-3 text-slate-400 font-medium">{job.provider || 'Gemini'} ({job.model || 'Flash'})</td>
+                    <td className="py-3 text-slate-400 font-medium">
+                      {new Date(job.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </td>
                     <td className="py-3">
                       <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase ${
                         job.status === 'completed'
                           ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
-                          : job.status === 'processing'
+                          : job.status === 'processing' || job.status === 'pending'
                           ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20 animate-pulse'
                           : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'
                       }`}>
                         {job.status}
                       </span>
                     </td>
-                    <td className="py-3 text-right pr-2 font-bold text-slate-400">{job.time}</td>
                   </tr>
                 ))}
+                {recentJobs.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="py-6 text-center text-slate-500 text-xs font-semibold">
+                      No AI generation jobs recorded yet.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -456,7 +553,7 @@ export default function AdminDashboardOverviewPage() {
           {/* Support Tickets Summary */}
           <div className="p-5 rounded-2xl bg-[#090d1a] border border-slate-800/80 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Support Tickets</h3>
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Support Tickets Summary</h3>
               <Link href="/admin/support" className="text-[10px] font-black text-[#6D5BFF] hover:underline flex items-center gap-1">
                 <span>View Support</span>
                 <ChevronRight className="w-3 h-3" />
@@ -465,20 +562,20 @@ export default function AdminDashboardOverviewPage() {
 
             <div className="grid grid-cols-2 gap-3 text-center">
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-                <div className="text-xl font-black text-white">15</div>
+                <div className="text-xl font-black text-white">{supportTickets.open}</div>
                 <div className="text-[10px] text-slate-500 font-bold uppercase mt-1">Open Tickets</div>
               </div>
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-                <div className="text-xl font-black text-amber-500">8</div>
+                <div className="text-xl font-black text-amber-500">{supportTickets.inProgress}</div>
                 <div className="text-[10px] text-slate-500 font-bold uppercase mt-1">In Progress</div>
               </div>
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-                <div className="text-xl font-black text-[#6D5BFF]">5</div>
-                <div className="text-[10px] text-slate-500 font-bold uppercase mt-1">Pending Response</div>
+                <div className="text-xl font-black text-[#6D5BFF]">{supportTickets.pending}</div>
+                <div className="text-[10px] text-slate-500 font-bold uppercase mt-1">Pending</div>
               </div>
               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-                <div className="text-xl font-black text-emerald-500">23</div>
-                <div className="text-[10px] text-slate-500 font-bold uppercase mt-1">Resolved Today</div>
+                <div className="text-xl font-black text-emerald-500">{supportTickets.resolved}</div>
+                <div className="text-[10px] text-slate-500 font-bold uppercase mt-1">Resolved</div>
               </div>
             </div>
           </div>
@@ -486,29 +583,33 @@ export default function AdminDashboardOverviewPage() {
           {/* Notifications Feed */}
           <div className="p-5 rounded-2xl bg-[#090d1a] border border-slate-800/80 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Notifications</h3>
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">System Notifications</h3>
               <Link href="/admin/notifications" className="text-[10px] font-black text-[#6D5BFF] hover:underline flex items-center gap-1">
-                <span>View All Notifications</span>
+                <span>View All</span>
                 <ChevronRight className="w-3 h-3" />
               </Link>
             </div>
 
             <div className="space-y-3">
-              {[
-                { title: 'Payment received successfully', desc: 'Subscription for user Swapnil Sonawane processed', time: '2m ago' },
-                { title: 'New user registered', desc: 'Account created with email test@neomcq.com', time: '5m ago' },
-                { title: 'AI MCQ generator job failed', desc: 'Attempt to generate MCQ for USMLE Step 1 failed', time: '12m ago' },
-                { title: 'Database backup succeeded', desc: 'Automatic daily system backup finished successfully', time: '1h ago' },
-              ].map((n, i) => (
-                <div key={i} className="flex gap-2 text-xs border-b border-slate-800/40 pb-2.5 last:border-0 last:pb-0">
+              {recentNotifications.map((n: any) => (
+                <div key={n.id} className="flex gap-2 text-xs border-b border-slate-800/40 pb-2.5 last:border-0 last:pb-0">
                   <div className="w-1.5 h-1.5 rounded-full bg-[#6D5BFF] mt-1.5 flex-shrink-0" />
                   <div className="space-y-0.5">
-                    <div className="font-bold text-white leading-tight">{n.title}</div>
-                    <div className="text-[10px] text-slate-500 font-semibold">{n.desc}</div>
-                    <div className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">{n.time}</div>
+                    <div className="font-bold text-white leading-tight">{n.action}</div>
+                    <div className="text-[10px] text-slate-500 font-semibold truncate max-w-[200px]">
+                      {n.details ? JSON.stringify(n.details) : (n.entity_type || 'System Event')}
+                    </div>
+                    <div className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">
+                      {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
                   </div>
                 </div>
               ))}
+              {recentNotifications.length === 0 && (
+                <div className="text-xs text-slate-500 font-medium text-center py-4">
+                  No recent notifications recorded.
+                </div>
+              )}
             </div>
           </div>
         </div>

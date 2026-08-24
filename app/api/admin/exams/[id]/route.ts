@@ -38,7 +38,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         exam_topics(*)
       `)
       .eq('exam_id', examId)
-      .order('order_index', { ascending: true })
+      .order('created_at', { ascending: true })
 
     // 3. Fetch Aliases
     const { data: aliases } = await (supabase as any)

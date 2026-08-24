@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (status && status !== 'all') {
-      query = query.eq('validation_status', status)
+      query = query.eq('verification_status', status)
     }
 
     const { data: subjects, error } = await query
@@ -128,11 +128,9 @@ export async function POST(req: NextRequest) {
       .insert({
         exam_id,
         name: name.trim(),
-        slug,
         description: description || '',
         weight_percentage: parseFloat(weight_percentage) || 10.0,
-        order_index: parseInt(order_index, 10) || 0,
-        validation_status: 'verified',
+        verification_status: 'verified',
       })
       .select()
       .single()
@@ -182,13 +180,10 @@ export async function PATCH(req: NextRequest) {
 
     if (name) {
       updateData.name = name.trim()
-      const norm = normalizeInput(name)
-      updateData.slug = norm.slug
     }
     if (description !== undefined) updateData.description = description
     if (weight_percentage !== undefined) updateData.weight_percentage = parseFloat(weight_percentage)
-    if (order_index !== undefined) updateData.order_index = parseInt(order_index, 10)
-    if (validation_status) updateData.validation_status = validation_status
+    if (validation_status) updateData.verification_status = validation_status
 
     const { data: updated, error } = await (supabase as any)
       .from('exam_subjects')

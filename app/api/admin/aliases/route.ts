@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (!entityType || entityType === 'all' || entityType === 'subject') {
-      let q = (supabase as any).from('subject_aliases').select('*, exam_subjects(id, name, slug, exams(name))').order('created_at', { ascending: false })
+      let q = (supabase as any).from('subject_aliases').select('*, exam_subjects(id, name, exams(name))').order('created_at', { ascending: false })
       if (status && status !== 'all') q = q.eq('status', status)
       if (search) q = q.ilike('alias', `%${search}%`)
       const { data } = await q
@@ -42,12 +42,12 @@ export async function GET(req: NextRequest) {
         entity_type: 'subject',
         canonical_name: `${a.exam_subjects?.name || 'Unknown'} (${a.exam_subjects?.exams?.name || 'Exam'})`,
         canonical_id: a.subject_id,
-        canonical_slug: a.exam_subjects?.slug || '',
+        canonical_slug: '',
       }))
     }
 
     if (!entityType || entityType === 'all' || entityType === 'topic') {
-      let q = (supabase as any).from('topic_aliases').select('*, exam_topics(id, name, slug, exam_subjects(name))').order('created_at', { ascending: false })
+      let q = (supabase as any).from('topic_aliases').select('*, exam_topics(id, name, exam_subjects(name))').order('created_at', { ascending: false })
       if (status && status !== 'all') q = q.eq('status', status)
       if (search) q = q.ilike('alias', `%${search}%`)
       const { data } = await q
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
         entity_type: 'topic',
         canonical_name: `${a.exam_topics?.name || 'Unknown'} (${a.exam_topics?.exam_subjects?.name || 'Subject'})`,
         canonical_id: a.topic_id,
-        canonical_slug: a.exam_topics?.slug || '',
+        canonical_slug: '',
       }))
     }
 

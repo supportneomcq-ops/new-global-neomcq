@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
         id,
         name,
         slug,
+        short_name,
         description,
         difficulty,
         question_count,
@@ -28,14 +29,20 @@ export async function GET(req: NextRequest) {
         is_featured,
         created_by_ai,
         status,
-        approval_status,
         verification_status,
-        aliases,
-        ai_confidence_score,
-        official_website,
-        ai_version,
-        prompt_version,
-        version,
+        official_url,
+        official_notification_url,
+        official_syllabus_url,
+        exam_type,
+        level,
+        mode,
+        duration,
+        total_marks,
+        passing_criteria,
+        eligibility,
+        languages,
+        version_year,
+        is_current,
         created_at,
         updated_at,
         countries(id, name, iso2, flag_emoji),
@@ -44,10 +51,7 @@ export async function GET(req: NextRequest) {
           id,
           name,
           weight_percentage,
-          topic_count,
-          version,
-          ai_confidence,
-          exam_topics(id, name, level, target_weight)
+          exam_topics(id, name, importance)
         )
       `)
       .order('created_at', { ascending: false })
@@ -63,13 +67,18 @@ export async function GET(req: NextRequest) {
     const { data: exams, error } = await query
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      console.error('Database query error in /api/admin/exams:', error)
+      return NextResponse.json({ error: `Database Query Error: ${error.message}` }, { status: 500 })
     }
 
     // Fetch user enrollments per exam for accurate user counts
-    const { data: userExams } = await (supabase as any)
+    const { data: userExams, error: ueError } = await (supabase as any)
       .from('user_exams')
       .select('exam_id')
+
+    if (ueError) {
+      console.error('Error fetching user_exams count in /api/admin/exams:', ueError)
+    }
 
     const userCountMap: Record<string, number> = {}
     if (userExams) {
@@ -91,9 +100,9 @@ export async function GET(req: NextRequest) {
 
     // Get statistics
     const totalExams = enrichedExams.length
-    const activeExams = enrichedExams.filter((e: any) => e.status === 'active').length
-    const archivedExams = enrichedExams.filter((e: any) => e.status === 'archived').length
-    const pendingReviewCount = enrichedExams.filter((e: any) => e.approval_status === 'pending_review').length
+    const activeExams = enrichedExams.filter((e: any) => e.status === 'active' || e.status === 'published').length
+    const archivedExams = enrichedExams.filter((e: any) => e.status === 'archived' || e.status === 'inactive').length
+    const pendingReviewCount = enrichedExams.filter((e: any) => e.verification_status === 'pending' || e.verification_status === 'unverified').length
 
     return NextResponse.json({
       success: true,
@@ -106,6 +115,7 @@ export async function GET(req: NextRequest) {
       exams: enrichedExams,
     })
   } catch (err: any) {
+    console.error('Server error in GET /api/admin/exams:', err)
     return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 })
   }
 }
@@ -157,7 +167,7 @@ export async function POST(req: NextRequest) {
       ? aliases.split(',').map((a) => a.trim()).filter(Boolean)
       : []
 
-    // 2. Insert Canonical Exam
+    // 2. Insert Canonical Exam using correct table schema
     const { data: newExam, error: createError } = await (supabase as any)
       .from('exams')
       .insert({
@@ -169,11 +179,10 @@ export async function POST(req: NextRequest) {
         difficulty: difficulty || 'Adaptive',
         question_count: parseInt(question_count, 10) || 100,
         time_limit_mins: parseInt(time_limit_mins, 10) || 120,
-        official_website: official_website || null,
+        official_url: official_website || null,
         is_featured: !!is_featured,
         status: 'active',
-        approval_status: 'approved',
-        aliases: parsedAliases,
+        verification_status: 'verified',
         created_by_ai: false,
       })
       .select()
@@ -188,9 +197,6 @@ export async function POST(req: NextRequest) {
       const aliasInserts = parsedAliases.map((a: string) => ({
         exam_id: newExam.id,
         alias: a.toLowerCase(),
-        source: 'Manual Admin',
-        confidence: 100.00,
-        status: 'approved',
       }))
       await (supabase as any).from('exam_aliases').upsert(aliasInserts, { onConflict: 'exam_id,alias' })
     }
@@ -207,7 +213,7 @@ export async function PATCH(req: NextRequest) {
     if (!auth.authorized) return auth.response!
 
     const body = await req.json()
-    const { examId, name, description, category_id, country_id, approval_status, is_featured, status, difficulty, question_count, time_limit_mins, official_website, aliases } = body
+    const { examId, name, description, category_id, country_id, verification_status, is_featured, status, difficulty, question_count, time_limit_mins, official_website, aliases } = body
 
     if (!examId) {
       return NextResponse.json({ error: 'Missing examId' }, { status: 400 })
@@ -220,22 +226,13 @@ export async function PATCH(req: NextRequest) {
     if (description !== undefined) updateData.description = description
     if (category_id !== undefined) updateData.category_id = category_id || null
     if (country_id !== undefined) updateData.country_id = country_id || null
-    if (approval_status) updateData.approval_status = approval_status
+    if (verification_status) updateData.verification_status = verification_status
     if (typeof is_featured === 'boolean') updateData.is_featured = is_featured
     if (status) updateData.status = status
     if (difficulty) updateData.difficulty = difficulty
     if (question_count) updateData.question_count = parseInt(question_count, 10)
     if (time_limit_mins) updateData.time_limit_mins = parseInt(time_limit_mins, 10)
-    if (official_website !== undefined) updateData.official_website = official_website
-
-    if (aliases !== undefined) {
-      const parsedAliases = Array.isArray(aliases)
-        ? aliases.map((a: string) => a.trim()).filter(Boolean)
-        : typeof aliases === 'string'
-        ? aliases.split(',').map((a) => a.trim()).filter(Boolean)
-        : []
-      updateData.aliases = parsedAliases
-    }
+    if (official_website !== undefined) updateData.official_url = official_website
 
     const { data: updated, error } = await (supabase as any)
       .from('exams')
@@ -246,6 +243,22 @@ export async function PATCH(req: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    if (aliases !== undefined) {
+      const parsedAliases = Array.isArray(aliases)
+        ? aliases.map((a: string) => a.trim()).filter(Boolean)
+        : typeof aliases === 'string'
+        ? aliases.split(',').map((a) => a.trim()).filter(Boolean)
+        : []
+
+      if (parsedAliases.length > 0) {
+        const aliasInserts = parsedAliases.map((a: string) => ({
+          exam_id: examId,
+          alias: a.toLowerCase(),
+        }))
+        await (supabase as any).from('exam_aliases').upsert(aliasInserts, { onConflict: 'exam_id,alias' })
+      }
     }
 
     return NextResponse.json({ success: true, exam: updated })
@@ -283,4 +296,5 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 })
   }
 }
+
 

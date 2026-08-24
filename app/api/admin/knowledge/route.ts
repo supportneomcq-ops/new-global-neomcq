@@ -27,13 +27,13 @@ export async function GET(req: NextRequest) {
 
     const { data: subjectAliases } = await (supabase as any)
       .from('subject_aliases')
-      .select('*, exam_subjects(name, slug, exam_id)')
+      .select('*, exam_subjects(name, exam_id)')
       .order('created_at', { ascending: false })
       .limit(100)
 
     const { data: topicAliases } = await (supabase as any)
       .from('topic_aliases')
-      .select('*, exam_topics(name, slug, subject_id)')
+      .select('*, exam_topics(name, subject_id)')
       .order('created_at', { ascending: false })
       .limit(100)
 

@@ -23,6 +23,9 @@ import {
   FileCode,
   Timer,
   Sliders,
+  X,
+  Info,
+  Wrench
 } from 'lucide-react';
 
 export default function AdminSystemHealthPage() {
@@ -31,6 +34,8 @@ export default function AdminSystemHealthPage() {
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [search, setSearch] = useState('');
+  const [selectedService, setSelectedService] = useState<any>(null);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
 
   const loadHealthData = async () => {
     setLoading(true);
@@ -39,6 +44,7 @@ export default function AdminSystemHealthPage() {
       const json = await res.json();
       if (json.success) {
         setData(json);
+        setLastRefreshedAt(new Date());
       }
     } catch (err) {
       console.error('Error loading health data:', err);
@@ -49,6 +55,11 @@ export default function AdminSystemHealthPage() {
 
   useEffect(() => {
     loadHealthData();
+    // Auto refresh health checks every 30 seconds
+    const interval = setInterval(() => {
+      loadHealthData();
+    }, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const getStatusBadge = (st: string) => {
@@ -69,6 +80,12 @@ export default function AdminSystemHealthPage() {
         return (
           <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center gap-1">
             <XCircle className="w-3 h-3 text-rose-400" /> DOWN
+          </span>
+        );
+      case 'NOT_CONFIGURED':
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1">
+            <Sliders className="w-3 h-3 text-amber-400" /> NOT CONFIGURED
           </span>
         );
       default:
@@ -99,16 +116,22 @@ export default function AdminSystemHealthPage() {
             <HeartPulse className="w-6 h-6 text-[#6D5BFF]" />
             <span>Infrastructure System Health Dashboard</span>
           </h1>
-          <p className="text-xs text-slate-500 dark:text-gray-400">
-            Real-time status monitoring for application runtime, database, storage, AI engine, payments, and background worker queues.
+          <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">
+            Real-time health telemetry & diagnostic status for NeoMCQ application services.
+            {lastRefreshedAt && (
+              <span className="text-slate-400 ml-2">
+                Last checked: {lastRefreshedAt.toLocaleTimeString()} (Auto-refreshes every 30s)
+              </span>
+            )}
           </p>
         </div>
 
         <button
           onClick={loadHealthData}
-          className="p-2.5 px-4 rounded-2xl bg-slate-100 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-slate-300 text-xs font-bold flex items-center gap-2 shadow-sm"
+          disabled={loading}
+          className="p-2.5 px-4 rounded-2xl bg-slate-100 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-slate-300 text-xs font-bold flex items-center gap-2 shadow-sm hover:border-[#6D5BFF] transition-all"
         >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-[#6D5BFF]' : ''}`} />
           <span>Ping System Health</span>
         </button>
       </div>
@@ -129,7 +152,7 @@ export default function AdminSystemHealthPage() {
             {loading ? '...' : data?.summary?.healthyCount || 0}
           </div>
           <div className="text-[10px] text-emerald-500 font-extrabold flex items-center gap-1">
-            <CheckCircle2 className="w-3 h-3" /> 100% Operational
+            <CheckCircle2 className="w-3 h-3" /> Fully Operational
           </div>
         </div>
 
@@ -150,11 +173,11 @@ export default function AdminSystemHealthPage() {
         </div>
 
         <div className="p-4 rounded-2xl bg-white dark:bg-[#090D1E] border border-slate-200 dark:border-gray-800 shadow-sm space-y-1 col-span-2 sm:col-span-1">
-          <div className="text-[10px] font-bold uppercase text-slate-400">Unknown / Unset</div>
-          <div className="text-2xl font-black text-slate-400">
-            {loading ? '...' : data?.summary?.unknownCount || 0}
+          <div className="text-[10px] font-bold uppercase text-slate-400">Not Configured / Unknown</div>
+          <div className="text-2xl font-black text-amber-400">
+            {loading ? '...' : (data?.summary?.notConfiguredCount || 0) + (data?.summary?.unknownCount || 0)}
           </div>
-          <div className="text-[10px] text-slate-400 font-medium">Unconfigured Keys</div>
+          <div className="text-[10px] text-amber-400 font-medium">Missing Env Variables</div>
         </div>
       </div>
 
@@ -166,22 +189,22 @@ export default function AdminSystemHealthPage() {
           </div>
           <div>
             <div className="font-bold text-sm">System Failures & Incident Log Counters</div>
-            <div className="text-xs text-slate-400">Real-time counts calculated directly from live database tables.</div>
+            <div className="text-xs text-slate-400">Real-time metrics calculated from live database records.</div>
           </div>
         </div>
 
         <div className="flex items-center gap-6 text-xs font-mono">
           <div className="text-center">
             <span className="text-[10px] text-slate-400 uppercase block">Failed AI Jobs</span>
-            <span className="text-sm font-black text-rose-400">{data?.summary?.incidents?.failedAiJobs || 0}</span>
+            <span className="text-sm font-black text-rose-400">{data?.summary?.incidents?.failedAiJobs ?? 0}</span>
           </div>
           <div className="text-center">
             <span className="text-[10px] text-slate-400 uppercase block">Failed Webhooks</span>
-            <span className="text-sm font-black text-amber-400">{data?.summary?.incidents?.failedWebhooks || 0}</span>
+            <span className="text-sm font-black text-amber-400">{data?.summary?.incidents?.failedWebhooks ?? 0}</span>
           </div>
           <div className="text-center">
             <span className="text-[10px] text-slate-400 uppercase block">Failed Emails</span>
-            <span className="text-sm font-black text-slate-300">{data?.summary?.incidents?.failedEmails || 0}</span>
+            <span className="text-sm font-black text-slate-300">{data?.summary?.incidents?.failedEmails ?? 0}</span>
           </div>
         </div>
       </div>
@@ -209,6 +232,7 @@ export default function AdminSystemHealthPage() {
             <option value="HEALTHY">HEALTHY</option>
             <option value="DEGRADED">DEGRADED</option>
             <option value="DOWN">DOWN</option>
+            <option value="NOT_CONFIGURED">NOT CONFIGURED</option>
             <option value="UNKNOWN">UNKNOWN</option>
           </select>
         </div>
@@ -216,7 +240,7 @@ export default function AdminSystemHealthPage() {
 
       {/* Services Health Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {loading ? (
+        {loading && !data ? (
           <div className="col-span-full p-12 text-center text-slate-400">
             <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-[#6D5BFF]" />
             <span>Pinging system services...</span>
@@ -225,7 +249,8 @@ export default function AdminSystemHealthPage() {
           filteredServices.map((svc: any) => (
             <div
               key={svc.id}
-              className="p-5 rounded-3xl bg-white dark:bg-[#090D1E] border border-slate-200 dark:border-gray-800 shadow-sm space-y-3 flex flex-col justify-between"
+              onClick={() => setSelectedService(svc)}
+              className="p-5 rounded-3xl bg-white dark:bg-[#090D1E] border border-slate-200 dark:border-gray-800 shadow-sm space-y-3 flex flex-col justify-between hover:border-[#6D5BFF]/50 transition-all cursor-pointer group"
             >
               <div>
                 <div className="flex items-center justify-between gap-2 mb-2">
@@ -235,10 +260,12 @@ export default function AdminSystemHealthPage() {
                   {getStatusBadge(svc.status)}
                 </div>
 
-                <h3 className="font-bold text-sm text-slate-900 dark:text-white">{svc.name}</h3>
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-[#6D5BFF] transition-colors">
+                  {svc.name}
+                </h3>
 
                 {svc.error_summary && (
-                  <p className="text-[11px] text-rose-400 font-mono mt-2 bg-rose-500/10 p-2 rounded-xl border border-rose-500/20">
+                  <p className="text-[11px] text-amber-400 font-mono mt-2 bg-amber-500/10 p-2 rounded-xl border border-amber-500/20">
                     {svc.error_summary}
                   </p>
                 )}
@@ -246,7 +273,7 @@ export default function AdminSystemHealthPage() {
 
               <div className="pt-3 border-t border-slate-200 dark:border-gray-800/80 flex items-center justify-between text-[11px] text-slate-400 font-mono">
                 <span>Latency: {svc.latency_ms !== undefined ? `${svc.latency_ms}ms` : 'N/A'}</span>
-                <span>Checked: {new Date(svc.last_checked).toLocaleTimeString()}</span>
+                <span className="text-[10px] underline text-slate-500 group-hover:text-slate-300">Inspect Details →</span>
               </div>
             </div>
           ))
@@ -257,7 +284,7 @@ export default function AdminSystemHealthPage() {
       <div className="rounded-3xl bg-white dark:bg-[#090D1E] border border-slate-200 dark:border-gray-800 overflow-hidden shadow-sm">
         <div className="p-4 border-b border-slate-200 dark:border-gray-800 font-bold text-sm text-slate-900 dark:text-white flex items-center justify-between">
           <span>Telemetry Incident & Status Check History</span>
-          <span className="text-xs text-slate-400 font-normal">Safe operational logs</span>
+          <span className="text-xs text-slate-400 font-normal">Real audit logs & execution history</span>
         </div>
 
         <div className="overflow-x-auto">
@@ -285,6 +312,82 @@ export default function AdminSystemHealthPage() {
           </table>
         </div>
       </div>
+
+      {/* Inspection Modal for Unconfigured / Failed Service */}
+      {selectedService && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#090D1E] border border-slate-800 rounded-3xl max-w-lg w-full p-6 space-y-5 text-white shadow-2xl relative animate-in fade-in zoom-in-95">
+            <button
+              onClick={() => setSelectedService(null)}
+              className="absolute top-5 right-5 p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-[#6D5BFF]/20 text-[#6D5BFF]">
+                <Info className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-black">{selectedService.name}</h3>
+                <div className="text-xs text-slate-400 uppercase font-bold mt-0.5">{selectedService.category}</div>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-xs bg-slate-900/80 p-4 rounded-2xl border border-slate-800">
+              <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+                <span className="text-slate-400 font-bold">Current Status:</span>
+                <div>{getStatusBadge(selectedService.status)}</div>
+              </div>
+
+              <div className="flex justify-between items-center pb-2 border-b border-slate-800 font-mono">
+                <span className="text-slate-400 font-bold">Measured Latency:</span>
+                <span className="text-emerald-400 font-bold">{selectedService.latency_ms !== undefined ? `${selectedService.latency_ms}ms` : 'N/A'}</span>
+              </div>
+
+              <div className="flex justify-between items-center pb-2 border-b border-slate-800 font-mono">
+                <span className="text-slate-400 font-bold">Last Checked:</span>
+                <span className="text-slate-300">{new Date(selectedService.last_checked).toLocaleString()}</span>
+              </div>
+
+              <div className="space-y-1 pt-1">
+                <span className="text-slate-400 font-bold block">Status Details:</span>
+                <p className="text-slate-200 font-mono bg-slate-950 p-2.5 rounded-xl border border-slate-800/80">
+                  {selectedService.details || 'Service operational.'}
+                </p>
+              </div>
+
+              {selectedService.error_summary && (
+                <div className="space-y-1 pt-1">
+                  <span className="text-amber-400 font-bold block">Error Summary:</span>
+                  <p className="text-amber-300 font-mono bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/20">
+                    {selectedService.error_summary}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 rounded-2xl bg-[#6D5BFF]/10 border border-[#6D5BFF]/20 space-y-1">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-[#6D5BFF]">
+                <Wrench className="w-4 h-4" />
+                <span>Recommended Action:</span>
+              </div>
+              <p className="text-xs text-slate-300">
+                {selectedService.recommended_action || 'No action required.'}
+              </p>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                onClick={() => setSelectedService(null)}
+                className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs"
+              >
+                Close Inspector
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

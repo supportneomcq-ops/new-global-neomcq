@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (search) {
-      query = query.or(`name.ilike.%${search}%,slug.ilike.%${search}%`)
+      query = query.ilike('name', `%${search}%`)
     }
 
     const { data: topics, error } = await query
@@ -128,13 +128,9 @@ export async function POST(req: NextRequest) {
       .insert({
         subject_id,
         name: name.trim(),
-        slug,
         description: description || '',
-        level: level || 'topic',
-        target_weight: parseFloat(target_weight) || 5.0,
-        order_index: parseInt(order_index, 10) || 0,
-        learning_objectives: Array.isArray(learning_objectives) ? learning_objectives : [],
-        validation_status: 'verified',
+        importance: level || 'Medium',
+        verification_status: 'verified',
       })
       .select()
       .single()
@@ -184,14 +180,10 @@ export async function PATCH(req: NextRequest) {
 
     if (name) {
       updateData.name = name.trim()
-      const norm = normalizeInput(name)
-      updateData.slug = norm.slug
     }
     if (description !== undefined) updateData.description = description
-    if (level) updateData.level = level
-    if (target_weight !== undefined) updateData.target_weight = parseFloat(target_weight)
-    if (order_index !== undefined) updateData.order_index = parseInt(order_index, 10)
-    if (validation_status) updateData.validation_status = validation_status
+    if (level) updateData.importance = level
+    if (validation_status) updateData.verification_status = validation_status
 
     const { data: updated, error } = await (supabase as any)
       .from('exam_topics')

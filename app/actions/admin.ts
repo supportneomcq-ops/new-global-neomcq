@@ -236,7 +236,7 @@ export async function getSystemMetricsAction() {
 
   // AI jobs counts
   const { data: jobs, error: jError } = await adminClient
-    .from('ai_generation_jobs')
+    .from('ai_jobs')
     .select('*')
     .order('created_at', { ascending: false });
 
@@ -654,10 +654,25 @@ export async function changeUserRoleAction(userId: string, roleId: string, actio
   const adminUser = await checkIsAdmin();
   const adminClient = getSupabaseAdmin();
 
+  // Safeguard: Last Super Admin protection
+  if (actionType === 'remove') {
+    const { data: roleObj } = await adminClient.from('roles').select('name').eq('id', roleId).maybeSingle();
+    if (roleObj?.name === 'super_admin' || roleObj?.name === 'admin') {
+      const { count } = await adminClient
+        .from('user_roles')
+        .select('*', { count: 'exact', head: true })
+        .eq('role_id', roleId);
+
+      if (count !== null && count <= 1) {
+        throw new Error(`Cannot revoke role: At least one active ${roleObj.name} must remain in the system to prevent lockout.`);
+      }
+    }
+  }
+
   if (actionType === 'add') {
     const { error } = await adminClient
       .from('user_roles')
-      .insert({ user_id: userId, role_id: roleId });
+      .upsert({ user_id: userId, role_id: roleId }, { onConflict: 'user_id,role_id' });
     if (error) throw error;
   } else {
     const { error } = await adminClient
@@ -728,304 +743,357 @@ export async function getLiveDashboardMetricsAction(timeRange: string = '7_days'
   await checkIsSupportOrAdmin();
   const adminClient = getSupabaseAdmin();
 
-  // Helper for date ranges
+  // Determine current & previous period date thresholds
+  const now = new Date();
   let startDate = new Date();
+  let prevStartDate = new Date();
+
   if (timeRange === '7_days') {
-    startDate.setDate(startDate.getDate() - 7);
+    startDate.setDate(now.getDate() - 7);
+    prevStartDate.setDate(now.getDate() - 14);
   } else if (timeRange === '30_days') {
-    startDate.setDate(startDate.getDate() - 30);
+    startDate.setDate(now.getDate() - 30);
+    prevStartDate.setDate(now.getDate() - 60);
+  } else if (timeRange === '90_days') {
+    startDate.setDate(now.getDate() - 90);
+    prevStartDate.setDate(now.getDate() - 180);
+  } else if (timeRange === 'this_year') {
+    startDate = new Date(now.getFullYear(), 0, 1);
+    const yearDiff = now.getTime() - startDate.getTime();
+    prevStartDate = new Date(startDate.getTime() - yearDiff);
   } else {
-    startDate = new Date(0); // All time
+    // All time
+    startDate = new Date(0);
+    prevStartDate = new Date(0);
   }
+
+  const isAllTime = timeRange === 'all';
+  const startIso = startDate.toISOString();
+  const prevStartIso = prevStartDate.toISOString();
 
   const results: Record<string, any> = {};
 
-  // 1. Total Users Count
+  // 1. Total Users
   try {
-    const { count, error } = await adminClient
+    const { count } = await adminClient
       .from('profiles')
       .select('id', { count: 'exact', head: true });
-    if (error) throw error;
-    results.totalUsers = count !== null ? count : 'Awaiting first event';
+    results.totalUsers = count || 0;
   } catch (err) {
-    results.totalUsers = 'Service unavailable';
+    results.totalUsers = 0;
   }
 
-  // 2. New Users Count (last 7 / 30 days)
+  // 2. New Users (current vs previous period)
   try {
-    let q = adminClient.from('profiles').select('id', { count: 'exact', head: true });
-    if (timeRange !== 'all') {
-      q = q.gte('created_at', startDate.toISOString());
-    }
-    const { count, error } = await q;
-    if (error) throw error;
-    results.newUsers = count !== null ? count : 0;
+    let qCurr = adminClient.from('profiles').select('id', { count: 'exact', head: true });
+    if (!isAllTime) qCurr = qCurr.gte('created_at', startIso);
+    const { count: currCount } = await qCurr;
+    results.newUsers = currCount || 0;
+
+    let qPrev = adminClient.from('profiles').select('id', { count: 'exact', head: true }).gte('created_at', prevStartIso);
+    if (!isAllTime) qPrev = qPrev.lt('created_at', startIso);
+    const { count: prevCount } = await qPrev;
+    results.newUsersPrev = prevCount || 0;
   } catch (err) {
-    results.newUsers = 'Service unavailable';
+    results.newUsers = 0;
+    results.newUsersPrev = 0;
   }
 
-  // 3. Active Users Count (distinct user_ids from study sessions)
+  // 3. Active Users (distinct user_id from study_sessions)
   try {
-    let q = adminClient.from('study_sessions').select('user_id');
-    if (timeRange !== 'all') {
-      q = q.gte('completed_at', startDate.toISOString());
-    }
-    const { data, error } = await q;
-    if (error) throw error;
-    const uniqueUsers = new Set(data?.map(d => d.user_id) || []);
-    results.activeUsers = uniqueUsers.size > 0 ? uniqueUsers.size : 'Awaiting first event';
+    let qCurr = adminClient.from('study_sessions').select('user_id');
+    if (!isAllTime) qCurr = qCurr.gte('created_at', startIso);
+    const { data: currSessions } = await qCurr;
+    const currActive = new Set(currSessions?.map(s => s.user_id) || []).size;
+    results.activeUsers = currActive;
+
+    let qPrev = adminClient.from('study_sessions').select('user_id').gte('created_at', prevStartIso);
+    if (!isAllTime) qPrev = qPrev.lt('created_at', startIso);
+    const { data: prevSessions } = await qPrev;
+    const prevActive = new Set(prevSessions?.map(s => s.user_id) || []).size;
+    results.activeUsersPrev = prevActive;
   } catch (err) {
-    results.activeUsers = 'Not configured';
+    results.activeUsers = 0;
+    results.activeUsersPrev = 0;
   }
 
-  // 4. Premium Users Count (active subscriptions)
+  // 4. Premium Users (active subscriptions)
   try {
-    const { count, error } = await adminClient
+    const { count } = await adminClient
       .from('subscriptions')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'active');
-    if (error) throw error;
-    results.premiumUsers = count !== null ? count : 0;
+    results.premiumUsers = count || 0;
+    results.premiumUsersPrev = 0;
   } catch (err) {
-    results.premiumUsers = 'Service unavailable';
+    results.premiumUsers = 0;
+    results.premiumUsersPrev = 0;
   }
 
-  // 5. Monthly Revenue
+  // 5. Monthly / Range Revenue
   try {
-    let q = adminClient
-      .from('payments')
-      .select('amount, created_at')
-      .in('status', ['captured', 'completed', 'success']);
-    if (timeRange !== 'all') {
-      q = q.gte('created_at', startDate.toISOString());
-    }
-    const { data, error } = await q;
-    if (error) throw error;
-    const sum = data?.reduce((acc, p) => acc + Number(p.amount || 0), 0) || 0;
-    results.revenue = sum;
+    let qCurr = adminClient.from('payments').select('amount, created_at').in('status', ['captured', 'completed', 'success', 'paid']);
+    if (!isAllTime) qCurr = qCurr.gte('created_at', startIso);
+    const { data: currPayments } = await qCurr;
+    const currRev = currPayments?.reduce((acc, p) => acc + Number(p.amount || 0), 0) || 0;
+    results.revenue = currRev;
 
-    // Daily revenue calculation for chart
-    const dailyRev = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toDateString();
-      const label = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-      
-      const dayPayments = data?.filter(p => {
-        const created = new Date(p.created_at);
-        return created.toDateString() === dateStr;
-      }) || [];
-      const daySum = dayPayments.reduce((acc, p) => acc + Number(p.amount || 0), 0);
-      dailyRev.push({ name: label, revenue: daySum });
-    }
-    results.dailyRevenue = dailyRev;
+    let qPrev = adminClient.from('payments').select('amount').in('status', ['captured', 'completed', 'success', 'paid']).gte('created_at', prevStartIso);
+    if (!isAllTime) qPrev = qPrev.lt('created_at', startIso);
+    const { data: prevPayments } = await qPrev;
+    const prevRev = prevPayments?.reduce((acc, p) => acc + Number(p.amount || 0), 0) || 0;
+    results.revenuePrev = prevRev;
   } catch (err) {
-    results.revenue = 'Service unavailable';
-    results.dailyRevenue = [];
+    results.revenue = 0;
+    results.revenuePrev = 0;
   }
 
-  // 6. AI Requests Count
+  // 6. AI Requests Count (from ai_jobs)
   try {
-    let q = adminClient.from('ai_generation_jobs').select('id', { count: 'exact', head: true });
-    if (timeRange !== 'all') {
-      q = q.gte('created_at', startDate.toISOString());
-    }
-    const { count, error } = await q;
-    if (error) throw error;
-    results.aiRequests = count !== null ? count : 'Awaiting first event';
+    let qCurr = adminClient.from('ai_jobs').select('id', { count: 'exact', head: true });
+    if (!isAllTime) qCurr = qCurr.gte('created_at', startIso);
+    const { count: currCount } = await qCurr;
+    results.aiRequests = currCount || 0;
+
+    let qPrev = adminClient.from('ai_jobs').select('id', { count: 'exact', head: true }).gte('created_at', prevStartIso);
+    if (!isAllTime) qPrev = qPrev.lt('created_at', startIso);
+    const { count: prevCount } = await qPrev;
+    results.aiRequestsPrev = prevCount || 0;
   } catch (err) {
-    results.aiRequests = 'Service unavailable';
+    results.aiRequests = 0;
+    results.aiRequestsPrev = 0;
   }
 
-  // 7. Questions Generated Count
+  // 7. Questions Generated Count (from mcqs)
   try {
-    const { count, error } = await adminClient
-      .from('mcqs')
-      .select('id', { count: 'exact', head: true });
-    if (error) throw error;
-    results.questionsGenerated = count !== null ? count : 'Awaiting first event';
+    let qCurr = adminClient.from('mcqs').select('id', { count: 'exact', head: true });
+    if (!isAllTime) qCurr = qCurr.gte('created_at', startIso);
+    const { count: currCount } = await qCurr;
+    results.questionsGenerated = currCount || 0;
+
+    let qPrev = adminClient.from('mcqs').select('id', { count: 'exact', head: true }).gte('created_at', prevStartIso);
+    if (!isAllTime) qPrev = qPrev.lt('created_at', startIso);
+    const { count: prevCount } = await qPrev;
+    results.questionsGeneratedPrev = prevCount || 0;
   } catch (err) {
-    results.questionsGenerated = 'Not configured';
+    results.questionsGenerated = 0;
+    results.questionsGeneratedPrev = 0;
   }
 
   // 8. Questions Solved Count
   try {
-    let q = adminClient.from('study_sessions').select('questions_answered');
-    if (timeRange !== 'all') {
-      q = q.gte('completed_at', startDate.toISOString());
-    }
-    const { data, error } = await q;
-    if (error) throw error;
-    const sum = data?.reduce((acc, s) => acc + Number(s.questions_answered || 0), 0) || 0;
-    results.questionsSolved = sum > 0 ? sum : 'Awaiting first event';
+    let qCurr = adminClient.from('study_sessions').select('questions_answered');
+    if (!isAllTime) qCurr = qCurr.gte('created_at', startIso);
+    const { data: currSessions } = await qCurr;
+    results.questionsSolved = currSessions?.reduce((acc, s) => acc + Number(s.questions_answered || 0), 0) || 0;
+
+    let qPrev = adminClient.from('study_sessions').select('questions_answered').gte('created_at', prevStartIso);
+    if (!isAllTime) qPrev = qPrev.lt('created_at', startIso);
+    const { data: prevSessions } = await qPrev;
+    results.questionsSolvedPrev = prevSessions?.reduce((acc, s) => acc + Number(s.questions_answered || 0), 0) || 0;
   } catch (err) {
-    results.questionsSolved = 'Not configured';
+    results.questionsSolved = 0;
+    results.questionsSolvedPrev = 0;
   }
 
   // 9. Learning Sessions Count
   try {
-    let q = adminClient.from('study_sessions').select('id', { count: 'exact', head: true });
-    if (timeRange !== 'all') {
-      q = q.gte('completed_at', startDate.toISOString());
-    }
-    const { count, error } = await q;
-    if (error) throw error;
-    results.learningSessions = count !== null ? count : 'Awaiting first event';
+    let qCurr = adminClient.from('study_sessions').select('id', { count: 'exact', head: true });
+    if (!isAllTime) qCurr = qCurr.gte('created_at', startIso);
+    const { count: currCount } = await qCurr;
+    results.learningSessions = currCount || 0;
+
+    let qPrev = adminClient.from('study_sessions').select('id', { count: 'exact', head: true }).gte('created_at', prevStartIso);
+    if (!isAllTime) qPrev = qPrev.lt('created_at', startIso);
+    const { count: prevCount } = await qPrev;
+    results.learningSessionsPrev = prevCount || 0;
   } catch (err) {
-    results.learningSessions = 'Not configured';
+    results.learningSessions = 0;
+    results.learningSessionsPrev = 0;
   }
 
   // 10. AI Cost
   try {
-    const { data: costEvents, error: costErr } = await adminClient
-      .from('ai_cost_events')
-      .select('actual_provider_cost, ai_infrastructure_cost');
-    if (!costErr && costEvents && costEvents.length > 0) {
-      const totalCost = costEvents.reduce((sum, ev) => sum + (Number(ev.actual_provider_cost || 0) + Number(ev.ai_infrastructure_cost || 0)), 0);
-      results.aiCost = `₹${Math.round(totalCost * 83.5).toLocaleString()}`;
+    const { data: costEvents } = await adminClient.from('ai_cost_events').select('actual_provider_cost, ai_infrastructure_cost');
+    if (costEvents && costEvents.length > 0) {
+      const sum = costEvents.reduce((acc, c) => acc + (Number(c.actual_provider_cost || 0) + Number(c.ai_infrastructure_cost || 0)), 0);
+      results.aiCost = `₹${Math.round(sum * 83.5).toLocaleString()}`;
+      results.aiCostVal = sum;
     } else {
-      const { data: jobs } = await adminClient.from('ai_generation_jobs').select('input_params, status, result');
-      if (jobs && jobs.length > 0) {
-        let totalCostUsd = 0;
-        jobs.forEach((j: any) => {
-          const pricing = { inputPerM: 0.10, outputPerM: 0.40 };
-          const estInput = j.input_params?.estimated_input_tokens || 850;
-          const estOutput = j.result?.generated_count ? j.result.generated_count * 220 : (j.status === 'completed' ? 2400 : 0);
-          totalCostUsd += (estInput / 1000000) * pricing.inputPerM + (estOutput / 1000000) * pricing.outputPerM;
-        });
-        results.aiCost = `₹${Math.round(totalCostUsd * 83.5).toLocaleString()}`;
-      } else {
-        results.aiCost = 'Awaiting first event';
-      }
+      results.aiCost = 'Not tracked';
+      results.aiCostVal = 0;
     }
   } catch (err) {
-    results.aiCost = 'Not configured';
+    results.aiCost = 'Not tracked';
+    results.aiCostVal = 0;
   }
 
   // 11. Storage Used
   try {
-    const { data: buckets, error: storageErr } = await adminClient.storage.listBuckets();
-    if (storageErr) throw storageErr;
+    const { data: buckets } = await adminClient.storage.listBuckets();
     if (buckets && buckets.length > 0) {
-      let totalSizeMB = 0;
+      let totalMB = 0;
       for (const b of buckets) {
         const { data: files } = await adminClient.storage.from(b.id).list();
         files?.forEach(f => {
-          totalSizeMB += (f.metadata?.size || 0) / (1024 * 1024);
+          totalMB += (f.metadata?.size || 0) / (1024 * 1024);
         });
       }
-      results.storageUsed = totalSizeMB > 1024 ? `${(totalSizeMB / 1024).toFixed(2)} GB` : `${totalSizeMB.toFixed(2)} MB`;
+      results.storageUsed = totalMB > 1024 ? `${(totalMB / 1024).toFixed(2)} GB` : `${totalMB.toFixed(2)} MB`;
     } else {
       results.storageUsed = '0.00 MB';
     }
   } catch (err) {
-    results.storageUsed = 'Service unavailable';
+    results.storageUsed = 'Not available';
   }
 
   // 12. Failed Jobs Count
   try {
-    const { count, error } = await adminClient
-      .from('ai_generation_jobs')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'failed');
-    if (error) throw error;
-    results.failedJobs = count !== null ? count : 0;
+    let qCurr = adminClient.from('ai_jobs').select('id', { count: 'exact', head: true }).eq('status', 'failed');
+    if (!isAllTime) qCurr = qCurr.gte('created_at', startIso);
+    const { count: currCount } = await qCurr;
+    results.failedJobs = currCount || 0;
+
+    let qPrev = adminClient.from('ai_jobs').select('id', { count: 'exact', head: true }).eq('status', 'failed').gte('created_at', prevStartIso);
+    if (!isAllTime) qPrev = qPrev.lt('created_at', startIso);
+    const { count: prevCount } = await qPrev;
+    results.failedJobsPrev = prevCount || 0;
   } catch (err) {
-    results.failedJobs = 'Service unavailable';
+    results.failedJobs = 0;
+    results.failedJobsPrev = 0;
   }
 
-  // 13. Subscriptions Count
+  // 13. User Growth Chart Data
   try {
-    const { count, error } = await adminClient
-      .from('subscriptions')
-      .select('id', { count: 'exact', head: true });
-    if (error) throw error;
-    results.subscriptions = count !== null ? count : 'Awaiting first event';
-  } catch (err) {
-    results.subscriptions = 'Service unavailable';
-  }
+    const numBuckets = timeRange === '7_days' ? 7 : timeRange === '30_days' ? 30 : 12;
+    const chartBuckets = [];
+    const { data: allProfiles } = await adminClient.from('profiles').select('created_at').order('created_at', { ascending: true });
 
-  // 14. Payments Count
-  try {
-    const { count, error } = await adminClient
-      .from('payments')
-      .select('id', { count: 'exact', head: true });
-    if (error) throw error;
-    results.payments = count !== null ? count : 'Awaiting first event';
-  } catch (err) {
-    results.payments = 'Service unavailable';
-  }
-
-  // 15. Refunds Count
-  try {
-    const { data, error } = await adminClient
-      .from('payments')
-      .select('amount')
-      .eq('status', 'refunded');
-    if (error) throw error;
-    results.refundsCount = data ? data.length : 0;
-    const sum = data?.reduce((acc, p) => acc + Number(p.amount || 0), 0) || 0;
-    results.refundAmount = sum;
-  } catch (err) {
-    results.refundsCount = 'Service unavailable';
-    results.refundAmount = 'Service unavailable';
-  }
-
-  // 16. Credits Sold & Used
-  try {
-    const { data: ledgerIn } = await adminClient
-      .from('credit_ledger')
-      .select('credits')
-      .eq('transaction_type', 'PURCHASE');
-    const creditsSold = ledgerIn?.reduce((acc, curr) => acc + Number(curr.credits || 0), 0) || 0;
-
-    const { data: ledgerOut } = await adminClient
-      .from('credit_ledger')
-      .select('credits')
-      .in('transaction_type', ['DEDUCTION', 'CONSUMPTION', 'USE', 'GENERATION']);
-    const creditsUsed = ledgerOut?.reduce((acc, curr) => acc + Math.abs(Number(curr.credits || 0)), 0) || 0;
-
-    results.creditsSold = creditsSold;
-    results.creditsUsed = creditsUsed;
-  } catch (err) {
-    results.creditsSold = 'Not configured';
-    results.creditsUsed = 'Not configured';
-  }
-
-  // 17. AI Gross Margin
-  try {
-    let totalCostUsd = 0;
-    const { data: costEvents } = await adminClient.from('ai_cost_events').select('actual_provider_cost, ai_infrastructure_cost');
-    if (costEvents && costEvents.length > 0) {
-      totalCostUsd = costEvents.reduce((sum, ev) => sum + (Number(ev.actual_provider_cost || 0) + Number(ev.ai_infrastructure_cost || 0)), 0);
-    } else {
-      const { data: jobs } = await adminClient.from('ai_generation_jobs').select('input_params, status, result');
-      if (jobs && jobs.length > 0) {
-        jobs.forEach((j: any) => {
-          const pricing = { inputPerM: 0.10, outputPerM: 0.40 };
-          const estInput = j.input_params?.estimated_input_tokens || 850;
-          const estOutput = j.result?.generated_count ? j.result.generated_count * 220 : (j.status === 'completed' ? 2400 : 0);
-          totalCostUsd += (estInput / 1000000) * pricing.inputPerM + (estOutput / 1000000) * pricing.outputPerM;
-        });
+    for (let i = numBuckets - 1; i >= 0; i--) {
+      const d = new Date();
+      if (timeRange === '7_days' || timeRange === '30_days') {
+        d.setDate(now.getDate() - i);
+      } else {
+        d.setMonth(now.getMonth() - i);
       }
+      const label = d.toLocaleDateString(undefined, timeRange === '7_days' || timeRange === '30_days' ? { month: 'short', day: 'numeric' } : { month: 'short', year: '2-digit' });
+      const dayEnd = new Date(d);
+      dayEnd.setHours(23, 59, 59, 999);
+      const dayStart = new Date(d);
+      dayStart.setHours(0, 0, 0, 0);
+
+      const cumulative = allProfiles?.filter(p => new Date(p.created_at) <= dayEnd).length || 0;
+      const newInBucket = allProfiles?.filter(p => {
+        const c = new Date(p.created_at);
+        return c >= dayStart && c <= dayEnd;
+      }).length || 0;
+
+      chartBuckets.push({ name: label, total: cumulative, new: newInBucket });
     }
+    results.userGrowthData = chartBuckets;
+  } catch (err) {
+    results.userGrowthData = [];
+  }
 
-    let revenueUsd = 0;
-    const { data: payments } = await adminClient.from('payments').select('amount, currency').in('status', ['captured', 'completed', 'success']);
-    payments?.forEach(p => {
-      const amt = Number(p.amount || 0);
-      revenueUsd += p.currency === 'INR' ? amt / 83.5 : amt;
-    });
+  // 14. Revenue Overview Chart Data
+  try {
+    const numBuckets = timeRange === '7_days' ? 7 : timeRange === '30_days' ? 30 : 12;
+    const revBuckets = [];
+    const { data: allPayments } = await adminClient.from('payments').select('amount, created_at').in('status', ['captured', 'completed', 'success', 'paid']);
 
-    if (revenueUsd > 0) {
-      const margin = ((revenueUsd - totalCostUsd) / revenueUsd) * 100;
-      results.aiGrossMargin = `${margin.toFixed(1)}%`;
+    for (let i = numBuckets - 1; i >= 0; i--) {
+      const d = new Date();
+      if (timeRange === '7_days' || timeRange === '30_days') {
+        d.setDate(now.getDate() - i);
+      } else {
+        d.setMonth(now.getMonth() - i);
+      }
+      const label = d.toLocaleDateString(undefined, timeRange === '7_days' || timeRange === '30_days' ? { month: 'short', day: 'numeric' } : { month: 'short', year: '2-digit' });
+      const dayEnd = new Date(d);
+      dayEnd.setHours(23, 59, 59, 999);
+      const dayStart = new Date(d);
+      dayStart.setHours(0, 0, 0, 0);
+
+      const bucketSum = allPayments?.filter(p => {
+        const c = new Date(p.created_at);
+        return c >= dayStart && c <= dayEnd;
+      }).reduce((sum, p) => sum + Number(p.amount || 0), 0) || 0;
+
+      revBuckets.push({ name: label, revenue: bucketSum });
+    }
+    results.dailyRevenue = revBuckets;
+  } catch (err) {
+    results.dailyRevenue = [];
+  }
+
+  // 15. Top Exams by Active Users
+  try {
+    const { data: userExams } = await adminClient.from('user_exams').select('exam_id, exams(id, name)');
+    if (userExams && userExams.length > 0) {
+      const counts: Record<string, { name: string; count: number }> = {};
+      userExams.forEach(ue => {
+        const examName = (ue.exams as any)?.name || 'Unknown Exam';
+        if (!counts[examName]) {
+          counts[examName] = { name: examName, count: 0 };
+        }
+        counts[examName].count += 1;
+      });
+
+      const colors = ['#6D5BFF', '#00D4FF', '#10B981', '#F59E0B', '#EF4444', '#A855F7', '#64748B'];
+      results.topExamsData = Object.values(counts)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5)
+        .map((entry, i) => ({
+          name: entry.name,
+          value: entry.count,
+          color: colors[i % colors.length]
+        }));
     } else {
-      results.aiGrossMargin = 'Not enough data';
+      results.topExamsData = [];
     }
   } catch (err) {
-    results.aiGrossMargin = 'Service unavailable';
+    results.topExamsData = [];
+  }
+
+  // 16. Recent AI Jobs
+  try {
+    const { data: recentJobs } = await adminClient
+      .from('ai_jobs')
+      .select('id, task, provider, model, status, created_at, started_at, completed_at, error')
+      .order('created_at', { ascending: false })
+      .limit(5);
+    results.recentJobs = recentJobs || [];
+  } catch (err) {
+    results.recentJobs = [];
+  }
+
+  // 17. Recent Audit Logs
+  try {
+    const { data: recentLogs } = await adminClient
+      .from('audit_logs')
+      .select('id, action, entity_type, details, created_at, profiles(first_name, last_name, email)')
+      .order('created_at', { ascending: false })
+      .limit(5);
+    results.recentNotifications = recentLogs || [];
+  } catch (err) {
+    results.recentNotifications = [];
+  }
+
+  // 18. Support Tickets Summary
+  try {
+    const { data: tickets } = await adminClient.from('support_tickets').select('status');
+    if (tickets && tickets.length > 0) {
+      results.supportTickets = {
+        open: tickets.filter(t => t.status === 'open').length,
+        inProgress: tickets.filter(t => t.status === 'in_progress').length,
+        pending: tickets.filter(t => t.status === 'pending').length,
+        resolved: tickets.filter(t => t.status === 'resolved').length,
+      };
+    } else {
+      results.supportTickets = { open: 0, inProgress: 0, pending: 0, resolved: 0 };
+    }
+  } catch (err) {
+    results.supportTickets = { open: 0, inProgress: 0, pending: 0, resolved: 0 };
   }
 
   return results;
@@ -1036,18 +1104,26 @@ export async function getAllExamSwitchRequestsAction() {
   await checkIsSupportOrAdmin();
   const adminClient = getSupabaseAdmin();
 
-  const { data, error } = await adminClient
-    .from('exam_switch_requests')
-    .select(`
-      *,
-      profiles:user_id(id, email, first_name, last_name),
-      from_exam:from_exam_id(id, name),
-      to_exam:to_exam_id(id, name)
-    `)
-    .order('created_at', { ascending: false });
+  try {
+    const { data, error } = await adminClient
+      .from('exam_switch_requests')
+      .select(`
+        *,
+        profiles:user_id(id, email, first_name, last_name),
+        from_exam:from_exam_id(id, name),
+        to_exam:to_exam_id(id, name)
+      `)
+      .order('created_at', { ascending: false });
 
-  if (error) throw error;
-  return data || [];
+    if (error) {
+      if (error.code === '42P01') return [];
+      console.error('Error fetching exam_switch_requests:', error);
+      return [];
+    }
+    return data || [];
+  } catch {
+    return [];
+  }
 }
 
 // 19. Fetch Exam Switch History
@@ -1055,18 +1131,26 @@ export async function getAllExamSwitchHistoryAction() {
   await checkIsSupportOrAdmin();
   const adminClient = getSupabaseAdmin();
 
-  const { data, error } = await adminClient
-    .from('exam_switch_history')
-    .select(`
-      *,
-      profiles:user_id(id, email, first_name, last_name),
-      from_exam:from_exam_id(id, name),
-      to_exam:to_exam_id(id, name)
-    `)
-    .order('switched_at', { ascending: false });
+  try {
+    const { data, error } = await adminClient
+      .from('exam_switch_history')
+      .select(`
+        *,
+        profiles:user_id(id, email, first_name, last_name),
+        from_exam:from_exam_id(id, name),
+        to_exam:to_exam_id(id, name)
+      `)
+      .order('switched_at', { ascending: false });
 
-  if (error) throw error;
-  return data || [];
+    if (error) {
+      if (error.code === '42P01') return [];
+      console.error('Error fetching exam_switch_history:', error);
+      return [];
+    }
+    return data || [];
+  } catch {
+    return [];
+  }
 }
 
 // 20. Admin Manual Exam Switch (Overrides/Corrections)

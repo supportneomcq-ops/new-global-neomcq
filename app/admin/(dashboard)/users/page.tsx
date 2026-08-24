@@ -1,14 +1,57 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Users, Search, Ban, CheckCircle, ShieldAlert, Plus, RefreshCw, Key, Loader2, AlertCircle, Check } from 'lucide-react';
-import { getAllUsersAction, createSupportAccountAction, toggleSupportRoleAction, toggleUserSuspensionAction, resetUserPasswordAction } from '@/app/actions/admin';
+import Link from 'next/link';
+import {
+  Users,
+  Search,
+  Ban,
+  CheckCircle,
+  ShieldAlert,
+  Plus,
+  RefreshCw,
+  Key,
+  Loader2,
+  AlertCircle,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  Eye,
+  UserCheck,
+  Shield,
+  CreditCard,
+  BookOpen,
+  Calendar,
+  X,
+  Lock,
+} from 'lucide-react';
+import {
+  getUsersPaginatedAction,
+  createSupportAccountAction,
+  toggleSupportRoleAction,
+  toggleUserSuspensionAction,
+  resetUserPasswordAction,
+  getRolesAndPermissionsAction,
+  changeUserRoleAction,
+} from '@/app/actions/admin';
 
 export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
-  const [userSearch, setUserSearch] = useState('');
+  const [totalCount, setTotalCount] = useState(0);
+
+  // Pagination & Filter States
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [search, setSearch] = useState('');
+  const [selectedRole, setSelectedRole] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('');
+  const [selectedSubscription, setSelectedSubscription] = useState('');
+
+  // Available roles for filter / assignment
+  const [availableRoles, setAvailableRoles] = useState<any[]>([]);
 
   // Create Support staff Modal State
   const [isCreateSupportOpen, setIsCreateSupportOpen] = useState(false);
@@ -25,11 +68,24 @@ export default function AdminUsersPage() {
   const [resetSuccess, setResetSuccess] = useState('');
   const [resetError, setResetError] = useState('');
 
+  // Change Roles Modal State
+  const [roleManagingUser, setRoleManagingUser] = useState<any | null>(null);
+  const [roleChangeSuccess, setRoleChangeSuccess] = useState('');
+  const [roleChangeError, setRoleChangeError] = useState('');
+
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const allUsers = await getAllUsersAction();
-      setUsers(allUsers || []);
+      const res = await getUsersPaginatedAction({
+        page,
+        pageSize,
+        search,
+        role: selectedRole || undefined,
+        status: selectedStatus || undefined,
+        subscription: selectedSubscription || undefined,
+      });
+      setUsers(res.users || []);
+      setTotalCount(res.totalCount || 0);
     } catch (err) {
       console.error('Error fetching admin users:', err);
     } finally {
@@ -37,9 +93,28 @@ export default function AdminUsersPage() {
     }
   };
 
+  const loadRoles = async () => {
+    try {
+      const res = await getRolesAndPermissionsAction();
+      setAvailableRoles(res.roles || []);
+    } catch (err) {
+      console.error('Failed to load roles list:', err);
+    }
+  };
+
   useEffect(() => {
     loadUsers();
+  }, [page, pageSize, selectedRole, selectedStatus, selectedSubscription]);
+
+  useEffect(() => {
+    loadRoles();
   }, []);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPage(1);
+    loadUsers();
+  };
 
   const handleCreateSupport = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,22 +123,27 @@ export default function AdminUsersPage() {
     setSupportSuccess(false);
 
     try {
-      await createSupportAccountAction({
+      const res = await createSupportAccountAction({
         email: supportEmail,
         password: supportPassword,
         firstName: supportFirstName,
         lastName: supportLastName,
       });
-      setSupportSuccess(true);
-      setSupportEmail('');
-      setSupportPassword('');
-      setSupportFirstName('');
-      setSupportLastName('');
-      await loadUsers();
-      setTimeout(() => {
-        setIsCreateSupportOpen(false);
-        setSupportSuccess(false);
-      }, 1500);
+
+      if (res?.error) {
+        setSupportError(res.error);
+      } else {
+        setSupportSuccess(true);
+        setSupportEmail('');
+        setSupportPassword('');
+        setSupportFirstName('');
+        setSupportLastName('');
+        await loadUsers();
+        setTimeout(() => {
+          setIsCreateSupportOpen(false);
+          setSupportSuccess(false);
+        }, 1200);
+      }
     } catch (err: any) {
       setSupportError(err.message || 'Failed to create support account');
     } finally {
@@ -104,13 +184,17 @@ export default function AdminUsersPage() {
     setResetSuccess('');
 
     try {
-      await resetUserPasswordAction(resettingUser.id, newPassword);
-      setResetSuccess(`Password updated successfully for ${resettingUser.email}`);
-      setNewPassword('');
-      setTimeout(() => {
-        setResettingUser(null);
-        setResetSuccess('');
-      }, 1500);
+      const res = await resetUserPasswordAction(resettingUser.id, newPassword);
+      if (res?.error) {
+        setResetError(res.error);
+      } else {
+        setResetSuccess(`Password updated successfully for ${resettingUser.email}`);
+        setNewPassword('');
+        setTimeout(() => {
+          setResettingUser(null);
+          setResetSuccess('');
+        }, 1200);
+      }
     } catch (err: any) {
       setResetError(err.message || 'Failed to reset user password');
     } finally {
@@ -118,26 +202,44 @@ export default function AdminUsersPage() {
     }
   };
 
-  const filteredUsers = users.filter((u) => {
-    const q = userSearch.toLowerCase();
-    return (
-      u.email?.toLowerCase().includes(q) ||
-      u.firstName?.toLowerCase().includes(q) ||
-      u.lastName?.toLowerCase().includes(q) ||
-      u.exam?.toLowerCase().includes(q)
-    );
-  });
+  const handleUserRoleToggle = async (userId: string, roleId: string, currentAssigned: boolean) => {
+    setActionLoading(true);
+    setRoleChangeError('');
+    setRoleChangeSuccess('');
+    try {
+      await changeUserRoleAction(userId, roleId, currentAssigned ? 'remove' : 'add');
+      setRoleChangeSuccess('Role membership updated successfully.');
+      await loadUsers();
+      // Update local modal user roles list
+      if (roleManagingUser) {
+        const roleObj = availableRoles.find((r) => r.id === roleId);
+        if (roleObj) {
+          const updatedRoles = currentAssigned
+            ? roleManagingUser.roles.filter((rName: string) => rName !== roleObj.name)
+            : [...roleManagingUser.roles, roleObj.name];
+          setRoleManagingUser({ ...roleManagingUser, roles: updatedRoles });
+        }
+      }
+    } catch (err: any) {
+      setRoleChangeError(err.message || 'Failed to modify user role');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const totalPages = Math.ceil(totalCount / pageSize) || 1;
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-heading font-black flex items-center gap-2">
             <Users className="w-6 h-6 text-[#6D5BFF]" />
-            <span>User Management Portal</span>
+            <span>User Directory & Management</span>
           </h1>
           <p className="text-xs text-slate-500 dark:text-gray-400">
-            View profiles, assign support roles, manage subscriptions, or suspend access.
+            Search production profiles, verify email statuses, assign RBAC permissions, reset access, or suspend users.
           </p>
         </div>
 
@@ -160,23 +262,81 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
-      {/* User Search & Stats bar */}
-      <div className="p-4 rounded-3xl bg-white dark:bg-[#090D1E] border border-slate-200 dark:border-gray-800 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="relative w-full sm:w-96">
+      {/* Filter and Search Bar */}
+      <div className="p-4 rounded-3xl bg-white dark:bg-[#090D1E] border border-slate-200 dark:border-gray-800 shadow-sm flex flex-col lg:flex-row items-center justify-between gap-4">
+        <form onSubmit={handleSearchSubmit} className="relative w-full lg:w-80">
           <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
           <input
             type="text"
-            value={userSearch}
-            onChange={(e) => setUserSearch(e.target.value)}
-            placeholder="Search users by name, email, or exam..."
-            className="w-full pl-10 pr-4 py-2 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-xs focus:outline-none focus:border-[#6D5BFF]"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, email, or UUID..."
+            className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-xs focus:outline-none focus:border-[#6D5BFF]"
           />
-        </div>
+        </form>
 
-        <div className="flex items-center gap-6 text-xs font-bold text-slate-500 dark:text-gray-400">
-          <div>Total Users: <span className="text-slate-900 dark:text-white font-extrabold">{users.length}</span></div>
-          <div>Active: <span className="text-emerald-500 font-extrabold">{users.filter((u) => !u.isSuspended).length}</span></div>
-          <div>Suspended: <span className="text-rose-500 font-extrabold">{users.filter((u) => u.isSuspended).length}</span></div>
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+          {/* Role Filter */}
+          <select
+            value={selectedRole}
+            onChange={(e) => {
+              setSelectedRole(e.target.value);
+              setPage(1);
+            }}
+            className="px-3 py-2 rounded-xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-xs font-semibold focus:outline-none focus:border-[#6D5BFF]"
+          >
+            <option value="">All Roles</option>
+            {availableRoles.map((r) => (
+              <option key={r.id} value={r.name}>
+                Role: {r.name}
+              </option>
+            ))}
+          </select>
+
+          {/* Account Status Filter */}
+          <select
+            value={selectedStatus}
+            onChange={(e) => {
+              setSelectedStatus(e.target.value);
+              setPage(1);
+            }}
+            className="px-3 py-2 rounded-xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-xs font-semibold focus:outline-none focus:border-[#6D5BFF]"
+          >
+            <option value="">All Account Statuses</option>
+            <option value="active">Active</option>
+            <option value="suspended">Suspended</option>
+            <option value="pending_verification">Pending Verification</option>
+          </select>
+
+          {/* Subscription Filter */}
+          <select
+            value={selectedSubscription}
+            onChange={(e) => {
+              setSelectedSubscription(e.target.value);
+              setPage(1);
+            }}
+            className="px-3 py-2 rounded-xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-xs font-semibold focus:outline-none focus:border-[#6D5BFF]"
+          >
+            <option value="">All Subscriptions</option>
+            <option value="active">Active Pro / Premium</option>
+            <option value="free">Free Tier</option>
+            <option value="canceled">Canceled</option>
+            <option value="past_due">Past Due</option>
+          </select>
+
+          {/* Page Size */}
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setPage(1);
+            }}
+            className="px-3 py-2 rounded-xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-xs font-semibold focus:outline-none focus:border-[#6D5BFF]"
+          >
+            <option value={10}>10 / page</option>
+            <option value={20}>20 / page</option>
+            <option value={50}>50 / page</option>
+          </select>
         </div>
       </div>
 
@@ -185,7 +345,7 @@ export default function AdminUsersPage() {
         {loading ? (
           <div className="p-12 text-center text-slate-400 flex items-center justify-center gap-2">
             <Loader2 className="w-5 h-5 animate-spin text-[#6D5BFF]" />
-            <span>Loading user directory...</span>
+            <span>Loading database users...</span>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -194,7 +354,7 @@ export default function AdminUsersPage() {
                 <tr>
                   <th className="p-4">User Details</th>
                   <th className="p-4">Selected Exam</th>
-                  <th className="p-4">Global Region</th>
+                  <th className="p-4">Region / Country</th>
                   <th className="p-4">Registered On</th>
                   <th className="p-4">Assigned Roles</th>
                   <th className="p-4">Account Status</th>
@@ -202,37 +362,65 @@ export default function AdminUsersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-gray-800 font-medium">
-                {filteredUsers.length === 0 ? (
+                {users.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="p-8 text-center text-slate-400">
-                      No matching user profiles found.
+                      No matching user profiles found in database.
                     </td>
                   </tr>
                 ) : (
-                  filteredUsers.map((u: any) => {
+                  users.map((u: any) => {
                     const isSupport = u.roles.includes('support');
+                    const isSuperAdmin = u.roles.includes('super_admin');
                     return (
                       <tr key={u.id} className="hover:bg-slate-50/50 dark:hover:bg-gray-900/30 transition-colors">
                         <td className="p-4">
-                          <div className="font-bold text-slate-900 dark:text-white">{u.firstName} {u.lastName}</div>
-                          <div className="text-[10px] text-slate-500 dark:text-gray-400">{u.email}</div>
+                          <Link href={`/admin/users/${u.id}`} className="hover:underline block">
+                            <div className="font-bold text-slate-900 dark:text-white">
+                              {u.firstName} {u.lastName}
+                            </div>
+                            <div className="text-[10px] text-slate-500 dark:text-gray-400 flex items-center gap-1 mt-0.5">
+                              <span>{u.email}</span>
+                              {!u.emailVerified && (
+                                <span className="text-amber-500 font-bold text-[9px]">(Unverified)</span>
+                              )}
+                            </div>
+                          </Link>
                         </td>
+
                         <td className="p-4">
                           <span className="px-2.5 py-1 rounded-lg text-[10px] font-extrabold bg-[#6D5BFF]/10 text-[#6D5BFF] border border-[#6D5BFF]/20">
                             {u.exam || 'Not Selected'}
                           </span>
                         </td>
+
                         <td className="p-4 text-slate-700 dark:text-gray-300">{u.country}</td>
-                        <td className="p-4 text-slate-500">{new Date(u.createdAt).toLocaleDateString()}</td>
+
+                        <td className="p-4 text-slate-500">
+                          {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'N/A'}
+                        </td>
+
                         <td className="p-4">
                           <div className="flex flex-wrap gap-1">
                             {u.roles.map((r: string) => (
-                              <span key={r} className="px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">
+                              <span
+                                key={r}
+                                className={`px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase ${
+                                  r === 'super_admin'
+                                    ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
+                                    : r === 'admin'
+                                    ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                                    : r === 'support'
+                                    ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                    : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                                }`}
+                              >
                                 {r}
                               </span>
                             ))}
                           </div>
                         </td>
+
                         <td className="p-4">
                           {u.isSuspended ? (
                             <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-500/10 text-rose-500 border border-rose-500/20 flex items-center gap-1 w-fit">
@@ -244,36 +432,43 @@ export default function AdminUsersPage() {
                             </span>
                           )}
                         </td>
+
                         <td className="p-4 text-right space-x-2">
+                          <Link
+                            href={`/admin/users/${u.id}`}
+                            className="px-2.5 py-1.5 rounded-xl text-[10px] font-bold bg-slate-100 dark:bg-gray-800 text-slate-700 dark:text-gray-300 border border-slate-200 dark:border-gray-700 hover:bg-slate-200 dark:hover:bg-gray-700 transition-colors inline-flex items-center gap-1"
+                          >
+                            <Eye className="w-3 h-3" />
+                            <span>Details</span>
+                          </Link>
+
                           <button
                             disabled={actionLoading}
-                            onClick={() => handleToggleSupportRole(u.id, u.roles)}
-                            className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border transition-colors cursor-pointer ${
-                              isSupport
-                                ? 'bg-amber-500/10 text-amber-500 border-amber-500/30 hover:bg-amber-500/20'
-                                : 'bg-slate-100 dark:bg-gray-800 text-slate-700 dark:text-gray-300 border-slate-200 dark:border-gray-700 hover:bg-slate-200'
-                            }`}
+                            onClick={() => setRoleManagingUser(u)}
+                            className="px-2.5 py-1.5 rounded-xl text-[10px] font-bold bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 hover:bg-indigo-500/20 transition-colors cursor-pointer"
                           >
-                            {isSupport ? 'Demote Support' : 'Promote Support'}
+                            <Shield className="w-3 h-3 inline mr-1" />
+                            Roles
                           </button>
 
                           <button
                             disabled={actionLoading}
                             onClick={() => setResettingUser(u)}
-                            className="px-2.5 py-1 rounded-xl text-[10px] font-bold bg-slate-100 dark:bg-gray-800 text-slate-700 dark:text-gray-300 border border-slate-200 dark:border-gray-700 hover:bg-slate-200 transition-colors cursor-pointer"
+                            className="px-2.5 py-1.5 rounded-xl text-[10px] font-bold bg-slate-100 dark:bg-gray-800 text-slate-700 dark:text-gray-300 border border-slate-200 dark:border-gray-700 hover:bg-slate-200 transition-colors cursor-pointer"
                           >
                             <Key className="w-3 h-3 inline mr-1" />
-                            Reset Password
+                            Reset
                           </button>
 
                           <button
-                            disabled={actionLoading}
+                            disabled={actionLoading || isSuperAdmin}
                             onClick={() => handleToggleSuspension(u.id, u.isSuspended)}
-                            className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border transition-colors cursor-pointer ${
+                            className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold border transition-colors cursor-pointer ${
                               u.isSuspended
                                 ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/20'
                                 : 'bg-rose-500/10 text-rose-500 border-rose-500/30 hover:bg-rose-500/20'
                             }`}
+                            title={isSuperAdmin ? 'Super Admin cannot be suspended' : undefined}
                           >
                             {u.isSuspended ? 'Reactivate' : 'Suspend'}
                           </button>
@@ -286,15 +481,51 @@ export default function AdminUsersPage() {
             </table>
           </div>
         )}
+
+        {/* Pagination Bar */}
+        <div className="p-4 border-t border-slate-200 dark:border-gray-800 flex items-center justify-between text-xs text-slate-500">
+          <div>
+            Showing <span className="font-bold text-slate-900 dark:text-white">{users.length}</span> of{' '}
+            <span className="font-bold text-slate-900 dark:text-white">{totalCount}</span> total users
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              disabled={page <= 1 || loading}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="p-1.5 rounded-xl border border-slate-200 dark:border-gray-800 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-gray-800"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="font-bold text-slate-700 dark:text-gray-300">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              disabled={page >= totalPages || loading}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              className="p-1.5 rounded-xl border border-slate-200 dark:border-gray-800 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-gray-800"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Create Support Staff Modal */}
       {isCreateSupportOpen && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-md bg-white dark:bg-[#0E1324] rounded-3xl border border-slate-200 dark:border-gray-800 p-6 shadow-2xl space-y-4">
-            <h3 className="font-heading font-black text-lg">Provision Support Staff Member</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="font-heading font-black text-lg">Provision Support Staff Member</h3>
+              <button
+                onClick={() => setIsCreateSupportOpen(false)}
+                className="p-1 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-gray-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
             <p className="text-xs text-slate-500 dark:text-gray-400">
-              Create an operational support account with permission to access ticket queues and user analytics.
+              Create an operational support account with permission to manage ticket queues and user analytics.
             </p>
 
             {supportError && (
@@ -384,9 +615,18 @@ export default function AdminUsersPage() {
       {resettingUser && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-md bg-white dark:bg-[#0E1324] rounded-3xl border border-slate-200 dark:border-gray-800 p-6 shadow-2xl space-y-4">
-            <h3 className="font-heading font-black text-lg">Reset User Password</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="font-heading font-black text-lg">Reset User Password</h3>
+              <button
+                onClick={() => setResettingUser(null)}
+                className="p-1 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-gray-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
             <p className="text-xs text-slate-500 dark:text-gray-400">
-              Specify a new secure password for <span className="font-bold text-slate-900 dark:text-white">{resettingUser.email}</span>.
+              Specify a new secure password for{' '}
+              <span className="font-bold text-slate-900 dark:text-white">{resettingUser.email}</span>.
             </p>
 
             {resetError && (
@@ -432,6 +672,83 @@ export default function AdminUsersPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Role Assignment Modal */}
+      {roleManagingUser && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white dark:bg-[#0E1324] rounded-3xl border border-slate-200 dark:border-gray-800 p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-heading font-black text-lg">Manage RBAC User Roles</h3>
+              <button
+                onClick={() => setRoleManagingUser(null)}
+                className="p-1 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-gray-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-gray-400">
+              Assign or revoke roles for{' '}
+              <span className="font-bold text-slate-900 dark:text-white">{roleManagingUser.email}</span>.
+            </p>
+
+            {roleChangeError && (
+              <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-500 text-xs font-semibold">
+                {roleChangeError}
+              </div>
+            )}
+
+            {roleChangeSuccess && (
+              <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 text-xs font-semibold">
+                {roleChangeSuccess}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label className="block text-slate-500 font-bold text-xs">Available System Roles</label>
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {availableRoles.map((role) => {
+                  const isAssigned = roleManagingUser.roles.includes(role.name);
+                  return (
+                    <div
+                      key={role.id}
+                      className="p-3 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 flex items-center justify-between"
+                    >
+                      <div>
+                        <div className="font-bold text-xs uppercase text-slate-900 dark:text-white">
+                          {role.name}
+                        </div>
+                        <div className="text-[10px] text-slate-400">{role.description || 'System authorization role'}</div>
+                      </div>
+
+                      <button
+                        disabled={actionLoading}
+                        onClick={() => handleUserRoleToggle(roleManagingUser.id, role.id, isAssigned)}
+                        className={`px-3 py-1 rounded-xl text-[10px] font-bold border cursor-pointer transition-colors ${
+                          isAssigned
+                            ? 'bg-rose-500/10 text-rose-500 border-rose-500/30 hover:bg-rose-500/20'
+                            : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/20'
+                        }`}
+                      >
+                        {isAssigned ? 'Revoke Role' : 'Assign Role'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setRoleManagingUser(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-gray-800 font-bold text-xs"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

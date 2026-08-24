@@ -34,6 +34,7 @@ export function AdminExamsManager() {
     pendingReviewCount: 0,
   })
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [updatingId, setUpdatingId] = useState<string | null>(null)
@@ -56,6 +57,7 @@ export function AdminExamsManager() {
 
   const fetchExams = useCallback(async () => {
     setLoading(true)
+    setLoadError(null)
     try {
       const queryParams = new URLSearchParams()
       if (searchQuery) queryParams.set('search', searchQuery)
@@ -66,9 +68,12 @@ export function AdminExamsManager() {
       if (data.success) {
         setExams(data.exams || [])
         setStats(data.stats || {})
+      } else {
+        setLoadError(data.error || 'Failed to fetch canonical exams from database')
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load admin exams:', err)
+      setLoadError(err.message || 'Unable to connect to canonical exam server')
     } finally {
       setLoading(false)
     }
@@ -234,6 +239,19 @@ export function AdminExamsManager() {
           <div className="p-12 flex flex-col items-center justify-center text-slate-400 gap-3">
             <Loader2 className="w-6 h-6 animate-spin text-[#6D5BFF]" />
             <span className="text-xs font-semibold">Loading canonical exams...</span>
+          </div>
+        ) : loadError ? (
+          <div className="p-12 flex flex-col items-center justify-center text-center gap-3">
+            <AlertTriangle className="w-8 h-8 text-rose-500" />
+            <div className="text-sm font-bold text-slate-900 dark:text-white">Unable to load canonical exams from database</div>
+            <p className="text-xs text-rose-500 dark:text-rose-400 max-w-md font-mono">{loadError}</p>
+            <button
+              onClick={fetchExams}
+              className="mt-2 px-4 py-2 rounded-xl bg-[#6D5BFF] text-white text-xs font-bold flex items-center gap-2 hover:bg-[#5b4aee] transition-colors cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Retry Query</span>
+            </button>
           </div>
         ) : exams.length === 0 ? (
           <div className="p-12 text-center text-slate-400 text-xs font-semibold">
