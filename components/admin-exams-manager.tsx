@@ -305,15 +305,30 @@ export function AdminExamsManager() {
                     </td>
 
                     <td className="px-4 py-4">
-                      <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase ${
-                        exam.status === 'active'
-                          ? 'bg-emerald-500/10 text-emerald-500'
-                          : exam.status === 'archived'
-                          ? 'bg-slate-500/10 text-slate-400'
-                          : 'bg-amber-500/10 text-amber-500'
-                      }`}>
-                        {exam.status || 'Active'}
-                      </span>
+                      <div className="flex flex-col gap-1 items-start">
+                        {exam.verification_status === 'verified' ? (
+                          <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase inline-flex items-center gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            <CheckCircle2 className="w-3 h-3" />
+                            Verified
+                          </span>
+                        ) : exam.verification_status === 'outdated' ? (
+                          <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase inline-flex items-center gap-1 bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                            <Clock className="w-3 h-3" />
+                            Outdated
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase inline-flex items-center gap-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                            <AlertCircle className="w-3 h-3" />
+                            Needs Verification
+                          </span>
+                        )}
+
+                        {exam.status === 'archived' || exam.status === 'inactive' ? (
+                          <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-slate-500/10 text-slate-500 border border-slate-500/20">
+                            Inactive
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
 
                     <td className="px-5 py-4 text-right">

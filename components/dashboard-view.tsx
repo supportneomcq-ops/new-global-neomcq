@@ -38,6 +38,7 @@ import { LearningContentEngine } from './learning-content-engine';
 import { UserProfileModal } from './user-profile-modal';
 import { ExamSwitchModal } from './exam-switch-modal';
 import { AddTopicModal } from './add-topic-modal';
+import { CreateStudyModal } from './create-study-modal';
 import { useSelection } from '@/lib/context/selection-context';
 
 interface DashboardViewProps {
@@ -128,6 +129,7 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isExamSwitchModalOpen, setIsExamSwitchModalOpen] = useState(false);
   const [isAddTopicModalOpen, setIsAddTopicModalOpen] = useState(false);
+  const [isCreateStudyModalOpen, setIsCreateStudyModalOpen] = useState(false);
 
   // Selection Context
   const {
@@ -258,6 +260,15 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
             >
               Switch ($2)
             </button>
+            <button
+              type="button"
+              onClick={() => setIsCreateStudyModalOpen(true)}
+              className="ml-1.5 px-2.5 py-1 rounded-xl bg-[#6D5BFF]/10 hover:bg-[#6D5BFF]/20 text-[#6D5BFF] dark:text-[#00D4FF] text-[11px] font-extrabold flex items-center gap-1 cursor-pointer transition-colors"
+              title="Create or discover an exam from ANY country"
+            >
+              <Plus className="w-3 h-3" />
+              <span>+ Discover Exam</span>
+            </button>
           </div>
 
           <div className="flex items-center gap-3">
@@ -333,6 +344,15 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
                   >
                     <Sparkles className="w-3 h-3 animate-pulse" />
                     <span>Switch Exam ($2 USD)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateStudyModalOpen(true)}
+                    className="px-3 py-1 rounded-xl bg-white/10 hover:bg-white/20 text-white text-[11px] font-heading font-extrabold flex items-center gap-1 shadow-md cursor-pointer transition-all shrink-0 border border-white/20"
+                    title="Enter any exam name from ANY country to run AI discovery"
+                  >
+                    <Plus className="w-3 h-3 text-[#00D4FF]" />
+                    <span>+ Discover Any Exam</span>
                   </button>
                 </div>
 
@@ -980,6 +1000,16 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
         onTopicSelected={(subj, top) => {
           setSubject(subj);
           setTopic(top);
+          setActiveTab('learning');
+        }}
+      />
+
+      {/* Global AI Exam Discovery Modal */}
+      <CreateStudyModal
+        isOpen={isCreateStudyModalOpen}
+        onClose={() => setIsCreateStudyModalOpen(false)}
+        onExamCreated={() => {
+          refreshHierarchy();
           setActiveTab('learning');
         }}
       />

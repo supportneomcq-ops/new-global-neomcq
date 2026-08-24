@@ -8,7 +8,6 @@
  */
 
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { GLOBAL_EXAM_REGISTRY } from '@/lib/data/exam-registry';
 import { CANONICAL_BLOG_POSTS } from '@/lib/data/blog-registry';
 import {
   ExamSeoData,
@@ -40,16 +39,14 @@ export async function getPublicExamBySlug(examSlug: string): Promise<ExamSeoData
   const supabase = getSupabaseAdmin();
   const cleanSlug = examSlug.toLowerCase().trim();
 
-  // 1. Check Supabase 'exams' table
   try {
     const { data: examData } = await (supabase as any)
       .from('exams')
-      .select('id, name, slug, description, difficulty, question_count, time_limit_mins, created_at, updated_at')
+      .select('id, name, slug, description, difficulty, question_count, time_limit_mins, verification_status, created_at, updated_at')
       .eq('slug', cleanSlug)
       .maybeSingle();
 
     if (examData) {
-      // Get real subject count and MCQ count
       const [subjRes, mcqRes] = await Promise.all([
         (supabase as any).from('exam_subjects').select('id', { count: 'exact', head: true }).eq('exam_id', examData.id),
         (supabase as any).from('mcqs').select('id', { count: 'exact', head: true }).eq('exam_id', examData.id).eq('status', 'approved'),
@@ -67,30 +64,41 @@ export async function getPublicExamBySlug(examSlug: string): Promise<ExamSeoData
         mcqs_count: mcqRes.count || 0,
         created_at: examData.created_at,
         updated_at: examData.updated_at,
+        verification_status: examData.verification_status,
+      };
+    }
+
+    // Try finding via exam_aliases table
+    const { data: aliasMatch } = await (supabase as any)
+      .from('exam_aliases')
+      .select('exam_id, exams(id, name, slug, description, difficulty, question_count, time_limit_mins, verification_status, created_at, updated_at)')
+      .ilike('alias', cleanSlug)
+      .maybeSingle();
+
+    if (aliasMatch && aliasMatch.exams) {
+      const ex = aliasMatch.exams;
+      const [subjRes, mcqRes] = await Promise.all([
+        (supabase as any).from('exam_subjects').select('id', { count: 'exact', head: true }).eq('exam_id', ex.id),
+        (supabase as any).from('mcqs').select('id', { count: 'exact', head: true }).eq('exam_id', ex.id).eq('status', 'approved'),
+      ]);
+
+      return {
+        id: ex.id,
+        name: ex.name,
+        slug: ex.slug,
+        description: ex.description,
+        difficulty: ex.difficulty || 'Advanced',
+        question_count: ex.question_count || 200,
+        time_limit_mins: ex.time_limit_mins || 180,
+        subjects_count: subjRes.count || 0,
+        mcqs_count: mcqRes.count || 0,
+        created_at: ex.created_at,
+        updated_at: ex.updated_at,
+        verification_status: ex.verification_status,
       };
     }
   } catch (err) {
-    console.warn('[SEO] DB lookup for exam failed, falling back to registry:', err);
-  }
-
-  // 2. Fallback to GLOBAL_EXAM_REGISTRY
-  const registryEntry = GLOBAL_EXAM_REGISTRY.find(
-    (e) => e.slug === cleanSlug || slugify(e.canonicalName) === cleanSlug
-  );
-
-  if (registryEntry) {
-    return {
-      id: `reg-${registryEntry.slug}`,
-      name: registryEntry.canonicalName,
-      slug: registryEntry.slug,
-      description: `Comprehensive AI-curated practice examination for ${registryEntry.canonicalName} (${registryEntry.organization}).`,
-      difficulty: registryEntry.difficulty,
-      question_count: registryEntry.questionCount,
-      time_limit_mins: registryEntry.timeLimitMins,
-      official_website: registryEntry.officialWebsite,
-      subjects_count: registryEntry.defaultSubjects?.length || 0,
-      mcqs_count: 50,
-    };
+    console.warn('[SEO] DB lookup for exam failed:', err);
   }
 
   return null;
@@ -108,6 +116,7 @@ export async function getAllPublicExams(): Promise<ExamSeoData[]> {
       .from('exams')
       .select('id, name, slug, description, difficulty, question_count, time_limit_mins, created_at, updated_at')
       .eq('status', 'active')
+      .eq('verification_status', 'verified')
       .order('name', { ascending: true });
 
     if (dbExams && dbExams.length > 0) {
@@ -126,25 +135,12 @@ export async function getAllPublicExams(): Promise<ExamSeoData[]> {
           updated_at: e.updated_at,
         });
       }
-      return examsList;
     }
   } catch (err) {
-    console.warn('[SEO] DB fetch for all exams failed, falling back to registry:', err);
+    console.warn('[SEO] DB fetch for all exams failed:', err);
   }
 
-  // Fallback to registry
-  return GLOBAL_EXAM_REGISTRY.map((r) => ({
-    id: `reg-${r.slug}`,
-    name: r.canonicalName,
-    slug: r.slug,
-    description: `Comprehensive AI-curated practice examination for ${r.canonicalName} (${r.organization}).`,
-    difficulty: r.difficulty,
-    question_count: r.questionCount,
-    time_limit_mins: r.timeLimitMins,
-    official_website: r.officialWebsite,
-    subjects_count: r.defaultSubjects?.length || 0,
-    mcqs_count: 50,
-  }));
+  return examsList;
 }
 
 /**
@@ -172,20 +168,6 @@ export async function getPublicExamSubjects(examId: string, examSlug: string): P
     }
   } catch (err) {
     console.warn('[SEO] Failed to fetch exam subjects from DB:', err);
-  }
-
-  // Fallback from registry
-  const registryEntry = GLOBAL_EXAM_REGISTRY.find((e) => e.slug === examSlug);
-  if (registryEntry?.defaultSubjects) {
-    return registryEntry.defaultSubjects.map((name, idx) => ({
-      id: `reg-subj-${examSlug}-${slugify(name)}`,
-      exam_id: examId,
-      name,
-      slug: slugify(name),
-      description: `Core high-yield concepts and board MCQs for ${name}.`,
-      weight_percentage: Math.round(100 / registryEntry.defaultSubjects!.length),
-      exam_slug: examSlug,
-    }));
   }
 
   return [];
@@ -625,36 +607,48 @@ export async function getAllIndexableUrls(): Promise<{
   const notesList: Array<{ url: string; lastmod: string }> = [];
   const blogsList: Array<{ url: string; lastmod: string }> = [];
 
-  // 1. Exams
-  for (const reg of GLOBAL_EXAM_REGISTRY) {
-    examsList.push({
-      url: `/${reg.slug}`,
-      lastmod: now,
-    });
+  // 1. Exams (only verified production exams from DB)
+  try {
+    const { data: dbExams } = await (supabase as any)
+      .from('exams')
+      .select('id, slug, updated_at, exam_subjects(id, slug, name, exam_topics(id, slug, name))')
+      .eq('status', 'active')
+      .eq('verification_status', 'verified');
 
-    if (reg.defaultSubjects) {
-      for (const subj of reg.defaultSubjects) {
-        const subjSlug = slugify(subj);
-        subjectsList.push({
-          url: `/${reg.slug}/${subjSlug}`,
-          lastmod: now,
+    if (dbExams && dbExams.length > 0) {
+      for (const ex of dbExams) {
+        examsList.push({
+          url: `/${ex.slug}`,
+          lastmod: ex.updated_at || now,
         });
 
-        // Add core topics
-        const defaultTopics = ['fundamentals', 'clinical-scenarios', 'pharmacotherapy', 'board-pearls'];
-        for (const top of defaultTopics) {
-          topicsList.push({
-            url: `/${reg.slug}/${subjSlug}/${top}`,
-            lastmod: now,
-          });
-          // Topic MCQ hub
-          topicsList.push({
-            url: `/${reg.slug}/${subjSlug}/${top}/mcq`,
-            lastmod: now,
-          });
+        if (ex.exam_subjects && Array.isArray(ex.exam_subjects)) {
+          for (const subj of ex.exam_subjects) {
+            const subjSlug = subj.slug || slugify(subj.name);
+            subjectsList.push({
+              url: `/${ex.slug}/${subjSlug}`,
+              lastmod: now,
+            });
+
+            if (subj.exam_topics && Array.isArray(subj.exam_topics)) {
+              for (const top of subj.exam_topics) {
+                const topSlug = top.slug || slugify(top.name);
+                topicsList.push({
+                  url: `/${ex.slug}/${subjSlug}/${topSlug}`,
+                  lastmod: now,
+                });
+                topicsList.push({
+                  url: `/${ex.slug}/${subjSlug}/${topSlug}/mcq`,
+                  lastmod: now,
+                });
+              }
+            }
+          }
         }
       }
     }
+  } catch (err) {
+    console.warn('[SEO] getAllIndexableUrls DB query error:', err);
   }
 
   // 2. Real DB MCQs

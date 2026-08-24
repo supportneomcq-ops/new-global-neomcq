@@ -43,7 +43,8 @@ export async function GET(req: NextRequest) {
           slug
         )
       `)
-      .eq('status', 'active');
+      .eq('status', 'active')
+      .eq('verification_status', 'verified');
 
     if (featuredOnly) {
       queryBuilder = queryBuilder.eq('is_featured', true);

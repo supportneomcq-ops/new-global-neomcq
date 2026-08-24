@@ -1,4 +1,6 @@
 import { Metadata } from 'next';
+
+export const dynamic = 'force-dynamic';
 import { notFound } from 'next/navigation';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { PublicMcqViewer } from '@/components/public-mcq-viewer';

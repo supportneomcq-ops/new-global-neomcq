@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { KeyRound, Mail, ArrowRight, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { getSupabaseClient } from '@/lib/supabase';
@@ -131,9 +132,9 @@ export default function ForgotPasswordPage() {
 
           <div className="pt-2 text-center text-[11px] text-gray-500 border-t border-gray-800/80">
             Remembered your password?{' '}
-            <a href="/auth/sign-in" className="text-[#00D4FF] hover:underline font-bold">
+            <Link href="/auth/sign-in" className="text-[#00D4FF] hover:underline font-bold">
               Sign In Here
-            </a>
+            </Link>
           </div>
         </motion.div>
       </main>

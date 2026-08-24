@@ -1,4 +1,6 @@
 import { Metadata } from 'next';
+
+export const dynamic = 'force-dynamic';
 import Link from 'next/link';
 import { BookOpen, ChevronRight, GraduationCap, Globe } from 'lucide-react';
 import { getAllPublicExams } from '@/lib/seo/db-queries';

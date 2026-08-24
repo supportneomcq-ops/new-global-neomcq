@@ -72,6 +72,7 @@ export function ExamSwitchModal({
             .from('exams')
             .select('id, name, slug, description')
             .eq('status', 'active')
+            .eq('verification_status', 'verified')
             .order('name');
 
           if (error) throw error;

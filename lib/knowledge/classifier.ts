@@ -1,6 +1,5 @@
 import { GLOBAL_COUNTRIES } from '@/lib/data/countries'
-import { GLOBAL_EXAM_REGISTRY } from '@/lib/data/exam-registry'
-import { normalizeInput, calculateLevenshteinSimilarity } from './normalizer'
+import { normalizeInput } from './normalizer'
 
 export type InputClassificationType =
   | 'EXAM'
@@ -98,48 +97,27 @@ export function classifyUserInput(
     }
   }
 
-  // 2. Check if input matches an Exam in the Global Registry or Known Abbreviations
-  for (const reg of GLOBAL_EXAM_REGISTRY) {
-    if (
-      reg.canonicalName.toLowerCase() === clean ||
-      reg.slug.toLowerCase() === clean ||
-      reg.aliases.some((a) => a.toLowerCase() === clean)
-    ) {
-      return {
-        type: 'EXAM',
-        confidence: 100,
-        reason: `Matched registered canonical examination: ${reg.canonicalName}`,
-        normalizedText: reg.canonicalName,
-        suggestedEntity: {
-          type: 'exam',
-          name: reg.canonicalName,
-          metadata: reg,
-        },
-        isCountryMetadata: false,
-        isCurricularValid: true,
-      }
-    }
-  }
+  // 2. Check if input matches common Exam pattern keywords or abbreviations
+  const commonExamKeywords = [
+    'exam', 'test', 'license', 'licensure', 'neet', 'usmle', 'fmge', 'plab', 'nclex',
+    'upsc', 'gate', 'cat', 'jee', 'neet-pg', 'inicet', 'ini-cet', 'cfa', 'gre', 'gmat',
+    'sat', 'toefl', 'ielts', 'amc', 'mccqe', 'mrcp', 'mrcs', 'frcr', 'mrcog', 'mrcpch'
+  ]
 
-  // 3. Check fuzzy match against Global Exam Registry
-  for (const reg of GLOBAL_EXAM_REGISTRY) {
-    for (const alias of reg.aliases) {
-      const sim = calculateLevenshteinSimilarity(clean, alias.toLowerCase())
-      if (sim >= 88) {
-        return {
-          type: 'EXAM',
-          confidence: sim,
-          reason: `High-confidence match to canonical exam ${reg.canonicalName} (alias: ${alias})`,
-          normalizedText: reg.canonicalName,
-          suggestedEntity: {
-            type: 'exam',
-            name: reg.canonicalName,
-            metadata: reg,
-          },
-          isCountryMetadata: false,
-          isCurricularValid: true,
-        }
-      }
+  const isExamPattern = commonExamKeywords.some((kw) => clean.includes(kw))
+
+  if (isExamPattern) {
+    return {
+      type: 'EXAM',
+      confidence: 95,
+      reason: `Recognized as examination title or board test: ${norm.canonical}`,
+      normalizedText: norm.canonical,
+      suggestedEntity: {
+        type: 'exam',
+        name: norm.canonical,
+      },
+      isCountryMetadata: false,
+      isCurricularValid: true,
     }
   }
 

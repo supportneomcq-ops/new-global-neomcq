@@ -1,6 +1,5 @@
 import { GoogleGenAI } from '@google/genai'
 import { getSupabaseAdmin } from '@/lib/supabase'
-import { GLOBAL_EXAM_REGISTRY } from '@/lib/data/exam-registry'
 import { normalizeInput } from '@/lib/knowledge/normalizer'
 
 export interface CurriculumSubjectData {
@@ -129,28 +128,9 @@ export async function ensureExamCurriculum(examId: string, examName: string, exa
     }
   }
 
-  // 2. Identify curriculum source template or registry fallback
+  // 2. Identify curriculum source template
   const slugKey = (examSlug || normalizeInput(examName).slug).toLowerCase()
   let templateData: CurriculumSubjectData[] | null = STANDARD_CURRICULUM_TEMPLATES[slugKey] || null
-
-  if (!templateData) {
-    const matchedRegistry = GLOBAL_EXAM_REGISTRY.find(
-      (r) => r.slug === slugKey || r.canonicalName.toLowerCase() === examName.toLowerCase()
-    )
-    if (matchedRegistry?.defaultSubjects && matchedRegistry.defaultSubjects.length > 0) {
-      templateData = matchedRegistry.defaultSubjects.map((sName, idx) => ({
-        name: sName,
-        description: `Curricular subject ${sName} for ${examName}`,
-        weight: Math.round(100 / matchedRegistry.defaultSubjects!.length),
-        topics: [
-          `Foundational Principles of ${sName}`,
-          `High-Yield Clinical / Practical Scenarios in ${sName}`,
-          `Advanced Problem Solving in ${sName}`,
-          `High-Frequency Examination Review in ${sName}`,
-        ],
-      }))
-    }
-  }
 
   // 3. If no pre-mapped template, use AI to generate official canonical curriculum structure
   if (!templateData && process.env.GEMINI_API_KEY) {

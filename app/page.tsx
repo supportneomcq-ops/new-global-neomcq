@@ -3,6 +3,8 @@ import { AnimatedBackground } from '@/components/animated-background';
 import { ExamMarquee } from '@/components/exam-marquee';
 import { HomeInteractionManager } from '@/components/home-interaction-manager';
 
+export const dynamic = 'force-dynamic';
+
 export default function HomePage() {
   return (
     <>

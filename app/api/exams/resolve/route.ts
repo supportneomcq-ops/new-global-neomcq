@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
-import { GLOBAL_EXAM_REGISTRY } from '@/lib/data/exam-registry'
 import { classifyUserInput } from '@/lib/knowledge/classifier'
-import { normalizeInput, calculateLevenshteinSimilarity } from '@/lib/knowledge/normalizer'
+import { normalizeInput } from '@/lib/knowledge/normalizer'
 import { ensureExamCurriculum } from '@/lib/knowledge/curriculum-generator'
 
 export async function POST(req: NextRequest) {
@@ -166,34 +165,12 @@ export async function POST(req: NextRequest) {
     }
 
     // -------------------------------------------------------------
-    // STEP 4: Match Global Exam Registry
+    // STEP 4: Country & Category Resolution
     // -------------------------------------------------------------
-    let registryEntry = GLOBAL_EXAM_REGISTRY.find(
-      (r) =>
-        r.slug === querySlug ||
-        r.canonicalName.toLowerCase() === cleanQuery ||
-        r.aliases.some((a) => a.toLowerCase() === cleanQuery)
-    )
-
-    // Fuzzy match against registry if direct alias didn't hit
-    if (!registryEntry) {
-      let bestSim = 0
-      for (const reg of GLOBAL_EXAM_REGISTRY) {
-        for (const al of reg.aliases) {
-          const sim = calculateLevenshteinSimilarity(cleanQuery, al.toLowerCase())
-          if (sim > bestSim && sim >= 85) {
-            bestSim = sim
-            registryEntry = reg
-          }
-        }
-      }
-    }
-
-    // Country & Category Resolution
     let countryId: string | null = null
     let categoryId: string | null = null
 
-    const targetCountryName = registryEntry?.country || country || 'Global'
+    const targetCountryName = country || 'Global'
     const { data: countryRow } = await (supabase as any)
       .from('countries')
       .select('id')
@@ -201,32 +178,21 @@ export async function POST(req: NextRequest) {
       .maybeSingle()
     if (countryRow) countryId = countryRow.id
 
-    const targetCatSlug =
-      registryEntry?.category?.toLowerCase().includes('medic') || registryEntry?.category?.toLowerCase().includes('nurs')
-        ? 'medical-healthcare'
-        : registryEntry?.category?.toLowerCase().includes('tech') || registryEntry?.category?.toLowerCase().includes('engineer') || registryEntry?.category?.toLowerCase().includes('cloud')
-        ? 'engineering-tech'
-        : registryEntry?.category?.toLowerCase().includes('finan') || registryEntry?.category?.toLowerCase().includes('account')
-        ? 'business-finance'
-        : registryEntry?.category?.toLowerCase().includes('law') || registryEntry?.category?.toLowerCase().includes('civil')
-        ? 'civil-services-govt'
-        : 'medical-healthcare'
+    const targetCatSlug = category ? category.toLowerCase().replace(/[^a-z0-0]/g, '-') : 'medical-healthcare'
 
     const { data: catRow } = await (supabase as any)
       .from('exam_categories')
       .select('id')
-      .eq('slug', targetCatSlug)
+      .or(`slug.eq.${targetCatSlug},id.eq.${category || ''}`)
       .maybeSingle()
     if (catRow) categoryId = catRow.id
 
     // -------------------------------------------------------------
     // STEP 5: Create Canonical Exam Record in Supabase
     // -------------------------------------------------------------
-    const examName = registryEntry?.canonicalName || rawInput
-    const examSlug = registryEntry?.slug || querySlug
-    const examDesc =
-      (registryEntry as any)?.description ||
-      `Official examination preparation and curriculum for ${examName} (${registryEntry?.organization || 'Accredited Board'}).`
+    const examName = rawInput
+    const examSlug = querySlug
+    const examDesc = `Official examination preparation and curriculum for ${examName}.`
 
     const { data: insertedExam, error: insertExamErr } = await (supabase as any)
       .from('exams')
@@ -234,15 +200,14 @@ export async function POST(req: NextRequest) {
         name: examName,
         slug: examSlug,
         description: examDesc,
-        difficulty: registryEntry?.difficulty || 'Intermediate',
-        question_count: registryEntry?.questionCount || 100,
-        time_limit_mins: registryEntry?.timeLimitMins || 120,
+        difficulty: 'Intermediate',
+        question_count: 100,
+        time_limit_mins: 120,
         country_id: countryId,
         category_id: categoryId,
-        aliases: registryEntry?.aliases || [rawInput],
-        official_website: registryEntry?.officialWebsite || null,
+        aliases: [rawInput],
         status: 'active',
-        is_featured: registryEntry?.isFeatured || false,
+        is_featured: false,
       })
       .select('id, name, slug, description, difficulty, question_count, time_limit_mins')
       .single()

@@ -33,7 +33,6 @@ import {
 import { getSupabaseClient } from '@/lib/supabase';
 import { Logo } from './logo';
 import { GLOBAL_COUNTRIES } from '@/lib/data/countries';
-import { GLOBAL_EXAM_REGISTRY } from '@/lib/data/exam-registry';
 
 interface OnboardingFlowProps {
   isOpen: boolean;
@@ -134,18 +133,8 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
           setSearchResults(data.exams);
         }
       } catch (err) {
-        // Fallback to local registry
-        const fallback = GLOBAL_EXAM_REGISTRY.slice(0, 12).map((r) => ({
-          id: `reg-${r.slug}`,
-          name: r.canonicalName,
-          slug: r.slug,
-          category: r.category,
-          country: r.country,
-          flag: r.country === 'India' ? '🇮🇳' : r.country === 'United States' ? '🇺🇸' : r.country === 'United Kingdom' ? '🇬🇧' : '🌐',
-          description: r.organization,
-          difficulty: r.difficulty,
-        }));
-        setSearchResults(fallback);
+        console.error('Failed to fetch default exams:', err);
+        setSearchResults([]);
       }
     };
     fetchDefaultExams();

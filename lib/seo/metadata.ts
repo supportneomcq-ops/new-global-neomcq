@@ -15,6 +15,8 @@ export function generateExamMetadata(exam: ExamSeoData): Metadata {
     exam.description?.slice(0, 160) ||
     `Master ${exam.name} with AI-curated practice questions, structured high-yield notes, and adaptive clinical rationale on NeoMCQ.`;
 
+  const isIndexable = exam.verification_status === 'verified';
+
   return {
     title,
     description,
@@ -52,14 +54,14 @@ export function generateExamMetadata(exam: ExamSeoData): Metadata {
       images: [`${siteUrl}/api/og?title=${encodeURIComponent(exam.name)}&type=exam`],
     },
     robots: {
-      index: true,
-      follow: true,
+      index: isIndexable,
+      follow: isIndexable,
       googleBot: {
-        index: true,
-        follow: true,
-        'max-video-preview': -1,
-        'max-image-preview': 'large',
-        'max-snippet': -1,
+        index: isIndexable,
+        follow: isIndexable,
+        'max-video-preview': isIndexable ? -1 : 0,
+        'max-image-preview': isIndexable ? 'large' : 'none',
+        'max-snippet': isIndexable ? -1 : 0,
       },
     },
   };

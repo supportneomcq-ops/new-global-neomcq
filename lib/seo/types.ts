@@ -52,6 +52,7 @@ export interface ExamSeoData {
   topics_count?: number;
   mcqs_count?: number;
   notes_count?: number;
+  verification_status?: string;
 }
 
 export interface SubjectSeoData {

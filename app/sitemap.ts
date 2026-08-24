@@ -2,6 +2,7 @@ import { MetadataRoute } from 'next';
 import { getSiteUrl } from '@/lib/seo/config';
 import { getAllIndexableUrls } from '@/lib/seo/db-queries';
 
+export const dynamic = 'force-dynamic';
 export const revalidate = 3600; // Revalidate sitemap every hour
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
-import { GLOBAL_EXAM_REGISTRY } from '@/lib/data/exam-registry'
-import { normalizeInput, calculateLevenshteinSimilarity } from '@/lib/knowledge/normalizer'
+import { normalizeInput } from '@/lib/knowledge/normalizer'
 import { classifyUserInput } from '@/lib/knowledge/classifier'
 
 export async function GET(req: NextRequest) {
@@ -14,10 +13,9 @@ export async function GET(req: NextRequest) {
 
     const supabase = getSupabaseAdmin()
 
-    // 1. If query is empty and featured requested, return featured exams
+    // 1. If query is empty, fetch featured or all active verified exams from DB
     if (!rawQuery) {
-      // Query DB for active featured exams
-      const { data: dbExams } = await (supabase as any)
+      let dbQuery = (supabase as any)
         .from('exams')
         .select(`
           id,
@@ -33,47 +31,41 @@ export async function GET(req: NextRequest) {
           exam_categories(name, slug)
         `)
         .eq('status', 'active')
-        .limit(20)
+        .eq('verification_status', 'verified')
 
-      const dbMap = new Map<string, any>()
-      ;(dbExams || []).forEach((e: any) => {
-        dbMap.set(e.slug, {
-          id: e.id,
-          name: e.name,
-          slug: e.slug,
-          category: e.exam_categories?.name || 'Professional Certification',
-          country: e.countries?.name || 'Global',
-          flag: e.countries?.flag_emoji || '🌐',
-          description: e.description || '',
-          difficulty: e.difficulty || 'Intermediate',
-          question_count: e.question_count || 100,
-          time_limit_mins: e.time_limit_mins || 120,
-          is_featured: e.is_featured,
-          in_database: true,
-        })
-      })
+      if (featuredOnly) {
+        dbQuery = dbQuery.eq('is_featured', true)
+      }
 
-      // Add featured from Global Registry if not already in DB
-      GLOBAL_EXAM_REGISTRY.forEach((reg) => {
-        if (!dbMap.has(reg.slug) && (featuredOnly ? reg.isFeatured : true)) {
-          dbMap.set(reg.slug, {
-            id: `reg-${reg.slug}`,
-            name: reg.canonicalName,
-            slug: reg.slug,
-            category: reg.category,
-            country: reg.country,
-            flag: reg.country === 'India' ? '🇮🇳' : reg.country === 'United States' ? '🇺🇸' : reg.country === 'United Kingdom' ? '🇬🇧' : reg.country === 'Canada' ? '🇨🇦' : reg.country === 'Australia' ? '🇦🇺' : '🌐',
-            description: `Official ${reg.canonicalName} (${reg.organization})`,
-            difficulty: reg.difficulty,
-            question_count: reg.questionCount,
-            time_limit_mins: reg.timeLimitMins,
-            is_featured: reg.isFeatured,
-            in_database: false,
-          })
-        }
-      })
+      const { data: dbExams, error: dbErr } = await dbQuery.order('name', { ascending: true }).limit(50)
 
-      const list = Array.from(dbMap.values())
+      if (dbErr) {
+        console.error('Error fetching exams from DB:', dbErr)
+        return NextResponse.json({ success: false, error: dbErr.message }, { status: 500 })
+      }
+
+      let list = (dbExams || []).map((e: any) => ({
+        id: e.id,
+        name: e.name,
+        slug: e.slug,
+        category: e.exam_categories?.name || 'Professional Licensing',
+        country: e.countries?.name || 'India',
+        flag: e.countries?.flag_emoji || '🇮🇳',
+        description: e.description || '',
+        difficulty: e.difficulty || 'Intermediate',
+        question_count: e.question_count || 100,
+        time_limit_mins: e.time_limit_mins || 120,
+        is_featured: e.is_featured,
+        in_database: true,
+      }))
+
+      if (countryFilter && countryFilter !== 'all') {
+        list = list.filter((e: any) => e.country.toLowerCase().includes(countryFilter.toLowerCase()))
+      }
+      if (categoryFilter && categoryFilter !== 'all') {
+        list = list.filter((e: any) => e.category.toLowerCase().includes(categoryFilter.toLowerCase()))
+      }
+
       return NextResponse.json({
         success: true,
         total: list.length,
@@ -87,8 +79,8 @@ export async function GET(req: NextRequest) {
     const cleanQuery = norm.canonical.toLowerCase()
     const querySlug = norm.slug.toLowerCase()
 
-    // 3. Search Supabase Database
-    const { data: dbMatches } = await (supabase as any)
+    // 3. Search Supabase DB: fetch exams table
+    const { data: dbMatches, error: searchErr } = await (supabase as any)
       .from('exams')
       .select(`
         id,
@@ -103,39 +95,81 @@ export async function GET(req: NextRequest) {
         countries(name, iso2, flag_emoji),
         exam_categories(name, slug)
       `)
-      .neq('status', 'archived')
+      .eq('status', 'active')
+      .eq('verification_status', 'verified')
       .or(`name.ilike.%${rawQuery}%,slug.ilike.%${querySlug}%,description.ilike.%${rawQuery}%`)
-      .limit(20)
+      .limit(50)
 
-    const scoredResults: Array<{ exam: any; score: number }> = []
-    const seenSlugs = new Set<string>()
+    if (searchErr) {
+      console.error('DB exam search error:', searchErr)
+    }
 
-    // Score DB matches
-    ;(dbMatches || []).forEach((dbExam: any) => {
-      seenSlugs.add(dbExam.slug)
+    // Also check exam_aliases table
+    const { data: aliasMatches } = await (supabase as any)
+      .from('exam_aliases')
+      .select(`
+        exam_id,
+        alias,
+        exams (
+          id,
+          name,
+          slug,
+          description,
+          difficulty,
+          question_count,
+          time_limit_mins,
+          is_featured,
+          aliases,
+          status,
+          verification_status,
+          countries(name, iso2, flag_emoji),
+          exam_categories(name, slug)
+        )
+      `)
+      .ilike('alias', `%${rawQuery}%`)
+      .limit(30)
+
+    const examMap = new Map<string, { exam: any; score: number }>()
+
+    // Helper to process exam record
+    const processExamRecord = (dbExam: any, aliasMatched: string | null = null) => {
+      if (!dbExam || dbExam.status !== 'active' || dbExam.verification_status !== 'verified') return
+      if (examMap.has(dbExam.id)) {
+        // If already present, maybe upgrade score if exact match
+        const existing = examMap.get(dbExam.id)!
+        if (aliasMatched && aliasMatched.toLowerCase() === cleanQuery) {
+          existing.score = Math.max(existing.score, 98)
+        }
+        return
+      }
+
       let score = 50
+      const nameLower = dbExam.name.toLowerCase()
 
-      const examNameLower = dbExam.name.toLowerCase()
-      if (examNameLower === cleanQuery || dbExam.slug === querySlug) {
+      if (nameLower === cleanQuery || dbExam.slug === querySlug) {
         score = 100
-      } else if (examNameLower.startsWith(cleanQuery)) {
+      } else if (aliasMatched && aliasMatched.toLowerCase() === cleanQuery) {
+        score = 98
+      } else if (nameLower.startsWith(cleanQuery)) {
         score = 90
-      } else if (examNameLower.includes(cleanQuery)) {
+      } else if (nameLower.includes(cleanQuery)) {
         score = 80
       } else if (dbExam.aliases && Array.isArray(dbExam.aliases)) {
         if (dbExam.aliases.some((a: string) => a.toLowerCase() === cleanQuery)) {
           score = 95
+        } else if (dbExam.aliases.some((a: string) => a.toLowerCase().includes(cleanQuery))) {
+          score = 85
         }
       }
 
-      scoredResults.push({
+      examMap.set(dbExam.id, {
         exam: {
           id: dbExam.id,
           name: dbExam.name,
           slug: dbExam.slug,
           category: dbExam.exam_categories?.name || 'Professional Licensing',
-          country: dbExam.countries?.name || 'Global',
-          flag: dbExam.countries?.flag_emoji || '🌐',
+          country: dbExam.countries?.name || 'India',
+          flag: dbExam.countries?.flag_emoji || '🇮🇳',
           description: dbExam.description || '',
           difficulty: dbExam.difficulty || 'Intermediate',
           question_count: dbExam.question_count || 100,
@@ -145,80 +179,16 @@ export async function GET(req: NextRequest) {
         },
         score,
       })
-    })
+    }
 
-    // 4. Search Global Registry for comprehensive matches
-    GLOBAL_EXAM_REGISTRY.forEach((reg) => {
-      let regScore = 0
-      const regNameLower = reg.canonicalName.toLowerCase()
+    ;(dbMatches || []).forEach((dbExam: any) => processExamRecord(dbExam))
+    ;(aliasMatches || []).forEach((am: any) => processExamRecord(am.exams, am.alias))
 
-      // Exact match on slug, name, or aliases
-      if (reg.slug === querySlug || regNameLower === cleanQuery) {
-        regScore = 100
-      } else if (reg.aliases.some((a) => a.toLowerCase() === cleanQuery)) {
-        regScore = 98
-      } else if (reg.aliases.some((a) => a.toLowerCase().includes(cleanQuery) || cleanQuery.includes(a.toLowerCase()))) {
-        regScore = 85
-      } else if (regNameLower.includes(cleanQuery)) {
-        regScore = 80
-      } else {
-        // Levenshtein fuzzy match
-        for (const al of reg.aliases) {
-          const sim = calculateLevenshteinSimilarity(cleanQuery, al.toLowerCase())
-          if (sim > regScore) regScore = sim
-        }
-      }
-
-      if (regScore >= 60) {
-        const flag =
-          reg.country === 'India'
-            ? '🇮🇳'
-            : reg.country === 'United States'
-            ? '🇺🇸'
-            : reg.country === 'United Kingdom'
-            ? '🇬🇧'
-            : reg.country === 'Canada'
-            ? '🇨🇦'
-            : reg.country === 'Australia'
-            ? '🇦🇺'
-            : reg.country === 'United Arab Emirates'
-            ? '🇦🇪'
-            : '🌐'
-
-        // If not already in results with higher score, add it
-        const existingIdx = scoredResults.findIndex((r) => r.exam.slug === reg.slug)
-        if (existingIdx !== -1) {
-          if (regScore > scoredResults[existingIdx].score) {
-            scoredResults[existingIdx].score = regScore
-          }
-        } else {
-          scoredResults.push({
-            exam: {
-              id: `reg-${reg.slug}`,
-              name: reg.canonicalName,
-              slug: reg.slug,
-              category: reg.category,
-              country: reg.country,
-              flag,
-              description: `Official ${reg.canonicalName} (${reg.organization})`,
-              difficulty: reg.difficulty,
-              question_count: reg.questionCount,
-              time_limit_mins: reg.timeLimitMins,
-              is_featured: reg.isFeatured,
-              in_database: false,
-            },
-            score: regScore,
-          })
-        }
-      }
-    })
-
-    // Sort by score descending
+    const scoredResults = Array.from(examMap.values())
     scoredResults.sort((a, b) => b.score - a.score)
 
     let finalExams = scoredResults.map((r) => r.exam)
 
-    // Apply country/category filters if specified
     if (countryFilter && countryFilter !== 'all') {
       finalExams = finalExams.filter((e) => e.country.toLowerCase().includes(countryFilter.toLowerCase()))
     }
@@ -236,7 +206,7 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('Exam Search Error:', error)
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to search exam registry' },
+      { success: false, error: error.message || 'Failed to search exam database' },
       { status: 500 }
     )
   }

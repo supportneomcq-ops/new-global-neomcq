@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
         created_by_ai,
         status,
         approval_status,
+        verification_status,
         aliases,
         ai_confidence_score,
         official_website,

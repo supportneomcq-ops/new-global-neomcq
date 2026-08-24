@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSiteUrl } from '@/lib/seo/config';
 import { getAllIndexableUrls } from '@/lib/seo/db-queries';
 
+export const dynamic = 'force-dynamic';
 export const revalidate = 3600;
 
 const ITEMS_PER_MCQ_SITEMAP = 5000;
