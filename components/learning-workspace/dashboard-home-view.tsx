@@ -4,19 +4,16 @@ import React, { useState } from 'react';
 import {
   Brain,
   Zap,
-  Clock,
   Flame,
   ChevronRight,
   BookOpen,
   CheckCircle2,
   Plus,
-  TrendingUp,
   Target,
   Sparkles,
   Layers,
   ArrowRight,
   GraduationCap,
-  AlertTriangle,
   Award,
   Calendar,
   Compass,
@@ -26,6 +23,7 @@ import {
   Search,
 } from 'lucide-react';
 import { WorkspaceTab, StudySubTab } from './types';
+
 import { useSelection } from '@/lib/context/selection-context';
 import { OnboardingData } from '@/components/onboarding-flow';
 
@@ -289,240 +287,307 @@ export function DashboardHomeView({
       </section>
 
       {/* ========================================================================= */}
-      {/* 3. LEARNING TOOLS MATRIX (THE 6 CORE LEARNING PILLARS) */}
+      {/* 3. CONTENT HUB — THE 8 CORE LEARNING CARDS */}
       {/* ========================================================================= */}
       <section className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-indigo-600 dark:text-indigo-400" /> Learning Ecosystem
+              <Sparkles className="w-5 h-5 text-indigo-600 dark:text-indigo-400" /> Content Hub & Learning Tools
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-              Access your dedicated learning suites calibrated to the {activeExamName} blueprint.
+              Targeted study assets dynamically generated for <strong className="text-slate-800 dark:text-slate-200">{activeTopicName}</strong>.
             </p>
           </div>
+          <span className="text-xs font-bold text-slate-500 dark:text-slate-400">8 High-Yield Assets Available</span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-          {/* Tool 1: Practice CBT Q-Bank */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+          {/* CARD 1: MCQ PRACTICE */}
           <div
             onClick={() => onSelectTab('practice')}
-            className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-600 shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between group"
+            className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-indigo-500 dark:hover:border-indigo-500 shadow-xs hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between group"
           >
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Brain className="w-6 h-6" />
+                <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Brain className="w-5 h-5" />
                 </div>
-                <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">
-                  Exam Simulation
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">
+                  40 MCQs Ready
                 </span>
               </div>
 
               <div>
-                <h3 className="font-extrabold text-base text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors flex items-center gap-1.5">
-                  Practice CBT Engine
+                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                  MCQ Practice
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
-                  High-yield clinical vignette question bank with timed exam simulation, custom sprint builder, and instant comprehensive rationales.
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
+                  40 topic-specific MCQs with clinical vignettes, explanations, difficulty tags, and progress tracker.
                 </p>
               </div>
 
-              <div className="pt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-600 dark:text-slate-400 font-medium">
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Timed Mode</span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Review Mode</span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Diagnostic Pearls</span>
+              <div className="pt-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Timed / Review</span>
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">High Yield</span>
               </div>
             </div>
 
-            <div className="pt-5 mt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-indigo-600 dark:text-indigo-400">
-              <span>Start Practice Session</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            <div className="pt-4 mt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-indigo-600 dark:text-indigo-400">
+              <span>Practice MCQs</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
             </div>
           </div>
 
-          {/* Tool 2: Structured Clinical Notes */}
+          {/* CARD 2: QUIZ A ENGINE */}
           <div
-            onClick={() => onSelectTab('study', 'notes')}
-            className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-600 shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between group"
+            onClick={() => onSelectTab('quizzes')}
+            className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-500 dark:hover:border-blue-500 shadow-xs hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between group"
           >
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <BookOpen className="w-6 h-6" />
+                <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Zap className="w-5 h-5" />
                 </div>
-                <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
-                  High Yield
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
+                  20 Qs • Max 3 Attempts
                 </span>
               </div>
 
               <div>
-                <h3 className="font-extrabold text-base text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-1.5">
-                  Structured Clinical Notes
+                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                  Quiz A Engine
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
-                  Crisp, A4-formatted study sheets organized by pathophysiology, diagnostic criteria, clinical triages, and first-line pharmacotherapies.
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
+                  First formal evaluation quiz set. Tracks best score, time per question, and completion status.
                 </p>
               </div>
 
-              <div className="pt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-600 dark:text-slate-400 font-medium">
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Printable A4</span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Key Tables</span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Searchable</span>
+              <div className="pt-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Attempt 1/3</span>
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Best: 85%</span>
               </div>
             </div>
 
-            <div className="pt-5 mt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-emerald-600 dark:text-emerald-400">
-              <span>Read Topic Notes</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            <div className="pt-4 mt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-blue-600 dark:text-blue-400">
+              <span>Start Quiz A</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
             </div>
           </div>
 
-          {/* Tool 3: Active Recall Flashcards */}
+          {/* CARD 3: QUIZ B ENGINE */}
           <div
-            onClick={() => onSelectTab('study', 'flashcards')}
-            className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-violet-400 dark:hover:border-violet-600 shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between group"
+            onClick={() => onSelectTab('quizzes')}
+            className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-cyan-500 dark:hover:border-cyan-500 shadow-xs hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between group"
           >
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <div className="w-12 h-12 rounded-2xl bg-violet-50 dark:bg-violet-950/80 text-violet-600 dark:text-violet-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Layers className="w-6 h-6" />
+                <div className="w-10 h-10 rounded-2xl bg-cyan-50 dark:bg-cyan-950/80 text-cyan-600 dark:text-cyan-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Target className="w-5 h-5" />
                 </div>
-                <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-950 text-cyan-700 dark:text-cyan-300">
+                  20 Qs • Separate Set
+                </span>
+              </div>
+
+              <div>
+                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
+                  Quiz B Engine
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
+                  Parallel diagnostic evaluation set to re-test mastery and eliminate false confidence.
+                </p>
+              </div>
+
+              <div className="pt-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Attempt 0/3</span>
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Unattempted</span>
+              </div>
+            </div>
+
+            <div className="pt-4 mt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-cyan-600 dark:text-cyan-400">
+              <span>Start Quiz B</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </div>
+
+          {/* CARD 4: FLASHCARDS DECK */}
+          <div
+            onClick={() => onSelectTab('flashcards')}
+            className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-violet-500 dark:hover:border-violet-500 shadow-xs hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between group"
+          >
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-2xl bg-violet-50 dark:bg-violet-950/80 text-violet-600 dark:text-violet-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Layers className="w-5 h-5" />
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300">
                   Spaced Repetition
                 </span>
               </div>
 
               <div>
-                <h3 className="font-extrabold text-base text-slate-900 dark:text-white group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors flex items-center gap-1.5">
-                  Spaced Flashcard Decks
+                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors">
+                  Flashcard Decks
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
-                  Active recall card decks for testing diagnostic triads, drug mechanisms of action, adverse effects, and board-tested associations.
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
+                  Active recall card decks with 3D flip animation preview, mastery scoring, and shuffle mode.
                 </p>
               </div>
 
-              <div className="pt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-600 dark:text-slate-400 font-medium">
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Flip Interaction</span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Mastery Filter</span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Shuffle Mode</span>
+              <div className="pt-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">18 Cards Due</span>
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Mastered: 12</span>
               </div>
             </div>
 
-            <div className="pt-5 mt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-violet-600 dark:text-violet-400">
-              <span>Practice Flashcards</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            <div className="pt-4 mt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-violet-600 dark:text-violet-400">
+              <span>Review Flashcards</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
             </div>
           </div>
 
-          {/* Tool 4: Rapid 5-Minute Revision Sheets */}
+          {/* CARD 5: A4 CLINICAL NOTES */}
           <div
-            onClick={() => onSelectTab('study', 'revision')}
-            className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-400 dark:hover:border-amber-600 shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between group"
+            onClick={() => onSelectTab('notes')}
+            className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 dark:hover:border-emerald-500 shadow-xs hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between group"
           >
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Zap className="w-6 h-6" />
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <BookOpen className="w-5 h-5" />
                 </div>
-                <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300">
-                  Fill-in-the-Blanks
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                  A4 Paper View
                 </span>
               </div>
 
               <div>
-                <h3 className="font-extrabold text-base text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors flex items-center gap-1.5">
-                  5-Min Rapid Revision Sheets
+                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                  A4 Study Notes
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
-                  Interactive cloze-deletion / fill-in-the-blanks sheets designed for rapid last-minute memory consolidation before exams.
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
+                  Formatted A4 sheet preview with pathophysiological pathways, clinical pearls, and blue annotations.
                 </p>
               </div>
 
-              <div className="pt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-600 dark:text-slate-400 font-medium">
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Active Masking</span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Mnemonics</span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Instant Reveal</span>
+              <div className="pt-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Printable</span>
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">High-Yield Tables</span>
               </div>
             </div>
 
-            <div className="pt-5 mt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-amber-600 dark:text-amber-400">
-              <span>Open Revision Sheets</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            <div className="pt-4 mt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-emerald-600 dark:text-emerald-400">
+              <span>Study Notes</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
             </div>
           </div>
 
-          {/* Tool 5: Synaptic AI Tutor */}
+          {/* CARD 6: STICKY BOARD */}
+          <div
+            onClick={() => onSelectTab('sticky')}
+            className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500 dark:hover:border-amber-500 shadow-xs hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between group"
+          >
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Flame className="w-5 h-5" />
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300">
+                  Sticky Board
+                </span>
+              </div>
+
+              <div>
+                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                  Sticky Notes Board
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
+                  Physical note cards preview with amber, rose, violet, and blue colored tiles for rapid key point scanning.
+                </p>
+              </div>
+
+              <div className="pt-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Amber / Rose</span>
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Quick Recall</span>
+              </div>
+            </div>
+
+            <div className="pt-4 mt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-amber-600 dark:text-amber-400">
+              <span>Open Sticky Board</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </div>
+
+          {/* CARD 7: FILL IN THE BLANKS / ACTIVE RECALL */}
+          <div
+            onClick={() => onSelectTab('blanks')}
+            className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-rose-500 dark:hover:border-rose-500 shadow-xs hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between group"
+          >
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-2xl bg-rose-50 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Activity className="w-5 h-5" />
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300">
+                  Cloze Deletion
+                </span>
+              </div>
+
+              <div>
+                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
+                  Fill in the Blanks
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
+                  Active recall masked text exercises testing key terms, dosages, and clinical criteria.
+                </p>
+              </div>
+
+              <div className="pt-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Mask & Reveal</span>
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Score Tracker</span>
+              </div>
+            </div>
+
+            <div className="pt-4 mt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-rose-600 dark:text-rose-400">
+              <span>Start Recall</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </div>
+
+          {/* CARD 8: AI TUTOR VIDEO */}
           <div
             onClick={() => onSelectTab('tutor')}
-            className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-cyan-400 dark:hover:border-cyan-600 shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between group"
+            className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-purple-500 dark:hover:border-purple-500 shadow-xs hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between group"
           >
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <div className="w-12 h-12 rounded-2xl bg-cyan-50 dark:bg-cyan-950/80 text-cyan-600 dark:text-cyan-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <GraduationCap className="w-6 h-6" />
+                <div className="w-10 h-10 rounded-2xl bg-purple-50 dark:bg-purple-950/80 text-purple-600 dark:text-purple-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <GraduationCap className="w-5 h-5" />
                 </div>
-                <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-cyan-100 dark:bg-cyan-950 text-cyan-700 dark:text-cyan-300">
-                  Synaptic Whiteboard
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300">
+                  12:45 • Whiteboard Lesson
                 </span>
               </div>
 
               <div>
-                <h3 className="font-extrabold text-base text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors flex items-center gap-1.5">
-                  Synaptic AI Tutor
+                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+                  AI Tutor Video
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
-                  Interactive case study chalkboard that dynamically maps clinical reasoning steps, differential diagnosis flowcharts, and mechanistic cascades.
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
+                  Synchronized educational video lesson player with interactive scene timeline, narration, and Q&A assistant.
                 </p>
               </div>
 
-              <div className="pt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-600 dark:text-slate-400 font-medium">
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Animated Chalkboard</span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Clinical Cases</span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">AI Explanations</span>
+              <div className="pt-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Scene Timeline</span>
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Audio Synced</span>
               </div>
             </div>
 
-            <div className="pt-5 mt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-cyan-600 dark:text-cyan-400">
-              <span>Launch AI Whiteboard</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </div>
-
-          {/* Tool 6: Weakness Radar & Analytics */}
-          <div
-            onClick={() => onSelectTab('radar')}
-            className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-rose-400 dark:hover:border-rose-600 shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between group"
-          >
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <TrendingUp className="w-6 h-6" />
-                </div>
-                <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300">
-                  Gap Analytics
-                </span>
-              </div>
-
-              <div>
-                <h3 className="font-extrabold text-base text-slate-900 dark:text-white group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors flex items-center gap-1.5">
-                  Weakness Radar & Mastery
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
-                  Real-time cognitive analytics tracking subject-by-subject accuracy, time-per-question velocity, and critical high-yield gap alerts.
-                </p>
-              </div>
-
-              <div className="pt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-600 dark:text-slate-400 font-medium">
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Mastery Heatmap</span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Accuracy Trends</span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Gap Detection</span>
-              </div>
-            </div>
-
-            <div className="pt-5 mt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-rose-600 dark:text-rose-400">
-              <span>View Weakness Radar</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            <div className="pt-4 mt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-purple-600 dark:text-purple-400">
+              <span>Watch Lesson</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
             </div>
           </div>
         </div>

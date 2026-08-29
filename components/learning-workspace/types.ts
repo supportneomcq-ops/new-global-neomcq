@@ -1,6 +1,17 @@
-export type WorkspaceTab = 'dashboard' | 'practice' | 'study' | 'tutor' | 'radar';
+export type WorkspaceTab =
+  | 'dashboard'
+  | 'practice'
+  | 'quizzes'
+  | 'flashcards'
+  | 'notes'
+  | 'sticky'
+  | 'blanks'
+  | 'tutor'
+  | 'radar'
+  | 'plan'
+  | 'saved';
 
-export type StudySubTab = 'notes' | 'flashcards' | 'sticky' | 'revision';
+export type StudySubTab = 'notes' | 'flashcards' | 'sticky' | 'revision' | 'blanks';
 
 export interface MCQQuestion {
   id?: string;
