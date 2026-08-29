@@ -32,12 +32,43 @@ export interface GeneratedFlashcard {
   front: string
   back: string
   category?: string
+  difficulty?: string
+}
+
+export interface GeneratedStickyNote {
+  id?: string
+  text: string
+  color: 'amber' | 'emerald' | 'indigo' | 'rose'
+  category?: string
+  pinned?: boolean
+}
+
+export interface GeneratedFillInBlank {
+  id?: string
+  sentence: string
+  blank: string
+  concept: string
+  explanation: string
+}
+
+export interface GeneratedWhiteboardPhase {
+  phase: number
+  title: string
+  diagram: string
+  description: string
+  badge: string
+  narration?: string
 }
 
 export interface ContentIntelligencePayload {
   mcqs: GeneratedMCQ[]
+  quiz_a: GeneratedMCQ[]
+  quiz_b: GeneratedMCQ[]
   notes: string
   flashcards: GeneratedFlashcard[]
+  sticky_notes: GeneratedStickyNote[]
+  fill_in_the_blanks: GeneratedFillInBlank[]
+  whiteboard_phases: GeneratedWhiteboardPhase[]
   tutor_explanation?: string
   revision_sheet?: string
   quality_score?: number
@@ -211,13 +242,69 @@ function validateGeneratedContent(
     for (const f of rawPayload.flashcards) {
       if (f && typeof f.front === 'string' && typeof f.back === 'string' && f.front.trim() && f.back.trim()) {
         validFlashcards.push({
+          id: f.id || `fc_${Math.random().toString(36).slice(2, 9)}`,
           front: f.front.trim(),
           back: f.back.trim(),
           category: f.category || subjectName,
+          difficulty: f.difficulty || 'High Yield',
         })
       }
     }
   }
+
+  // Sticky Notes validation / extraction
+  const validStickyNotes: GeneratedStickyNote[] = []
+  if (Array.isArray(rawPayload?.sticky_notes)) {
+    for (const sn of rawPayload.sticky_notes) {
+      if (sn && typeof sn.text === 'string' && sn.text.trim()) {
+        const color = ['amber', 'emerald', 'indigo', 'rose'].includes(sn.color) ? sn.color : 'amber'
+        validStickyNotes.push({
+          id: sn.id || `sn_${Math.random().toString(36).slice(2, 9)}`,
+          text: sn.text.trim(),
+          color: color as any,
+          category: sn.category || subjectName,
+          pinned: !!sn.pinned,
+        })
+      }
+    }
+  }
+
+  // Fill in the blanks validation / extraction
+  const validFillInBlanks: GeneratedFillInBlank[] = []
+  if (Array.isArray(rawPayload?.fill_in_the_blanks)) {
+    for (const fib of rawPayload.fill_in_the_blanks) {
+      if (fib && typeof fib.sentence === 'string' && typeof fib.blank === 'string' && fib.sentence.trim() && fib.blank.trim()) {
+        validFillInBlanks.push({
+          id: fib.id || `fib_${Math.random().toString(36).slice(2, 9)}`,
+          sentence: fib.sentence.trim(),
+          blank: fib.blank.trim(),
+          concept: fib.concept ? String(fib.concept).trim() : topicName,
+          explanation: fib.explanation ? String(fib.explanation).trim() : 'High-yield recall point.',
+        })
+      }
+    }
+  }
+
+  // Whiteboard phases validation / extraction
+  const validWhiteboardPhases: GeneratedWhiteboardPhase[] = []
+  if (Array.isArray(rawPayload?.whiteboard_phases) && rawPayload.whiteboard_phases.length > 0) {
+    for (const wp of rawPayload.whiteboard_phases) {
+      if (wp && typeof wp.title === 'string' && typeof wp.description === 'string') {
+        validWhiteboardPhases.push({
+          phase: typeof wp.phase === 'number' ? wp.phase : validWhiteboardPhases.length + 1,
+          title: wp.title.trim(),
+          diagram: wp.diagram ? String(wp.diagram).trim() : `${topicName} Pathway`,
+          description: wp.description.trim(),
+          badge: wp.badge ? String(wp.badge).trim() : 'Core Concept',
+          narration: wp.narration ? String(wp.narration).trim() : undefined,
+        })
+      }
+    }
+  }
+
+  // Split MCQs into Quiz A (20 Qs) and Quiz B (20 Qs)
+  const quizA = validMcqs.slice(0, Math.min(20, Math.ceil(validMcqs.length / 2)))
+  const quizB = validMcqs.slice(quizA.length, quizA.length + 20)
 
   const validTutor = typeof rawPayload?.tutor_explanation === 'string' && rawPayload.tutor_explanation.length > 20
     ? rawPayload.tutor_explanation.trim()
@@ -231,8 +318,13 @@ function validateGeneratedContent(
 
   const payload: ContentIntelligencePayload = {
     mcqs: validMcqs,
+    quiz_a: quizA,
+    quiz_b: quizB.length > 0 ? quizB : quizA,
     notes: validNotes,
     flashcards: validFlashcards,
+    sticky_notes: validStickyNotes,
+    fill_in_the_blanks: validFillInBlanks,
+    whiteboard_phases: validWhiteboardPhases,
     tutor_explanation: validTutor,
     revision_sheet: validRev,
     quality_score: finalScore,
@@ -537,13 +629,31 @@ export async function getOrGenerateCanonicalTopicContent({
           front: f.front,
           back: f.back,
           category: subject.name,
+          difficulty: f.difficulty || 'High Yield',
         }))
       : snapshotPayload.flashcards || []
 
+    const quizA = snapshotPayload.quiz_a && snapshotPayload.quiz_a.length > 0
+      ? snapshotPayload.quiz_a
+      : formattedMcqs.slice(0, Math.min(20, Math.ceil(formattedMcqs.length / 2)))
+
+    const quizB = snapshotPayload.quiz_b && snapshotPayload.quiz_b.length > 0
+      ? snapshotPayload.quiz_b
+      : formattedMcqs.slice(quizA.length, quizA.length + 20)
+
+    const stickyNotes = snapshotPayload.sticky_notes || []
+    const fillInBlanks = snapshotPayload.fill_in_the_blanks || []
+    const whiteboardPhases = snapshotPayload.whiteboard_phases || []
+
     return {
       mcqs: formattedMcqs,
+      quiz_a: quizA,
+      quiz_b: quizB.length > 0 ? quizB : quizA,
       notes: combinedNotes,
       flashcards: formattedFlashcards,
+      sticky_notes: stickyNotes,
+      fill_in_the_blanks: fillInBlanks,
+      whiteboard_phases: whiteboardPhases,
       tutor_explanation: snapshotPayload.tutor_explanation || '',
       revision_sheet: snapshotPayload.revision_sheet || '',
       quality_score: snapshotPayload.quality_score || 95.0,
@@ -812,19 +922,44 @@ ${existingSummaries ? `Existing questions in database (DO NOT REWRITE OR DUPLICA
       "difficulty": "${difficulty}"
     }
   ],
-  "notes": "# 📚 ${topic.name.toUpperCase()} — COMPREHENSIVE GUIDE\\nDetailed structured markdown notes...",
+  "notes": "# 📚 ${topic.name.toUpperCase()} — COMPREHENSIVE GUIDE\\nDetailed structured markdown notes formatted for A4 printing with clear headings, diagnostic algorithms, and clinical pearls...",
   "flashcards": [
     {
       "front": "Active recall question",
       "back": "Concise high-yield answer",
-      "category": "${subject.name}"
+      "category": "${subject.name}",
+      "difficulty": "High Yield"
+    }
+  ],
+  "sticky_notes": [
+    {
+      "text": "High-yield pearl or board trap to remember",
+      "color": "amber",
+      "category": "Exam Pearls"
+    }
+  ],
+  "fill_in_the_blanks": [
+    {
+      "sentence": "The drug of choice for acute presentation of [Condition] is [Drug Name].",
+      "blank": "Drug Name",
+      "concept": "${topic.name}",
+      "explanation": "High-yield pharmacology rule."
+    }
+  ],
+  "whiteboard_phases": [
+    {
+      "phase": 1,
+      "title": "1. Cellular Pathophysiology & Mechanisms",
+      "diagram": "Step-by-step pathway",
+      "description": "Clear conceptual breakdown",
+      "badge": "Cellular Pathology"
     }
   ],
   "tutor_explanation": "Friendly, step-by-step master tutor breakdown with analogies...",
   "revision_sheet": "⚡ 60-SECOND RAPID REVISION SHEET..."
 }
 
-Generate 5 high-yield MCQs and 5 flashcards. Respond strictly in valid JSON format.`
+Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill in the blanks, and whiteboard lesson phases. Respond strictly in valid JSON format.`
 
   // 3. Execute AI Generation with Multi-Provider Failover
   let generationOutput: any = null
@@ -1023,8 +1158,13 @@ Generate 5 high-yield MCQs and 5 flashcards. Respond strictly in valid JSON form
           actual_cost_usd: costUsd,
           quality_score: finalPayload.quality_score,
           mcqs: finalPayload.mcqs,
+          quiz_a: finalPayload.quiz_a,
+          quiz_b: finalPayload.quiz_b,
           notes: finalPayload.notes,
           flashcards: finalPayload.flashcards,
+          sticky_notes: finalPayload.sticky_notes,
+          fill_in_the_blanks: finalPayload.fill_in_the_blanks,
+          whiteboard_phases: finalPayload.whiteboard_phases,
           tutor_explanation: finalPayload.tutor_explanation,
           revision_sheet: finalPayload.revision_sheet,
         },

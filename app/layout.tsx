@@ -3,6 +3,7 @@ import { Space_Grotesk, Inter } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
 import { SelectionProvider } from '@/lib/context/selection-context';
+import { TopicContentProvider } from '@/lib/context/topic-content-context';
 import { ServiceWorkerRegister } from '@/components/pwa/sw-register';
 import { PWAInstallPrompt } from '@/components/pwa/install-prompt';
 import { generateOrganizationSchema, generateWebSiteSchema } from '@/lib/seo/structured-data';
@@ -148,9 +149,11 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <SelectionProvider>
-            {children}
-            <ServiceWorkerRegister />
-            <PWAInstallPrompt />
+            <TopicContentProvider>
+              {children}
+              <ServiceWorkerRegister />
+              <PWAInstallPrompt />
+            </TopicContentProvider>
           </SelectionProvider>
         </ThemeProvider>
       </body>

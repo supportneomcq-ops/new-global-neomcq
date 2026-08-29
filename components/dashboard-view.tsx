@@ -7,6 +7,7 @@ import { ExamSwitchModal } from './exam-switch-modal';
 import { AddTopicModal } from './add-topic-modal';
 import { CreateStudyModal } from './create-study-modal';
 import { useSelection } from '@/lib/context/selection-context';
+import { useTopicContent } from '@/lib/context/topic-content-context';
 import { WorkspaceTab, StudySubTab } from './learning-workspace/types';
 import { WorkspaceHeader } from './learning-workspace/workspace-header';
 import { WorkspaceSidebar } from './learning-workspace/workspace-sidebar';
@@ -16,6 +17,7 @@ import { PracticeCbtView } from './learning-workspace/practice-cbt-view';
 import { StudyHubView } from './learning-workspace/study-hub-view';
 import { AiTutorWhiteboardView } from './learning-workspace/ai-tutor-whiteboard-view';
 import { WeaknessRadarView } from './learning-workspace/weakness-radar-view';
+import { TopicPreparationModal } from './learning-workspace/topic-preparation-modal';
 
 interface DashboardViewProps {
   user: OnboardingData;
@@ -36,13 +38,15 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
   const [isAddTopicModalOpen, setIsAddTopicModalOpen] = useState(false);
   const [isCreateStudyModalOpen, setIsCreateStudyModalOpen] = useState(false);
 
-  // Selection Context
+  // Selection & Topic Content Context
   const {
     selection,
     setSubject,
     setTopic,
     refreshHierarchy,
   } = useSelection();
+
+  const { fetchTopicContent } = useTopicContent();
 
   const handleLogStudyTime = (hours: number) => {
     setCompletedHours((prev) => Math.min(Math.max(1, user.studyHours), +(prev + hours).toFixed(1)));
@@ -153,6 +157,16 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
             setSubject(subject);
             setTopic(topic);
             setIsAddTopicModalOpen(false);
+            if (selection.exam) {
+              fetchTopicContent({
+                exam_id: selection.exam.id,
+                subject_id: subject.id,
+                topic_id: topic.id,
+                exam_name: selection.exam.name,
+                subject_name: subject.name,
+                topic_name: topic.name,
+              });
+            }
           }}
         />
       )}
@@ -167,6 +181,9 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
           }}
         />
       )}
+
+      {/* 5. Topic Knowledge Preparation Progress Stepper */}
+      <TopicPreparationModal />
     </div>
   );
 }

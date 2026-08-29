@@ -9,13 +9,14 @@ import {
   Send,
 } from 'lucide-react';
 import { useSelection } from '@/lib/context/selection-context';
+import { useTopicContent } from '@/lib/context/topic-content-context';
 import { OnboardingData } from '@/components/onboarding-flow';
 
 interface AiTutorWhiteboardViewProps {
   user: OnboardingData;
 }
 
-const WHITEBOARD_PHASES = [
+const DEFAULT_WHITEBOARD_PHASES = [
   {
     phase: 1,
     title: '1. Mechanism & Cellular Pathophysiology',
@@ -48,9 +49,17 @@ const WHITEBOARD_PHASES = [
 
 export function AiTutorWhiteboardView({ user }: AiTutorWhiteboardViewProps) {
   const { selection } = useSelection();
+  const { content } = useTopicContent();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+
+  const phases =
+    content?.whiteboard_phases && content.whiteboard_phases.length > 0
+      ? content.whiteboard_phases
+      : DEFAULT_WHITEBOARD_PHASES;
+
+  const activePhase = phases[currentStep] || phases[0];
 
   // Chat Log
   const [messages, setMessages] = useState<Array<{ sender: 'user' | 'tutor'; text: string }>>([
@@ -61,8 +70,6 @@ export function AiTutorWhiteboardView({ user }: AiTutorWhiteboardViewProps) {
   ]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-
-  const activePhase = WHITEBOARD_PHASES[currentStep];
 
   const handleSendPrompt = (text: string) => {
     if (!text.trim()) return;
@@ -115,7 +122,7 @@ export function AiTutorWhiteboardView({ user }: AiTutorWhiteboardViewProps) {
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
                 <span className="font-bold text-slate-300 uppercase tracking-wider text-[11px]">
-                  Synaptic Canvas • Step {currentStep + 1} of {WHITEBOARD_PHASES.length}
+                  Synaptic Canvas • Step {currentStep + 1} of {phases.length}
                 </span>
               </div>
 
@@ -155,7 +162,7 @@ export function AiTutorWhiteboardView({ user }: AiTutorWhiteboardViewProps) {
 
               {/* Step indicator dots */}
               <div className="flex items-center gap-2">
-                {WHITEBOARD_PHASES.map((_, idx) => (
+                {phases.map((_, idx) => (
                   <button
                     key={idx}
                     type="button"
@@ -170,8 +177,8 @@ export function AiTutorWhiteboardView({ user }: AiTutorWhiteboardViewProps) {
 
               <button
                 type="button"
-                disabled={currentStep === WHITEBOARD_PHASES.length - 1}
-                onClick={() => setCurrentStep((prev) => Math.min(WHITEBOARD_PHASES.length - 1, prev + 1))}
+                disabled={currentStep === phases.length - 1}
+                onClick={() => setCurrentStep((prev) => Math.min(phases.length - 1, prev + 1))}
                 className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 Next Phase <ChevronRight className="w-4 h-4" />

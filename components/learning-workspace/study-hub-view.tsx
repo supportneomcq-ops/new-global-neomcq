@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { StudySubTab, FlashcardItem, StickyNoteItem } from './types';
 import { useSelection } from '@/lib/context/selection-context';
+import { useTopicContent } from '@/lib/context/topic-content-context';
 import { OnboardingData } from '@/components/onboarding-flow';
 
 interface StudyHubViewProps {
@@ -110,6 +111,7 @@ const DEFAULT_REVISION_ITEMS = [
 
 export function StudyHubView({ user, initialSubTab = 'notes' }: StudyHubViewProps) {
   const { selection } = useSelection();
+  const { content } = useTopicContent();
 
   // Sub-tab: 'notes' | 'flashcards' | 'sticky' | 'revision'
   const [activeSubTab, setActiveSubTab] = useState<StudySubTab>(initialSubTab);
@@ -138,6 +140,45 @@ export function StudyHubView({ user, initialSubTab = 'notes' }: StudyHubViewProp
   // Revision Sheets State (Active recall fill-in-the-blanks)
   const [activeRecallMode, setActiveRecallMode] = useState(true);
   const [revealedBlanks, setRevealedBlanks] = useState<Record<string, boolean>>({});
+
+  // Synchronize when topic content changes
+  React.useEffect(() => {
+    if (content?.flashcards && content.flashcards.length > 0) {
+      setFlashcards(
+        content.flashcards.map((f, idx) => ({
+          id: f.id || `fc_${idx}`,
+          front: f.front,
+          back: f.back,
+          category: f.category || selection.subject?.name || 'Cardiology',
+          difficulty: f.difficulty || 'High Yield',
+          status: 'unseen',
+        }))
+      );
+      setFcIndex(0);
+      setIsFlipped(false);
+    }
+
+    if (content?.sticky_notes && content.sticky_notes.length > 0) {
+      setStickyNotes(
+        content.sticky_notes.map((s, idx) => {
+          let colorStyle = 'bg-amber-100 dark:bg-amber-950/80 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-100';
+          if (s.color === 'emerald') {
+            colorStyle = 'bg-emerald-100 dark:bg-emerald-950/80 border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-100';
+          } else if (s.color === 'indigo') {
+            colorStyle = 'bg-indigo-100 dark:bg-indigo-950/80 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-100';
+          } else if (s.color === 'rose') {
+            colorStyle = 'bg-rose-100 dark:bg-rose-950/80 border-rose-300 dark:border-rose-700 text-rose-900 dark:text-rose-100';
+          }
+          return {
+            id: s.id || `sn_${idx}`,
+            text: s.text,
+            color: colorStyle,
+            pinned: !!s.pinned,
+          };
+        })
+      );
+    }
+  }, [content, selection.subject?.name]);
 
   const filteredCards = flashcards.filter((card) => {
     if (fcFilter === 'mastered') return card.status === 'mastered';
@@ -666,7 +707,16 @@ export function StudyHubView({ user, initialSubTab = 'notes' }: StudyHubViewProp
             </div>
 
             <div className="space-y-4 pt-2">
-              {DEFAULT_REVISION_ITEMS.map((item, idx) => (
+              {((content?.fill_in_the_blanks && content.fill_in_the_blanks.length > 0)
+                ? content.fill_in_the_blanks.map((fib, idx) => ({
+                    id: fib.id || `fib_${idx}`,
+                    title: `${fib.concept} Rapid Recall`,
+                    concept: fib.sentence,
+                    blanks: [fib.blank],
+                    pearl: fib.explanation,
+                  }))
+                : DEFAULT_REVISION_ITEMS
+              ).map((item, idx) => (
                 <div
                   key={item.id}
                   className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-3"

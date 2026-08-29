@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { MCQQuestion, QuizAttemptRecord } from './types';
 import { useSelection } from '@/lib/context/selection-context';
+import { useTopicContent } from '@/lib/context/topic-content-context';
 import { OnboardingData } from '@/components/onboarding-flow';
 
 interface PracticeCbtViewProps {
@@ -100,9 +101,17 @@ export function PracticeCbtView({
   onQuizComplete,
 }: PracticeCbtViewProps) {
   const { selection } = useSelection();
+  const {
+    activeQuiz,
+    setActiveQuiz,
+    activeQuestions,
+    content,
+    recordQuizAttempt,
+    getAttemptsCount,
+  } = useTopicContent();
 
   const [questions, setQuestions] = useState<MCQQuestion[]>(
-    initialQuestions && initialQuestions.length > 0 ? initialQuestions : DEFAULT_QUESTIONS
+    activeQuestions && activeQuestions.length > 0 ? activeQuestions : DEFAULT_QUESTIONS
   );
   const [loading, setLoading] = useState(false);
 
@@ -118,37 +127,64 @@ export function PracticeCbtView({
   const [isCompleted, setIsCompleted] = useState(false);
 
   // Attempt Tracking (Max 3 attempts strictly enforced)
-  const [attemptNumber, setAttemptNumber] = useState(1);
-  const [maxAttemptsReached, setMaxAttemptsReached] = useState(false);
+  const currentTopicId = topicId || selection.topic?.id || 'general';
+  const quizKey = `${currentTopicId}_${activeQuiz}`;
+  const totalAttemptsMade = getAttemptsCount(quizKey);
+  const attemptNumber = Math.min(3, totalAttemptsMade + 1);
+  const maxAttemptsReached = totalAttemptsMade >= 3;
 
   // Timer for Exam Mode
   const [timeRemainingSeconds, setTimeRemainingSeconds] = useState(600); // 10 mins
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load questions if topic changes
+  // Sync questions when activeQuiz or topic content changes
   useEffect(() => {
-    const currentTopicId = topicId || selection.topic?.id;
-    if (currentTopicId) {
-      // Check stored attempt records
-      const storageKey = `neomcq_quiz_attempts_${currentTopicId}`;
-      const savedAttempts = localStorage.getItem(storageKey);
-      if (savedAttempts) {
-        try {
-          const attempts = JSON.parse(savedAttempts);
-          if (Array.isArray(attempts)) {
-            const count = attempts.length;
-            setAttemptNumber(Math.min(3, count + 1));
-            if (count >= 3) {
-              setMaxAttemptsReached(true);
-            }
+    if (activeQuestions && activeQuestions.length > 0) {
+      setQuestions(activeQuestions);
+    }
+  }, [activeQuestions]);
+
+  // Restore saved session for this topic + quiz if in progress
+  useEffect(() => {
+    const sessionKey = `neomcq_cbt_session_${quizKey}`;
+    try {
+      const savedSession = localStorage.getItem(sessionKey);
+      if (savedSession) {
+        const parsed = JSON.parse(savedSession);
+        if (parsed && !parsed.isCompleted) {
+          setSelectedAnswers(parsed.selectedAnswers || {});
+          setEliminatedOptions(parsed.eliminatedOptions || {});
+          setFlaggedQuestions(parsed.flaggedQuestions || {});
+          setRevealedRationales(parsed.revealedRationales || {});
+          setCurrentIndex(parsed.currentIndex || 0);
+          if (typeof parsed.timeRemainingSeconds === 'number') {
+            setTimeRemainingSeconds(parsed.timeRemainingSeconds);
           }
-        } catch {
-          // ignore parsing error
         }
       }
-    }
-  }, [topicId, selection.topic?.id]);
+    } catch {}
+  }, [quizKey]);
+
+  // Auto-save current progress
+  useEffect(() => {
+    if (isCompleted) return;
+    const sessionKey = `neomcq_cbt_session_${quizKey}`;
+    try {
+      localStorage.setItem(
+        sessionKey,
+        JSON.stringify({
+          selectedAnswers,
+          eliminatedOptions,
+          flaggedQuestions,
+          revealedRationales,
+          currentIndex,
+          timeRemainingSeconds,
+          isCompleted: false,
+        })
+      );
+    } catch {}
+  }, [quizKey, selectedAnswers, eliminatedOptions, flaggedQuestions, revealedRationales, currentIndex, timeRemainingSeconds, isCompleted]);
 
   // Timer logic
   useEffect(() => {
@@ -179,7 +215,7 @@ export function PracticeCbtView({
 
   const handleSelectOption = (optIdx: number) => {
     if (isCompleted || maxAttemptsReached) return;
-    if (mode === 'tutor' && isCurrentAnswered) return; // In tutor mode, lock once selected
+    if (mode === 'tutor' && isCurrentAnswered) return;
 
     setSelectedAnswers((prev) => ({
       ...prev,
@@ -219,11 +255,10 @@ export function PracticeCbtView({
       }
     });
 
-    const scorePct = Math.round((correctCount / totalQ) * 100);
-    const currentTopicId = topicId || selection.topic?.id || 'general';
+    const scorePct = Math.round((correctCount / Math.max(1, totalQ)) * 100);
 
     const record: QuizAttemptRecord = {
-      quizId: `quiz_${Date.now()}`,
+      quizId: `quiz_${activeQuiz}_${Date.now()}`,
       topicId: currentTopicId,
       attemptNumber: attemptNumber,
       score: scorePct,
@@ -234,23 +269,12 @@ export function PracticeCbtView({
       answers: selectedAnswers,
     };
 
-    // Save to local storage for persistent 3-attempt limit
-    const storageKey = `neomcq_quiz_attempts_${currentTopicId}`;
-    const saved = localStorage.getItem(storageKey);
-    let attemptsList: QuizAttemptRecord[] = [];
-    if (saved) {
-      try {
-        attemptsList = JSON.parse(saved);
-      } catch {}
-    }
-    attemptsList.push(record);
-    localStorage.setItem(storageKey, JSON.stringify(attemptsList));
+    recordQuizAttempt(quizKey, record);
 
-    if (attemptsList.length >= 3) {
-      setMaxAttemptsReached(true);
-    } else {
-      setAttemptNumber(attemptsList.length + 1);
-    }
+    // Clear active session storage
+    try {
+      localStorage.removeItem(`neomcq_cbt_session_${quizKey}`);
+    } catch {}
 
     if (onQuizComplete) {
       onQuizComplete(record);
@@ -281,7 +305,7 @@ export function PracticeCbtView({
   questions.forEach((q, idx) => {
     if (selectedAnswers[idx] === q.correct_index) finalCorrect++;
   });
-  const scorePercent = Math.round((finalCorrect / totalQ) * 100);
+  const scorePercent = Math.round((finalCorrect / Math.max(1, totalQ)) * 100);
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-16">
@@ -302,8 +326,41 @@ export function PracticeCbtView({
           </p>
         </div>
 
-        {/* Mode Selector & Attempt Counter */}
-        <div className="flex items-center gap-3">
+        {/* Quiz A/B Switcher, Mode Selector & Attempt Counter */}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Quiz A vs Quiz B Switcher */}
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveQuiz('A');
+                setIsCompleted(false);
+              }}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                activeQuiz === 'A'
+                  ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs font-bold'
+                  : 'text-slate-600 dark:text-slate-400'
+              }`}
+            >
+              Quiz A (20 Qs)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveQuiz('B');
+                setIsCompleted(false);
+              }}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                activeQuiz === 'B'
+                  ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs font-bold'
+                  : 'text-slate-600 dark:text-slate-400'
+              }`}
+            >
+              Quiz B (20 Qs)
+            </button>
+          </div>
+
+          {/* Mode Selector */}
           <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700">
             <button
               type="button"
