@@ -15,7 +15,7 @@ export function generateExamMetadata(exam: ExamSeoData): Metadata {
     exam.description?.slice(0, 160) ||
     `Master ${exam.name} with AI-curated practice questions, structured high-yield notes, and adaptive clinical rationale on NeoMCQ.`;
 
-  const isIndexable = exam.verification_status === 'verified';
+  const isIndexable = exam.verification_status !== 'rejected';
 
   return {
     title,

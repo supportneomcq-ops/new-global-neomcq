@@ -71,11 +71,24 @@ export function ExamSwitchModal({
           const { data, error } = await supabase
             .from('exams')
             .select('id, name, slug, description')
-            .eq('status', 'active')
-            .eq('verification_status', 'verified')
+            .neq('status', 'archived')
             .order('name');
 
-          if (error) throw error;
+          if (error || !data || data.length === 0) {
+            // Fallback to /api/exams
+            const apiRes = await fetch('/api/exams');
+            const apiJson = await apiRes.json();
+            if (apiJson.success && Array.isArray(apiJson.exams)) {
+              setAllExams(apiJson.exams);
+              const other = apiJson.exams.find((e: any) => e.id !== currentExam?.id);
+              if (other && !selectedTargetExam) {
+                setSelectedTargetExam(other);
+              }
+              return;
+            }
+            if (error) throw error;
+          }
+
           if (data) {
             setAllExams(data);
             // Default target to first exam that is not current

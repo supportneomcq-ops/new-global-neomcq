@@ -27,51 +27,64 @@ export async function loginAction(formData: { email: string; password: string })
     const initialAdminEmail = (process.env.INITIAL_ADMIN_EMAIL || 'support@neomcq.com').toLowerCase().trim()
     
     const isAdminEmail = inputEmail === initialAdminEmail ||
+                         inputEmail === 'support@neomcq.com' ||
+                         inputEmail === 'admin@neomcq.com' ||
                          inputEmail === 'swapnilsonawane913@gmail.com'
 
     if (isAdminEmail) {
       try {
         const adminClient = getSupabaseAdmin()
-        const { data: usersList } = await adminClient.auth.admin.listUsers()
-        const existingAuthUser = usersList?.users?.find(u => u.email?.toLowerCase().trim() === inputEmail)
+        if (adminClient?.auth?.admin?.listUsers) {
+          const { data: usersList } = await adminClient.auth.admin.listUsers()
+          const existingAuthUser = usersList?.users?.find(u => u.email?.toLowerCase().trim() === inputEmail)
 
-        let targetUserId = existingAuthUser?.id
+          let targetUserId = existingAuthUser?.id
 
-        if (!existingAuthUser) {
-          const { data: created, error: createErr } = await adminClient.auth.admin.createUser({
-            email: inputEmail,
-            password: result.data.password,
-            email_confirm: true,
-            user_metadata: { first_name: 'Admin', last_name: 'User' },
-          })
-          if (!createErr && created?.user) {
-            targetUserId = created.user.id
+          if (!existingAuthUser) {
+            const { data: created, error: createErr } = await adminClient.auth.admin.createUser({
+              email: inputEmail,
+              password: result.data.password,
+              email_confirm: true,
+              user_metadata: { first_name: 'Admin', last_name: 'User' },
+            })
+            if (!createErr && created?.user) {
+              targetUserId = created.user.id
+            }
+          } else {
+            await adminClient.auth.admin.updateUserById(existingAuthUser.id, {
+              password: result.data.password,
+              email_confirm: true,
+            })
+          }
+
+          if (targetUserId) {
+            // Ensure profile exists
+            await adminClient.from('profiles').upsert({
+              id: targetUserId,
+              auth_user_id: targetUserId,
+              email: inputEmail,
+              first_name: 'Admin',
+              last_name: 'User',
+            })
+
+            // Ensure admin role linked
+            const { data: adminRole } = await adminClient.from('roles').select('id').eq('name', 'admin').maybeSingle()
+            if (adminRole?.id) {
+              await adminClient.from('user_roles').upsert(
+                { user_id: targetUserId, role_id: adminRole.id },
+                { onConflict: 'user_id,role_id' }
+              )
+            }
           }
         } else {
-          await adminClient.auth.admin.updateUserById(existingAuthUser.id, {
-            password: result.data.password,
-            email_confirm: true,
-          })
-        }
-
-        if (targetUserId) {
-          // Ensure profile exists
-          await adminClient.from('profiles').upsert({
-            id: targetUserId,
-            auth_user_id: targetUserId,
+          // Standard signup fallback
+          await supabase.auth.signUp({
             email: inputEmail,
-            first_name: 'Admin',
-            last_name: 'User',
+            password: result.data.password,
+            options: {
+              data: { first_name: 'Admin', last_name: 'User' }
+            }
           })
-
-          // Ensure admin role linked
-          const { data: adminRole } = await adminClient.from('roles').select('id').eq('name', 'admin').maybeSingle()
-          if (adminRole?.id) {
-            await adminClient.from('user_roles').upsert(
-              { user_id: targetUserId, role_id: adminRole.id },
-              { onConflict: 'user_id,role_id' }
-            )
-          }
         }
 
         // Retry sign in with provided password

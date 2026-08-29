@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     const { startDate, endDate } = getDateRange(timeframe, customStart, customEnd);
 
     const { data: jobs, error } = await adminClient
-      .from('ai_generation_jobs')
+      .from('ai_jobs')
       .select('*')
       .gte('created_at', startDate.toISOString())
       .lte('created_at', endDate.toISOString())
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
     const successRate = safeAvg(successfulRequests * 100, totalRequests, 1);
 
     // Retries count
-    const retriesCount = jobsList.reduce((acc, j) => acc + (j.retry_count || (j.status === 'failed' ? 1 : 0)), 0);
+    const retriesCount = jobsList.reduce((acc, j) => acc + (j.attempts > 1 ? j.attempts - 1 : (j.status === 'failed' ? 1 : 0)), 0);
     const retryRate = safeAvg(retriesCount * 100, totalRequests, 1);
 
     // Token & Cost Calculations
@@ -48,22 +48,26 @@ export async function GET(req: NextRequest) {
     const byAssetTypeMap: Record<string, number> = {};
 
     jobsList.forEach((j: any) => {
-      const provider = j.input_params?.provider || j.provider || 'Gemini';
-      const model = j.input_params?.model || j.model || 'gemini-3.5-flash';
-      const assetType = j.input_params?.asset_type || j.job_type || 'MCQ';
+      const payload = j.input_payload || {};
+      const output = j.output_payload || {};
+      const provider = j.provider || payload.provider || 'Google Gemini AI';
+      const model = j.model || payload.model || 'gemini-3.5-flash';
+      const assetType = payload.asset_type || j.task || 'MCQ';
 
-      const inTokens = j.input_params?.estimated_input_tokens || 850;
-      const outTokens = j.result?.generated_count ? j.result.generated_count * 250 : 1200;
+      const inTokens = payload.estimated_input_tokens || 850;
+      const outTokens = output.generated_count ? output.generated_count * 250 : (j.status === 'completed' ? 1200 : 0);
       const tokens = inTokens + outTokens;
 
-      // Gemini 1.5/2.5 pricing approx $0.00015 per 1k tokens
+      // Gemini pricing approx $0.00015 per 1k tokens
       const cost = (tokens / 1000) * 0.00015;
 
       totalTokens += tokens;
       totalCostUSD += cost;
 
-      if (j.execution_time_ms) {
-        totalExecutionTimeMs += j.execution_time_ms;
+      if (output.duration_ms) {
+        totalExecutionTimeMs += output.duration_ms;
+      } else if (j.completed_at && j.created_at) {
+        totalExecutionTimeMs += Math.max(0, new Date(j.completed_at).getTime() - new Date(j.created_at).getTime());
       } else {
         totalExecutionTimeMs += 1800; // default 1.8s
       }

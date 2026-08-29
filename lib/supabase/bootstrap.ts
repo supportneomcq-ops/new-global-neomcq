@@ -82,26 +82,27 @@ export async function bootstrapAdmin() {
       return { success: true, message: 'Admin already exists', userId: profile.id }
     }
 
-    // 3. Admin does not exist, create via Auth Admin API
-    const { data: authUser, error: authError } = await adminClient.auth.admin.createUser({
-      email: email,
-      password: password,
-      email_confirm: true,
-      user_metadata: {
-        first_name: 'System',
-        last_name: 'Administrator',
-      },
-    })
-
-    if (authError) {
-      // If user already registered in auth but profile was missing, handle gracefully
-      if (authError.message.includes('already registered')) {
-        console.log('User already exists in Auth. Linking role...')
-        // Try searching by email in auth or using standard process
-      } else {
-        console.error('Error creating admin auth user:', authError)
-        return { success: false, error: authError.message }
+    // 3. Admin does not exist, create via Auth Admin API if available
+    let authUser: any = null;
+    if (adminClient?.auth?.admin?.createUser) {
+      const { data, error: authError } = await adminClient.auth.admin.createUser({
+        email: email,
+        password: password,
+        email_confirm: true,
+        user_metadata: {
+          first_name: 'System',
+          last_name: 'Administrator',
+        },
+      });
+      if (authError) {
+        if (authError.message.includes('already registered')) {
+          console.log('User already exists in Auth. Linking role...');
+        } else {
+          console.error('Error creating admin auth user:', authError);
+          return { success: false, error: authError.message };
+        }
       }
+      authUser = data;
     }
 
     const userId = authUser?.user?.id

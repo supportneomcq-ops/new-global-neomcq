@@ -523,6 +523,74 @@ export interface Database {
           created_at?: string
         }
       }
+      ai_jobs: {
+        Row: {
+          id: string
+          user_id: string | null
+          exam_id: string | null
+          subject_id: string | null
+          topic_id: string | null
+          task: string
+          status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'pending' | 'processing'
+          priority: number
+          provider: string | null
+          model: string | null
+          input_payload: Json | null
+          output_payload: Json | null
+          cost_usd: number | null
+          tokens_input: number | null
+          tokens_output: number | null
+          attempts: number
+          error: string | null
+          created_at: string
+          started_at: string | null
+          completed_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id?: string | null
+          exam_id?: string | null
+          subject_id?: string | null
+          topic_id?: string | null
+          task: string
+          status?: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'pending' | 'processing'
+          priority?: number
+          provider?: string | null
+          model?: string | null
+          input_payload?: Json | null
+          output_payload?: Json | null
+          cost_usd?: number | null
+          tokens_input?: number | null
+          tokens_output?: number | null
+          attempts?: number
+          error?: string | null
+          created_at?: string
+          started_at?: string | null
+          completed_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string | null
+          exam_id?: string | null
+          subject_id?: string | null
+          topic_id?: string | null
+          task?: string
+          status?: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'pending' | 'processing'
+          priority?: number
+          provider?: string | null
+          model?: string | null
+          input_payload?: Json | null
+          output_payload?: Json | null
+          cost_usd?: number | null
+          tokens_input?: number | null
+          tokens_output?: number | null
+          attempts?: number
+          error?: string | null
+          created_at?: string
+          started_at?: string | null
+          completed_at?: string | null
+        }
+      }
       ai_generation_jobs: {
         Row: {
           id: string

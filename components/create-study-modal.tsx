@@ -121,7 +121,6 @@ export function CreateStudyModal({ isOpen, onClose, onExamCreated }: CreateStudy
         id: discoveredExam.id,
         name: discoveredExam.name,
         slug: discoveredExam.slug,
-        country: discoveredExam.country,
       });
 
       if (onExamCreated) {

@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
         name: 'AI MCQ Generation Queue Worker',
         schedule: '*/1 * * * *', // every 1 min
         status: 'HEALTHY',
-        purpose: 'Processes pending AI MCQ generation jobs from ai_generation_jobs table',
+        purpose: 'Processes pending AI MCQ generation jobs from ai_jobs table',
         lastRun: new Date().toISOString(),
         nextRun: new Date(Date.now() + 60000).toISOString(),
         durationMs: 420,

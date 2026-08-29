@@ -692,9 +692,46 @@ CREATE INDEX IF NOT EXISTS idx_exam_topics_parent_id ON public.exam_topics(paren
 CREATE INDEX IF NOT EXISTS idx_exam_topics_subject_id ON public.exam_topics(subject_id);
 CREATE INDEX IF NOT EXISTS idx_exam_topics_level ON public.exam_topics(level);
 
-ALTER TABLE public.ai_generation_jobs
+CREATE TABLE IF NOT EXISTS public.ai_jobs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    exam_id UUID REFERENCES public.exams(id) ON DELETE SET NULL,
+    subject_id UUID REFERENCES public.exam_subjects(id) ON DELETE SET NULL,
+    topic_id UUID REFERENCES public.exam_topics(id) ON DELETE SET NULL,
+    task TEXT NOT NULL,
+    content_type TEXT NOT NULL DEFAULT 'full_pack',
+    target_version INT NOT NULL DEFAULT 1,
+    idempotency_key TEXT,
+    priority INT NOT NULL DEFAULT 5,
+    status TEXT NOT NULL DEFAULT 'queued',
+    provider TEXT,
+    model TEXT,
+    input_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    output_payload JSONB DEFAULT '{}'::jsonb,
+    progress_stage TEXT DEFAULT 'Preparing canonical context...',
+    step_percentage INT DEFAULT 0,
+    attempts INT NOT NULL DEFAULT 0,
+    max_attempts INT NOT NULL DEFAULT 3,
+    locked_at TIMESTAMPTZ,
+    locked_by TEXT,
+    heartbeat_at TIMESTAMPTZ,
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    error_code TEXT,
+    error TEXT,
+    provider_request_id TEXT,
+    credits_reserved NUMERIC(10,4) NOT NULL DEFAULT 0,
+    credits_consumed NUMERIC(10,4) NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.ai_jobs
   ADD COLUMN IF NOT EXISTS progress_stage TEXT DEFAULT 'Preparing your exam...',
-  ADD COLUMN IF NOT EXISTS step_percentage INTEGER DEFAULT 0;
+  ADD COLUMN IF NOT EXISTS step_percentage INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+
+CREATE OR REPLACE VIEW public.ai_generation_jobs AS SELECT * FROM public.ai_jobs;
 
 ALTER TABLE public.exam_aliases ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.exam_subjects ENABLE ROW LEVEL SECURITY;
@@ -1112,6 +1149,186 @@ BEGIN
   RETURN FALSE;
 END;
 $$;
+
+-- =====================================================================
+-- 21. PRODUCTION AI CONTENT INTELLIGENCE ENGINE HARDENING SCHEMA
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS public.content_versions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    asset_id UUID NOT NULL,
+    asset_type TEXT NOT NULL DEFAULT 'topic',
+    version INT NOT NULL DEFAULT 1,
+    is_current BOOLEAN NOT NULL DEFAULT true,
+    generation_reason TEXT NOT NULL DEFAULT 'FIRST_GENERATION',
+    requested_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    provider TEXT,
+    model TEXT,
+    input_tokens INT DEFAULT 0,
+    cached_input_tokens INT DEFAULT 0,
+    output_tokens INT DEFAULT 0,
+    actual_cost_usd NUMERIC(10,6) DEFAULT 0,
+    quality_score NUMERIC(5,2) DEFAULT 95.00,
+    content_count INT DEFAULT 0,
+    change_summary TEXT,
+    snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE(asset_id, asset_type, version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_content_versions_asset ON public.content_versions(asset_id, asset_type, version DESC);
+CREATE INDEX IF NOT EXISTS idx_content_versions_current ON public.content_versions(asset_id, is_current);
+
+CREATE TABLE IF NOT EXISTS public.ai_cost_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    job_id UUID REFERENCES public.ai_jobs(id) ON DELETE SET NULL,
+    content_version_id UUID REFERENCES public.content_versions(id) ON DELETE SET NULL,
+    task_type TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    model TEXT NOT NULL,
+    input_tokens INT NOT NULL DEFAULT 0,
+    cached_input_tokens INT NOT NULL DEFAULT 0,
+    output_tokens INT NOT NULL DEFAULT 0,
+    reasoning_tokens INT NOT NULL DEFAULT 0,
+    actual_provider_cost NUMERIC(12,6) NOT NULL DEFAULT 0,
+    revenue_allocated NUMERIC(12,6) NOT NULL DEFAULT 0,
+    ai_infrastructure_cost NUMERIC(12,6) NOT NULL DEFAULT 0,
+    credits_deducted NUMERIC(10,4) NOT NULL DEFAULT 0,
+    margin_percent NUMERIC(6,2) DEFAULT 60.00,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_cost_events_user ON public.ai_cost_events(user_id);
+CREATE INDEX IF NOT EXISTS idx_ai_cost_events_created ON public.ai_cost_events(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_cost_events_provider_model ON public.ai_cost_events(provider, model);
+
+CREATE TABLE IF NOT EXISTS public.ai_credit_ledger (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    subscription_id UUID REFERENCES public.subscriptions(id) ON DELETE SET NULL,
+    job_id UUID REFERENCES public.ai_jobs(id) ON DELETE SET NULL,
+    content_version_id UUID REFERENCES public.content_versions(id) ON DELETE SET NULL,
+    provider TEXT,
+    model TEXT,
+    task_type TEXT,
+    input_tokens INT DEFAULT 0,
+    cached_input_tokens INT DEFAULT 0,
+    output_tokens INT DEFAULT 0,
+    actual_provider_cost_usd NUMERIC(12,6) DEFAULT 0,
+    internal_credit_cost NUMERIC(10,4) NOT NULL DEFAULT 0,
+    credit_balance_before NUMERIC(10,4) NOT NULL DEFAULT 0,
+    credit_balance_after NUMERIC(10,4) NOT NULL DEFAULT 0,
+    transaction_type TEXT NOT NULL DEFAULT 'AI_DEDUCTION',
+    description TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_credit_ledger_user ON public.ai_credit_ledger(user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS public.ai_models (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    provider TEXT NOT NULL,
+    model_id TEXT NOT NULL UNIQUE,
+    display_name TEXT NOT NULL,
+    task_types TEXT[] NOT NULL DEFAULT '{}',
+    tier TEXT NOT NULL DEFAULT 'flash',
+    input_price_per_1m NUMERIC(10,4) NOT NULL,
+    cached_input_price_per_1m NUMERIC(10,4) NOT NULL,
+    output_price_per_1m NUMERIC(10,4) NOT NULL,
+    batch_input_price NUMERIC(10,4),
+    batch_output_price NUMERIC(10,4),
+    context_limit INT NOT NULL DEFAULT 1048576,
+    max_output_tokens INT NOT NULL DEFAULT 8192,
+    supports_structured_output BOOLEAN NOT NULL DEFAULT true,
+    supports_thinking BOOLEAN NOT NULL DEFAULT false,
+    supports_batch BOOLEAN NOT NULL DEFAULT false,
+    supports_caching BOOLEAN NOT NULL DEFAULT true,
+    enabled BOOLEAN NOT NULL DEFAULT true,
+    priority INT NOT NULL DEFAULT 1,
+    fallback_model_id TEXT,
+    effective_from TIMESTAMPTZ NOT NULL DEFAULT now(),
+    effective_until TIMESTAMPTZ,
+    last_verified_at TIMESTAMPTZ DEFAULT now(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.ai_task_routing (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    task_type TEXT NOT NULL UNIQUE,
+    display_name TEXT NOT NULL,
+    description TEXT,
+    tier TEXT NOT NULL DEFAULT 'flash',
+    primary_provider TEXT NOT NULL DEFAULT 'gemini',
+    primary_model TEXT NOT NULL DEFAULT 'gemini-3.5-flash',
+    fallback_provider TEXT NOT NULL DEFAULT 'openai',
+    fallback_model TEXT NOT NULL DEFAULT 'gpt-4o-mini',
+    credit_cost NUMERIC(6,2) NOT NULL DEFAULT 2.00,
+    temperature NUMERIC(3,2) NOT NULL DEFAULT 0.70,
+    max_tokens INT NOT NULL DEFAULT 4096,
+    enabled BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.ai_pricing_snapshots (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    snapshot_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    total_models INT NOT NULL DEFAULT 0,
+    models_changed INT NOT NULL DEFAULT 0,
+    pricing_payload JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.ai_pricing_history (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    provider TEXT NOT NULL,
+    model_id TEXT NOT NULL,
+    old_input_price NUMERIC(10,4) NOT NULL,
+    new_input_price NUMERIC(10,4) NOT NULL,
+    old_output_price NUMERIC(10,4) NOT NULL,
+    new_output_price NUMERIC(10,4) NOT NULL,
+    changed_by TEXT NOT NULL DEFAULT 'AUTO_SYNC',
+    reason TEXT NOT NULL DEFAULT '10-Day Official Provider Pricing Sync',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.ai_system_settings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    plan_price_basic NUMERIC(10,2) NOT NULL DEFAULT 9.00,
+    plan_price_pro NUMERIC(10,2) NOT NULL DEFAULT 29.00,
+    plan_price_mastery NUMERIC(10,2) NOT NULL DEFAULT 99.00,
+    plan_price_institutional NUMERIC(10,2) NOT NULL DEFAULT 499.00,
+    ai_budget_percentage NUMERIC(5,2) NOT NULL DEFAULT 60.00,
+    credit_value_usd NUMERIC(8,4) NOT NULL DEFAULT 0.0100,
+    monthly_credit_allocation_basic INT NOT NULL DEFAULT 540,
+    monthly_credit_allocation_pro INT NOT NULL DEFAULT 1740,
+    monthly_credit_allocation_mastery INT NOT NULL DEFAULT 5940,
+    monthly_credit_allocation_institutional INT NOT NULL DEFAULT 29940,
+    overage_policy TEXT NOT NULL DEFAULT 'throttle',
+    maximum_single_generation_cost NUMERIC(6,4) NOT NULL DEFAULT 0.2500,
+    emergency_kill_switch BOOLEAN NOT NULL DEFAULT false,
+    daily_user_ai_budget_usd NUMERIC(6,2) NOT NULL DEFAULT 5.00,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.ai_provider_keys (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    provider TEXT NOT NULL,
+    key_alias TEXT NOT NULL,
+    enabled BOOLEAN NOT NULL DEFAULT true,
+    priority INT NOT NULL DEFAULT 1,
+    rate_limit_rpm INT NOT NULL DEFAULT 60,
+    daily_limit INT NOT NULL DEFAULT 10000,
+    monthly_limit INT NOT NULL DEFAULT 300000,
+    health_status TEXT NOT NULL DEFAULT 'Healthy',
+    failure_count INT NOT NULL DEFAULT 0,
+    cooldown_until TIMESTAMPTZ,
+    last_health_check TIMESTAMPTZ DEFAULT now(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
 
 

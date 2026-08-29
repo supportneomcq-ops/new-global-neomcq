@@ -90,12 +90,30 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
     setSignInError('');
 
     try {
-      const res = await loginAction({ email: signInEmail, password: signInPassword });
-      if (res?.error) {
-        setSignInError(res.error);
-        setSignInLoading(false);
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: signInEmail.trim(), password: signInPassword }),
+      });
+
+      const res = await response.json().catch(() => null);
+
+      if (!response.ok || !res?.success) {
+        // Fallback to client-side auth or server action
+        const actionRes = await loginAction({ email: signInEmail, password: signInPassword });
+        if (actionRes?.error) {
+          setSignInError(res?.error || actionRes.error);
+          setSignInLoading(false);
+          return;
+        }
+        setSignedInSuccess(true);
+        const targetUrl = actionRes?.redirectUrl || '/dashboard';
+        setTimeout(() => {
+          window.location.href = targetUrl;
+        }, 800);
         return;
       }
+
       setSignedInSuccess(true);
       const targetUrl = res?.redirectUrl || '/dashboard';
       setTimeout(() => {

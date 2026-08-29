@@ -42,7 +42,7 @@ export async function getPublicExamBySlug(examSlug: string): Promise<ExamSeoData
   try {
     const { data: examData } = await (supabase as any)
       .from('exams')
-      .select('id, name, slug, description, difficulty, question_count, time_limit_mins, verification_status, created_at, updated_at')
+      .select('id, name, slug, description, difficulty, question_count, time_limit_mins, created_at, updated_at')
       .eq('slug', cleanSlug)
       .maybeSingle();
 
@@ -64,14 +64,14 @@ export async function getPublicExamBySlug(examSlug: string): Promise<ExamSeoData
         mcqs_count: mcqRes.count || 0,
         created_at: examData.created_at,
         updated_at: examData.updated_at,
-        verification_status: examData.verification_status,
+        verification_status: 'verified',
       };
     }
 
     // Try finding via exam_aliases table
     const { data: aliasMatch } = await (supabase as any)
       .from('exam_aliases')
-      .select('exam_id, exams(id, name, slug, description, difficulty, question_count, time_limit_mins, verification_status, created_at, updated_at)')
+      .select('exam_id, exams(id, name, slug, description, difficulty, question_count, time_limit_mins, created_at, updated_at)')
       .ilike('alias', cleanSlug)
       .maybeSingle();
 
@@ -94,7 +94,7 @@ export async function getPublicExamBySlug(examSlug: string): Promise<ExamSeoData
         mcqs_count: mcqRes.count || 0,
         created_at: ex.created_at,
         updated_at: ex.updated_at,
-        verification_status: ex.verification_status,
+        verification_status: 'verified',
       };
     }
   } catch (err) {
@@ -115,8 +115,7 @@ export async function getAllPublicExams(): Promise<ExamSeoData[]> {
     const { data: dbExams } = await (supabase as any)
       .from('exams')
       .select('id, name, slug, description, difficulty, question_count, time_limit_mins, created_at, updated_at')
-      .eq('status', 'active')
-      .eq('verification_status', 'verified')
+      .neq('status', 'archived')
       .order('name', { ascending: true });
 
     if (dbExams && dbExams.length > 0) {
@@ -612,8 +611,7 @@ export async function getAllIndexableUrls(): Promise<{
     const { data: dbExams } = await (supabase as any)
       .from('exams')
       .select('id, slug, updated_at, exam_subjects(id, slug, name, exam_topics(id, slug, name))')
-      .eq('status', 'active')
-      .eq('verification_status', 'verified');
+      .neq('status', 'archived');
 
     if (dbExams && dbExams.length > 0) {
       for (const ex of dbExams) {

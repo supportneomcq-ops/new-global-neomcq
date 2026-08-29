@@ -1,39 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { createClient } from '@/lib/supabase/server';
-
-async function checkIsAdmin() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Unauthenticated');
-
-  const adminClient = getSupabaseAdmin();
-  const { data: userRoles } = await adminClient
-    .from('user_roles')
-    .select('roles(name)')
-    .eq('user_id', user.id);
-
-  const roleNames = userRoles?.map((r: any) => r.roles?.name).filter(Boolean) || [];
-  const userEmail = user.email?.toLowerCase().trim() || '';
-  const initialAdminEmail = (process.env.INITIAL_ADMIN_EMAIL || 'support@neomcq.com').toLowerCase().trim();
-  const isAdminEmail = userEmail === initialAdminEmail || userEmail === 'swapnilsonawane913@gmail.com';
-
-  if (!isAdminEmail && !roleNames.includes('admin') && !roleNames.includes('super_admin') && !roleNames.includes('content_admin')) {
-    throw new Error('Unauthorized: Admin access required');
-  }
-  return user;
-}
+import { verifyAdminApiSession } from '@/lib/admin-auth';
 
 // GET: Single job details
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await checkIsAdmin();
+    const auth = await verifyAdminApiSession();
+    if (!auth.authorized) return auth.response!;
+
     const { id } = await params;
     const adminClient = getSupabaseAdmin();
 
     const { data: job, error } = await adminClient
-      .from('ai_generation_jobs')
-      .select('*, profiles(email, first_name, last_name)')
+      .from('ai_jobs')
+      .select('*')
       .eq('id', id)
       .single();
 
@@ -52,17 +32,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       success: true,
       job: {
         ...job,
-        canonical_status: job.status === 'pending' ? 'QUEUED' : job.status === 'processing' ? 'RUNNING' : job.status.toUpperCase(),
-        attempts: job.retry_count || 0,
-        provider: job.input_params?.provider || 'Gemini',
-        model: job.input_params?.model || 'gemini-3.5-flash',
-        priority: job.input_params?.priority || 'Normal',
-        exam_name: job.input_params?.exam_name || 'General',
-        subject_name: job.input_params?.subject_name || 'General',
-        topic_name: job.input_params?.topic_name || 'General',
-        asset_type: job.input_params?.asset_type || job.job_type || 'MCQ',
-        prompt_version: job.input_params?.prompt_version || '2026-v2',
-        duration_ms: job.updated_at && job.created_at ? new Date(job.updated_at).getTime() - new Date(job.created_at).getTime() : null,
+        job_type: job.task || job.input_payload?.job_type || 'AI Generation',
+        canonical_status: (job.status === 'queued' || job.status === 'pending') ? 'QUEUED' : (job.status === 'processing' || job.status === 'running') ? 'RUNNING' : (job.status || 'QUEUED').toUpperCase(),
+        attempts: job.attempts || 0,
+        provider: job.provider || job.input_payload?.provider || 'Gemini',
+        model: job.model || job.input_payload?.model || 'gemini-3.5-flash',
+        priority: job.priority ? String(job.priority) : (job.input_payload?.priority || 'Normal'),
+        exam_name: job.input_payload?.exam_name || 'General',
+        subject_name: job.input_payload?.subject_name || 'General',
+        topic_name: job.input_payload?.topic_name || 'General',
+        asset_type: job.input_payload?.asset_type || job.task || 'MCQ',
+        prompt_version: job.input_payload?.prompt_version || '2026-v2',
+        duration_ms: job.completed_at && job.created_at ? new Date(job.completed_at).getTime() - new Date(job.created_at).getTime() : null,
         logs: logs || [],
       },
     });
@@ -74,31 +55,32 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 // PUT / PATCH: Job action (Retry, Cancel, Reprioritize)
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await checkIsAdmin();
+    const auth = await verifyAdminApiSession();
+    if (!auth.authorized) return auth.response!;
+    const user = auth.user!;
     const { id } = await params;
     const adminClient = getSupabaseAdmin();
     const body = await req.json();
 
     const { action, priority } = body;
 
-    const { data: job } = await adminClient.from('ai_generation_jobs').select('*').eq('id', id).single();
+    const { data: job } = await adminClient.from('ai_jobs').select('*').eq('id', id).single();
     if (!job) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
     if (action === 'retry') {
-      const currentAttempts = job.retry_count || 0;
+      const currentAttempts = job.attempts || 0;
       if (currentAttempts >= 5 && !body.override) {
         return NextResponse.json({ error: 'Retry limit reached (5 attempts). Manual override required.' }, { status: 400 });
       }
 
       const updatedJob = await adminClient
-        .from('ai_generation_jobs')
+        .from('ai_jobs')
         .update({
-          status: 'pending',
-          retry_count: currentAttempts + 1,
-          error_message: null,
-          updated_at: new Date().toISOString(),
+          status: 'queued',
+          attempts: currentAttempts + 1,
+          error: null,
         })
         .eq('id', id)
         .select('*')
@@ -107,7 +89,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       await adminClient.from('audit_logs').insert({
         user_id: user.id,
         action: 'AI_JOB_RETRIED',
-        entity_type: 'ai_generation_jobs',
+        entity_type: 'ai_jobs',
         entity_id: id,
         details: { previous_attempts: currentAttempts, new_attempt: currentAttempts + 1 },
       });
@@ -117,10 +99,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     if (action === 'cancel') {
       const updatedJob = await adminClient
-        .from('ai_generation_jobs')
+        .from('ai_jobs')
         .update({
           status: 'cancelled',
-          updated_at: new Date().toISOString(),
         })
         .eq('id', id)
         .select('*')
@@ -129,7 +110,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       await adminClient.from('audit_logs').insert({
         user_id: user.id,
         action: 'AI_JOB_CANCELLED',
-        entity_type: 'ai_generation_jobs',
+        entity_type: 'ai_jobs',
         entity_id: id,
         details: { cancelled_by: user.email },
       });
@@ -138,12 +119,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     if (action === 'reprioritize' && priority) {
-      const updatedParams = { ...job.input_params, priority };
+      const updatedPayload = { ...job.input_payload, priority };
       const updatedJob = await adminClient
-        .from('ai_generation_jobs')
+        .from('ai_jobs')
         .update({
-          input_params: updatedParams,
-          updated_at: new Date().toISOString(),
+          priority: priority === 'High' ? 10 : priority === 'Low' ? 1 : 5,
+          input_payload: updatedPayload,
         })
         .eq('id', id)
         .select('*')
@@ -161,17 +142,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 // DELETE: Delete job
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await checkIsAdmin();
+    const auth = await verifyAdminApiSession();
+    if (!auth.authorized) return auth.response!;
+    const user = auth.user!;
     const { id } = await params;
     const adminClient = getSupabaseAdmin();
 
-    const { error } = await adminClient.from('ai_generation_jobs').delete().eq('id', id);
+    const { error } = await adminClient.from('ai_jobs').delete().eq('id', id);
     if (error) throw error;
 
     await adminClient.from('audit_logs').insert({
       user_id: user.id,
       action: 'AI_JOB_DELETED',
-      entity_type: 'ai_generation_jobs',
+      entity_type: 'ai_jobs',
       entity_id: id,
       details: { deleted_by: user.email },
     });

@@ -11,6 +11,8 @@ import {
   TrendingUp,
   Loader2,
   FileCode,
+  Users,
+  Coins,
 } from 'lucide-react';
 
 export default function AdminAIUsagePage() {
@@ -39,6 +41,8 @@ export default function AdminAIUsagePage() {
   useEffect(() => {
     fetchUsage();
   }, [timeframe]);
+
+  const hasData = usageData && usageData.metrics && usageData.metrics.totalRequests > 0;
 
   return (
     <div className="space-y-6 pb-12">
@@ -83,7 +87,7 @@ export default function AdminAIUsagePage() {
           </span>
         </div>
       ) : error ? (
-        <div className="p-8 text-center text-rose-400 space-y-2">
+        <div className="p-8 text-center text-rose-400 space-y-2 bg-slate-900 border border-rose-500/20 rounded-xl">
           <AlertCircle className="w-8 h-8 mx-auto" />
           <p className="text-sm font-semibold">{error}</p>
         </div>
@@ -93,7 +97,7 @@ export default function AdminAIUsagePage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl">
               <span className="text-slate-400 text-xs font-semibold uppercase block">Total Generation Requests</span>
-              <p className="text-3xl font-black text-white mt-2">{usageData.metrics.totalRequests}</p>
+              <p className="text-3xl font-black text-white mt-2">{usageData.metrics.totalRequests.toLocaleString()}</p>
             </div>
 
             <div className="bg-slate-900/90 border border-emerald-500/20 p-5 rounded-2xl">
@@ -112,48 +116,101 @@ export default function AdminAIUsagePage() {
             </div>
           </div>
 
-          {/* Breakdown Grids */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* By Provider */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
-              <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                <Cpu className="w-4 h-4 text-indigo-400" />
-                Requests by Provider
-              </h2>
-
-              <div className="space-y-3">
-                {Object.entries(usageData.breakdowns.byProvider || {}).map(([pName, pData]: [string, any]) => (
-                  <div key={pName} className="bg-slate-950 p-3 rounded-xl border border-slate-800/80 space-y-1">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="font-bold text-white">{pName}</span>
-                      <span className="font-mono text-indigo-400 font-bold">{pData.requests} reqs</span>
-                    </div>
-                    <div className="flex justify-between text-[11px] text-slate-400">
-                      <span>Tokens: {pData.tokens.toLocaleString()}</span>
-                      <span className="text-emerald-400 font-semibold">{pData.success} success / {pData.failed} failed</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+          {!hasData ? (
+            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-12 text-center text-slate-400 space-y-2">
+              <Activity className="w-10 h-10 text-slate-600 mx-auto" />
+              <h3 className="text-base font-bold text-white">No AI Usage Recorded</h3>
+              <p className="text-xs text-slate-400 max-w-md mx-auto">
+                No generation requests or token consumption events have been logged for this timeframe. Once students and admins trigger AI questions or notes, real metrics will populate here.
+              </p>
             </div>
+          ) : (
+            <>
+              {/* Breakdown Grids */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* By Provider */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+                  <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                    <Cpu className="w-4 h-4 text-indigo-400" />
+                    Requests by Provider
+                  </h2>
 
-            {/* By Asset Type */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
-              <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                <FileCode className="w-4 h-4 text-purple-400" />
-                Requests by Asset Type
-              </h2>
-
-              <div className="space-y-3">
-                {Object.entries(usageData.breakdowns.byAssetType || {}).map(([aName, aCount]: [string, any]) => (
-                  <div key={aName} className="bg-slate-950 p-3 rounded-xl border border-slate-800/80 flex items-center justify-between text-xs">
-                    <span className="font-bold text-white uppercase">{aName}</span>
-                    <span className="font-mono text-purple-300 font-bold">{aCount} requests</span>
+                  <div className="space-y-3">
+                    {Object.entries(usageData.breakdowns?.byProvider || {}).map(([pName, pData]: [string, any]) => (
+                      <div key={pName} className="bg-slate-950 p-3.5 rounded-xl border border-slate-800/80 space-y-1">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-bold text-white">{pName}</span>
+                          <span className="font-mono text-indigo-400 font-bold">{pData.requests} reqs</span>
+                        </div>
+                        <div className="flex justify-between text-[11px] text-slate-400">
+                          <span>Tokens: {pData.tokens.toLocaleString()}</span>
+                          <span className="text-emerald-400 font-semibold">{pData.success} success / {pData.failed} failed</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
+
+                {/* By Task Type */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+                  <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                    <FileCode className="w-4 h-4 text-purple-400" />
+                    Requests by Task Type
+                  </h2>
+
+                  <div className="space-y-3">
+                    {Object.entries(usageData.breakdowns?.byTask || {}).map(([tName, tCount]: [string, any]) => (
+                      <div key={tName} className="bg-slate-950 p-3.5 rounded-xl border border-slate-800/80 flex items-center justify-between text-xs">
+                        <span className="font-bold text-white font-mono">{tName}</span>
+                        <span className="font-mono text-purple-300 font-bold">{tCount} requests</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
+
+              {/* Top AI Consumers */}
+              {usageData.topUsers && usageData.topUsers.length > 0 && (
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+                  <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                    <Users className="w-4 h-4 text-amber-400" />
+                    Top AI Consumers (Learners & Admins)
+                  </h2>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs text-slate-300">
+                      <thead className="bg-slate-800/60 text-slate-400 font-bold uppercase tracking-wider text-[10px] border-b border-slate-700/60">
+                        <tr>
+                          <th className="py-3 px-4">User</th>
+                          <th className="py-3 px-4">Requests</th>
+                          <th className="py-3 px-4">Total Tokens</th>
+                          <th className="py-3 px-4">Credits Consumed</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60">
+                        {usageData.topUsers.map((u: any) => (
+                          <tr key={u.userId} className="hover:bg-slate-800/30">
+                            <td className="py-3 px-4">
+                              <div>
+                                <p className="font-bold text-white">{u.name}</p>
+                                <p className="text-[11px] text-slate-400 font-mono">{u.email}</p>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 font-mono font-bold text-indigo-300">{u.requests}</td>
+                            <td className="py-3 px-4 font-mono">{u.tokens.toLocaleString()}</td>
+                            <td className="py-3 px-4 font-bold text-amber-400 flex items-center gap-1">
+                              <Coins className="w-3.5 h-3.5" />
+                              {u.credits} credits
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
     </div>

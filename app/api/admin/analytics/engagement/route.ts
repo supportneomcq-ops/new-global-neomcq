@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString()),
       adminClient.from('profiles').select('id, updated_at, created_at'),
-      adminClient.from('ai_generation_jobs').select('id, user_id, created_at')
+      adminClient.from('ai_jobs').select('id, user_id, created_at')
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString()),
     ]);

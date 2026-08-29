@@ -1,33 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { createClient } from '@/lib/supabase/server';
-
-async function checkIsAdmin() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Unauthenticated');
-
-  const adminClient = getSupabaseAdmin();
-  const { data: userRoles } = await adminClient
-    .from('user_roles')
-    .select('roles(name)')
-    .eq('user_id', user.id);
-
-  const roleNames = userRoles?.map((r: any) => r.roles?.name).filter(Boolean) || [];
-  const userEmail = user.email?.toLowerCase().trim() || '';
-  const initialAdminEmail = (process.env.INITIAL_ADMIN_EMAIL || 'support@neomcq.com').toLowerCase().trim();
-  const isAdminEmail = userEmail === initialAdminEmail || userEmail === 'swapnilsonawane913@gmail.com';
-
-  if (!isAdminEmail && !roleNames.includes('admin') && !roleNames.includes('super_admin') && !roleNames.includes('content_admin')) {
-    throw new Error('Unauthorized: Admin access required');
-  }
-  return user;
-}
+import { verifyAdminApiSession } from '@/lib/admin-auth';
 
 // GET: List AI jobs with status, search, and pagination
 export async function GET(req: NextRequest) {
   try {
-    await checkIsAdmin();
+    const auth = await verifyAdminApiSession();
+    if (!auth.authorized) return auth.response!;
+
     const adminClient = getSupabaseAdmin();
     const { searchParams } = new URL(req.url);
 
@@ -39,21 +19,21 @@ export async function GET(req: NextRequest) {
     const offset = (page - 1) * limit;
 
     let query = adminClient
-      .from('ai_generation_jobs')
-      .select('*, profiles(email, first_name, last_name)', { count: 'exact' });
+      .from('ai_jobs')
+      .select('*', { count: 'exact' });
 
     if (status !== 'all') {
-      if (status === 'queued') query = query.eq('status', 'pending');
-      else if (status === 'running') query = query.eq('status', 'processing');
+      if (status === 'queued') query = query.in('status', ['queued', 'pending']);
+      else if (status === 'running') query = query.in('status', ['running', 'processing']);
       else query = query.eq('status', status);
     }
 
     if (jobType !== 'all') {
-      query = query.eq('job_type', jobType);
+      query = query.or(`task.ilike.%${jobType}%,input_payload->>asset_type.eq.${jobType}`);
     }
 
     if (search) {
-      query = query.or(`job_type.ilike.%${search}%,error_message.ilike.%${search}%,id.eq.${search}`);
+      query = query.or(`task.ilike.%${search}%,error.ilike.%${search}%,id.eq.${search}`);
     }
 
     query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
@@ -62,25 +42,26 @@ export async function GET(req: NextRequest) {
     if (error) throw error;
 
     // Fetch stats
-    const { count: totalJobs } = await adminClient.from('ai_generation_jobs').select('*', { count: 'exact', head: true });
-    const { count: queuedJobs } = await adminClient.from('ai_generation_jobs').select('*', { count: 'exact', head: true }).eq('status', 'pending');
-    const { count: runningJobs } = await adminClient.from('ai_generation_jobs').select('*', { count: 'exact', head: true }).eq('status', 'processing');
-    const { count: completedJobs } = await adminClient.from('ai_generation_jobs').select('*', { count: 'exact', head: true }).eq('status', 'completed');
-    const { count: failedJobs } = await adminClient.from('ai_generation_jobs').select('*', { count: 'exact', head: true }).eq('status', 'failed');
+    const { count: totalJobs } = await adminClient.from('ai_jobs').select('*', { count: 'exact', head: true });
+    const { count: queuedJobs } = await adminClient.from('ai_jobs').select('*', { count: 'exact', head: true }).in('status', ['queued', 'pending']);
+    const { count: runningJobs } = await adminClient.from('ai_jobs').select('*', { count: 'exact', head: true }).in('status', ['running', 'processing']);
+    const { count: completedJobs } = await adminClient.from('ai_jobs').select('*', { count: 'exact', head: true }).eq('status', 'completed');
+    const { count: failedJobs } = await adminClient.from('ai_jobs').select('*', { count: 'exact', head: true }).eq('status', 'failed');
 
     return NextResponse.json({
       success: true,
       jobs: (jobs || []).map((j: any) => ({
         ...j,
-        canonical_status: j.status === 'pending' ? 'QUEUED' : j.status === 'processing' ? 'RUNNING' : j.status.toUpperCase(),
-        attempts: j.retry_count || 0,
-        provider: j.input_params?.provider || 'Gemini',
-        model: j.input_params?.model || 'gemini-3.5-flash',
-        priority: j.input_params?.priority || 'Normal',
-        exam_name: j.input_params?.exam_name || 'General',
-        subject_name: j.input_params?.subject_name || 'General',
-        topic_name: j.input_params?.topic_name || 'General',
-        asset_type: j.input_params?.asset_type || j.job_type || 'MCQ',
+        job_type: j.task || j.input_payload?.job_type || 'AI Generation',
+        canonical_status: (j.status === 'queued' || j.status === 'pending') ? 'QUEUED' : (j.status === 'processing' || j.status === 'running') ? 'RUNNING' : (j.status || 'QUEUED').toUpperCase(),
+        attempts: j.attempts || 0,
+        provider: j.provider || j.input_payload?.provider || 'Gemini',
+        model: j.model || j.input_payload?.model || 'gemini-3.5-flash',
+        priority: j.priority ? String(j.priority) : (j.input_payload?.priority || 'Normal'),
+        exam_name: j.input_payload?.exam_name || 'General',
+        subject_name: j.input_payload?.subject_name || 'General',
+        topic_name: j.input_payload?.topic_name || 'General',
+        asset_type: j.input_payload?.asset_type || j.task || 'MCQ',
       })),
       total: count || 0,
       page,
@@ -101,7 +82,9 @@ export async function GET(req: NextRequest) {
 // POST: Trigger/Create a new AI generation job
 export async function POST(req: NextRequest) {
   try {
-    const user = await checkIsAdmin();
+    const auth = await verifyAdminApiSession();
+    if (!auth.authorized) return auth.response!;
+    const user = auth.user!;
     const adminClient = getSupabaseAdmin();
     const body = await req.json();
 
@@ -130,7 +113,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Create Job Entry
-    const input_params = {
+    const input_payload = {
       asset_type: asset_type || 'mcq',
       exam_id,
       exam_name,
@@ -146,13 +129,19 @@ export async function POST(req: NextRequest) {
     };
 
     const { data: job, error } = await adminClient
-      .from('ai_generation_jobs')
+      .from('ai_jobs')
       .insert({
         user_id: user.id,
-        job_type,
-        status: 'pending',
-        input_params,
-        retry_count: 0,
+        exam_id: exam_id || null,
+        subject_id: subject_id || null,
+        topic_id: topic_id || null,
+        task: job_type,
+        status: 'queued',
+        provider: provider || 'gemini',
+        model: model || 'gemini-3.5-flash',
+        priority: priority === 'High' ? 10 : priority === 'Low' ? 1 : 5,
+        input_payload,
+        attempts: 0,
       })
       .select('*')
       .single();
@@ -163,7 +152,7 @@ export async function POST(req: NextRequest) {
     await adminClient.from('audit_logs').insert({
       user_id: user.id,
       action: 'AI_JOB_CREATED',
-      entity_type: 'ai_generation_jobs',
+      entity_type: 'ai_jobs',
       entity_id: job.id,
       details: { job_type, asset_type, exam_name, topic_name, provider, model },
     });

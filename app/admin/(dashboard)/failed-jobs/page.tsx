@@ -1,2 +1,5 @@
-import Page from '../ai-jobs/failed/page';
-export default Page;
+import { redirect } from 'next/navigation';
+
+export default function AdminFailedJobsAliasPage() {
+  redirect('/admin/ai-jobs/failed');
+}

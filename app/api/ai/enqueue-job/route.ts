@@ -55,12 +55,21 @@ export async function POST(req: NextRequest) {
 
     // Insert new AI Generation Job in queue
     const { data: job, error: jobError } = await (supabase as any)
-      .from('ai_generation_jobs')
+      .from('ai_jobs')
       .insert({
         user_id: user.id,
-        job_type: jobType,
-        status: 'pending',
-        input_params: inputParams,
+        exam_id: inputParams.examId || null,
+        subject_id: inputParams.subjectId || null,
+        topic_id: inputParams.topicId || null,
+        task: `${jobType}_generation`,
+        status: 'queued',
+        provider: 'Google Gemini AI',
+        model: 'gemini-3.5-flash',
+        priority: 5,
+        input_payload: {
+          job_type: jobType,
+          ...inputParams,
+        },
       })
       .select('id, status, created_at')
       .single()

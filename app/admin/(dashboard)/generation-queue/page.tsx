@@ -1,2 +1,5 @@
-import Page from '../ai-jobs/queue/page';
-export default Page;
+import { redirect } from 'next/navigation';
+
+export default function AdminGenerationQueueAliasPage() {
+  redirect('/admin/ai-jobs/queue');
+}

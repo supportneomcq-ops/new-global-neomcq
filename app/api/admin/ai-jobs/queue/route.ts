@@ -1,39 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { createClient } from '@/lib/supabase/server';
-
-async function checkIsAdmin() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Unauthenticated');
-
-  const adminClient = getSupabaseAdmin();
-  const { data: userRoles } = await adminClient
-    .from('user_roles')
-    .select('roles(name)')
-    .eq('user_id', user.id);
-
-  const roleNames = userRoles?.map((r: any) => r.roles?.name).filter(Boolean) || [];
-  const userEmail = user.email?.toLowerCase().trim() || '';
-  const initialAdminEmail = (process.env.INITIAL_ADMIN_EMAIL || 'support@neomcq.com').toLowerCase().trim();
-  const isAdminEmail = userEmail === initialAdminEmail || userEmail === 'swapnilsonawane913@gmail.com';
-
-  if (!isAdminEmail && !roleNames.includes('admin') && !roleNames.includes('super_admin') && !roleNames.includes('content_admin')) {
-    throw new Error('Unauthorized: Admin access required');
-  }
-  return user;
-}
+import { verifyAdminApiSession } from '@/lib/admin-auth';
 
 // GET: Fetch queued/running jobs
 export async function GET(req: NextRequest) {
   try {
-    await checkIsAdmin();
+    const auth = await verifyAdminApiSession();
+    if (!auth.authorized) return auth.response!;
+
     const adminClient = getSupabaseAdmin();
 
     const { data: jobs, error } = await adminClient
-      .from('ai_generation_jobs')
-      .select('*, profiles(email)')
-      .in('status', ['pending', 'processing'])
+      .from('ai_jobs')
+      .select('*')
+      .in('status', ['queued', 'pending', 'processing', 'running'])
       .order('created_at', { ascending: true });
 
     if (error) throw error;
@@ -45,14 +25,15 @@ export async function GET(req: NextRequest) {
 
       return {
         ...j,
-        canonical_status: j.status === 'pending' ? 'QUEUED' : 'RUNNING',
-        priority: j.input_params?.priority || 'Normal',
-        provider: j.input_params?.provider || 'Gemini',
-        model: j.input_params?.model || 'gemini-3.5-flash',
-        exam_name: j.input_params?.exam_name || 'General',
-        subject_name: j.input_params?.subject_name || 'General',
-        topic_name: j.input_params?.topic_name || 'General',
-        asset_type: j.input_params?.asset_type || j.job_type || 'MCQ',
+        job_type: j.task || j.input_payload?.job_type || 'AI Generation',
+        canonical_status: (j.status === 'queued' || j.status === 'pending') ? 'QUEUED' : 'RUNNING',
+        priority: j.priority ? String(j.priority) : (j.input_payload?.priority || 'Normal'),
+        provider: j.provider || j.input_payload?.provider || 'Gemini',
+        model: j.model || j.input_payload?.model || 'gemini-3.5-flash',
+        exam_name: j.input_payload?.exam_name || 'General',
+        subject_name: j.input_payload?.subject_name || 'General',
+        topic_name: j.input_payload?.topic_name || 'General',
+        asset_type: j.input_payload?.asset_type || j.task || 'MCQ',
         waiting_mins: waitingMins,
       };
     });

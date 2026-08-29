@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
     const { count: revisionCount } = await adminClient.from('revision_sheets').select('id', { count: 'exact', head: true });
 
     // 3. AI Tutor & Study Plan Sessions
-    const { count: aiSessionsCount } = await adminClient.from('ai_generation_jobs').select('id', { count: 'exact', head: true })
+    const { count: aiSessionsCount } = await adminClient.from('ai_jobs').select('id', { count: 'exact', head: true })
       .gte('created_at', startDate.toISOString());
 
     const { count: studyPlansCount } = await adminClient.from('study_plans').select('id', { count: 'exact', head: true });

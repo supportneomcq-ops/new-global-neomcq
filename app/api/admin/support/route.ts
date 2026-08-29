@@ -123,11 +123,11 @@ export async function PATCH(req: NextRequest) {
 
     // Log security audit event
     await supabase.from('audit_logs').insert({
-      user_id: auth.user.id,
+      user_id: auth.user?.id || null,
       action: 'SUPPORT_TICKET_UPDATED',
       entity_type: 'support_tickets',
       entity_id: ticketId,
-      details: { ticketId, updates: updatePayload, admin_email: auth.user.email },
+      details: { ticketId, updates: updatePayload, admin_email: auth.user?.email || 'admin' },
     });
 
     return NextResponse.json({ success: true, ticket: updatedTicket });

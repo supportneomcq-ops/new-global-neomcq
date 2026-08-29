@@ -1,57 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { createClient } from '@/lib/supabase/server';
-
-async function checkIsAdmin() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Unauthenticated');
-
-  const adminClient = getSupabaseAdmin();
-  const { data: userRoles } = await adminClient
-    .from('user_roles')
-    .select('roles(name)')
-    .eq('user_id', user.id);
-
-  const roleNames = userRoles?.map((r: any) => r.roles?.name).filter(Boolean) || [];
-  const userEmail = user.email?.toLowerCase().trim() || '';
-  const initialAdminEmail = (process.env.INITIAL_ADMIN_EMAIL || 'support@neomcq.com').toLowerCase().trim();
-  const isAdminEmail = userEmail === initialAdminEmail || userEmail === 'swapnilsonawane913@gmail.com';
-
-  if (!isAdminEmail && !roleNames.includes('admin') && !roleNames.includes('super_admin')) {
-    throw new Error('Unauthorized: Admin access required');
-  }
-  return user;
-}
+import { verifyAdminApiSession } from '@/lib/admin-auth';
+import { syncOfficialAiPricing } from '@/lib/ai-pricing-sync';
 
 export async function GET(req: NextRequest) {
   try {
-    await checkIsAdmin();
+    const auth = await verifyAdminApiSession();
+    if (!auth.authorized) return auth.response!;
+
     const adminClient = getSupabaseAdmin();
 
-    const { data: pricing } = await adminClient.from('ai_model_pricing').select('*').order('active', { ascending: false });
-    const { data: routing } = await adminClient.from('ai_task_routing').select('*').order('task_type', { ascending: true });
-    const { data: creditPacks } = await adminClient.from('credit_packs').select('*').order('display_order', { ascending: true });
-    const { data: planLimits } = await adminClient.from('plan_ai_limits').select('*, subscription_plans(name, slug)');
-    const { data: marginRules } = await adminClient.from('ai_margin_rules').select('*').order('created_at', { ascending: false }).limit(1).maybeSingle();
-    const { data: alerts } = await adminClient.from('ai_cost_alerts').select('*').order('created_at', { ascending: false });
-    const { data: events } = await adminClient.from('ai_cost_events').select('*').order('created_at', { ascending: false }).limit(20);
+    const [pricingRes, routingRes, creditPacksRes, planLimitsRes, marginRulesRes, alertsRes, eventsRes] = await Promise.all([
+      adminClient.from('ai_model_pricing').select('*').order('active', { ascending: false }),
+      adminClient.from('ai_task_routing').select('*').order('task_type', { ascending: true }),
+      adminClient.from('credit_packs').select('*').order('display_order', { ascending: true }),
+      adminClient.from('plan_ai_limits').select('*, subscription_plans(name, slug)'),
+      adminClient.from('ai_margin_rules').select('*').order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      adminClient.from('ai_cost_alerts').select('*').order('created_at', { ascending: false }),
+      adminClient.from('ai_cost_events').select('*').order('created_at', { ascending: false }).limit(20),
+    ]);
 
     return NextResponse.json({
       success: true,
-      pricing: pricing || [],
-      routing: routing || [],
-      creditPacks: creditPacks || [],
-      planLimits: planLimits || [],
-      marginRules: marginRules || {
-        target_margin: 40.00,
-        yellow_warning_threshold: 30.00,
-        red_danger_threshold: 20.00,
-        infrastructure_cost_coefficient: 5.00,
-        payment_fee_coefficient: 3.00
+      pricing: pricingRes.data || [],
+      routing: routingRes.data || [],
+      creditPacks: creditPacksRes.data || [],
+      planLimits: planLimitsRes.data || [],
+      marginRules: marginRulesRes.data || {
+        target_margin: 40.0,
+        yellow_warning_threshold: 30.0,
+        red_danger_threshold: 20.0,
+        infrastructure_cost_coefficient: 5.0,
+        payment_fee_coefficient: 3.0,
       },
-      alerts: alerts || [],
-      recentEvents: events || []
+      alerts: alertsRes.data || [],
+      recentEvents: eventsRes.data || [],
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
@@ -60,7 +43,10 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const adminUser = await checkIsAdmin();
+    const auth = await verifyAdminApiSession();
+    if (!auth.authorized) return auth.response!;
+    const adminUser = auth.user!;
+
     const adminClient = getSupabaseAdmin();
     const body = await req.json();
     const { action } = body;
@@ -78,7 +64,7 @@ export async function POST(req: NextRequest) {
           max_output_tokens: Number(max_output_tokens),
           credit_cost: Number(credit_cost),
           enabled,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('id', id)
         .select()
@@ -95,7 +81,7 @@ export async function POST(req: NextRequest) {
         .update({
           input_cost_per_1m: Number(input_cost_per_1m),
           output_cost_per_1m: Number(output_cost_per_1m),
-          active
+          active,
         })
         .eq('id', id)
         .select()
@@ -114,7 +100,7 @@ export async function POST(req: NextRequest) {
           yellow_warning_threshold: Number(yellow_warning_threshold),
           red_danger_threshold: Number(red_danger_threshold),
           infrastructure_cost_coefficient: Number(infrastructure_cost_coefficient),
-          payment_fee_coefficient: Number(payment_fee_coefficient)
+          payment_fee_coefficient: Number(payment_fee_coefficient),
         })
         .select()
         .single();
@@ -135,7 +121,7 @@ export async function POST(req: NextRequest) {
             credits: Number(credits),
             bonus_credits: Number(bonus_credits),
             active,
-            display_order: Number(display_order)
+            display_order: Number(display_order),
           })
           .eq('id', id)
           .select()
@@ -151,7 +137,7 @@ export async function POST(req: NextRequest) {
             credits: Number(credits),
             bonus_credits: Number(bonus_credits),
             active,
-            display_order: Number(display_order)
+            display_order: Number(display_order),
           })
           .select()
           .single();
@@ -168,7 +154,7 @@ export async function POST(req: NextRequest) {
         .update({
           monthly_credit_grant: Number(monthly_credit_grant),
           fair_use_allowance: Boolean(fair_use_allowance),
-          daily_safety_threshold: Number(daily_safety_threshold)
+          daily_safety_threshold: Number(daily_safety_threshold),
         })
         .eq('plan_id', plan_id)
         .select()
@@ -199,7 +185,7 @@ export async function POST(req: NextRequest) {
         .update({
           credit_balance: newBal,
           lifetime_credits_granted: diff > 0 ? Number(wallet.lifetime_credits_granted || 0) + diff : Number(wallet.lifetime_credits_granted || 0),
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('user_id', target_user_id);
 
@@ -212,7 +198,7 @@ export async function POST(req: NextRequest) {
         reference_type: 'admin_action',
         reference_id: adminUser.id,
         description: description || `Admin adjustment: ${diff > 0 ? '+' : ''}${diff} credits`,
-        created_by: adminUser.id
+        created_by: adminUser.id,
       });
 
       return NextResponse.json({ success: true, newBalance: newBal });
@@ -241,8 +227,13 @@ export async function POST(req: NextRequest) {
           grossProfit: Number(grossProfit.toFixed(2)),
           grossMargin: Number(grossMargin.toFixed(2)),
           breakEvenUsage: providerCost > 0 ? Math.floor((Number(price) - paymentFee) / (providerCost * 1.05)) : 0,
-        }
+        },
       });
+    }
+
+    if (action === 'sync_official_pricing') {
+      const syncResult = await syncOfficialAiPricing();
+      return NextResponse.json(syncResult);
     }
 
     return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });

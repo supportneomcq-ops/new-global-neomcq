@@ -1,42 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { createClient } from '@/lib/supabase/server';
+import { verifyAdminApiSession } from '@/lib/admin-auth';
 
-async function checkIsAdmin() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Unauthenticated');
-
-  const adminClient = getSupabaseAdmin();
-  const { data: userRoles } = await adminClient
-    .from('user_roles')
-    .select('roles(name)')
-    .eq('user_id', user.id);
-
-  const roleNames = userRoles?.map((r: any) => r.roles?.name).filter(Boolean) || [];
-  const userEmail = user.email?.toLowerCase().trim() || '';
-  const initialAdminEmail = (process.env.INITIAL_ADMIN_EMAIL || 'support@neomcq.com').toLowerCase().trim();
-  const isAdminEmail = userEmail === initialAdminEmail || userEmail === 'swapnilsonawane913@gmail.com';
-
-  if (!isAdminEmail && !roleNames.includes('admin') && !roleNames.includes('super_admin')) {
-    throw new Error('Unauthorized: Admin access required');
-  }
-  return user;
-}
-
-const MODEL_PRICING: Record<string, { inputPerM: number; outputPerM: number }> = {
-  'gemini-3.5-flash': { inputPerM: 0.075, outputPerM: 0.30 },
-  'gemini-3.6-flash': { inputPerM: 0.10, outputPerM: 0.40 },
-  'gpt-4o-mini': { inputPerM: 0.15, outputPerM: 0.60 },
-  'claude-3-5-sonnet-20241022': { inputPerM: 3.00, outputPerM: 15.00 },
-  'llama-3.3-70b-versatile': { inputPerM: 0.59, outputPerM: 0.79 },
-  'deepseek-chat': { inputPerM: 0.14, outputPerM: 0.28 },
-};
-
-// GET: AI Cost Analysis
+// GET: AI Financials, COGS Accounting, and the 60% AI Cost Budget Rule
 export async function GET(req: NextRequest) {
   try {
-    await checkIsAdmin();
+    const auth = await verifyAdminApiSession();
+    if (!auth.authorized) return auth.response!;
+
     const adminClient = getSupabaseAdmin();
     const { searchParams } = new URL(req.url);
 
@@ -48,115 +19,119 @@ export async function GET(req: NextRequest) {
     } else if (timeframe === '7d') {
       startDate.setDate(startDate.getDate() - 7);
     } else {
+      // 30d default
       startDate.setDate(startDate.getDate() - 30);
     }
 
-    // Attempt to fetch from real ai_cost_events first
-    const { data: realEvents, error: eventsError } = await adminClient
-      .from('ai_cost_events')
-      .select('*')
-      .gte('created_at', startDate.toISOString());
+    // Fetch payments for actual realized revenue
+    const [paymentsRes, costEventsRes, jobsRes] = await Promise.all([
+      adminClient
+        .from('payments')
+        .select('*')
+        .in('status', ['captured', 'succeeded', 'paid', 'completed'])
+        .gte('created_at', startDate.toISOString()),
+      adminClient
+        .from('ai_cost_events')
+        .select('*')
+        .gte('created_at', startDate.toISOString())
+        .order('created_at', { ascending: false }),
+      adminClient
+        .from('ai_jobs')
+        .select('*')
+        .gte('created_at', startDate.toISOString()),
+    ]);
 
-    if (!eventsError && realEvents && realEvents.length > 0) {
-      let totalCostUsd = 0;
-      let totalCreditsDeducted = 0;
-      let totalRevenueUsd = 0;
-      const costByProvider: Record<string, number> = {};
-      const costByModel: Record<string, number> = {};
-      const costByAsset: Record<string, number> = {};
+    const payments = paymentsRes.data || [];
+    const costEvents = costEventsRes.data || [];
+    const jobs = jobsRes.data || [];
 
-      realEvents.forEach((ev: any) => {
-        const provider = ev.provider || 'Google Gemini AI';
-        const model = ev.model || 'gemini-3.5-flash';
-        const taskType = ev.task_type || 'CHAT';
-        const cost = Number(ev.actual_provider_cost || 0) + Number(ev.ai_infrastructure_cost || 0);
-        const credits = Number(ev.credits_deducted || 0);
-        const revenue = Number(ev.revenue_allocated || 0);
-
-        totalCostUsd += cost;
-        totalCreditsDeducted += credits;
-        totalRevenueUsd += revenue;
-
-        costByProvider[provider] = (costByProvider[provider] || 0) + cost;
-        costByModel[model] = (costByModel[model] || 0) + cost;
-        costByAsset[taskType] = (costByAsset[taskType] || 0) + cost;
-      });
-
-      const avgMargin = totalRevenueUsd > 0 ? ((totalRevenueUsd - totalCostUsd) / totalRevenueUsd) * 100 : 0;
-
-      return NextResponse.json({
-        success: true,
-        timeframe,
-        source: 'production_events',
-        costs: {
-          totalCostUsd: Number(totalCostUsd.toFixed(4)),
-          totalCreditsDeducted,
-          revenueAllocatedUsd: Number(totalRevenueUsd.toFixed(4)),
-          grossMarginPercent: Number(avgMargin.toFixed(2)),
-          totalGeneratedAssets: realEvents.length,
-          costPerAssetUsd: realEvents.length > 0 ? Number((totalCostUsd / realEvents.length).toFixed(6)) : 0,
-          byProvider: Object.fromEntries(Object.entries(costByProvider).map(([k, v]) => [k, Number(v.toFixed(4))])),
-          byModel: Object.fromEntries(Object.entries(costByModel).map(([k, v]) => [k, Number(v.toFixed(4))])),
-          byAsset: Object.fromEntries(Object.entries(costByAsset).map(([k, v]) => [k, Number(v.toFixed(4))])),
-          byExam: {},
-        },
-      });
-    }
-
-    // Fallback to estimating based on job logs if realEvents table is still quiet
-    const { data: jobs, error } = await adminClient
-      .from('ai_generation_jobs')
-      .select('*')
-      .gte('created_at', startDate.toISOString());
-
-    if (error) throw error;
-
-    let totalCostUsd = 0;
-    const costByProvider: Record<string, number> = {};
-    const costByModel: Record<string, number> = {};
-    const costByAsset: Record<string, number> = {};
-    const costByExam: Record<string, number> = {};
-
-    let totalGeneratedAssets = 0;
-
-    (jobs || []).forEach((j: any) => {
-      const provider = j.input_params?.provider || 'Gemini';
-      const model = j.input_params?.model || 'gemini-3.5-flash';
-      const assetType = j.input_params?.asset_type || j.job_type || 'MCQ';
-      const examName = j.input_params?.exam_name || 'General';
-
-      const pricing = MODEL_PRICING[model] || MODEL_PRICING['gemini-3.5-flash'];
-      const estInput = j.input_params?.estimated_input_tokens || 850;
-      const estOutput = j.result?.generated_count ? j.result.generated_count * 220 : (j.status === 'completed' ? 2400 : 0);
-
-      const jobCost = (estInput / 1000000) * pricing.inputPerM + (estOutput / 1000000) * pricing.outputPerM;
-
-      totalCostUsd += jobCost;
-
-      const generatedItems = j.result?.generated_count || (j.status === 'completed' ? (j.input_params?.batch_size || 20) : 0);
-      totalGeneratedAssets += generatedItems;
-
-      costByProvider[provider] = (costByProvider[provider] || 0) + jobCost;
-      costByModel[model] = (costByModel[model] || 0) + jobCost;
-      costByAsset[assetType] = (costByAsset[assetType] || 0) + jobCost;
-      costByExam[examName] = (costByExam[examName] || 0) + jobCost;
+    // Calculate Realized Net Eligible Revenue in USD
+    // Payments are usually in INR (paise) or USD. Normalize to USD approx: if > 1000 and currency INR, divide by 87
+    let totalRevenueUsd = 0;
+    payments.forEach((p: any) => {
+      const amt = Number(p.amount || 0);
+      const cur = (p.currency || 'INR').toUpperCase();
+      if (cur === 'INR') {
+        totalRevenueUsd += amt > 100 ? (amt / 100) / 87 : amt / 87; // paise or rupees to USD
+      } else {
+        totalRevenueUsd += amt > 100 ? amt / 100 : amt;
+      }
     });
 
-    const costPerAssetUsd = totalGeneratedAssets > 0 ? totalCostUsd / totalGeneratedAssets : 0;
+    // If cost events have revenue_allocated from credit packages, incorporate that
+    let totalCreditRevenueUsd = 0;
+    let totalActualProviderCostUsd = 0;
+    let totalInfraCostUsd = 0;
+    let totalCreditsDeducted = 0;
+
+    const costByProvider: Record<string, number> = {};
+    const costByModel: Record<string, number> = {};
+    const costByTask: Record<string, number> = {};
+
+    costEvents.forEach((ev: any) => {
+      const pCost = Number(ev.actual_provider_cost || 0);
+      const iCost = Number(ev.ai_infrastructure_cost || 0);
+      const credits = Number(ev.credits_deducted || 0);
+      const rev = Number(ev.revenue_allocated || 0);
+
+      totalActualProviderCostUsd += pCost;
+      totalInfraCostUsd += iCost;
+      totalCreditsDeducted += credits;
+      totalCreditRevenueUsd += rev;
+
+      const provider = ev.provider || 'Google Gemini AI';
+      const model = ev.model || 'gemini-3.5-flash';
+      const task = ev.task_type || 'MCQ_GENERATION';
+
+      costByProvider[provider] = (costByProvider[provider] || 0) + pCost + iCost;
+      costByModel[model] = (costByModel[model] || 0) + pCost + iCost;
+      costByTask[task] = (costByTask[task] || 0) + pCost + iCost;
+    });
+
+    const totalCogsUsd = totalActualProviderCostUsd + totalInfraCostUsd;
+    const effectiveRevenueUsd = Math.max(totalRevenueUsd, totalCreditRevenueUsd);
+
+    // 60% Rule Calculation: AI Cost must be <= 60% of Net Revenue
+    const aiBudgetAllowanceUsd = effectiveRevenueUsd * 0.60;
+    const remainingAiBudgetUsd = aiBudgetAllowanceUsd - totalCogsUsd;
+    const aiCostRatioPercent = effectiveRevenueUsd > 0 ? (totalCogsUsd / effectiveRevenueUsd) * 100 : 0;
+    const grossMarginPercent = effectiveRevenueUsd > 0 ? ((effectiveRevenueUsd - totalCogsUsd) / effectiveRevenueUsd) * 100 : 0;
+
+    // Budget Health status
+    let budgetHealth: 'Normal' | 'Caution' | 'Critical' = 'Normal';
+    if (aiCostRatioPercent > 55) {
+      budgetHealth = 'Critical';
+    } else if (aiCostRatioPercent > 50) {
+      budgetHealth = 'Caution';
+    }
 
     return NextResponse.json({
       success: true,
       timeframe,
-      source: 'generation_jobs_estimate',
-      costs: {
-        totalCostUsd: Number(totalCostUsd.toFixed(4)),
-        totalGeneratedAssets,
-        costPerAssetUsd: Number(costPerAssetUsd.toFixed(6)),
+      rule60: {
+        effectiveRevenueUsd: Number(effectiveRevenueUsd.toFixed(2)),
+        aiBudgetAllowanceUsd: Number(aiBudgetAllowanceUsd.toFixed(2)),
+        totalActualCogsUsd: Number(totalCogsUsd.toFixed(4)),
+        providerCostUsd: Number(totalActualProviderCostUsd.toFixed(4)),
+        infrastructureCostUsd: Number(totalInfraCostUsd.toFixed(4)),
+        remainingAiBudgetUsd: Number(remainingAiBudgetUsd.toFixed(2)),
+        aiCostRatioPercent: Number(aiCostRatioPercent.toFixed(2)),
+        grossMarginPercent: Number(grossMarginPercent.toFixed(2)),
+        budgetHealth,
+        ruleTarget: 'Max 60% AI Cost of Eligible Revenue',
+      },
+      metrics: {
+        totalCostEvents: costEvents.length,
+        totalJobsLogged: jobs.length,
+        totalCreditsDeducted,
+        avgCostPerJobUsd: costEvents.length > 0 ? Number((totalCogsUsd / costEvents.length).toFixed(6)) : 0,
+      },
+      breakdowns: {
         byProvider: Object.fromEntries(Object.entries(costByProvider).map(([k, v]) => [k, Number(v.toFixed(4))])),
         byModel: Object.fromEntries(Object.entries(costByModel).map(([k, v]) => [k, Number(v.toFixed(4))])),
-        byAsset: Object.fromEntries(Object.entries(costByAsset).map(([k, v]) => [k, Number(v.toFixed(4))])),
-        byExam: Object.fromEntries(Object.entries(costByExam).map(([k, v]) => [k, Number(v.toFixed(4))])),
+        byTask: Object.fromEntries(Object.entries(costByTask).map(([k, v]) => [k, Number(v.toFixed(4))])),
       },
+      recentEvents: costEvents.slice(0, 15),
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });

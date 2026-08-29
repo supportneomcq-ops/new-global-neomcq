@@ -15,40 +15,53 @@ export async function GET(req: NextRequest) {
 
     // 1. If query is empty, fetch featured or all active verified exams from DB
     if (!rawQuery) {
-      let dbQuery = (supabase as any)
-        .from('exams')
-        .select(`
-          id,
-          name,
-          slug,
-          description,
-          difficulty,
-          question_count,
-          time_limit_mins,
-          is_featured,
-          official_website,
-          countries(name, iso2, flag_emoji),
-          exam_categories(name, slug)
-        `)
-        .eq('status', 'active')
-        .eq('verification_status', 'verified')
+      let dbExams: any[] | null = null;
+      try {
+        let dbQuery = (supabase as any)
+          .from('exams')
+          .select(`
+            id,
+            name,
+            slug,
+            description,
+            difficulty,
+            question_count,
+            time_limit_mins,
+            is_featured,
+            official_website,
+            countries(name, iso2, flag_emoji),
+            exam_categories(name, slug)
+          `)
+          .neq('status', 'archived');
 
-      if (featuredOnly) {
-        dbQuery = dbQuery.eq('is_featured', true)
-      }
+        if (featuredOnly) {
+          dbQuery = dbQuery.eq('is_featured', true);
+        }
 
-      const { data: dbExams, error: dbErr } = await dbQuery.order('name', { ascending: true }).limit(50)
-
-      if (dbErr) {
-        console.error('Error fetching exams from DB:', dbErr)
-        return NextResponse.json({ success: false, error: dbErr.message }, { status: 500 })
+        const res = await dbQuery.order('name', { ascending: true }).limit(50);
+        if (res.error) {
+          // Fallback to simple select without joins if relation is missing
+          console.warn('Exams relational query warning, falling back to flat query:', res.error.message);
+          const flatRes = await (supabase as any)
+            .from('exams')
+            .select('id, name, slug, description, difficulty, question_count, time_limit_mins, is_featured, official_website')
+            .neq('status', 'archived')
+            .order('name', { ascending: true })
+            .limit(50);
+          dbExams = flatRes.data || [];
+        } else {
+          dbExams = res.data || [];
+        }
+      } catch (err: any) {
+        console.error('Error fetching exams from DB:', err);
+        dbExams = [];
       }
 
       let list = (dbExams || []).map((e: any) => ({
         id: e.id,
         name: e.name,
         slug: e.slug,
-        category: e.exam_categories?.name || 'Professional Licensing',
+        category: e.exam_categories?.name || 'Standard Exam Prep',
         country: e.countries?.name || 'India',
         flag: e.countries?.flag_emoji || '🇮🇳',
         description: e.description || '',
@@ -80,37 +93,11 @@ export async function GET(req: NextRequest) {
     const querySlug = norm.slug.toLowerCase()
 
     // 3. Search Supabase DB: fetch exams table
-    const { data: dbMatches, error: searchErr } = await (supabase as any)
-      .from('exams')
-      .select(`
-        id,
-        name,
-        slug,
-        description,
-        difficulty,
-        question_count,
-        time_limit_mins,
-        is_featured,
-        aliases,
-        countries(name, iso2, flag_emoji),
-        exam_categories(name, slug)
-      `)
-      .eq('status', 'active')
-      .eq('verification_status', 'verified')
-      .or(`name.ilike.%${rawQuery}%,slug.ilike.%${querySlug}%,description.ilike.%${rawQuery}%`)
-      .limit(50)
-
-    if (searchErr) {
-      console.error('DB exam search error:', searchErr)
-    }
-
-    // Also check exam_aliases table
-    const { data: aliasMatches } = await (supabase as any)
-      .from('exam_aliases')
-      .select(`
-        exam_id,
-        alias,
-        exams (
+    let dbMatches: any[] | null = null;
+    try {
+      const { data, error: searchErr } = await (supabase as any)
+        .from('exams')
+        .select(`
           id,
           name,
           slug,
@@ -120,20 +107,63 @@ export async function GET(req: NextRequest) {
           time_limit_mins,
           is_featured,
           aliases,
-          status,
-          verification_status,
           countries(name, iso2, flag_emoji),
           exam_categories(name, slug)
-        )
-      `)
-      .ilike('alias', `%${rawQuery}%`)
-      .limit(30)
+        `)
+        .neq('status', 'archived')
+        .or(`name.ilike.%${rawQuery}%,slug.ilike.%${querySlug}%,description.ilike.%${rawQuery}%`)
+        .limit(50);
+
+      if (searchErr) {
+        // Fallback without joins
+        const flatSearch = await (supabase as any)
+          .from('exams')
+          .select('id, name, slug, description, difficulty, question_count, time_limit_mins, is_featured, aliases')
+          .neq('status', 'archived')
+          .or(`name.ilike.%${rawQuery}%,slug.ilike.%${querySlug}%,description.ilike.%${rawQuery}%`)
+          .limit(50);
+        dbMatches = flatSearch.data || [];
+      } else {
+        dbMatches = data || [];
+      }
+    } catch (searchErr) {
+      console.warn('DB exam search warning:', searchErr);
+      dbMatches = [];
+    }
+
+    // Also check exam_aliases table safely
+    let aliasMatches: any[] = [];
+    try {
+      const { data } = await (supabase as any)
+        .from('exam_aliases')
+        .select(`
+          exam_id,
+          alias,
+          exams (
+            id,
+            name,
+            slug,
+            description,
+            difficulty,
+            question_count,
+            time_limit_mins,
+            is_featured,
+            aliases,
+            status,
+            countries(name, iso2, flag_emoji),
+            exam_categories(name, slug)
+          )
+        `)
+        .ilike('alias', `%${rawQuery}%`)
+        .limit(30);
+      aliasMatches = data || [];
+    } catch (_) {}
 
     const examMap = new Map<string, { exam: any; score: number }>()
 
     // Helper to process exam record
     const processExamRecord = (dbExam: any, aliasMatched: string | null = null) => {
-      if (!dbExam || dbExam.status !== 'active' || dbExam.verification_status !== 'verified') return
+      if (!dbExam || dbExam.status === 'archived') return
       if (examMap.has(dbExam.id)) {
         // If already present, maybe upgrade score if exact match
         const existing = examMap.get(dbExam.id)!

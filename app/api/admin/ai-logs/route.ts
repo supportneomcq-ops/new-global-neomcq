@@ -38,17 +38,35 @@ export async function GET(req: NextRequest) {
 
     let query = adminClient
       .from('audit_logs')
-      .select('*, profiles(email)', { count: 'exact' })
+      .select('*', { count: 'exact' })
       .or('action.ilike.AI_%,action.ilike.JOB_%,entity_type.ilike.%ai%');
 
     if (search) {
-      query = query.or(`action.ilike.%${search}%,entity_id.ilike.%${search}%`);
+      query = query.or(`action.ilike.%${search}%,entity_id.ilike.%${search}%,action.ilike.%${search}%`);
     }
 
     query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
 
     const { data: logs, count, error } = await query;
     if (error) throw error;
+
+    // Fetch user profiles for the user_ids found to enrich logs without assuming foreign key join in schema cache
+    const userIds = Array.from(new Set((logs || []).map((l: any) => l.user_id).filter(Boolean)));
+    const profilesMap = new Map<string, any>();
+    if (userIds.length > 0) {
+      try {
+        const { data: profiles } = await adminClient
+          .from('profiles')
+          .select('id, auth_user_id, email, first_name, last_name')
+          .or(`id.in.(${userIds.join(',')}),auth_user_id.in.(${userIds.join(',')})`);
+        (profiles || []).forEach((p: any) => {
+          if (p.id) profilesMap.set(p.id, p);
+          if (p.auth_user_id) profilesMap.set(p.auth_user_id, p);
+        });
+      } catch (profileErr) {
+        console.warn('Could not enrich profiles for audit logs:', profileErr);
+      }
+    }
 
     // Sanitize logs to strip any potential sensitive credentials
     const sanitizedLogs = (logs || []).map((l: any) => {
@@ -59,13 +77,22 @@ export async function GET(req: NextRequest) {
       delete cleanDetails.token;
       delete cleanDetails.authorization;
 
+      const profile = l.user_id ? profilesMap.get(l.user_id) : null;
+      const actorName = profile?.email
+        ? profile.email
+        : profile?.first_name
+        ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim()
+        : l.user_id
+        ? `User (${l.user_id.slice(0, 8)})`
+        : 'System Engine';
+
       return {
         id: l.id,
         timestamp: l.created_at,
         action: l.action,
         entity_type: l.entity_type,
         job_id: l.entity_id,
-        actor: l.profiles?.email || l.user_id || 'System Worker',
+        actor: actorName,
         provider: cleanDetails.provider || 'Gemini',
         model: cleanDetails.model || 'gemini-3.5-flash',
         operation: l.action.replace('AI_', '').replace(/_/g, ' '),

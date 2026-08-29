@@ -1,3 +1,5 @@
-import AdminCloudflareR2Page from '../storage/r2/page';
+import { redirect } from 'next/navigation';
 
-export default AdminCloudflareR2Page;
+export default function AdminCloudflareR2AliasPage() {
+  redirect('/admin/storage/r2');
+}

@@ -3,7 +3,17 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Globe2, ChevronLeft, ChevronRight, CheckCircle2 } from 'lucide-react';
-import { ExamItem } from '@/app/api/exams/route';
+export interface ExamItem {
+  id: string;
+  name: string;
+  category: string;
+  country: string;
+  flag?: string;
+  description: string;
+  code?: string;
+  slug?: string;
+  is_featured?: boolean;
+}
 
 const FALLBACK_FEATURED_EXAMS: ExamItem[] = [
   { id: '1', name: 'USMLE Step 1 & 2 CK', category: 'Medical Licensing Exam', country: 'United States', flag: '🇺🇸', description: 'United States Medical Licensing Examination for physicians.', code: 'USMLE', is_featured: true },

@@ -1,33 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { createClient } from '@/lib/supabase/server';
+import { verifyAdminApiSession } from '@/lib/admin-auth';
 
-async function checkIsAdmin() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Unauthenticated');
-
-  const adminClient = getSupabaseAdmin();
-  const { data: userRoles } = await adminClient
-    .from('user_roles')
-    .select('roles(name)')
-    .eq('user_id', user.id);
-
-  const roleNames = userRoles?.map((r: any) => r.roles?.name).filter(Boolean) || [];
-  const userEmail = user.email?.toLowerCase().trim() || '';
-  const initialAdminEmail = (process.env.INITIAL_ADMIN_EMAIL || 'support@neomcq.com').toLowerCase().trim();
-  const isAdminEmail = userEmail === initialAdminEmail || userEmail === 'swapnilsonawane913@gmail.com';
-
-  if (!isAdminEmail && !roleNames.includes('admin') && !roleNames.includes('super_admin')) {
-    throw new Error('Unauthorized: Admin access required');
-  }
-  return user;
-}
-
-// GET: AI Usage Analytics
+// GET: AI Usage Analytics from real ai_jobs and ai_cost_events
 export async function GET(req: NextRequest) {
   try {
-    await checkIsAdmin();
+    const auth = await verifyAdminApiSession();
+    if (!auth.authorized) return auth.response!;
+
     const adminClient = getSupabaseAdmin();
     const { searchParams } = new URL(req.url);
 
@@ -39,64 +19,106 @@ export async function GET(req: NextRequest) {
     } else if (timeframe === '30d') {
       startDate.setDate(startDate.getDate() - 30);
     } else {
-      // default 7d
+      // 7d default
       startDate.setDate(startDate.getDate() - 7);
     }
 
-    const { data: jobs, error } = await adminClient
-      .from('ai_generation_jobs')
-      .select('*')
-      .gte('created_at', startDate.toISOString());
+    const [jobsRes, costEventsRes, profilesRes] = await Promise.all([
+      adminClient
+        .from('ai_jobs')
+        .select('*')
+        .gte('created_at', startDate.toISOString())
+        .order('created_at', { ascending: false }),
+      adminClient
+        .from('ai_cost_events')
+        .select('*')
+        .gte('created_at', startDate.toISOString())
+        .order('created_at', { ascending: false }),
+      adminClient.from('profiles').select('id, email, full_name'),
+    ]);
 
-    if (error) throw error;
+    const jobs = jobsRes.data || [];
+    const costEvents = costEventsRes.data || [];
+    const profilesMap = new Map((profilesRes.data || []).map((p: any) => [p.id, p]));
 
-    const totalRequests = jobs?.length || 0;
-    const successfulRequests = jobs?.filter((j) => j.status === 'completed').length || 0;
-    const failedRequests = jobs?.filter((j) => j.status === 'failed').length || 0;
+    const totalRequests = jobs.length;
+    const successfulRequests = jobs.filter((j) => j.status === 'completed' || j.status === 'success').length;
+    const failedRequests = jobs.filter((j) => j.status === 'failed' || j.status === 'error').length;
+    const queuedRequests = jobs.filter((j) => j.status === 'queued' || j.status === 'pending').length;
+    const runningRequests = jobs.filter((j) => j.status === 'running' || j.status === 'processing').length;
 
-    // Estimate token usage from job input_params and results
     let totalTokensInput = 0;
     let totalTokensOutput = 0;
 
     const byProvider: Record<string, { requests: number; success: number; failed: number; tokens: number }> = {};
     const byModel: Record<string, { requests: number; tokens: number }> = {};
-    const byAssetType: Record<string, number> = {};
+    const byTask: Record<string, number> = {};
     const byExam: Record<string, number> = {};
+    const userUsageMap: Record<string, { userId: string; email: string; name: string; requests: number; tokens: number; credits: number }> = {};
 
-    (jobs || []).forEach((j: any) => {
-      const provider = j.input_params?.provider || 'Gemini';
-      const model = j.input_params?.model || 'gemini-3.5-flash';
-      const assetType = j.input_params?.asset_type || j.job_type || 'MCQ';
-      const examName = j.input_params?.exam_name || 'General';
+    // Process cost events first for high-fidelity token accounting
+    costEvents.forEach((ev: any) => {
+      const inTok = Number(ev.input_tokens || 0);
+      const outTok = Number(ev.output_tokens || 0);
+      totalTokensInput += inTok;
+      totalTokensOutput += outTok;
 
-      const estimatedInput = j.input_params?.estimated_input_tokens || 850;
-      const estimatedOutput = j.result?.generated_count ? j.result.generated_count * 220 : (j.status === 'completed' ? 2400 : 0);
+      if (ev.user_id) {
+        if (!userUsageMap[ev.user_id]) {
+          const profile = profilesMap.get(ev.user_id) || { email: 'Unknown', full_name: 'Anonymous User' };
+          userUsageMap[ev.user_id] = {
+            userId: ev.user_id,
+            email: profile.email || 'N/A',
+            name: profile.full_name || 'Anonymous User',
+            requests: 0,
+            tokens: 0,
+            credits: 0,
+          };
+        }
+        userUsageMap[ev.user_id].requests += 1;
+        userUsageMap[ev.user_id].tokens += inTok + outTok;
+        userUsageMap[ev.user_id].credits += Number(ev.credits_deducted || 0);
+      }
+    });
 
-      totalTokensInput += estimatedInput;
-      totalTokensOutput += estimatedOutput;
+    // Process jobs for breakdown distributions
+    jobs.forEach((j: any) => {
+      const payload = j.input_payload || {};
+      const output = j.output_payload || {};
+      const provider = j.provider || payload.provider || 'Google Gemini AI';
+      const model = j.model || payload.model || 'gemini-3.5-flash';
+      const taskType = j.task || payload.job_type || payload.asset_type || 'MCQ_GENERATION';
+      const examName = payload.exam_name || 'General';
 
-      // By Provider
+      const inTok = Number(payload.input_tokens || output.input_tokens || 0);
+      const outTok = Number(output.output_tokens || payload.output_tokens || 0);
+
+      // Provider breakdown
       if (!byProvider[provider]) {
         byProvider[provider] = { requests: 0, success: 0, failed: 0, tokens: 0 };
       }
       byProvider[provider].requests += 1;
-      if (j.status === 'completed') byProvider[provider].success += 1;
-      if (j.status === 'failed') byProvider[provider].failed += 1;
-      byProvider[provider].tokens += estimatedInput + estimatedOutput;
+      if (j.status === 'completed' || j.status === 'success') byProvider[provider].success += 1;
+      if (j.status === 'failed' || j.status === 'error') byProvider[provider].failed += 1;
+      byProvider[provider].tokens += inTok + outTok;
 
-      // By Model
+      // Model breakdown
       if (!byModel[model]) {
         byModel[model] = { requests: 0, tokens: 0 };
       }
       byModel[model].requests += 1;
-      byModel[model].tokens += estimatedInput + estimatedOutput;
+      byModel[model].tokens += inTok + outTok;
 
-      // By Asset Type
-      byAssetType[assetType] = (byAssetType[assetType] || 0) + 1;
+      // Task breakdown
+      byTask[taskType] = (byTask[taskType] || 0) + 1;
 
-      // By Exam
+      // Exam breakdown
       byExam[examName] = (byExam[examName] || 0) + 1;
     });
+
+    const topUsers = Object.values(userUsageMap)
+      .sort((a, b) => b.tokens - a.tokens)
+      .slice(0, 10);
 
     return NextResponse.json({
       success: true,
@@ -105,6 +127,8 @@ export async function GET(req: NextRequest) {
         totalRequests,
         successfulRequests,
         failedRequests,
+        queuedRequests,
+        runningRequests,
         successRatePercentage: totalRequests > 0 ? Math.round((successfulRequests / totalRequests) * 100) : 100,
         tokensInput: totalTokensInput,
         tokensOutput: totalTokensOutput,
@@ -113,9 +137,10 @@ export async function GET(req: NextRequest) {
       breakdowns: {
         byProvider,
         byModel,
-        byAssetType,
+        byTask,
         byExam,
       },
+      topUsers,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });

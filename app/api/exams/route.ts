@@ -21,39 +21,54 @@ export async function GET(req: NextRequest) {
     const supabase = getSupabaseAdmin();
     
     // Build query
-    let queryBuilder = (supabase as any)
-      .from('exams')
-      .select(`
-        id,
-        name,
-        slug,
-        description,
-        difficulty,
-        question_count,
-        time_limit_mins,
-        is_featured,
-        status,
-        countries (
+    let dbExams: any[] = [];
+    try {
+      let queryBuilder = (supabase as any)
+        .from('exams')
+        .select(`
+          id,
           name,
-          iso2,
-          flag_emoji
-        ),
-        exam_categories (
-          name,
-          slug
-        )
-      `)
-      .eq('status', 'active')
-      .eq('verification_status', 'verified');
+          slug,
+          description,
+          difficulty,
+          question_count,
+          time_limit_mins,
+          is_featured,
+          status,
+          countries (
+            name,
+            iso2,
+            flag_emoji
+          ),
+          exam_categories (
+            name,
+            slug
+          )
+        `)
+        .neq('status', 'archived');
 
-    if (featuredOnly) {
-      queryBuilder = queryBuilder.eq('is_featured', true);
-    }
+      if (featuredOnly) {
+        queryBuilder = queryBuilder.eq('is_featured', true);
+      }
 
-    const { data: dbExams, error } = await queryBuilder;
-
-    if (error) {
-      throw error;
+      const res = await queryBuilder;
+      if (res.error) {
+        // Fallback without joins
+        let flatQuery = (supabase as any)
+          .from('exams')
+          .select('id, name, slug, description, difficulty, question_count, time_limit_mins, is_featured, status')
+          .neq('status', 'archived');
+        if (featuredOnly) {
+          flatQuery = flatQuery.eq('is_featured', true);
+        }
+        const flatRes = await flatQuery;
+        dbExams = flatRes.data || [];
+      } else {
+        dbExams = res.data || [];
+      }
+    } catch (err: any) {
+      console.warn('API /api/exams fallback warning:', err);
+      dbExams = [];
     }
 
     // Map DB results to match the frontend ExamItem interface expectations

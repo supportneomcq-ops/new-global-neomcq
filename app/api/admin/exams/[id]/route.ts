@@ -55,13 +55,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     // 5. Fetch AI Jobs for this exam
     const { data: aiJobs } = await (supabase as any)
-      .from('ai_generation_jobs')
+      .from('ai_jobs')
       .select('*')
       .eq('exam_id', examId)
       .order('created_at', { ascending: false })
       .limit(20)
 
-    const pendingJobs = aiJobs?.filter((j: any) => j.status === 'pending' || j.status === 'processing') || []
+    const pendingJobs = aiJobs?.filter((j: any) => j.status === 'queued' || j.status === 'running' || j.status === 'pending' || j.status === 'processing') || []
     const failedJobs = aiJobs?.filter((j: any) => j.status === 'failed') || []
 
     // 6. Fetch Study Sessions / Analytics

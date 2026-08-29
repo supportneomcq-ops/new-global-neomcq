@@ -91,6 +91,38 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
+        {/* Polyfill/compatibility for environments where window.fetch has getter only */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){
+              try {
+                if (typeof window !== 'undefined') {
+                  var origFetch = window.fetch;
+                  var curFetch = origFetch;
+                  try {
+                    Object.defineProperty(window, 'fetch', {
+                      get: function() { return curFetch || origFetch; },
+                      set: function(v) { curFetch = v; },
+                      configurable: true,
+                      enumerable: true
+                    });
+                  } catch(e) {
+                    if (typeof Window !== 'undefined' && Window.prototype) {
+                      var desc = Object.getOwnPropertyDescriptor(Window.prototype, 'fetch');
+                      if (desc && desc.get && !desc.set) {
+                        Object.defineProperty(Window.prototype, 'fetch', {
+                          get: desc.get,
+                          set: function(v) { curFetch = v; },
+                          configurable: true
+                        });
+                      }
+                    }
+                  }
+                }
+              } catch(err) {}
+            })();`,
+          }}
+        />
         <link rel="manifest" href="/manifest.webmanifest" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

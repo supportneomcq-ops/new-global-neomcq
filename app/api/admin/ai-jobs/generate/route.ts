@@ -1,34 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { createClient } from '@/lib/supabase/server';
+import { verifyAdminApiSession } from '@/lib/admin-auth';
 import { GoogleGenAI } from '@google/genai';
-
-async function checkIsAdmin() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Unauthenticated');
-
-  const adminClient = getSupabaseAdmin();
-  const { data: userRoles } = await adminClient
-    .from('user_roles')
-    .select('roles(name)')
-    .eq('user_id', user.id);
-
-  const roleNames = userRoles?.map((r: any) => r.roles?.name).filter(Boolean) || [];
-  const userEmail = user.email?.toLowerCase().trim() || '';
-  const initialAdminEmail = (process.env.INITIAL_ADMIN_EMAIL || 'support@neomcq.com').toLowerCase().trim();
-  const isAdminEmail = userEmail === initialAdminEmail || userEmail === 'swapnilsonawane913@gmail.com';
-
-  if (!isAdminEmail && !roleNames.includes('admin') && !roleNames.includes('super_admin') && !roleNames.includes('content_admin')) {
-    throw new Error('Unauthorized: Admin access required');
-  }
-  return user;
-}
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
   try {
-    const user = await checkIsAdmin();
+    const auth = await verifyAdminApiSession();
+    if (!auth.authorized) return auth.response!;
+    const user = auth.user!;
     const adminClient = getSupabaseAdmin();
     const body = await req.json();
 
@@ -88,7 +68,7 @@ export async function POST(req: NextRequest) {
     }
 
     // STEP 3: INSERT PENDING JOB ENTRY
-    const input_params = {
+    const input_payload = {
       asset_type,
       exam_id,
       exam_name,
@@ -105,13 +85,19 @@ export async function POST(req: NextRequest) {
     };
 
     const { data: job, error: jobErr } = await adminClient
-      .from('ai_generation_jobs')
+      .from('ai_jobs')
       .insert({
         user_id: user.id,
-        job_type: `${asset_type}_generation`,
+        exam_id: exam_id || null,
+        subject_id: subject_id || null,
+        topic_id: topic_id || null,
+        task: `${asset_type}_generation`,
         status: 'processing',
-        input_params,
-        retry_count: 0,
+        provider: provider || 'gemini',
+        model: model || 'gemini-3.5-flash',
+        priority: priority === 'High' ? 10 : priority === 'Low' ? 1 : 5,
+        input_payload,
+        attempts: 1,
       })
       .select('*')
       .single();
@@ -122,11 +108,10 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       await adminClient
-        .from('ai_generation_jobs')
+        .from('ai_jobs')
         .update({
           status: 'failed',
-          error_message: 'GEMINI_API_KEY is not configured in environment',
-          updated_at: new Date().toISOString(),
+          error: 'GEMINI_API_KEY is not configured in environment',
         })
         .eq('id', job.id);
 
@@ -183,15 +168,15 @@ Respond ONLY with valid, parseable JSON matching the specified structure without
 
     // STEP 5: SAVE RESULT & UPDATE JOB STATUS TO COMPLETED
     await adminClient
-      .from('ai_generation_jobs')
+      .from('ai_jobs')
       .update({
         status: 'completed',
-        result: {
+        output_payload: {
           generated_count: generatedCount,
           duration_ms: duration,
           payload: parsedResult,
         },
-        updated_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
       })
       .eq('id', job.id);
 
@@ -199,7 +184,7 @@ Respond ONLY with valid, parseable JSON matching the specified structure without
     await adminClient.from('audit_logs').insert({
       user_id: user.id,
       action: 'AI_JOB_COMPLETED',
-      entity_type: 'ai_generation_jobs',
+      entity_type: 'ai_jobs',
       entity_id: job.id,
       details: { asset_type, exam_name, topic_name, generatedCount, duration_ms: duration },
     });

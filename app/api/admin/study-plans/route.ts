@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
         `
         *,
         exams(id, name, slug),
-        profiles(id, email, full_name)
+        profiles(id, email, first_name, last_name)
       `
       )
       .order('created_at', { ascending: false });

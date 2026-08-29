@@ -208,11 +208,17 @@ export async function POST(req: NextRequest) {
       })
 
       // 5. Enqueue Async AI Study Plan Generation Job
-      const { data: aiJob } = await (supabase as any).from('ai_generation_jobs').insert({
+      const { data: aiJob } = await (supabase as any).from('ai_jobs').insert({
         user_id: targetUserId,
-        job_type: 'study_plan',
-        status: 'pending',
-        input_params: {
+        exam_id: finalExamId || null,
+        task: 'study_plan_generation',
+        status: 'queued',
+        provider: 'Google Gemini AI',
+        model: 'gemini-3.5-flash',
+        priority: 5,
+        input_payload: {
+          job_type: 'study_plan',
+          asset_type: 'study_plan',
           examName,
           examId: finalExamId,
           examDate,

@@ -1,53 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { createClient } from '@/lib/supabase/server';
-
-async function checkIsAdmin() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Unauthenticated');
-
-  const adminClient = getSupabaseAdmin();
-  const { data: userRoles } = await adminClient
-    .from('user_roles')
-    .select('roles(name)')
-    .eq('user_id', user.id);
-
-  const roleNames = userRoles?.map((r: any) => r.roles?.name).filter(Boolean) || [];
-  const userEmail = user.email?.toLowerCase().trim() || '';
-  const initialAdminEmail = (process.env.INITIAL_ADMIN_EMAIL || 'support@neomcq.com').toLowerCase().trim();
-  const isAdminEmail = userEmail === initialAdminEmail || userEmail === 'swapnilsonawane913@gmail.com';
-
-  if (!isAdminEmail && !roleNames.includes('admin') && !roleNames.includes('super_admin') && !roleNames.includes('content_admin')) {
-    throw new Error('Unauthorized: Admin access required');
-  }
-  return user;
-}
+import { verifyAdminApiSession } from '@/lib/admin-auth';
 
 // GET: Fetch failed jobs
 export async function GET(req: NextRequest) {
   try {
-    await checkIsAdmin();
+    const auth = await verifyAdminApiSession();
+    if (!auth.authorized) return auth.response!;
+
     const adminClient = getSupabaseAdmin();
 
     const { data: jobs, error } = await adminClient
-      .from('ai_generation_jobs')
-      .select('*, profiles(email)')
+      .from('ai_jobs')
+      .select('*')
       .eq('status', 'failed')
-      .order('updated_at', { ascending: false });
+      .order('completed_at', { ascending: false });
 
     if (error) throw error;
 
     const formattedJobs = (jobs || []).map((j: any) => ({
       ...j,
-      provider: j.input_params?.provider || 'Gemini',
-      model: j.input_params?.model || 'gemini-3.5-flash',
-      exam_name: j.input_params?.exam_name || 'General',
-      subject_name: j.input_params?.subject_name || 'General',
-      topic_name: j.input_params?.topic_name || 'General',
-      asset_type: j.input_params?.asset_type || j.job_type || 'MCQ',
-      attempts: j.retry_count || 0,
-      last_attempt: j.updated_at,
+      job_type: j.task || j.input_payload?.job_type || 'AI Generation',
+      provider: j.provider || j.input_payload?.provider || 'Gemini',
+      model: j.model || j.input_payload?.model || 'gemini-3.5-flash',
+      exam_name: j.input_payload?.exam_name || 'General',
+      subject_name: j.input_payload?.subject_name || 'General',
+      topic_name: j.input_payload?.topic_name || 'General',
+      asset_type: j.input_payload?.asset_type || j.task || 'MCQ',
+      error_message: j.error || 'Job execution failed',
+      attempts: j.attempts || 0,
+      last_attempt: j.completed_at || j.created_at,
     }));
 
     return NextResponse.json({ success: true, failed_jobs: formattedJobs, total: formattedJobs.length });
@@ -59,7 +41,9 @@ export async function GET(req: NextRequest) {
 // POST: Batch retry or archive failed jobs
 export async function POST(req: NextRequest) {
   try {
-    const user = await checkIsAdmin();
+    const auth = await verifyAdminApiSession();
+    if (!auth.authorized) return auth.response!;
+    const user = auth.user!;
     const adminClient = getSupabaseAdmin();
     const body = await req.json();
 
@@ -70,11 +54,11 @@ export async function POST(req: NextRequest) {
 
     if (action === 'retry_all') {
       const { error } = await adminClient
-        .from('ai_generation_jobs')
+        .from('ai_jobs')
         .update({
-          status: 'pending',
-          error_message: null,
-          updated_at: new Date().toISOString(),
+          status: 'queued',
+          error: null,
+          attempts: 0,
         })
         .in('id', job_ids);
 
@@ -83,7 +67,7 @@ export async function POST(req: NextRequest) {
       await adminClient.from('audit_logs').insert({
         user_id: user.id,
         action: 'AI_FAILED_JOBS_BATCH_RETRIED',
-        entity_type: 'ai_generation_jobs',
+        entity_type: 'ai_jobs',
         details: { count: job_ids.length, job_ids },
       });
 
@@ -92,10 +76,9 @@ export async function POST(req: NextRequest) {
 
     if (action === 'cancel_all') {
       const { error } = await adminClient
-        .from('ai_generation_jobs')
+        .from('ai_jobs')
         .update({
           status: 'cancelled',
-          updated_at: new Date().toISOString(),
         })
         .in('id', job_ids);
 

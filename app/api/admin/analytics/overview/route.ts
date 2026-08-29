@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
     const studyTimeMins = Math.round(totalAttemptTimeSecs / 60);
 
     // 3. AI Jobs / Telemetry Metrics
-    const { data: aiJobs } = await adminClient.from('ai_generation_jobs').select('id, status, created_at')
+    const { data: aiJobs } = await adminClient.from('ai_jobs').select('id, status, created_at')
       .gte('created_at', startDate.toISOString())
       .lte('created_at', endDate.toISOString());
     const aiRequests = aiJobs?.length || 0;

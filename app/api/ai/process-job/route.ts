@@ -1,151 +1,146 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { GoogleGenAI } from '@google/genai'
+import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseAdmin } from '@/lib/supabase';
+import { AIGateway } from '@/lib/ai-gateway';
 
 export async function POST(req: NextRequest) {
   try {
-    const { jobId } = await req.json()
+    const { jobId } = await req.json();
 
     if (!jobId) {
-      return NextResponse.json({ error: 'Missing jobId' }, { status: 400 })
+      return NextResponse.json({ error: 'Missing jobId' }, { status: 400 });
     }
 
-    const supabase = await createClient()
+    const adminClient = getSupabaseAdmin();
 
-    // Retrieve pending job
-    const { data: job, error: fetchError } = await (supabase as any)
-      .from('ai_generation_jobs')
+    // 1. Retrieve job
+    const { data: job, error: fetchError } = await adminClient
+      .from('ai_jobs')
       .select('*')
       .eq('id', jobId)
-      .single()
+      .single();
 
     if (fetchError || !job) {
-      return NextResponse.json({ error: 'Job not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
     if (job.status === 'completed') {
-      return NextResponse.json({ success: true, status: 'completed', result: job.result })
+      return NextResponse.json({ success: true, status: 'completed', result: job.output_payload });
     }
 
-    // Stage 1: Mark job as processing
-    await (supabase as any)
-      .from('ai_generation_jobs')
-      .update({ 
-        status: 'processing', 
-        progress_stage: 'Preparing your exam...', 
-        step_percentage: 20,
-        updated_at: new Date().toISOString() 
+    // 2. Mark job as running
+    await adminClient
+      .from('ai_jobs')
+      .update({
+        status: 'running',
+        started_at: new Date().toISOString(),
+        attempts: (job.attempts || 0) + 1,
       })
-      .eq('id', jobId)
+      .eq('id', jobId);
 
-    let generatedResult: any = null
+    const taskType = job.task || job.input_payload?.job_type || 'study_plan';
+    const inputParams = job.input_payload || {};
+    const cacheKey = `${taskType}:${JSON.stringify(inputParams)}`;
 
-    try {
-      const apiKey = process.env.GEMINI_API_KEY
-      if (apiKey) {
-        const ai = new GoogleGenAI({
-          apiKey,
-          httpOptions: {
-            headers: {
-              'User-Agent': 'aistudio-build',
-            },
-          },
-        })
+    // 3. Check AI Content Cache (Deduplication)
+    const { data: cached } = await adminClient
+      .from('ai_content_cache')
+      .select('*')
+      .eq('cache_key', cacheKey)
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle();
 
-        // Stage 2: Building syllabus
-        await (supabase as any)
-          .from('ai_generation_jobs')
-          .update({ 
-            progress_stage: 'Building syllabus...', 
-            step_percentage: 45,
-            updated_at: new Date().toISOString() 
-          })
-          .eq('id', jobId)
-
-        const prompt = `You are NeoMCQ AI Engine v3.5. Generate structured high-yield JSON data for job type: ${job.job_type}. Input details: ${JSON.stringify(job.input_params)}. Respond ONLY with valid JSON.`
-
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.6-flash',
-          contents: prompt,
-          config: {
-            responseMimeType: 'application/json',
-          },
-        })
-
-        // Stage 3: Generating subjects & learning roadmap
-        await (supabase as any)
-          .from('ai_generation_jobs')
-          .update({ 
-            progress_stage: 'Generating subjects & learning roadmap...', 
-            step_percentage: 80,
-            updated_at: new Date().toISOString() 
-          })
-          .eq('id', jobId)
-
-        const rawText = response.text || '{}'
-        try {
-          const jsonStart = rawText.indexOf('{')
-          const jsonEnd = rawText.lastIndexOf('}')
-          if (jsonStart !== -1 && jsonEnd !== -1) {
-            generatedResult = JSON.parse(rawText.slice(jsonStart, jsonEnd + 1))
-          } else {
-            generatedResult = { text: rawText }
-          }
-        } catch {
-          generatedResult = { text: rawText }
-        }
-      } else {
-        // Fallback structured AI output
-        generatedResult = {
-          generated_at: new Date().toISOString(),
-          job_type: job.job_type,
-          modules: [
-            { title: 'High-Yield Core Concepts', status: 'ready', questions_generated: 25 },
-            { title: 'Adaptive Practice Quiz', status: 'ready', questions_generated: 15 },
-          ],
-        }
-      }
-
-      // Stage 4: Completed
-      await (supabase as any)
-        .from('ai_generation_jobs')
+    if (cached && cached.payload) {
+      await adminClient
+        .from('ai_jobs')
         .update({
           status: 'completed',
-          progress_stage: 'Completed',
-          step_percentage: 100,
-          result: generatedResult,
-          updated_at: new Date().toISOString(),
+          output_payload: {
+            payload: cached.payload,
+            from_cache: true,
+            completed_at: new Date().toISOString(),
+          },
+          completed_at: new Date().toISOString(),
         })
-        .eq('id', jobId)
+        .eq('id', jobId);
 
-      // Store in AI content cache (valid for 7 days)
-      const cacheKey = `${job.job_type}:${JSON.stringify(job.input_params)}`
-      const expiresAt = new Date()
-      expiresAt.setDate(expiresAt.getDate() + 7)
+      return NextResponse.json({
+        success: true,
+        status: 'completed',
+        cached: true,
+        result: cached.payload,
+      });
+    }
 
-      await (supabase as any).from('ai_content_cache').upsert({
-        cache_key: cacheKey,
-        content_type: job.job_type,
-        payload: generatedResult,
-        expires_at: expiresAt.toISOString(),
-      })
+    // 4. Execute Generation via AIGateway
+    try {
+      const systemInstruction = `You are NeoMCQ AI Engine. Generate authoritative, high-yield medical and academic content for task: ${taskType}. Always respond in strict, valid JSON format.`;
+      const prompt = `Input details:\n${JSON.stringify(inputParams, null, 2)}`;
 
-      return NextResponse.json({ success: true, status: 'completed', result: generatedResult })
-    } catch (aiError: any) {
-      console.error('AI Generation Error:', aiError)
-      await (supabase as any)
-        .from('ai_generation_jobs')
+      const genResult = await AIGateway.generateContent({
+        userId: job.user_id,
+        taskType,
+        prompt,
+        systemInstruction,
+        preferredModel: job.model || undefined,
+        jobId: job.id,
+      });
+
+      const finalOutput = genResult.parsedJson || { text: genResult.text };
+
+      // 5. Update ai_jobs to completed
+      await adminClient
+        .from('ai_jobs')
+        .update({
+          status: 'completed',
+          provider: genResult.providerUsed,
+          model: genResult.modelUsed,
+          output_payload: {
+            payload: finalOutput,
+            metrics: genResult.metrics,
+            generated_at: new Date().toISOString(),
+          },
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', jobId);
+
+      // 6. Cache output for 7 days
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
+      await adminClient.from('ai_content_cache').upsert(
+        {
+          cache_key: cacheKey,
+          content_type: taskType,
+          payload: finalOutput,
+          expires_at: expiresAt.toISOString(),
+        },
+        { onConflict: 'cache_key' }
+      );
+
+      return NextResponse.json({
+        success: true,
+        status: 'completed',
+        result: finalOutput,
+        metrics: genResult.metrics,
+      });
+    } catch (aiErr: any) {
+      console.error('AI Generation execution error:', aiErr);
+      await adminClient
+        .from('ai_jobs')
         .update({
           status: 'failed',
-          progress_stage: 'Failed',
-          error_message: aiError.message || 'AI processing error',
-          updated_at: new Date().toISOString(),
+          error: aiErr.message || 'AI generation processing failure',
         })
-        .eq('id', jobId)
+        .eq('id', jobId);
 
-      return NextResponse.json({ error: 'AI processing failed', details: aiError.message }, { status: 500 })
+      return NextResponse.json(
+        {
+          error: 'AI generation failed',
+          details: aiErr.message,
+        },
+        { status: 500 }
+      );
     }
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
   }
 }

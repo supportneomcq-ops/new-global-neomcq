@@ -12,8 +12,8 @@ export async function GET(req: NextRequest) {
 
     const supabase = await createClient()
     const { data: job, error } = await (supabase as any)
-      .from('ai_generation_jobs')
-      .select('id, job_type, status, progress_stage, step_percentage, result, error_message, created_at, updated_at')
+      .from('ai_jobs')
+      .select('*')
       .eq('id', jobId)
       .single()
 
@@ -23,7 +23,17 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      job,
+      job: {
+        id: job.id,
+        job_type: job.task || job.input_payload?.job_type || 'study_plan',
+        status: job.status,
+        progress_stage: job.status === 'completed' ? 'Completed' : job.status === 'running' || job.status === 'processing' ? 'Generating high-yield assets...' : 'Queued',
+        step_percentage: job.status === 'completed' ? 100 : job.status === 'running' || job.status === 'processing' ? 60 : 10,
+        result: job.output_payload?.payload || job.output_payload,
+        error_message: job.error,
+        created_at: job.created_at,
+        updated_at: job.completed_at || job.created_at,
+      },
     })
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 })
