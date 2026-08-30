@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import {
   Brain,
   Zap,
+  Clock,
   Flame,
   ChevronRight,
   BookOpen,
