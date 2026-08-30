@@ -252,14 +252,18 @@ export class TaskRouter {
       if (!error && dbRules && dbRules.length > 0) {
         for (const row of dbRules) {
           const norm = this.normalizeTaskType(row.task_type);
-          const existing = this.rulesCache.get(norm) || {
+          const existing: TaskRoutingRule = this.rulesCache.get(norm) || {
             task_type: norm,
+            display_name: norm,
+            description: norm,
             primary_provider: (row.primary_provider || 'gemini') as AIProviderId,
             primary_model: row.primary_model || 'gemini-3.5-flash',
             fallback_provider: (row.fallback_provider || 'openai') as AIProviderId,
             fallback_model: row.fallback_model || 'gpt-4o-mini',
             credit_cost: Number(row.credit_cost || 1.5),
             temperature: Number(row.temperature || 0.7),
+            max_input_tokens: 8192,
+            max_output_tokens: 4096,
             enabled: row.enabled ?? true,
           };
 

@@ -49,11 +49,6 @@ export class GoogleGeminiProvider extends ProviderAdapter {
 
     return new GoogleGenAI({
       apiKey,
-      fetch: (url, init) => {
-        const headers = new Headers(init?.headers);
-        headers.set('User-Agent', 'aistudio-build');
-        return fetch(url, { ...init, headers });
-      },
     });
   }
 

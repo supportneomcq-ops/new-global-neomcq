@@ -46,7 +46,7 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
     refreshHierarchy,
   } = useSelection();
 
-  const { fetchTopicContent } = useTopicContent();
+  const { refreshTopicContent } = useTopicContent();
 
   const handleLogStudyTime = (hours: number) => {
     setCompletedHours((prev) => Math.min(Math.max(1, user.studyHours), +(prev + hours).toFixed(1)));
@@ -108,7 +108,7 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
             />
           )}
 
-          {activeTab === 'study' && (
+          {(activeTab === 'notes' || activeTab === 'flashcards' || activeTab === 'sticky' || activeTab === 'blanks' || activeTab === 'quizzes') && (
             <StudyHubView user={user} initialSubTab={studySubTab} />
           )}
 
@@ -158,14 +158,7 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
             setTopic(topic);
             setIsAddTopicModalOpen(false);
             if (selection.exam) {
-              fetchTopicContent({
-                exam_id: selection.exam.id,
-                subject_id: subject.id,
-                topic_id: topic.id,
-                exam_name: selection.exam.name,
-                subject_name: subject.name,
-                topic_name: topic.name,
-              });
+              refreshTopicContent(true);
             }
           }}
         />
@@ -175,7 +168,7 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
         <CreateStudyModal
           isOpen={isCreateStudyModalOpen}
           onClose={() => setIsCreateStudyModalOpen(false)}
-          onExamCreated={async (newExamId, examName) => {
+          onExamCreated={async (exam) => {
             setIsCreateStudyModalOpen(false);
             await refreshHierarchy();
           }}

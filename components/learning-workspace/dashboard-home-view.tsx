@@ -21,6 +21,8 @@ import {
   ShieldCheck,
   Check,
   Activity,
+  AlertTriangle,
+  TrendingUp,
   Search,
 } from 'lucide-react';
 import { WorkspaceTab, StudySubTab } from './types';
@@ -173,7 +175,7 @@ export function DashboardHomeView({
             </button>
             <button
               type="button"
-              onClick={() => onSelectTab('study', 'notes')}
+              onClick={() => onSelectTab('notes')}
               className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border border-white/15 transition-all cursor-pointer"
             >
               <BookOpen className="w-4 h-4" /> Open Study Hub
@@ -250,7 +252,7 @@ export function DashboardHomeView({
 
             <button
               type="button"
-              onClick={() => onSelectTab('study', 'flashcards')}
+              onClick={() => onSelectTab('flashcards')}
               className="mt-4 w-full py-2.5 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-emerald-600 hover:text-white text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
             >
               <Layers className="w-3.5 h-3.5" /> Drill Flashcard Deck <ChevronRight className="w-3.5 h-3.5" />
@@ -664,7 +666,7 @@ export function DashboardHomeView({
                     key={topic.id || index}
                     onClick={() => {
                       setTopic(topic);
-                      onSelectTab('study', 'notes');
+                      onSelectTab('notes');
                     }}
                     className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between group ${
                       isSelected
@@ -748,7 +750,7 @@ export function DashboardHomeView({
                   score: '15 Cards Mastered',
                   time: 'Today, 11:20 AM',
                   statusColor: 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-800',
-                  action: () => onSelectTab('study', 'flashcards'),
+                  action: () => onSelectTab('flashcards'),
                 },
                 {
                   title: 'Clinical Notes: Heart Failure Pathophysiology',
@@ -756,7 +758,7 @@ export function DashboardHomeView({
                   score: 'High Yield Read',
                   time: 'Yesterday, 8:15 PM',
                   statusColor: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800',
-                  action: () => onSelectTab('study', 'notes'),
+                  action: () => onSelectTab('notes'),
                 },
               ].map((activity, idx) => (
                 <div

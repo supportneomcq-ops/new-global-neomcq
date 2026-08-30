@@ -71,6 +71,11 @@ export class KeyVault {
     ];
   }
 
+  public static getNextGeminiKey(): string | null {
+    const keys = KeyVault.getGeminiKeys();
+    return keys.length > 0 && keys[0].raw ? keys[0].raw : null;
+  }
+
   public static getOpenAIKeys(): { raw: string; info: ProviderKeyInfo }[] {
     const envStatus = validateServerAIEnvironment();
     if (!envStatus.openai.configured) return [];
@@ -93,6 +98,11 @@ export class KeyVault {
         },
       },
     ];
+  }
+
+  public static getNextOpenAIKey(): string | null {
+    const keys = KeyVault.getOpenAIKeys();
+    return keys.length > 0 && keys[0].raw ? keys[0].raw : null;
   }
 }
 

@@ -179,7 +179,7 @@ function validateGeneratedContent(
   if (!rawPayload || typeof rawPayload !== 'object') {
     return {
       isValid: false,
-      payload: { mcqs: [], notes: '', flashcards: [], tutor_explanation: '', revision_sheet: '', quality_score: 0 },
+      payload: { mcqs: [], quiz_a: [], quiz_b: [], notes: '', flashcards: [], sticky_notes: [], fill_in_the_blanks: [], whiteboard_phases: [], tutor_explanation: '', revision_sheet: '', quality_score: 0 },
       report: { structural: false, scope: false, deduplication: false, answers: false, score: 0 },
     }
   }
