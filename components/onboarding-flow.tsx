@@ -20,6 +20,7 @@ import {
   EyeOff,
   Search,
   CheckCircle2,
+  AlertCircle,
   Loader2,
   ExternalLink,
   ShieldCheck,
@@ -95,10 +96,60 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
+  const [emailStatus, setEmailStatus] = useState<'idle' | 'checking' | 'available' | 'registered' | 'invalid'>('idle');
+  const [emailMessage, setEmailMessage] = useState<string>('');
   const [countryCode, setCountryCode] = useState('+1');
   const [phone, setPhone] = useState('');
   const [country, setCountry] = useState('United States');
   const [language, setLanguage] = useState('English (US/UK)');
+
+  useEffect(() => {
+    const trimmed = email.trim();
+    if (!trimmed) {
+      setEmailStatus('idle');
+      setEmailMessage('');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmed)) {
+      setEmailStatus('invalid');
+      setEmailMessage('Enter a valid email address');
+      return;
+    }
+
+    setEmailStatus('checking');
+    setEmailMessage('Checking...');
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/auth/check-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: trimmed }),
+        });
+        const data = await res.json();
+        if (data.status === 'available') {
+          setEmailStatus('available');
+          setEmailMessage('Email available');
+        } else if (data.status === 'registered') {
+          setEmailStatus('registered');
+          setEmailMessage('Email already registered');
+        } else if (data.status === 'invalid') {
+          setEmailStatus('invalid');
+          setEmailMessage('Enter a valid email address');
+        } else {
+          setEmailStatus('idle');
+          setEmailMessage('');
+        }
+      } catch {
+        setEmailStatus('idle');
+        setEmailMessage('');
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [email]);
 
   const handleCountrySelect = (newCountryName: string) => {
     setCountry(newCountryName);
@@ -217,8 +268,16 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
       setFormError('Please enter your first name.');
       return false;
     }
-    if (!email.trim() || !email.includes('@')) {
-      setFormError('Please enter a valid email address.');
+    if (!email.trim() || !email.includes('@') || emailStatus === 'invalid') {
+      setFormError('Enter a valid email address.');
+      return false;
+    }
+    if (emailStatus === 'registered') {
+      setFormError('This email is already registered. Please sign in or use another email.');
+      return false;
+    }
+    if (emailStatus === 'checking') {
+      setFormError('Please wait while email availability is verified.');
       return false;
     }
     if (!phone.trim()) {
@@ -600,9 +659,35 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           placeholder="sarah@university.edu"
-                          className="w-full pl-11 pr-4 py-2.5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-sm"
+                          className={`w-full pl-11 pr-10 py-2.5 rounded-2xl bg-white dark:bg-gray-900 border text-sm shadow-sm focus:outline-none ${
+                            emailStatus === 'available'
+                              ? 'border-emerald-500 focus:border-emerald-600'
+                              : emailStatus === 'registered' || emailStatus === 'invalid'
+                              ? 'border-rose-500 focus:border-rose-600'
+                              : 'border-slate-300 dark:border-gray-800 focus:border-[#6D5BFF]'
+                          }`}
                         />
+                        <div className="absolute right-3.5 top-3 flex items-center">
+                          {emailStatus === 'checking' && <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />}
+                          {emailStatus === 'available' && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                          {(emailStatus === 'registered' || emailStatus === 'invalid') && (
+                            <AlertCircle className="w-4 h-4 text-rose-500" />
+                          )}
+                        </div>
                       </div>
+                      {emailMessage && (
+                        <div
+                          className={`mt-1 text-xs font-semibold flex items-center gap-1.5 ${
+                            emailStatus === 'available'
+                              ? 'text-emerald-500'
+                              : emailStatus === 'checking'
+                              ? 'text-slate-400'
+                              : 'text-rose-500'
+                          }`}
+                        >
+                          {emailMessage}
+                        </div>
+                      )}
                     </div>
 
                     <div>

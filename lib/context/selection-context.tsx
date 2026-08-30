@@ -36,6 +36,29 @@ const STORAGE_KEY = 'neomcq_current_selection';
 
 const SelectionContext = createContext<SelectionContextType | undefined>(undefined);
 
+function sanitizeSelectedItem(item: any): SelectedItem | null {
+  if (!item || typeof item !== 'object') return null;
+  // Guard against SyntheticEvent or DOM Element being passed accidentally
+  if ('nativeEvent' in item || 'target' in item || 'preventDefault' in item || '_reactName' in item || 'stateNode' in item) {
+    return null;
+  }
+  if (!item.id && !item.name) return null;
+  return {
+    id: String(item.id || ''),
+    name: String(item.name || ''),
+    slug: item.slug ? String(item.slug) : undefined,
+    description: item.description ? String(item.description) : undefined,
+  };
+}
+
+function sanitizeSelectionState(state: SelectionState): SelectionState {
+  return {
+    exam: sanitizeSelectedItem(state.exam),
+    subject: sanitizeSelectedItem(state.subject),
+    topic: sanitizeSelectedItem(state.topic),
+  };
+}
+
 export function SelectionProvider({ children }: { children: React.ReactNode }) {
   const [selection, setSelection] = useState<SelectionState>({
     exam: null,
@@ -53,15 +76,16 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
   // Sync to local storage
   const persistSelection = useCallback(async (newSelection: SelectionState) => {
     try {
+      const cleanSel = sanitizeSelectionState(newSelection);
       const supabase = getSupabaseClient();
       const { data: { user } } = await supabase.auth.getUser();
       const userStorageKey = user ? `${STORAGE_KEY}_${user.id}` : `${STORAGE_KEY}_guest`;
       const userActiveKey = user ? `neomcq_active_exam_${user.id}` : 'neomcq_active_exam_guest';
 
       if (typeof window !== 'undefined') {
-        localStorage.setItem(userStorageKey, JSON.stringify(newSelection));
-        if (newSelection.exam) {
-          localStorage.setItem(userActiveKey, newSelection.exam.id);
+        localStorage.setItem(userStorageKey, JSON.stringify(cleanSel));
+        if (cleanSel.exam && cleanSel.exam.id) {
+          localStorage.setItem(userActiveKey, cleanSel.exam.id);
         }
       }
     } catch (err) {
@@ -289,22 +313,26 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
   // Set Exam (Allowed only if unlocked or during initialization)
   const setExam = useCallback(async (exam: SelectedItem) => {
-    if (isExamLocked && selection.exam && selection.exam.id !== exam.id) {
+    const cleanExam = sanitizeSelectedItem(exam);
+    if (!cleanExam) return;
+    if (isExamLocked && selection.exam && selection.exam.id !== cleanExam.id) {
       console.warn('Exam is locked on Free Plan. Please use the official $2 USD switch flow.');
       return;
     }
-    await applyExamSwitch(exam);
+    await applyExamSwitch(cleanExam);
   }, [isExamLocked, selection.exam, applyExamSwitch]);
 
   // Load topics when subject changes
   const setSubject = useCallback(async (subject: SelectedItem) => {
+    const cleanSubject = sanitizeSelectedItem(subject);
+    if (!cleanSubject) return;
     setIsLoading(true);
     try {
       const supabase = getSupabaseClient();
       const { data: topicsData } = await supabase
         .from('exam_topics')
         .select('id, name, description, created_at')
-        .eq('subject_id', subject.id)
+        .eq('subject_id', cleanSubject.id)
         .order('created_at', { ascending: true });
 
       const topicList = (topicsData && topicsData.length > 0)
@@ -318,7 +346,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
       setAvailableTopics(topicList);
 
       setSelection((prev) => {
-        const newSel = { ...prev, subject, topic: topicList.length > 0 ? topicList[0] : null };
+        const newSel = { ...prev, subject: cleanSubject, topic: topicList.length > 0 ? topicList[0] : null };
         persistSelection(newSel);
         return newSel;
       });
@@ -330,15 +358,20 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
   }, [persistSelection]);
 
   const setTopic = useCallback((topic: SelectedItem) => {
+    const cleanTopic = sanitizeSelectedItem(topic);
+    if (!cleanTopic) return;
     setSelection((prev) => {
-      const newSel = { ...prev, topic };
+      const newSel = { ...prev, topic: cleanTopic };
       persistSelection(newSel);
       return newSel;
     });
   }, [persistSelection]);
 
   const setFullSelection = useCallback((exam: SelectedItem, subject: SelectedItem, topic: SelectedItem) => {
-    const newSel = { exam, subject, topic };
+    const cleanExam = sanitizeSelectedItem(exam);
+    const cleanSubject = sanitizeSelectedItem(subject);
+    const cleanTopic = sanitizeSelectedItem(topic);
+    const newSel = { exam: cleanExam, subject: cleanSubject, topic: cleanTopic };
     setSelection(newSel);
     persistSelection(newSel);
   }, [persistSelection]);
