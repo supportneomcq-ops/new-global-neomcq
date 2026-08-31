@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
+import { reconcileCurriculum } from '@/lib/knowledge/reconciliation-service'
 
 const onboardingSchema = z.object({
   authId: z.string().optional(),
@@ -194,6 +195,11 @@ export async function POST(req: NextRequest) {
             },
             { onConflict: 'user_id,exam_id' }
           )
+
+        // Kick off the background curriculum reconciliation job safely & silently
+        reconcileCurriculum(finalExamId, examName).catch((err) => {
+          console.error('[Onboarding] Background curriculum reconciliation failed:', err)
+        })
       }
 
       // 4. Update Study Preferences

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const EntityTypeSchema = z.enum(['EXAM', 'SUBJECT', 'TOPIC'])
+export const EntityTypeSchema = z.enum(['EXAM', 'SUBJECT', 'TOPIC', 'SUBTOPIC'])
 export type EntityType = z.infer<typeof EntityTypeSchema>
 
 export const IntelligenceDecisionSchema = z.enum([
@@ -23,6 +23,7 @@ export const ExamIntelligenceResultSchema = z.object({
   exam_id: z.string().nullable(),
   subject_id: z.string().nullable(),
   topic_id: z.string().nullable(),
+  subtopic_id: z.string().nullable().optional(),
 })
 export type ExamIntelligenceResult = z.infer<typeof ExamIntelligenceResultSchema>
 
@@ -39,4 +40,11 @@ export interface ResolveTopicOptions {
   examInput: string
   subjectInput: string
   topicInput: string
+}
+
+export interface ResolveSubtopicOptions {
+  examInput: string
+  subjectInput: string
+  topicInput: string
+  subtopicInput: string
 }

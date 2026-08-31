@@ -85,6 +85,21 @@ export class CanonicalNotesGenerator {
     const subjectName = hierarchy.subjectName || 'Medical Science';
     const topicName = hierarchy.topicName || 'Clinical Topic';
 
+    // Fetch active subtopics under this topicId
+    let subtopicNames: string[] = [];
+    try {
+      const { data: dbSubtopics } = await supabase
+        .from('exam_subtopics')
+        .select('name')
+        .eq('topic_id', topicId)
+        .eq('is_active', true);
+      if (dbSubtopics && dbSubtopics.length > 0) {
+        subtopicNames = dbSubtopics.map((s: any) => s.name);
+      }
+    } catch (subErr) {
+      console.warn('[Notes Generator] Subtopics query failed:', subErr);
+    }
+
     // =========================================================================
     // STEP 2: Check Active Cache & Snapshot
     // =========================================================================
@@ -210,6 +225,7 @@ export class CanonicalNotesGenerator {
         subjectName,
         topicName,
         model,
+        subtopicNames,
       });
 
       rawNotesResult = aiResponse.notes;
@@ -704,6 +720,7 @@ export class CanonicalNotesGenerator {
     subjectName: string;
     topicName: string;
     model: string;
+    subtopicNames?: string[];
   }): Promise<{
     notes: any;
     inputTokens: number;
@@ -729,10 +746,12 @@ MANDATORY REQUIREMENTS:
    - For basic science or non-medical topics: omit irrelevant clinical fields and focus on mechanisms, formulas, definitions, and high-yield concepts.
 3. Every section MUST be substantial, educational, and free of fluff or generic statements.
 4. In the "sections" array, break down the core topic into 4-6 deep educational sub-modules.
-5. For each section, evaluate if an educational media resource (Anatomical diagram, histological slide, or video lecture) would materially improve understanding:
+${params.subtopicNames && params.subtopicNames.length > 0 ? `5. Subtopic Guidance: The official syllabus contains the following subtopics for this topic: ${params.subtopicNames.map(s => `"${s}"`).join(', ')}.
+   You MUST organize and partition the generated sections so that every single subtopic is thoroughly covered with its dedicated section, facts, and exam pearls. No subtopic should be ignored or omitted.` : ''}
+6. For each section, evaluate if an educational media resource (Anatomical diagram, histological slide, or video lecture) would materially improve understanding:
    - Set "mediaRecommendation" to "NO_MEDIA_REQUIRED", "IMAGE_REQUIRED", "VIDEO_USEFUL", or "IMAGE_AND_VIDEO_USEFUL".
    - Provide a precise "mediaSearchQuery" for image/video retrieval (e.g. "Brachial plexus roots trunks divisions cords diagram").
-6. Provide high-yield facts (at least 4) and exam pearls (at least 3) specifically targeting recurrent board examination traps.`;
+7. Provide high-yield facts (at least 4) and exam pearls (at least 3) specifically targeting recurrent board examination traps.`;
 
       const response = await ai.models.generateContent({
         model: params.model,

@@ -12,6 +12,7 @@ import type {
   ResolveExamOptions,
   ResolveSubjectOptions,
   ResolveTopicOptions,
+  ResolveSubtopicOptions,
 } from './types.ts'
 
 export * from './types.ts'
@@ -34,7 +35,8 @@ function buildResult(
   reason: string,
   examId: string | null = null,
   subjectId: string | null = null,
-  topicId: string | null = null
+  topicId: string | null = null,
+  subtopicId: string | null = null
 ): ExamIntelligenceResult {
   const result: ExamIntelligenceResult = {
     entity_type: entityType,
@@ -45,6 +47,7 @@ function buildResult(
     exam_id: examId,
     subject_id: subjectId,
     topic_id: topicId,
+    subtopic_id: subtopicId,
   }
 
   return ExamIntelligenceResultSchema.parse(result)
@@ -584,13 +587,194 @@ Return ONLY a JSON object adhering to this schema:
 }
 
 /**
+ * SECTION 6: SUBTOPIC RESOLUTION
+ * Resolves subtopic under exam + subject + topic (exact/normalized/alias/semantic/valid new/invalid)
+ */
+export async function resolveSubtopic(options: ResolveSubtopicOptions): Promise<ExamIntelligenceResult> {
+  const { examInput, subjectInput, topicInput, subtopicInput } = options
+  const supabase = getSupabaseAdmin()
+
+  if (!subtopicInput || typeof subtopicInput !== 'string' || !subtopicInput.trim()) {
+    return buildResult('SUBTOPIC', 'INVALID', null, 1.0, 'Subtopic input is empty or missing.')
+  }
+
+  const normSubtopic = normalizeInput(subtopicInput)
+  if (!normSubtopic.canonical || normSubtopic.canonical.length < 2) {
+    return buildResult('SUBTOPIC', 'INVALID', null, 1.0, `Subtopic input '${subtopicInput}' is invalid or too short.`)
+  }
+
+  // Check country metadata
+  const classification = classifyUserInput(subtopicInput)
+  if (classification.type === 'COUNTRY' && !classification.isCurricularValid) {
+    return buildResult(
+      'SUBTOPIC',
+      'INVALID',
+      null,
+      0.99,
+      `'${subtopicInput}' is country/geographical metadata, not a curriculum subtopic.`
+    )
+  }
+
+  // 1. Resolve Topic Context First
+  const topicRes = await resolveTopic({ examInput, subjectInput, topicInput })
+  if (topicRes.decision === 'INVALID') {
+    return buildResult(
+      'SUBTOPIC',
+      'INVALID',
+      null,
+      1.0,
+      `Cannot resolve subtopic '${subtopicInput}': Topic '${topicInput}' or Subject '${subjectInput}' or Exam '${examInput}' is invalid (${topicRes.reason}).`
+    )
+  }
+
+  const examId = topicRes.exam_id
+  const subjectId = topicRes.subject_id
+  const topicId = topicRes.topic_id
+
+  // 2. Deterministic DB Check for Subtopic if topicId exists
+  if (topicId) {
+    try {
+      const { data: topicSubtopics } = await supabase
+        .from('exam_subtopics')
+        .select('id, topic_id, name, slug')
+        .eq('topic_id', topicId)
+        .limit(100)
+
+      if (topicSubtopics && topicSubtopics.length > 0) {
+        const rawInputNorm = subtopicInput.toLowerCase().trim()
+        const normCanon = normSubtopic.canonical.toLowerCase().trim()
+
+        const match = topicSubtopics.find((s: any) => {
+          const sName = (s.name || '').toLowerCase().trim()
+          const sSlug = (s.slug || '').toLowerCase().trim()
+          return (
+            sName === rawInputNorm ||
+            sName === normCanon ||
+            sSlug === normSubtopic.slug ||
+            sName.includes(normCanon) ||
+            normCanon.includes(sName)
+          )
+        })
+
+        if (match) {
+          const isExact = (match.name || '').toLowerCase().trim() === rawInputNorm
+          return buildResult(
+            'SUBTOPIC',
+            isExact ? 'EXACT_MATCH' : 'NORMALIZED_MATCH',
+            match.id,
+            1.0,
+            `Matched canonical subtopic '${match.name}' under topic '${topicInput}'.`,
+            examId,
+            subjectId,
+            topicId,
+            match.id
+          )
+        }
+      }
+    } catch (err) {
+      console.warn('[Exam Intelligence] DB subtopic check error:', err)
+    }
+  }
+
+  // 3. AI Semantic Evaluation & Relevance Validation
+  try {
+    let existingSubtopicsListStr = 'None'
+    if (topicId) {
+      const { data: existingSubtopics } = await supabase
+        .from('exam_subtopics')
+        .select('id, name, slug')
+        .eq('topic_id', topicId)
+        .limit(50)
+
+      if (existingSubtopics && existingSubtopics.length > 0) {
+        existingSubtopicsListStr = existingSubtopics.map((s: any) => `- ID: ${s.id} | Name: "${s.name}"`).join('\n')
+      }
+    }
+
+    const prompt = `You are the Lead Curriculum Intelligence Officer for NeoMCQ.
+Evaluate requested subtopic "${subtopicInput}" under Exam "${examInput}" → Subject "${subjectInput}" → Topic "${topicInput}".
+
+EXISTING SUBTOPICS UNDER THIS TOPIC IN DATABASE:
+${existingSubtopicsListStr}
+
+REQUESTED SUBTOPIC TO EVALUATE: "${subtopicInput}"
+
+DECISION CRITERIA:
+1. SEMANTIC_MATCH: The requested subtopic matches or belongs directly under one of the EXISTING SUBTOPICS listed above.
+   Provide canonical_id and subtopic_id as the matching subtopic's ID.
+2. VALID_NEW: The requested subtopic is a valid, legitimate subtopic for the topic "${topicInput}" under "${examInput}", but is not listed above.
+   Set canonical_id: null, subtopic_id: null.
+3. INVALID: The requested subtopic is NOT relevant to "${topicInput}" or "${examInput}" (e.g. FMGE → Obstetrics → Hypertensive Disorders of Pregnancy → "Income Tax Act", or gibberish/country metadata).
+   Set canonical_id: null, subtopic_id: null. Provide clear reason explaining irrelevance.
+
+Return ONLY a JSON object adhering to this schema:
+{
+  "entity_type": "SUBTOPIC",
+  "decision": "SEMANTIC_MATCH" | "VALID_NEW" | "INVALID",
+  "canonical_id": string or null,
+  "confidence": number between 0.0 and 1.0,
+  "reason": "Detailed explanation for decision",
+  "exam_id": ${examId ? `"${examId}"` : 'null'},
+  "subject_id": ${subjectId ? `"${subjectId}"` : 'null'},
+  "topic_id": ${topicId ? `"${topicId}"` : 'null'},
+  "subtopic_id": string or null
+}`
+
+    const aiRes = await AIGateway.generate({
+      taskType: 'ENTITY_RESOLUTION',
+      userId: null, // $0 user credit deduction
+      prompt,
+      systemInstruction: 'You are a strict curriculum canonicalization AI engine. Respond ONLY in valid JSON matching the requested schema.',
+      temperature: 0.1,
+      responseMimeType: 'application/json',
+    })
+
+    const parsed = aiRes.parsedJson || JSON.parse(aiRes.text || '{}')
+    const validated = ExamIntelligenceResultSchema.safeParse(parsed)
+
+    if (validated.success) {
+      return {
+        ...validated.data,
+        exam_id: examId || validated.data.exam_id,
+        subject_id: subjectId || validated.data.subject_id,
+        topic_id: topicId || validated.data.topic_id,
+        subtopic_id: validated.data.subtopic_id,
+      }
+    }
+  } catch (err) {
+    console.warn('[Exam Intelligence] AI subtopic resolution error:', err)
+  }
+
+  return buildResult(
+    'SUBTOPIC',
+    'NEEDS_REVIEW',
+    null,
+    0.5,
+    `Unable to deterministically validate subtopic '${subtopicInput}' under topic '${topicInput}' / exam '${examInput}'.`,
+    examId,
+    subjectId,
+    topicId
+  )
+}
+
+/**
  * SECTION 1: MASTER CURRICULUM RESOLUTION ENTRYPOINT
  */
 export async function resolveCurriculumRequest(req: {
   exam: string
   subject?: string
   topic?: string
+  subtopic?: string
 }): Promise<ExamIntelligenceResult> {
+  if (req.subtopic && req.topic && req.subject) {
+    return resolveSubtopic({
+      examInput: req.exam,
+      subjectInput: req.subject,
+      topicInput: req.topic,
+      subtopicInput: req.subtopic,
+    })
+  }
+
   if (req.topic && req.subject) {
     return resolveTopic({
       examInput: req.exam,

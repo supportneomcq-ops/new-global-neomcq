@@ -76,6 +76,21 @@ export class QuizMCQGenerator {
     const subjectName = hierarchy.subjectName || 'Medical Science';
     const topicName = hierarchy.topicName || 'Clinical Topic';
 
+    // Fetch active subtopics under this topicId
+    let subtopicNames: string[] = [];
+    try {
+      const { data: dbSubtopics } = await supabase
+        .from('exam_subtopics')
+        .select('name')
+        .eq('topic_id', topicId)
+        .eq('is_active', true);
+      if (dbSubtopics && dbSubtopics.length > 0) {
+        subtopicNames = dbSubtopics.map((s: any) => s.name);
+      }
+    } catch (subErr) {
+      console.warn('[Quiz MCQ Generator] Subtopics query failed:', subErr);
+    }
+
     // =========================================================================
     // STEP 2: Check Active Cache & Snapshot
     // =========================================================================
@@ -220,6 +235,7 @@ export class QuizMCQGenerator {
           count: neededCount,
           existingStems: [...existingDbStems, ...collectedValidMCQs.map((q) => q.question)],
           model,
+          subtopicNames,
         });
 
         totalInputTokens += generationResponse.inputTokens;
@@ -476,6 +492,7 @@ export class QuizMCQGenerator {
     count: number;
     existingStems: string[];
     model: string;
+    subtopicNames?: string[];
   }): Promise<{
     items: any[];
     inputTokens: number;
@@ -512,6 +529,8 @@ MANDATORY RULES:
 6. Provide an evidence-backed "clinicalPearl" and "highYieldTag" for every item.
 7. Assign a realistic difficulty level ("Easy", "Medium", or "Hard").
 8. Ensure ABSOLUTE UNIQUENESS. Do not duplicate concepts, phrasing, or facts already tested.
+${params.subtopicNames && params.subtopicNames.length > 0 ? `9. Subtopic Guidance: The official syllabus specifies these active subtopics: ${params.subtopicNames.map(s => `"${s}"`).join(', ')}.
+   You MUST distribute the generated MCQs equally/evenly across these subtopics (e.g., if there are 4 subtopics and 20 MCQs requested, generate exactly 5 MCQs per subtopic).` : ''}
 
 EXISTING QUESTIONS TO AVOID (DO NOT DUPLICATE THESE):
 ${params.existingStems.slice(0, 30).map((s, i) => `${i + 1}. ${s}`).join('\n') || 'None'}`;

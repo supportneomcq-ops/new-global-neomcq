@@ -113,6 +113,21 @@ export class CanonicalTutorGenerator {
       };
     }
 
+    // Fetch active subtopics under this topicId
+    let subtopicNames: string[] = [];
+    try {
+      const { data: dbSubtopics } = await supabase
+        .from('exam_subtopics')
+        .select('name')
+        .eq('topic_id', session.topicId)
+        .eq('is_active', true);
+      if (dbSubtopics && dbSubtopics.length > 0) {
+        subtopicNames = dbSubtopics.map((s: any) => s.name);
+      }
+    } catch (subErr) {
+      console.warn('[AI Tutor Generator] Subtopics query failed:', subErr);
+    }
+
     // 3. Determine sequence and target phase
     const reqSeq = options.sequence !== undefined ? options.sequence : options.sequenceNumber;
     const nextSequence = reqSeq !== undefined ? reqSeq : session.currentSequence + 1;
@@ -202,6 +217,7 @@ export class CanonicalTutorGenerator {
         previousSegments,
         availableMediaIds,
         model,
+        subtopicNames,
       });
 
       // Validate generated segment
@@ -309,6 +325,7 @@ export class CanonicalTutorGenerator {
     previousSegments: TutorSegment[];
     availableMediaIds: string[];
     model: string;
+    subtopicNames?: string[];
   }): Promise<{
     segmentData: TutorSegmentData;
     inputTokens: number;
@@ -364,6 +381,9 @@ REQUIREMENTS:
   "recap": "Brief summary wrap-up for this segment...",
   "mediaReferenceIds": ${JSON.stringify(params.availableMediaIds)}
 }
+
+${params.subtopicNames && params.subtopicNames.length > 0 ? `8. Subtopic Guidance: The official syllabus specifies these active subtopics under this topic: ${params.subtopicNames.map(s => `"${s}"`).join(', ')}.
+   Ensure your progressive teaching text thoroughly covers, introduces, and contextualizes these subtopics, aligning them smoothly with the current phase (${params.phase}).` : ''}
 `;
 
         const response = await ai.models.generateContent({

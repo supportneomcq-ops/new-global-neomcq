@@ -71,6 +71,21 @@ export class CanonicalFlashcardsGenerator {
     const subjectName = hierarchy.subjectName || 'Subject';
     const topicName = hierarchy.topicName || 'Topic';
 
+    // Fetch active subtopics under this topicId
+    let subtopicNames: string[] = [];
+    try {
+      const { data: dbSubtopics } = await supabase
+        .from('exam_subtopics')
+        .select('name')
+        .eq('topic_id', topicId)
+        .eq('is_active', true);
+      if (dbSubtopics && dbSubtopics.length > 0) {
+        subtopicNames = dbSubtopics.map((s: any) => s.name);
+      }
+    } catch (subErr) {
+      console.warn('[Flashcards Generator] Subtopics query failed:', subErr);
+    }
+
     // =========================================================================
     // STEP 2: Check Active Cache & Existing Flashcards
     // =========================================================================
@@ -222,6 +237,7 @@ export class CanonicalFlashcardsGenerator {
         topicName,
         targetCount: batchRequestCount,
         existingCards: accumulatedValidCards,
+        subtopicNames,
       });
 
       totalInputTokens += aiResponse.inputTokens;
@@ -425,6 +441,7 @@ export class CanonicalFlashcardsGenerator {
     topicName: string;
     targetCount: number;
     existingCards: CanonicalFlashcardItem[];
+    subtopicNames?: string[];
   }): Promise<{
     cards: any[];
     inputTokens: number;
@@ -450,7 +467,9 @@ REQUIREMENTS:
 4. Set "difficulty" to Easy, Medium, or Hard.
 5. Set "isHighYield" to true for core examination facts.
 6. Do NOT duplicate cards or write vague answers like "it depends" or "N/A".
-7. Focus strictly on key anatomical landmarks, formulas, classifications, pathognomonic signs, diagnostic tests, and clinical rules for ${params.topicName}.`;
+7. Focus strictly on key anatomical landmarks, formulas, classifications, pathognomonic signs, diagnostic tests, and clinical rules for ${params.topicName}.
+${params.subtopicNames && params.subtopicNames.length > 0 ? `8. Subtopic Guidance: The official syllabus specifies these active subtopics: ${params.subtopicNames.map(s => `"${s}"`).join(', ')}.
+   You MUST generate flashcards distributed evenly across these subtopics so that every single subtopic is thoroughly covered with dedicated cards.` : ''}`;
 
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',

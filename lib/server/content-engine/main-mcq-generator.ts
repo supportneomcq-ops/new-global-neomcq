@@ -74,6 +74,21 @@ export class MainMCQGenerator {
     const subjectName = hierarchy.subjectName || 'Medical Science';
     const topicName = hierarchy.topicName || 'Clinical Topic';
 
+    // Fetch active subtopics under this topicId
+    let subtopicNames: string[] = [];
+    try {
+      const { data: dbSubtopics } = await supabase
+        .from('exam_subtopics')
+        .select('name')
+        .eq('topic_id', topicId)
+        .eq('is_active', true);
+      if (dbSubtopics && dbSubtopics.length > 0) {
+        subtopicNames = dbSubtopics.map((s: any) => s.name);
+      }
+    } catch (subErr) {
+      console.warn('[Main MCQ Generator] Subtopics query failed:', subErr);
+    }
+
     // =========================================================================
     // STEP 2: Check Active Cache & Snapshot
     // =========================================================================
@@ -196,6 +211,7 @@ export class MainMCQGenerator {
           count: neededCount,
           existingStems: [...existingDbStems, ...collectedValidMCQs.map((q) => q.question)],
           model,
+          subtopicNames,
         });
 
         totalInputTokens += generationResponse.inputTokens;
@@ -389,6 +405,7 @@ export class MainMCQGenerator {
     count: number;
     existingStems: string[];
     model: string;
+    subtopicNames?: string[];
   }): Promise<{
     items: any[];
     inputTokens: number;
@@ -418,6 +435,8 @@ STRICT STANDARDS:
 6. NO generic distractor clichés (e.g. do not use "None of the above" or "All of the above").
 7. DO NOT duplicate any of the following pre-existing question concepts:
 ${params.existingStems.slice(-10).map((s, idx) => `   - Existing #${idx + 1}: ${s.slice(0, 80)}...`).join('\n')}
+${params.subtopicNames && params.subtopicNames.length > 0 ? `8. Subtopic Guidance: The official syllabus specifies these active subtopics: ${params.subtopicNames.map(s => `"${s}"`).join(', ')}.
+   You MUST distribute the generated MCQs equally/evenly across these subtopics (e.g., if there are 4 subtopics and 20 MCQs requested, generate exactly 5 MCQs per subtopic).` : ''}
 
 Return JSON matching the schema.
 `;

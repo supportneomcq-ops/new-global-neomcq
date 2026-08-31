@@ -68,6 +68,21 @@ export class CanonicalRevisionSheetGenerator {
     const subjectName = hierarchy.subjectName || 'Subject';
     const topicName = hierarchy.topicName || 'Topic';
 
+    // Fetch active subtopics under this topicId
+    let subtopicNames: string[] = [];
+    try {
+      const { data: dbSubtopics } = await supabase
+        .from('exam_subtopics')
+        .select('name')
+        .eq('topic_id', topicId)
+        .eq('is_active', true);
+      if (dbSubtopics && dbSubtopics.length > 0) {
+        subtopicNames = dbSubtopics.map((s: any) => s.name);
+      }
+    } catch (subErr) {
+      console.warn('[Revision Sheet Generator] Subtopics query failed:', subErr);
+    }
+
     // =========================================================================
     // STEP 2: Check Active Cache & Snapshot
     // =========================================================================
@@ -204,6 +219,7 @@ export class CanonicalRevisionSheetGenerator {
         examName,
         subjectName,
         topicName,
+        subtopicNames,
       });
 
       rawSheetResult = aiResponse.sheet;
@@ -478,6 +494,7 @@ export class CanonicalRevisionSheetGenerator {
     examName: string;
     subjectName: string;
     topicName: string;
+    subtopicNames?: string[];
   }): Promise<{
     sheet: any;
     inputTokens: number;
@@ -502,7 +519,9 @@ REQUIREMENTS:
 4. "formulasOrRules": Array of high-yield mnemonics, formulas, or decision rules.
 5. "sections": Array of structured review sections (each with "title", "bullets").
 6. "rapidReviewSummary": A dense, high-yield summary paragraph synthesizing the topic for last-minute review.
-7. Adapt naturally to the domain (if medical, include clinical correlations; if technical/general, include technical principles).`;
+7. Adapt naturally to the domain (if medical, include clinical correlations; if technical/general, include technical principles).
+${params.subtopicNames && params.subtopicNames.length > 0 ? `8. Subtopic Guidance: The official syllabus contains the following active subtopics: ${params.subtopicNames.map(s => `"${s}"`).join(', ')}.
+   You MUST organize and partition the generated sections so that every single subtopic is thoroughly covered with dedicated subsections and facts.` : ''}`;
 
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
