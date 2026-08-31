@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { Database } from '@/types/database.types'
+import type { Database } from '../../types/database.types.ts'
 
 export function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://exzpqrqflfhawgtnzxqx.supabase.co'
@@ -19,3 +19,5 @@ export function createAdminClient() {
     },
   })
 }
+
+export const getSupabaseAdmin = createAdminClient;

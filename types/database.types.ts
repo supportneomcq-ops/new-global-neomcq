@@ -179,6 +179,22 @@ export interface Database {
           approval_status: 'auto_approved' | 'pending_review' | 'approved' | 'archived'
           created_at: string
           updated_at: string
+          normalized_name: string | null
+          authority: string | null
+          exam_type: string | null
+          official_reference_website: string | null
+          version_edition: string | null
+          marking_scheme: Json
+          negative_marking: boolean
+          question_types: Json
+          sections: Json
+          syllabus_info: Json
+          image_question_requirements: string | null
+          video_question_requirements: string | null
+          clinical_case_requirements: string | null
+          verification_status: 'pending' | 'discovering' | 'verified' | 'needs_review' | 'stale' | 'failed'
+          last_verified_at: string | null
+          next_verification_at: string | null
         }
         Insert: {
           id?: string
@@ -204,6 +220,22 @@ export interface Database {
           approval_status?: 'auto_approved' | 'pending_review' | 'approved' | 'archived'
           created_at?: string
           updated_at?: string
+          normalized_name?: string | null
+          authority?: string | null
+          exam_type?: string | null
+          official_reference_website?: string | null
+          version_edition?: string | null
+          marking_scheme?: Json
+          negative_marking?: boolean
+          question_types?: Json
+          sections?: Json
+          syllabus_info?: Json
+          image_question_requirements?: string | null
+          video_question_requirements?: string | null
+          clinical_case_requirements?: string | null
+          verification_status?: 'pending' | 'discovering' | 'verified' | 'needs_review' | 'stale' | 'failed'
+          last_verified_at?: string | null
+          next_verification_at?: string | null
         }
         Update: {
           id?: string
@@ -229,6 +261,22 @@ export interface Database {
           approval_status?: 'auto_approved' | 'pending_review' | 'approved' | 'archived'
           created_at?: string
           updated_at?: string
+          normalized_name?: string | null
+          authority?: string | null
+          exam_type?: string | null
+          official_reference_website?: string | null
+          version_edition?: string | null
+          marking_scheme?: Json
+          negative_marking?: boolean
+          question_types?: Json
+          sections?: Json
+          syllabus_info?: Json
+          image_question_requirements?: string | null
+          video_question_requirements?: string | null
+          clinical_case_requirements?: string | null
+          verification_status?: 'pending' | 'discovering' | 'verified' | 'needs_review' | 'stale' | 'failed'
+          last_verified_at?: string | null
+          next_verification_at?: string | null
         }
       }
       exam_aliases: {
@@ -265,6 +313,11 @@ export interface Database {
           ai_confidence: number
           ai_version: string
           created_at: string
+          normalized_name: string | null
+          display_order: number
+          is_active: boolean
+          verification_status: 'pending' | 'discovering' | 'verified' | 'needs_review' | 'stale' | 'failed'
+          verified_at: string | null
         }
         Insert: {
           id?: string
@@ -279,6 +332,11 @@ export interface Database {
           ai_confidence?: number
           ai_version?: string
           created_at?: string
+          normalized_name?: string | null
+          display_order?: number
+          is_active?: boolean
+          verification_status?: 'pending' | 'discovering' | 'verified' | 'needs_review' | 'stale' | 'failed'
+          verified_at?: string | null
         }
         Update: {
           id?: string
@@ -293,6 +351,11 @@ export interface Database {
           ai_confidence?: number
           ai_version?: string
           created_at?: string
+          normalized_name?: string | null
+          display_order?: number
+          is_active?: boolean
+          verification_status?: 'pending' | 'discovering' | 'verified' | 'needs_review' | 'stale' | 'failed'
+          verified_at?: string | null
         }
       }
       exam_topics: {
@@ -310,6 +373,11 @@ export interface Database {
           ai_confidence: number
           tags: string[]
           created_at: string
+          normalized_name: string | null
+          display_order: number
+          is_active: boolean
+          verification_status: 'pending' | 'discovering' | 'verified' | 'needs_review' | 'stale' | 'failed'
+          verified_at: string | null
         }
         Insert: {
           id?: string
@@ -325,6 +393,11 @@ export interface Database {
           ai_confidence?: number
           tags?: string[]
           created_at?: string
+          normalized_name?: string | null
+          display_order?: number
+          is_active?: boolean
+          verification_status?: 'pending' | 'discovering' | 'verified' | 'needs_review' | 'stale' | 'failed'
+          verified_at?: string | null
         }
         Update: {
           id?: string
@@ -340,6 +413,11 @@ export interface Database {
           ai_confidence?: number
           tags?: string[]
           created_at?: string
+          normalized_name?: string | null
+          display_order?: number
+          is_active?: boolean
+          verification_status?: 'pending' | 'discovering' | 'verified' | 'needs_review' | 'stale' | 'failed'
+          verified_at?: string | null
         }
       }
       user_exams: {
@@ -719,6 +797,91 @@ export interface Database {
           type?: string
           is_read?: boolean
           metadata?: Json | null
+          created_at?: string
+        }
+      }
+      exam_subtopics: {
+        Row: {
+          id: string
+          topic_id: string
+          name: string
+          normalized_name: string | null
+          slug: string | null
+          description: string | null
+          display_order: number
+          is_active: boolean
+          verification_status: 'pending' | 'discovering' | 'verified' | 'needs_review' | 'stale' | 'failed'
+          verified_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          topic_id: string
+          name: string
+          normalized_name?: string | null
+          slug?: string | null
+          description?: string | null
+          display_order?: number
+          is_active?: boolean
+          verification_status?: 'pending' | 'discovering' | 'verified' | 'needs_review' | 'stale' | 'failed'
+          verified_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          topic_id?: string
+          name?: string
+          normalized_name?: string | null
+          slug?: string | null
+          description?: string | null
+          display_order?: number
+          is_active?: boolean
+          verification_status?: 'pending' | 'discovering' | 'verified' | 'needs_review' | 'stale' | 'failed'
+          verified_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      exam_evidence: {
+        Row: {
+          id: string
+          exam_id: string
+          source_url: string | null
+          source_reference: string | null
+          source_type: 'official_syllabus' | 'regulatory_board' | 'academic_publication' | 'official_handbook' | 'web_resource' | 'other'
+          publisher_authority: string | null
+          retrieved_at: string
+          source_version_date: string | null
+          verification_status: 'pending' | 'valid' | 'invalid' | 'disputed'
+          extracted_data: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          exam_id: string
+          source_url?: string | null
+          source_reference?: string | null
+          source_type?: 'official_syllabus' | 'regulatory_board' | 'academic_publication' | 'official_handbook' | 'web_resource' | 'other'
+          publisher_authority?: string | null
+          retrieved_at?: string
+          source_version_date?: string | null
+          verification_status?: 'pending' | 'valid' | 'invalid' | 'disputed'
+          extracted_data?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          exam_id?: string
+          source_url?: string | null
+          source_reference?: string | null
+          source_type?: 'official_syllabus' | 'regulatory_board' | 'academic_publication' | 'official_handbook' | 'web_resource' | 'other'
+          publisher_authority?: string | null
+          retrieved_at?: string
+          source_version_date?: string | null
+          verification_status?: 'pending' | 'valid' | 'invalid' | 'disputed'
+          extracted_data?: Json
           created_at?: string
         }
       }

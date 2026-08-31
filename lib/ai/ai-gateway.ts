@@ -1,5 +1,5 @@
-import { getSupabaseAdmin } from '../supabase';
-import {
+import { getSupabaseAdmin } from '../supabase/admin.ts';
+import type {
   AIProviderId,
   AIGenerationOptions,
   AIGenerationResult,
@@ -7,13 +7,13 @@ import {
   AIProviderCost,
   ProviderConnectionTestResult,
   ModelVerificationItem,
-} from './types';
-import { GoogleGeminiProvider } from './adapters/gemini-adapter';
-import { OpenAIProvider } from './adapters/openai-adapter';
-import { ModelRegistry } from './model-registry';
-import { TaskRouter } from './task-router';
-import { ProviderAdapter, AIProviderError } from './adapters/provider-adapter';
-import { validateServerAIEnvironment } from './env-validator';
+} from './types.ts';
+import { GoogleGeminiProvider } from './adapters/gemini-adapter.ts';
+import { OpenAIProvider } from './adapters/openai-adapter.ts';
+import { ModelRegistry } from './model-registry.ts';
+import { TaskRouter } from './task-router.ts';
+import { ProviderAdapter, AIProviderError } from './adapters/provider-adapter.ts';
+import { validateServerAIEnvironment } from './env-validator.ts';
 
 export class AIGateway {
   private static geminiProvider = new GoogleGeminiProvider();

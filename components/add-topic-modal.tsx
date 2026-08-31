@@ -18,6 +18,8 @@ import {
   Flame,
   Clock,
   ArrowRight,
+  ShieldCheck,
+  Check,
 } from 'lucide-react'
 import { useSelection, SelectedItem } from '@/lib/context/selection-context'
 
@@ -56,6 +58,7 @@ export function AddTopicModal({ isOpen, onClose, onTopicSelected }: AddTopicModa
   const [creatingTopic, setCreatingTopic] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [createSuccessMessage, setCreateSuccessMessage] = useState<string | null>(null)
+  const [topicPendingResolution, setTopicPendingResolution] = useState<any | null>(null)
 
   // Sync initial subject
   useEffect(() => {
@@ -142,8 +145,8 @@ export function AddTopicModal({ isOpen, onClose, onTopicSelected }: AddTopicModa
   }
 
   // Handle Creating / Requesting a New Topic
-  const handleCreateNewTopic = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleCreateNewTopic = async (e?: React.FormEvent, isConfirming = false) => {
+    if (e) e.preventDefault()
     if (!customTopicName.trim() || !selectedSubjectId || !activeExam?.id) return
 
     setCreatingTopic(true)
@@ -159,13 +162,21 @@ export function AddTopicModal({ isOpen, onClose, onTopicSelected }: AddTopicModa
           subjectId: selectedSubjectId,
           topicName: customTopicName.trim(),
           description: customTopicDesc.trim() || undefined,
+          confirmed: isConfirming,
         }),
       })
 
       const data = await res.json()
 
+      if (data.requiresConfirmation && data.resolution) {
+        setTopicPendingResolution(data.resolution)
+        setCreatingTopic(false)
+        return
+      }
+
       if (data.success && data.topic) {
-        setCreateSuccessMessage(data.message || 'Topic created successfully!')
+        setTopicPendingResolution(null)
+        setCreateSuccessMessage(data.message || (data.reused ? 'Found existing canonical topic! Selecting...' : 'Topic created successfully!'))
         await refreshHierarchy()
 
         if (currentSubjectItem) {
@@ -200,6 +211,7 @@ export function AddTopicModal({ isOpen, onClose, onTopicSelected }: AddTopicModa
       setCreatingTopic(false)
     }
   }
+
 
   if (!isOpen) return null
 
@@ -378,94 +390,155 @@ export function AddTopicModal({ isOpen, onClose, onTopicSelected }: AddTopicModa
               </div>
             ) : (
               /* Create / Request Topic Form */
-              <form onSubmit={handleCreateNewTopic} className="space-y-4 pt-2">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-gray-300">
-                    Create / Request New Study Topic
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowCreateCustom(false)
-                      setCreateError(null)
-                    }}
-                    className="text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
-                  >
-                    ← Back to Topic List
-                  </button>
-                </div>
+              <div className="space-y-4 pt-2">
+                {!topicPendingResolution ? (
+                  <form onSubmit={(e) => handleCreateNewTopic(e, false)} className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-gray-300">
+                        Create / Request New Study Topic
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowCreateCustom(false)
+                          setCreateError(null)
+                          setTopicPendingResolution(null)
+                        }}
+                        className="text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+                      >
+                        ← Back to Topic List
+                      </button>
+                    </div>
 
-                {createError && (
-                  <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>{createError}</span>
-                  </div>
-                )}
-
-                {createSuccessMessage && (
-                  <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-semibold flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 shrink-0" />
-                    <span>{createSuccessMessage}</span>
-                  </div>
-                )}
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 dark:text-gray-300">
-                    Topic Name <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={customTopicName}
-                    onChange={(e) => setCustomTopicName(e.target.value)}
-                    placeholder="e.g. Coronary Artery Anomalies, CRISPR Therapeutics, Insolvency Code"
-                    className="w-full px-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900/80 border border-slate-200 dark:border-gray-800 text-xs font-semibold text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#6D5BFF]"
-                  />
-                  <p className="text-[11px] text-slate-400">
-                    Scoped to {activeExam?.name} &gt; {currentSubjectItem?.name}.
-                  </p>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 dark:text-gray-300">
-                    Description or Key Focus Areas (Optional)
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={customTopicDesc}
-                    onChange={(e) => setCustomTopicDesc(e.target.value)}
-                    placeholder="e.g. Focus on high-yield ECG interpretations, surgical landmarks, and first-line drugs..."
-                    className="w-full px-4 py-2 rounded-2xl bg-slate-50 dark:bg-gray-900/80 border border-slate-200 dark:border-gray-800 text-xs font-semibold text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#6D5BFF]"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateCustom(false)}
-                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800 cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={creatingTopic || !customTopicName.trim()}
-                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#6D5BFF] to-[#00D4FF] hover:opacity-90 disabled:opacity-50 text-white text-xs font-heading font-extrabold flex items-center gap-1.5 shadow-md cursor-pointer transition-all"
-                  >
-                    {creatingTopic ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>Creating &amp; Initializing...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>Create &amp; Start Studying</span>
-                      </>
+                    {createError && (
+                      <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>{createError}</span>
+                      </div>
                     )}
-                  </button>
-                </div>
-              </form>
+
+                    {createSuccessMessage && (
+                      <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-semibold flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                        <span>{createSuccessMessage}</span>
+                      </div>
+                    )}
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700 dark:text-gray-300">
+                        Topic Name <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={customTopicName}
+                        onChange={(e) => setCustomTopicName(e.target.value)}
+                        placeholder="e.g. Coronary Artery Anomalies, CRISPR Therapeutics, Insolvency Code"
+                        className="w-full px-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900/80 border border-slate-200 dark:border-gray-800 text-xs font-semibold text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#6D5BFF]"
+                      />
+                      <p className="text-[11px] text-slate-400">
+                        Scoped to {activeExam?.name} &gt; {currentSubjectItem?.name}.
+                      </p>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700 dark:text-gray-300">
+                        Description or Key Focus Areas (Optional)
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={customTopicDesc}
+                        onChange={(e) => setCustomTopicDesc(e.target.value)}
+                        placeholder="e.g. Focus on high-yield ECG interpretations, surgical landmarks, and first-line drugs..."
+                        className="w-full px-4 py-2 rounded-2xl bg-slate-50 dark:bg-gray-900/80 border border-slate-200 dark:border-gray-800 text-xs font-semibold text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#6D5BFF]"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-end gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowCreateCustom(false)}
+                        className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={creatingTopic || !customTopicName.trim()}
+                        className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#6D5BFF] to-[#00D4FF] hover:opacity-90 disabled:opacity-50 text-white text-xs font-heading font-extrabold flex items-center gap-1.5 shadow-md cursor-pointer transition-all"
+                      >
+                        {creatingTopic ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Resolving Intelligence...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>Create &amp; Start Studying</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  /* Phase 3A Confirmation Screen */
+                  <div className="space-y-4">
+                    <div className="p-4 rounded-2xl bg-[#6D5BFF]/10 border border-[#6D5BFF]/30 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-extrabold text-[#6D5BFF] dark:text-[#00D4FF] uppercase tracking-wider flex items-center gap-1">
+                          <ShieldCheck className="w-4 h-4" /> Exam Intelligence Resolution
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md bg-[#6D5BFF]/20 text-[#6D5BFF] dark:text-[#00D4FF] text-[10px] font-black">
+                          {topicPendingResolution.decision}
+                        </span>
+                      </div>
+                      <p className="text-xs font-extrabold text-slate-900 dark:text-white">
+                        Topic: <span className="text-[#6D5BFF] dark:text-[#00D4FF]">"{customTopicName}"</span>
+                      </p>
+                      <p className="text-[11px] text-slate-600 dark:text-gray-300 leading-relaxed">
+                        {topicPendingResolution.reason || `Validated as a new study topic under ${currentSubjectItem?.name}.`}
+                      </p>
+                    </div>
+
+                    {createError && (
+                      <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>{createError}</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-end gap-3 pt-2">
+                      <button
+                        type="button"
+                        disabled={creatingTopic}
+                        onClick={() => setTopicPendingResolution(null)}
+                        className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800 cursor-pointer"
+                      >
+                        Back
+                      </button>
+                      <button
+                        type="button"
+                        disabled={creatingTopic}
+                        onClick={() => handleCreateNewTopic(undefined, true)}
+                        className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#6D5BFF] to-[#00D4FF] hover:opacity-90 disabled:opacity-50 text-white text-xs font-heading font-extrabold flex items-center gap-1.5 shadow-md cursor-pointer transition-all"
+                      >
+                        {creatingTopic ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Adding Topic...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Check className="w-4 h-4" />
+                            <span>Confirm &amp; Add Topic</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </motion.div>

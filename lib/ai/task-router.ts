@@ -1,6 +1,6 @@
-import { getSupabaseAdmin } from '../supabase';
-import { TaskRoutingRule, AIProviderId } from './types';
-import { ModelRegistry } from './model-registry';
+import { getSupabaseAdmin } from '../supabase/admin.ts';
+import type { TaskRoutingRule, AIProviderId } from './types.ts';
+import { ModelRegistry } from './model-registry.ts';
 
 export const CANONICAL_TASK_ROUTING_DEFAULTS: TaskRoutingRule[] = [
   {

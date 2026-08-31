@@ -196,13 +196,32 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
         setAvailableSubjects(subjList);
 
-        // Fetch topics for top subject
+        // Determine which subject to select
+        let selectedSubj = subjList.length > 0 ? subjList[0] : null;
+        let savedSel: SelectionState | null = null;
+        if (typeof window !== 'undefined') {
+          const userStorageKey = user ? `${STORAGE_KEY}_${user.id}` : `${STORAGE_KEY}_guest`;
+          const stored = localStorage.getItem(userStorageKey);
+          if (stored) {
+            try {
+              savedSel = JSON.parse(stored);
+            } catch {}
+          }
+        }
+
+        const currentSubjId = savedSel?.subject?.id;
+        const matchedSubj = subjList.find((s) => s.id === currentSubjId);
+        if (matchedSubj) {
+          selectedSubj = matchedSubj;
+        }
+
+        // Fetch topics for the selected subject
         let topicList: SelectedItem[] = [];
-        if (subjList.length > 0) {
+        if (selectedSubj) {
           const { data: topicsData } = await supabase
             .from('exam_topics')
             .select('id, name, description, created_at')
-            .eq('subject_id', subjList[0].id)
+            .eq('subject_id', selectedSubj.id)
             .order('created_at', { ascending: true });
 
           topicList = (topicsData && topicsData.length > 0)
@@ -216,10 +235,17 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
         setAvailableTopics(topicList);
 
+        let selectedTop = topicList.length > 0 ? topicList[0] : null;
+        const currentTopId = savedSel?.topic?.id;
+        const matchedTop = topicList.find((t) => t.id === currentTopId);
+        if (matchedTop) {
+          selectedTop = matchedTop;
+        }
+
         const newSel = {
           exam: activeExam,
-          subject: subjList.length > 0 ? subjList[0] : null,
-          topic: topicList.length > 0 ? topicList[0] : null,
+          subject: selectedSubj,
+          topic: selectedTop,
         };
         setSelection(newSel);
         persistSelection(newSel);

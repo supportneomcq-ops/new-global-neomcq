@@ -1,5 +1,5 @@
-import { GLOBAL_COUNTRIES } from '@/lib/data/countries'
-import { normalizeInput } from './normalizer'
+import { GLOBAL_COUNTRIES } from '../data/countries.ts'
+import { normalizeInput } from './normalizer.ts'
 
 export type InputClassificationType =
   | 'EXAM'

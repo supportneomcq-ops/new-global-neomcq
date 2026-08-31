@@ -1,11 +1,11 @@
-import {
+import type {
   AIProviderId,
   AIGenerationOptions,
   AITokenUsage,
   AIProviderErrorDetails,
   ProviderConnectionTestResult,
   ModelVerificationItem,
-} from '../types';
+} from '../types.ts';
 
 export class AIProviderError extends Error {
   public details: AIProviderErrorDetails;

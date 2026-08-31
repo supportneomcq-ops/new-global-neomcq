@@ -1,7 +1,7 @@
-import { getSupabaseAdmin } from '../supabase';
-import { ProviderModelMetadata, AIProviderId, VerificationStatus } from './types';
-import { GoogleGeminiProvider } from './adapters/gemini-adapter';
-import { OpenAIProvider } from './adapters/openai-adapter';
+import { getSupabaseAdmin } from '../supabase/admin.ts';
+import type { ProviderModelMetadata, AIProviderId, VerificationStatus } from './types.ts';
+import { GoogleGeminiProvider } from './adapters/gemini-adapter.ts';
+import { OpenAIProvider } from './adapters/openai-adapter.ts';
 
 /**
  * Standard Production Pricing and Capability Seed Registry

@@ -18,6 +18,7 @@ import { StudyHubView } from './learning-workspace/study-hub-view';
 import { AiTutorWhiteboardView } from './learning-workspace/ai-tutor-whiteboard-view';
 import { WeaknessRadarView } from './learning-workspace/weakness-radar-view';
 import { TopicPreparationModal } from './learning-workspace/topic-preparation-modal';
+import { LearningContextBar } from './learning-workspace/learning-context-bar';
 
 interface DashboardViewProps {
   user: OnboardingData;
@@ -87,7 +88,12 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
         />
 
         {/* Dynamic Main Workspace Content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0 space-y-6">
+          {/* Unified Subject & Topic selection bar rendered across all learning tabs */}
+          {activeTab !== 'dashboard' && activeTab !== 'radar' && activeTab !== 'plan' && activeTab !== 'saved' && (
+            <LearningContextBar />
+          )}
+
           {activeTab === 'dashboard' && (
             <DashboardHomeView
               user={user}
@@ -105,10 +111,20 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
               user={user}
               topicId={selection.topic?.id}
               topicName={selection.topic?.name}
+              isQuizMode={false}
             />
           )}
 
-          {(activeTab === 'notes' || activeTab === 'flashcards' || activeTab === 'sticky' || activeTab === 'blanks' || activeTab === 'quizzes') && (
+          {activeTab === 'quizzes' && (
+            <PracticeCbtView
+              user={user}
+              topicId={selection.topic?.id}
+              topicName={selection.topic?.name}
+              isQuizMode={true}
+            />
+          )}
+
+          {(activeTab === 'notes' || activeTab === 'flashcards' || activeTab === 'sticky' || activeTab === 'blanks') && (
             <StudyHubView user={user} initialSubTab={studySubTab} />
           )}
 
