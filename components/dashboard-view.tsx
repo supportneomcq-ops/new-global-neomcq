@@ -17,6 +17,7 @@ import { PracticeCbtView } from './learning-workspace/practice-cbt-view';
 import { StudyHubView } from './learning-workspace/study-hub-view';
 import { AiTutorWhiteboardView } from './learning-workspace/ai-tutor-whiteboard-view';
 import { WeaknessRadarView } from './learning-workspace/weakness-radar-view';
+import { StudyPlanWorkspaceView } from './learning-workspace/study-plan-workspace-view';
 import { TopicPreparationModal } from './learning-workspace/topic-preparation-modal';
 import { LearningContextBar } from './learning-workspace/learning-context-bar';
 
@@ -134,6 +135,10 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
 
           {activeTab === 'radar' && (
             <WeaknessRadarView user={user} onSelectTab={handleSelectTab} />
+          )}
+
+          {activeTab === 'plan' && (
+            <StudyPlanWorkspaceView user={user} onSelectTab={handleSelectTab} />
           )}
         </main>
       </div>

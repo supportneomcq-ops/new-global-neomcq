@@ -50,7 +50,6 @@ export async function POST(req: NextRequest) {
         question_count,
         time_limit_mins,
         is_featured,
-        aliases,
         countries (
           id,
           name,
@@ -89,8 +88,7 @@ export async function POST(req: NextRequest) {
       matchedExam = existingExams.find(
         (e: any) =>
           e.slug === querySlug ||
-          e.name.toLowerCase() === cleanQuery ||
-          (e.aliases && Array.isArray(e.aliases) && e.aliases.some((a: string) => a.toLowerCase() === cleanQuery))
+          e.name.toLowerCase() === cleanQuery
       ) || existingExams[0]
     }
 
@@ -205,7 +203,6 @@ export async function POST(req: NextRequest) {
         time_limit_mins: 120,
         country_id: countryId,
         category_id: categoryId,
-        aliases: [rawInput],
         status: 'active',
         is_featured: false,
       })
@@ -215,6 +212,16 @@ export async function POST(req: NextRequest) {
     if (insertExamErr || !insertedExam) {
       console.error('Failed to insert new exam:', insertExamErr)
       throw new Error(`Database error resolving exam: ${insertExamErr?.message || 'Unknown'}`)
+    }
+
+    // Register alias in exam_aliases table
+    try {
+      await (supabase as any).from('exam_aliases').insert([
+        { exam_id: insertedExam.id, alias: rawInput.trim() },
+        { exam_id: insertedExam.id, alias: cleanQuery },
+      ])
+    } catch (aliasInsertErr) {
+      console.warn('Note: alias registration in exam_aliases:', aliasInsertErr)
     }
 
     // -------------------------------------------------------------

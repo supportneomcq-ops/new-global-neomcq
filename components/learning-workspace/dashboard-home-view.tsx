@@ -53,8 +53,10 @@ export function DashboardHomeView({
     selection,
     availableSubjects,
     availableTopics,
+    availableSubtopics,
     setSubject,
     setTopic,
+    targetDate,
   } = useSelection();
 
   const [searchTopicQuery, setSearchTopicQuery] = useState('');
@@ -65,8 +67,19 @@ export function DashboardHomeView({
 
   // Current focus labels
   const activeExamName = selection.exam?.name || user.examName || 'USMLE Step 1';
-  const activeSubjectName = selection.subject?.name || (availableSubjects[0]?.name ?? 'Cardiovascular System');
-  const activeTopicName = selection.topic?.name || (availableTopics[0]?.name ?? 'Coronary Artery Disease & Acute Coronary Syndromes');
+  const activeSubjectName = selection.subject?.name || (availableSubjects[0]?.name ?? 'General Subject');
+  const activeTopicName = selection.topic?.name || (availableTopics[0]?.name ?? 'Core Topic');
+  const activeSubtopicName = selection.subtopic?.name;
+
+  // Exact target date & days left computation
+  const resolvedTargetDate = targetDate || user.examDate;
+  const calculatedDaysLeft = (() => {
+    if (!resolvedTargetDate) return user.daysLeft || 90;
+    const target = new Date(resolvedTargetDate).getTime();
+    const now = new Date().getTime();
+    const diff = target - now;
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+  })();
 
   // Filter topics
   const filteredTopics = availableTopics.filter((t) => {
@@ -101,7 +114,7 @@ export function DashboardHomeView({
                 Welcome back, {user.firstName || 'Doctor'}!
               </h1>
               <p className="text-sm sm:text-base text-slate-300 mt-2 leading-relaxed">
-                Your preparation for <span className="text-white font-bold underline decoration-indigo-400 decoration-2 underline-offset-4">{activeExamName}</span> is currently active. Target exam date is <span className="text-white font-semibold">{user.examDate || 'in 90 days'}</span> ({user.daysLeft} days remaining).
+                Your preparation for <span className="text-white font-bold underline decoration-indigo-400 decoration-2 underline-offset-4">{activeExamName}</span> is currently active. Target exam date is <span className="text-white font-semibold">{resolvedTargetDate || 'Scheduled'}</span> ({calculatedDaysLeft} days remaining).
               </p>
             </div>
 
@@ -114,9 +127,15 @@ export function DashboardHomeView({
               </div>
               <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white/10 border border-white/15 text-xs text-slate-200 backdrop-blur-xs">
                 <Layers className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-slate-400 font-medium">Topic Focus:</span>
-                <span className="font-bold text-emerald-300 truncate max-w-[220px]">{activeTopicName}</span>
+                <span className="text-slate-400 font-medium">Topic:</span>
+                <span className="font-bold text-emerald-300 truncate max-w-[200px]">{activeTopicName}</span>
               </div>
+              {activeSubtopicName && (
+                <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-xs text-emerald-200 backdrop-blur-xs">
+                  <span className="text-slate-300 font-medium">Subtopic:</span>
+                  <span className="font-bold text-white truncate max-w-[200px]">{activeSubtopicName}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -125,7 +144,7 @@ export function DashboardHomeView({
             {/* Days Left */}
             <div className="text-center px-3">
               <div className="text-3xl sm:text-4xl font-black text-indigo-400 tracking-tight">
-                {user.daysLeft}
+                {calculatedDaysLeft}
               </div>
               <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mt-1 flex items-center justify-center gap-1">
                 <Calendar className="w-3 h-3 text-indigo-400" /> Days Left

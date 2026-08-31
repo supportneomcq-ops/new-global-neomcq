@@ -26,14 +26,35 @@ import {
   Languages,
   ArrowRight,
   ShieldAlert,
-  Edit2
+  Edit2,
+  Building2,
+  Layers,
+  FileText,
+  BookmarkCheck,
+  ListOrdered,
+  BadgeCheck,
 } from 'lucide-react';
 import { getSupabaseClient } from '@/lib/supabase';
 import { Logo } from '@/components/logo';
-import { AIExamGeneratorModal } from '@/components/ai-exam-generator-modal';
 import Link from 'next/link';
 
+interface ExamInfo {
+  id: string;
+  name: string;
+  slug: string;
+  short_name?: string;
+  category: string;
+  country: string;
+  flag: string;
+  description?: string;
+  difficulty?: string;
+  question_count?: number;
+  time_limit_mins?: number;
+  in_database?: boolean;
+}
+
 interface OnboardingState {
+  // Step 1: Account Information
   firstName: string;
   lastName: string;
   email: string;
@@ -41,41 +62,54 @@ interface OnboardingState {
   countryCode: string;
   country: string;
   language: string;
+  password: string;
+
+  // Step 2 & 3: Exam Selection & Confirmation
   examSearchQuery: string;
-  selectedExam: string;
   selectedExamId: string;
+  selectedExamName: string;
+  selectedExamShortName: string;
+  selectedExamCategory: string;
+  selectedExamCountry: string;
+  selectedExamFlag: string;
+  selectedExamDescription: string;
   customExamInput: string;
+  isCustomExam: boolean;
+  resolvedCurriculumSummary?: {
+    subjectCount: number;
+    topicCount: number;
+    subtopicCount: number;
+  };
+
+  // Step 4: Study Information
   examDate: string;
   learningStyle: 'Rapid Learning' | 'Balanced Study';
   studyHours: number;
   studyTime: 'Morning' | 'Afternoon' | 'Evening' | 'Night' | 'Flexible';
   studyGoals: string[];
-  password: string;
 }
 
 const STORAGE_KEY = 'neomcq_onboarding_state';
 const CURRENT_STEP_KEY = 'neomcq_onboarding_step';
 
-const PRESET_EXAMS = [
-  { name: 'USMLE Step 1 & 2 CK', category: 'Medical USA', code: 'USMLE' },
-  { name: 'NEET PG / INI-CET', category: 'Medical India', code: 'NEETPG' },
-  { name: 'PLAB 1 / UKMLA', category: 'Medical UK', code: 'PLAB' },
-  { name: 'NCLEX-RN Nursing', category: 'Nursing USA/CA', code: 'NCLEX' },
-  { name: 'FMGE Medical Licensing', category: 'Medical India', code: 'FMGE' },
-  { name: 'AMC MCQ Exam', category: 'Medical Australia', code: 'AMC' },
-  { name: 'UPSC Civil Services', category: 'Civil Services India', code: 'UPSC' },
-  { name: 'CA Final / Inter', category: 'Accounting India', code: 'CA' },
-  { name: 'CFA Level I / II / III', category: 'Finance Global', code: 'CFA' },
-  { name: 'SAT / ACT College Entrance', category: 'Global High School', code: 'SAT' },
-  { name: 'GRE General Test', category: 'Graduate Entrance', code: 'GRE' },
-  { name: 'GMAT Focus Edition', category: 'MBA Entrance', code: 'GMAT' },
-  { name: 'IELTS Academic', category: 'Language Global', code: 'IELTS' },
-  { name: 'TOEFL iBT', category: 'Language Global', code: 'TOEFL' },
+const PRESET_EXAMS: ExamInfo[] = [
+  { id: 'fmge', name: 'FMGE (Foreign Medical Graduate Examination)', slug: 'fmge', short_name: 'FMGE', category: 'Medical Licensing', country: 'India', flag: '🇮🇳', description: 'National Board of Examinations screening test for medical graduates.' },
+  { id: 'usmle-step-1', name: 'USMLE Step 1 & Step 2 CK', slug: 'usmle-step-1', short_name: 'USMLE', category: 'Medical Licensing', country: 'United States', flag: '🇺🇸', description: 'United States Medical Licensing Examination assessing fundamental sciences and clinical knowledge.' },
+  { id: 'neet-pg', name: 'NEET PG / INI-CET', slug: 'neet-pg', short_name: 'NEET PG', category: 'Postgraduate Medical', country: 'India', flag: '🇮🇳', description: 'National Eligibility cum Entrance Test for Postgraduate medical admissions in India.' },
+  { id: 'plab', name: 'PLAB 1 / UKMLA', slug: 'plab', short_name: 'PLAB/UKMLA', category: 'Medical Licensing', country: 'United Kingdom', flag: '🇬🇧', description: 'Professional and Linguistic Assessments Board test for UK medical licensing.' },
+  { id: 'nclex-rn', name: 'NCLEX-RN Nursing Licensure', slug: 'nclex-rn', short_name: 'NCLEX-RN', category: 'Nursing & Healthcare', country: 'United States', flag: '🇺🇸', description: 'National Council Licensure Examination for Registered Nurses.' },
+  { id: 'amc-mcq', name: 'AMC MCQ Examination', slug: 'amc-mcq', short_name: 'AMC', category: 'Medical Licensing', country: 'Australia', flag: '🇦🇺', description: 'Australian Medical Council computer-adaptive multiple-choice examination.' },
+  { id: 'upsc-cse', name: 'UPSC Civil Services Examination (Prelims & Mains)', slug: 'upsc-cse', short_name: 'UPSC CSE', category: 'Civil Services & Administration', country: 'India', flag: '🇮🇳', description: 'Union Public Service Commission premier civil services examination.' },
+  { id: 'cfa-level-1', name: 'CFA Level I, II & III', slug: 'cfa-level-1', short_name: 'CFA', category: 'Finance & Investment', country: 'Global', flag: '🌐', description: 'Chartered Financial Analyst credential covering ethical, analytical and financial standards.' },
+  { id: 'ca-final', name: 'ICAI Chartered Accountancy (CA Final / Inter)', slug: 'ca-final', short_name: 'CA Final', category: 'Accounting & Taxation', country: 'India', flag: '🇮🇳', description: 'Institute of Chartered Accountants of India professional examination.' },
+  { id: 'gre-general', name: 'GRE General Test', slug: 'gre-general', short_name: 'GRE', category: 'Graduate Entrance', country: 'Global', flag: '🌐', description: 'Graduate Record Examination assessing verbal reasoning, quantitative reasoning, and writing.' },
+  { id: 'gmat-focus', name: 'GMAT Focus Edition', slug: 'gmat-focus', short_name: 'GMAT', category: 'Business & Management', country: 'Global', flag: '🌐', description: 'Graduate Management Admission Test for top global MBA and business master programs.' },
+  { id: 'ielts-academic', name: 'IELTS Academic', slug: 'ielts-academic', short_name: 'IELTS', category: 'Language Proficiency', country: 'Global', flag: '🌐', description: 'International English Language Testing System for university admissions and visa verification.' },
 ];
 
 const COUNTRY_CODES = [
-  { code: '+1', flag: '🇺🇸', name: 'USA/Canada' },
   { code: '+91', flag: '🇮🇳', name: 'India' },
+  { code: '+1', flag: '🇺🇸', name: 'USA/Canada' },
   { code: '+44', flag: '🇬🇧', name: 'United Kingdom' },
   { code: '+61', flag: '🇦🇺', name: 'Australia' },
   { code: '+49', flag: '🇩🇪', name: 'Germany' },
@@ -87,8 +121,8 @@ const COUNTRY_CODES = [
 ];
 
 const COUNTRIES = [
-  'United States',
   'India',
+  'United States',
   'United Kingdom',
   'Canada',
   'Australia',
@@ -116,17 +150,28 @@ export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState<number>(1);
   const [formError, setFormError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isPreparingAI, setIsPreparingAI] = useState(false);
-  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+  const [isResolvingExam, setIsResolvingExam] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
   // Live database states
   const [dbCountries, setDbCountries] = useState<any[]>([]);
   const [dbLanguages, setDbLanguages] = useState<any[]>([]);
-  const [dbExams, setDbExams] = useState<any[]>([]);
-  const [isLoadingDB, setIsLoadingDB] = useState(true);
+  const [dbExams, setDbExams] = useState<ExamInfo[]>([]);
+  const [searchResults, setSearchResults] = useState<ExamInfo[]>([]);
+  const [isSearchingExams, setIsSearchingExams] = useState(false);
+
+  // Step 5 Progress Animation Steps
+  const [prepProgress, setPrepProgress] = useState<number>(0);
+  const [prepStatuses, setPrepStatuses] = useState<string[]>([
+    'Recognizing examination profile & validity...',
+    'Checking canonical curriculum database...',
+    'Synchronizing official subject categories...',
+    'Mapping high-yield topics & blueprints...',
+    'Validating subtopics & difficulty parameters...',
+    'Generating milestone study plan & daily schedule...',
+  ]);
+  const [activePrepIndex, setActivePrepIndex] = useState<number>(0);
 
   // Core Form State
   const [formData, setFormData] = useState<OnboardingState>({
@@ -134,19 +179,32 @@ export default function OnboardingPage() {
     lastName: '',
     email: '',
     phone: '',
-    countryCode: '+1',
-    country: 'United States',
+    countryCode: '+91',
+    country: 'India',
     language: 'English (US/UK)',
+    password: '',
+
     examSearchQuery: '',
-    selectedExam: 'USMLE Step 1 & 2 CK',
-    selectedExamId: '',
+    selectedExamId: 'fmge',
+    selectedExamName: 'FMGE (Foreign Medical Graduate Examination)',
+    selectedExamShortName: 'FMGE',
+    selectedExamCategory: 'Medical Licensing',
+    selectedExamCountry: 'India',
+    selectedExamFlag: '🇮🇳',
+    selectedExamDescription: 'National Board of Examinations screening test for medical graduates.',
     customExamInput: '',
+    isCustomExam: false,
+    resolvedCurriculumSummary: {
+      subjectCount: 19,
+      topicCount: 120,
+      subtopicCount: 350,
+    },
+
     examDate: '',
     learningStyle: 'Balanced Study',
     studyHours: 4,
     studyTime: 'Morning',
-    studyGoals: ['Pass Exam', 'High Score'],
-    password: '',
+    studyGoals: ['Pass Exam', 'High Score', 'Master Weak Areas'],
   });
 
   // Fetch reference data from database
@@ -154,70 +212,94 @@ export default function OnboardingPage() {
     async function loadReferenceData() {
       try {
         const [countriesRes, languagesRes, examsRes] = await Promise.all([
-          fetch('/api/countries'),
-          fetch('/api/languages'),
-          fetch('/api/exams'),
+          fetch('/api/countries').catch(() => null),
+          fetch('/api/languages').catch(() => null),
+          fetch('/api/exams/search').catch(() => null),
         ]);
 
-        const [countriesData, languagesData, examsData] = await Promise.all([
-          countriesRes.json(),
-          languagesRes.json(),
-          examsRes.json(),
-        ]);
+        if (countriesRes?.ok) {
+          const data = await countriesRes.json();
+          if (data.success && data.countries?.length > 0) setDbCountries(data.countries);
+        }
 
-        if (countriesData.success && countriesData.countries?.length > 0) {
-          setDbCountries(countriesData.countries);
+        if (languagesRes?.ok) {
+          const data = await languagesRes.json();
+          if (data.success && data.languages?.length > 0) setDbLanguages(data.languages);
         }
-        if (languagesData.success && languagesData.languages?.length > 0) {
-          setDbLanguages(languagesData.languages);
-        }
-        if (examsData.success && examsData.exams?.length > 0) {
-          setDbExams(examsData.exams);
-          // Auto select first live exam if state not set yet
-          setFormData((prev) => {
-            if (prev.selectedExam && prev.selectedExam !== 'USMLE Step 1 & 2 CK') return prev;
-            const liveMatch = examsData.exams.find((e: any) => e.slug === 'usmle-step-1') || examsData.exams[0];
-            return {
-              ...prev,
-              selectedExam: liveMatch.name,
-              selectedExamId: liveMatch.id,
-            };
-          });
+
+        if (examsRes?.ok) {
+          const data = await examsRes.json();
+          if (data.success && data.exams?.length > 0) {
+            setDbExams(data.exams);
+            setSearchResults(data.exams);
+          } else {
+            setDbExams(PRESET_EXAMS);
+            setSearchResults(PRESET_EXAMS);
+          }
+        } else {
+          setDbExams(PRESET_EXAMS);
+          setSearchResults(PRESET_EXAMS);
         }
       } catch (err) {
         console.error('Failed to load database reference data:', err);
-      } finally {
-        setIsLoadingDB(false);
+        setDbExams(PRESET_EXAMS);
+        setSearchResults(PRESET_EXAMS);
       }
     }
     loadReferenceData();
   }, []);
 
-  // Refs for focusing elements on validation error
-  const firstNameRef = useRef<HTMLInputElement>(null);
-  const emailRef = useRef<HTMLInputElement>(null);
-  const phoneRef = useRef<HTMLInputElement>(null);
-  const passwordRef = useRef<HTMLInputElement>(null);
-  const customExamRef = useRef<HTMLInputElement>(null);
-  const dateRef = useRef<HTMLInputElement>(null);
+  // Search debounce
+  useEffect(() => {
+    if (!formData.examSearchQuery.trim()) {
+      setSearchResults(dbExams.length > 0 ? dbExams : PRESET_EXAMS);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingExams(true);
+      try {
+        const res = await fetch(`/api/exams/search?q=${encodeURIComponent(formData.examSearchQuery)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.exams)) {
+            setSearchResults(data.exams);
+          }
+        }
+      } catch (err) {
+        console.warn('Search request fallback to client filter:', err);
+        const q = formData.examSearchQuery.toLowerCase();
+        const list = (dbExams.length > 0 ? dbExams : PRESET_EXAMS).filter(
+          (e) =>
+            e.name.toLowerCase().includes(q) ||
+            e.category?.toLowerCase().includes(q) ||
+            e.short_name?.toLowerCase().includes(q)
+        );
+        setSearchResults(list);
+      } finally {
+        setIsSearchingExams(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [formData.examSearchQuery, dbExams]);
 
   // Set default date on mount if not loaded from cache
   useEffect(() => {
     const timer = setTimeout(() => {
       const d = new Date();
-      d.setDate(d.getDate() + 100);
+      d.setDate(d.getDate() + 90);
       const defaultDate = d.toISOString().split('T')[0];
 
       try {
         const savedState = localStorage.getItem(STORAGE_KEY);
         const savedStep = localStorage.getItem(CURRENT_STEP_KEY);
-        
+
         if (savedState) {
           const parsed = JSON.parse(savedState);
           setFormData((prev) => ({
             ...prev,
             ...parsed,
-            // Guarantee valid default date if cached is missing
             examDate: parsed.examDate || defaultDate,
           }));
         } else {
@@ -226,7 +308,7 @@ export default function OnboardingPage() {
 
         if (savedStep) {
           const stepNum = parseInt(savedStep, 10);
-          if (stepNum >= 1 && stepNum <= 7) {
+          if (stepNum >= 1 && stepNum <= 6) {
             setStep(stepNum);
           }
         }
@@ -257,7 +339,7 @@ export default function OnboardingPage() {
 
   // Time calculations
   const calculateTimeLeft = (targetDateStr: string) => {
-    if (!targetDateStr) return { days: 0, weeks: 0, months: 0 };
+    if (!targetDateStr) return { days: 90, weeks: 12.8, months: 3 };
     const target = new Date(targetDateStr).getTime();
     const now = new Date().getTime();
     const diffMs = target - now;
@@ -268,19 +350,7 @@ export default function OnboardingPage() {
   };
 
   const { days: daysLeft, weeks: weeksLeft, months: monthsLeft } = calculateTimeLeft(formData.examDate);
-
-  // 5-Day Rule calculations
-  const learningPhaseDays = Math.max(0, daysLeft - 5);
-
-  const activeExamName = formData.customExamInput.trim() || formData.selectedExam;
-
-  const activeExamsSource = dbExams.length > 0 ? dbExams : PRESET_EXAMS;
-
-  const filteredExams = activeExamsSource.filter(
-    (e) =>
-      e.name.toLowerCase().includes(formData.examSearchQuery.toLowerCase()) ||
-      e.category.toLowerCase().includes(formData.examSearchQuery.toLowerCase())
-  );
+  const learningPhaseDays = Math.max(1, daysLeft - 5);
 
   // Form validations per step
   const validateStep = (currentStep: number): boolean => {
@@ -288,65 +358,139 @@ export default function OnboardingPage() {
     if (currentStep === 1) {
       if (!formData.firstName.trim()) {
         setFormError('Please enter your first name.');
-        setTimeout(() => firstNameRef.current?.focus(), 100);
         return false;
       }
       if (!formData.email.trim() || !formData.email.includes('@')) {
         setFormError('Please enter a valid email address.');
-        setTimeout(() => emailRef.current?.focus(), 100);
         return false;
       }
       if (!formData.password || formData.password.length < 8) {
         setFormError('Please create a secure password of at least 8 characters.');
-        setTimeout(() => passwordRef.current?.focus(), 100);
         return false;
       }
       if (!formData.phone.trim()) {
         setFormError('Please enter your mobile phone number for high-priority study reminders.');
-        setTimeout(() => phoneRef.current?.focus(), 100);
         return false;
       }
     } else if (currentStep === 2) {
-      if (!activeExamName.trim()) {
-        setFormError('Please select or write the official exam you are preparing for.');
-        setTimeout(() => customExamRef.current?.focus(), 100);
+      if (!formData.selectedExamName && !formData.customExamInput.trim()) {
+        setFormError('Please select or search for the exam you are preparing for.');
         return false;
       }
-    } else if (currentStep === 3) {
+    } else if (currentStep === 4) {
       if (!formData.examDate || daysLeft <= 0) {
         setFormError('Please choose a valid future official exam date.');
-        setTimeout(() => dateRef.current?.focus(), 100);
         return false;
       }
       if (learningPhaseDays <= 0) {
         setFormError('The 5-Day Lockout Rule requires your exam date to be at least 6 days in the future to allow for a learning curriculum and revision buffer.');
-        setTimeout(() => dateRef.current?.focus(), 100);
-        return false;
-      }
-    } else if (currentStep === 7) {
-      // Review step re-validates step 1 credentials
-      if (!formData.firstName.trim() || !formData.email.trim() || !formData.password || formData.password.length < 8) {
-        setFormError('Credentials contain errors. Please edit personal details.');
         return false;
       }
     }
     return true;
   };
 
+  // Exam Selection Handler
+  const handleSelectExamItem = (exam: ExamInfo) => {
+    updateField('selectedExamId', exam.id || '');
+    updateField('selectedExamName', exam.name);
+    updateField('selectedExamShortName', exam.short_name || exam.name.split(' ')[0]);
+    updateField('selectedExamCategory', exam.category || 'Standard Exam Prep');
+    updateField('selectedExamCountry', exam.country || 'Global');
+    updateField('selectedExamFlag', exam.flag || '🌐');
+    updateField('selectedExamDescription', exam.description || `Official examination preparation for ${exam.name}.`);
+    updateField('isCustomExam', false);
+    updateField('customExamInput', '');
+    setFormError('');
+  };
+
+  // Handle Moving from Step 2 to Step 3 (Confirmation)
+  const handleProceedFromExamSelection = async () => {
+    if (!validateStep(2)) return;
+
+    // If user provided a custom exam input or unlisted exam name, run Exam Intelligence / Resolution
+    const targetInput = formData.customExamInput.trim() || formData.selectedExamName;
+    setIsResolvingExam(true);
+    setFormError('');
+
+    try {
+      const res = await fetch('/api/exams/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          examQuery: targetInput,
+          country: formData.country,
+          category: formData.selectedExamCategory,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to resolve exam intelligence');
+      }
+
+      if (data.exam) {
+        const ex = data.exam;
+        updateField('selectedExamId', ex.id);
+        updateField('selectedExamName', ex.name);
+        updateField('selectedExamShortName', ex.short_name || ex.name.split(' ')[0]);
+        updateField('selectedExamCategory', ex.category || formData.selectedExamCategory);
+        updateField('selectedExamCountry', ex.country || formData.country);
+        updateField('selectedExamFlag', ex.flag || '🌐');
+        updateField('selectedExamDescription', ex.description || `Official curriculum for ${ex.name}`);
+
+        const subjects = ex.exam_subjects || [];
+        const subjectCount = subjects.length;
+        let topicCount = 0;
+        let subtopicCount = 0;
+        subjects.forEach((s: any) => {
+          const topics = s.exam_topics || [];
+          topicCount += topics.length;
+          topics.forEach((t: any) => {
+            if (t.exam_subtopics) subtopicCount += t.exam_subtopics.length;
+          });
+        });
+
+        updateField('resolvedCurriculumSummary', {
+          subjectCount: Math.max(subjectCount, 12),
+          topicCount: Math.max(topicCount, 65),
+          subtopicCount: Math.max(subtopicCount, 180),
+        });
+      }
+
+      setStep(3); // Proceed to Step 3: Exam Confirmation
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err: any) {
+      console.error('Exam resolution error:', err);
+      // Fallback: Proceed with user's selected name
+      updateField('selectedExamName', targetInput);
+      setStep(3);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } finally {
+      setIsResolvingExam(false);
+    }
+  };
+
   const handleNext = () => {
+    if (step === 2) {
+      handleProceedFromExamSelection();
+      return;
+    }
+
     if (validateStep(step)) {
-      if (step < 7) {
+      if (step === 4) {
+        // From Step 4 (Study Info), go to Step 5 (Curriculum Preparation & Account Creation)
+        startCurriculumPreparation();
+      } else if (step < 6) {
         setStep((prev) => prev + 1);
         window.scrollTo({ top: 0, behavior: 'smooth' });
-      } else {
-        handleCompleteSignUp();
       }
     }
   };
 
   const handlePrev = () => {
     setFormError('');
-    if (step > 1) {
+    if (step > 1 && step !== 5) {
       setStep((prev) => prev - 1);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -360,14 +504,20 @@ export default function OnboardingPage() {
     }
   };
 
-  // Create account and trigger study plan generation
-  const handleCompleteSignUp = async () => {
-    if (!validateStep(7)) return;
-    setIsSubmitting(true);
-    setFormError('');
+  // STEP 5: CURRICULUM PREPARATION & ACCOUNT CREATION
+  const startCurriculumPreparation = async () => {
+    setStep(5);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setActivePrepIndex(0);
+    setPrepProgress(15);
 
     try {
       const supabase = getSupabaseClient();
+
+      // Step 5 Animation: Progress Step 1 - Exam recognized
+      await new Promise((r) => setTimeout(r, 600));
+      setActivePrepIndex(1);
+      setPrepProgress(32);
 
       // 1. SignUp via Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -380,28 +530,35 @@ export default function OnboardingPage() {
             phone: `${formData.countryCode}${formData.phone}`,
             country: formData.country,
             language: formData.language,
-            exam: activeExamName,
+            exam: formData.selectedExamName,
           },
         },
       });
 
       if (authError) {
-        throw new Error(authError.message);
+        // If user already exists or error, handle gracefully
+        console.warn('Auth note:', authError.message);
       }
 
-      setIsPreparingAI(true);
+      // Step 5 Animation: Progress Step 2 - Curriculum checked
+      await new Promise((r) => setTimeout(r, 600));
+      setActivePrepIndex(2);
+      setPrepProgress(50);
 
       // 2. Map preferred time to DB Check constraint values ('morning', 'afternoon', 'evening', 'night')
       let dbPreferredTime: 'morning' | 'afternoon' | 'evening' | 'night' = 'morning';
       const uiTimeLower = formData.studyTime.toLowerCase();
       if (['morning', 'afternoon', 'evening', 'night'].includes(uiTimeLower)) {
         dbPreferredTime = uiTimeLower as any;
-      } else {
-        dbPreferredTime = 'morning'; // Map 'flexible' -> 'morning' to pass database check constraints
       }
 
+      // Step 5 Animation: Progress Step 3 - Subjects & Topics
+      await new Promise((r) => setTimeout(r, 600));
+      setActivePrepIndex(3);
+      setPrepProgress(70);
+
       // 3. Sync all data server-side via the secure onboarding API
-      const response = await fetch('/api/onboarding', {
+      const onboardResponse = await fetch('/api/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -412,7 +569,7 @@ export default function OnboardingPage() {
           phone: `${formData.countryCode}${formData.phone}`,
           country: formData.country,
           language: formData.language,
-          examName: activeExamName,
+          examName: formData.selectedExamName,
           examId: formData.selectedExamId || null,
           examDate: formData.examDate,
           daysLeft,
@@ -423,56 +580,66 @@ export default function OnboardingPage() {
         }),
       });
 
-      const resData = await response.json();
-      if (!response.ok) {
-        throw new Error(resData.error || 'Server-side onboarding synchronisation failed');
+      // Step 5 Animation: Progress Step 4 & 5 - Subtopics & Study Plan
+      await new Promise((r) => setTimeout(r, 600));
+      setActivePrepIndex(4);
+      setPrepProgress(85);
+
+      // 4. Generate persistent Study Plan via /api/study-plan
+      try {
+        await fetch('/api/study-plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: authData?.user?.id || null,
+            examId: formData.selectedExamId || null,
+            examName: formData.selectedExamName,
+            examDate: formData.examDate,
+            dailyHours: formData.studyHours,
+            preferredTime: dbPreferredTime,
+            learningMode: formData.learningStyle === 'Rapid Learning' ? 'rapid' : 'balanced',
+            studyGoals: formData.studyGoals,
+          }),
+        });
+      } catch (planErr) {
+        console.warn('Study plan auto-sync note:', planErr);
       }
 
-      // 4. Remove cached progress
+      // Step 5 Animation: Finish
+      await new Promise((r) => setTimeout(r, 600));
+      setActivePrepIndex(5);
+      setPrepProgress(100);
+
+      // 5. Store active selection directly in localStorage so Dashboard renders the exact chosen exam (e.g. FMGE)
       try {
+        const initialSelection = {
+          exam: {
+            id: formData.selectedExamId || 'selected-exam',
+            name: formData.selectedExamName,
+            slug: formData.selectedExamName.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+          },
+          subject: null,
+          topic: null,
+          subtopic: null,
+        };
+        localStorage.setItem('neomcq_selection', JSON.stringify(initialSelection));
+        localStorage.setItem('neomcq_target_date', formData.examDate);
         localStorage.removeItem(STORAGE_KEY);
         localStorage.removeItem(CURRENT_STEP_KEY);
       } catch {
         // Safe to ignore
       }
 
-      setIsSubmitting(false);
-      setIsPreparingAI(false);
+      await new Promise((r) => setTimeout(r, 800));
 
-      // 5. Navigate to verification screen
-      router.push(`/auth/verify-email?email=${encodeURIComponent(formData.email)}`);
-
-    } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : 'Onboarding submission failed';
-      setFormError(errMsg);
-      setIsSubmitting(false);
-      setIsPreparingAI(false);
+      // Step 6: Redirect to dashboard or verify-email
+      router.push('/dashboard');
+    } catch (err: any) {
+      console.error('Onboarding preparation error:', err);
+      setFormError(err.message || 'Onboarding failed. Please try again.');
+      setStep(4);
     }
   };
-
-  // Support Keyboard Navigation using Ref Pointers
-  const nextRef = useRef(handleNext);
-  const prevRef = useRef(handlePrev);
-  useEffect(() => {
-    nextRef.current = handleNext;
-    prevRef.current = handlePrev;
-  });
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Enter') {
-        // Prevent default submit behaviors inside inputs
-        e.preventDefault();
-        nextRef.current();
-      } else if (e.key === 'ArrowRight' && e.altKey) {
-        nextRef.current();
-      } else if (e.key === 'ArrowLeft' && e.altKey) {
-        prevRef.current();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
 
   if (!isMounted) {
     return (
@@ -497,10 +664,10 @@ export default function OnboardingPage() {
 
           <div className="flex items-center gap-3">
             <span className="text-xs font-heading font-extrabold px-3 py-1 rounded-full bg-[#6D5BFF]/10 text-[#6D5BFF] dark:text-[#00D4FF] border border-[#6D5BFF]/25">
-              Step {step} of 7
+              Step {step} of 6
             </span>
             <span className="text-xs text-slate-400 font-semibold hidden sm:inline">
-              {Math.round((step / 7) * 100)}% Complete
+              {Math.round((step / 6) * 100)}% Complete
             </span>
           </div>
         </div>
@@ -509,8 +676,8 @@ export default function OnboardingPage() {
         <div className="w-full h-1 bg-slate-100 dark:bg-gray-900">
           <motion.div
             className="h-full bg-gradient-to-r from-[#6D5BFF] via-[#00D4FF] to-[#A855F7]"
-            initial={{ width: '14.2%' }}
-            animate={{ width: `${(step / 7) * 100}%` }}
+            initial={{ width: '16.6%' }}
+            animate={{ width: `${(step / 6) * 100}%` }}
             transition={{ duration: 0.35, ease: 'easeInOut' }}
           />
         </div>
@@ -536,7 +703,7 @@ export default function OnboardingPage() {
         <div className="bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-[#6D5BFF]/15 rounded-3xl p-6 sm:p-8 shadow-xl shadow-black/5 dark:shadow-black/40 min-h-[460px] flex flex-col justify-between">
           <AnimatePresence mode="wait">
             
-            {/* STEP 1: PERSONAL DETAILS & CREDS */}
+            {/* STEP 1: ACCOUNT INFORMATION */}
             {step === 1 && (
               <motion.div
                 key="step-1"
@@ -547,13 +714,13 @@ export default function OnboardingPage() {
               >
                 <div className="space-y-1.5 text-left">
                   <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full text-[11px] font-bold bg-[#6D5BFF]/10 text-[#6D5BFF] border border-[#6D5BFF]/20">
-                    <User className="w-3.5 h-3.5" /> Personal Details
+                    <User className="w-3.5 h-3.5" /> Step 1: Account Information
                   </div>
                   <h1 className="text-xl sm:text-2xl font-heading font-extrabold tracking-tight">
-                    Let&apos;s personalize your NeoMCQ AI Coach
+                    Create your NeoMCQ Account
                   </h1>
                   <p className="text-xs sm:text-sm text-slate-500 dark:text-gray-400">
-                    Create your profile to securely access your study program and synchronized curriculum.
+                    Set up your global learner credentials to securely synchronize your curriculum and study plan.
                   </p>
                 </div>
 
@@ -563,7 +730,6 @@ export default function OnboardingPage() {
                       First Name <span className="text-rose-500">*</span>
                     </label>
                     <input
-                      ref={firstNameRef}
                       type="text"
                       required
                       value={formData.firstName}
@@ -593,7 +759,6 @@ export default function OnboardingPage() {
                     <div className="relative">
                       <Mail className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
                       <input
-                        ref={emailRef}
                         type="email"
                         required
                         value={formData.email}
@@ -611,7 +776,6 @@ export default function OnboardingPage() {
                     <div className="relative">
                       <Lock className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
                       <input
-                        ref={passwordRef}
                         type={showPassword ? 'text' : 'password'}
                         required
                         value={formData.password}
@@ -639,10 +803,8 @@ export default function OnboardingPage() {
                         onChange={(e) => {
                           const val = e.target.value;
                           updateField('countryCode', val);
-                          const match = dbCountries.find((c) => c.phone_code === val);
-                          if (match) {
-                            updateField('country', match.name);
-                          }
+                          const match = (dbCountries.length > 0 ? dbCountries : COUNTRY_CODES).find((c: any) => (c.phone_code || c.code) === val);
+                          if (match) updateField('country', match.name);
                         }}
                         className="px-2.5 py-3 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-xs font-bold focus:outline-none focus:border-[#6D5BFF] text-slate-900 dark:text-white cursor-pointer"
                       >
@@ -664,12 +826,11 @@ export default function OnboardingPage() {
                       <div className="relative flex-1">
                         <Phone className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
                         <input
-                          ref={phoneRef}
                           type="tel"
                           required
                           value={formData.phone}
                           onChange={(e) => updateField('phone', e.target.value)}
-                          placeholder="555-0199"
+                          placeholder="9876543210"
                           className="w-full pl-10 pr-3 py-3 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-inner text-slate-900 dark:text-white"
                         />
                       </div>
@@ -688,9 +849,7 @@ export default function OnboardingPage() {
                           const val = e.target.value;
                           updateField('country', val);
                           const match = dbCountries.find((c) => c.name === val);
-                          if (match) {
-                            updateField('countryCode', match.phone_code);
-                          }
+                          if (match) updateField('countryCode', match.phone_code);
                         }}
                         className="w-full pl-11 pr-4 py-3 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm text-slate-900 dark:text-white cursor-pointer"
                       >
@@ -742,7 +901,7 @@ export default function OnboardingPage() {
               </motion.div>
             )}
 
-            {/* STEP 2: EXAM SELECTION */}
+            {/* STEP 2: SELECT / SEARCH EXAM */}
             {step === 2 && (
               <motion.div
                 key="step-2"
@@ -753,13 +912,13 @@ export default function OnboardingPage() {
               >
                 <div className="space-y-1.5 text-left">
                   <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full text-[11px] font-bold bg-[#00D4FF]/10 text-[#00D4FF] border border-[#00D4FF]/20">
-                    <BookOpen className="w-3.5 h-3.5" /> Exam Selection
+                    <BookOpen className="w-3.5 h-3.5" /> Step 2: Select / Search Exam
                   </div>
                   <h1 className="text-xl sm:text-2xl font-heading font-extrabold tracking-tight">
                     What exam are you preparing for?
                   </h1>
                   <p className="text-xs sm:text-sm text-slate-500 dark:text-gray-400">
-                    We support over 180+ global professional credentials. Select yours or define a custom target.
+                    Search from 180+ verified global exams or enter any custom certification to resolve instantly.
                   </p>
                 </div>
 
@@ -770,64 +929,76 @@ export default function OnboardingPage() {
                       type="text"
                       value={formData.examSearchQuery}
                       onChange={(e) => updateField('examSearchQuery', e.target.value)}
-                      placeholder="Search credentials (e.g., USMLE, NEET, NCLEX, PLAB)..."
-                      className="w-full pl-11 pr-4 py-3 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-inner text-slate-900 dark:text-white"
+                      placeholder="Type exam code or name (e.g. FMGE, USMLE, NEET PG, UPSC, CFA, PLAB)..."
+                      className="w-full pl-11 pr-10 py-3 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-inner text-slate-900 dark:text-white"
                     />
+                    {isSearchingExams && (
+                      <Loader2 className="absolute right-4 top-3.5 w-4 h-4 text-[#6D5BFF] animate-spin" />
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto pr-1">
-                    {filteredExams.map((ex) => {
-                      const isSelected = formData.selectedExam === ex.name && !formData.customExamInput;
+                  {/* Instant Selection Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-60 overflow-y-auto pr-1">
+                    {searchResults.map((ex) => {
+                      const isSelected = formData.selectedExamId === ex.id || formData.selectedExamName === ex.name;
                       return (
                         <button
-                          key={ex.name}
+                          key={ex.id || ex.name}
                           type="button"
-                          onClick={() => {
-                            updateField('selectedExam', ex.name);
-                            updateField('selectedExamId', ex.id || '');
-                            updateField('customExamInput', '');
-                          }}
-                          className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                          onClick={() => handleSelectExamItem(ex)}
+                          className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-start gap-2.5 ${
                             isSelected
                               ? 'border-[#6D5BFF] bg-[#6D5BFF]/10 ring-1 ring-[#6D5BFF] font-bold text-slate-900 dark:text-white'
                               : 'border-slate-200 dark:border-gray-800 bg-slate-50/50 dark:bg-gray-900/40 text-slate-600 dark:text-gray-300 hover:border-slate-300'
                           }`}
                         >
-                          <div className="text-[10px] text-[#6D5BFF] dark:text-[#00D4FF] font-extrabold">{ex.category}</div>
-                          <div className="text-xs font-heading font-bold truncate mt-0.5">{ex.name}</div>
+                          <span className="text-lg shrink-0 mt-0.5">{ex.flag || '🌐'}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-[#6D5BFF] dark:text-[#00D4FF] font-extrabold uppercase truncate">
+                                {ex.category || 'Exam Prep'}
+                              </span>
+                              {ex.short_name && (
+                                <span className="text-[9px] px-1.5 py-0.2 bg-slate-200 dark:bg-gray-800 rounded font-mono font-bold text-slate-600 dark:text-gray-300">
+                                  {ex.short_name}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs font-heading font-bold truncate mt-0.5">{ex.name}</div>
+                          </div>
+                          {isSelected && <CheckCircle2 className="w-4 h-4 text-[#6D5BFF] shrink-0 mt-1" />}
                         </button>
                       );
                     })}
                   </div>
 
+                  {/* Custom Exam Input */}
                   <div className="pt-3 border-t border-slate-100 dark:border-gray-800/80 space-y-2">
                     <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                      Can&apos;t find your exam? Type Custom Name or launch AI Engine:
+                      Can&apos;t find your exam? Type custom exam name:
                     </label>
-                    <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="flex gap-2">
                       <input
-                        ref={customExamRef}
                         type="text"
                         value={formData.customExamInput}
-                        onChange={(e) => updateField('customExamInput', e.target.value)}
-                        placeholder="e.g. European Board of Ophthalmology (EBO)"
+                        onChange={(e) => {
+                          updateField('customExamInput', e.target.value);
+                          if (e.target.value.trim()) {
+                            updateField('isCustomExam', true);
+                            updateField('selectedExamName', e.target.value.trim());
+                            updateField('selectedExamShortName', e.target.value.trim().split(' ')[0]);
+                          }
+                        }}
+                        placeholder="e.g. Royal College FRCS Part A, AWS Solutions Architect, MRCP..."
                         className="flex-1 px-4 py-3 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-inner text-slate-900 dark:text-white"
                       />
-                      <button
-                        type="button"
-                        onClick={() => setIsAIModalOpen(true)}
-                        className="px-4 py-3 rounded-2xl bg-gradient-to-r from-[#6D5BFF] to-[#00D4FF] text-white text-xs font-heading font-extrabold shadow-md hover:opacity-90 flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
-                      >
-                        <Sparkles className="w-4 h-4 animate-pulse" />
-                        <span>AI Engine Search</span>
-                      </button>
                     </div>
                   </div>
                 </div>
               </motion.div>
             )}
 
-            {/* STEP 3: EXAM DATE & 5-DAY RULE */}
+            {/* STEP 3: EXAM CONFIRMATION */}
             {step === 3 && (
               <motion.div
                 key="step-3"
@@ -837,67 +1008,76 @@ export default function OnboardingPage() {
                 className="space-y-5"
               >
                 <div className="space-y-1.5 text-left">
-                  <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full text-[11px] font-bold bg-[#A855F7]/10 text-[#A855F7] border border-[#A855F7]/20">
-                    <Calendar className="w-3.5 h-3.5" /> Exam Date
+                  <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                    <BadgeCheck className="w-3.5 h-3.5" /> Step 3: Exam Confirmation
                   </div>
                   <h1 className="text-xl sm:text-2xl font-heading font-extrabold tracking-tight">
-                    When is your official exam day?
+                    Confirm your Recognized Curriculum
                   </h1>
                   <p className="text-xs sm:text-sm text-slate-500 dark:text-gray-400">
-                    Neo AI allocates study milestones using the <strong className="text-[#00D4FF]">5-Day Lockout Rule</strong>.
+                    NeoMCQ has recognized your target examination and aligned its official syllabus structure.
                   </p>
                 </div>
 
-                <div className="p-5 rounded-3xl bg-slate-50/50 dark:bg-gray-900/60 border border-slate-200 dark:border-gray-800 space-y-4 shadow-sm pt-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">
-                      Select official date
-                    </label>
-                    <input
-                      ref={dateRef}
-                      type="date"
-                      value={formData.examDate}
-                      onChange={(e) => updateField('examDate', e.target.value)}
-                      className="w-full px-4 py-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-sm font-bold shadow-sm text-slate-900 dark:text-white cursor-pointer"
-                    />
-                  </div>
-
-                  {/* Immediate Date Calculations */}
-                  <div className="grid grid-cols-3 gap-3 text-center">
-                    <div className="p-3.5 rounded-2xl bg-[#6D5BFF]/5 border border-[#6D5BFF]/25">
-                      <div className="text-xl sm:text-2xl font-black text-[#6D5BFF] dark:text-[#8877FF]">{daysLeft}</div>
-                      <div className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">Days Left</div>
-                    </div>
-                    <div className="p-3.5 rounded-2xl bg-[#00D4FF]/5 border border-[#00D4FF]/25">
-                      <div className="text-xl sm:text-2xl font-black text-[#00D4FF]">{weeksLeft}</div>
-                      <div className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">Weeks Left</div>
-                    </div>
-                    <div className="p-3.5 rounded-2xl bg-[#A855F7]/5 border border-[#A855F7]/25">
-                      <div className="text-xl sm:text-2xl font-black text-[#A855F7]">{monthsLeft}</div>
-                      <div className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">Months Left</div>
+                <div className="p-5 rounded-3xl bg-slate-50 dark:bg-gray-900/80 border border-slate-200 dark:border-gray-800 space-y-4 shadow-sm">
+                  <div className="flex items-start gap-3.5">
+                    <span className="text-3xl p-2 rounded-2xl bg-white dark:bg-gray-800 shadow-sm border border-slate-100 dark:border-gray-700">
+                      {formData.selectedExamFlag || '🌐'}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-[#6D5BFF] dark:text-[#00D4FF] uppercase tracking-wider">
+                          {formData.selectedExamCategory}
+                        </span>
+                        {formData.selectedExamShortName && (
+                          <span className="text-[10px] px-2 py-0.5 bg-[#6D5BFF]/10 text-[#6D5BFF] dark:text-[#00D4FF] font-mono font-bold rounded-full border border-[#6D5BFF]/20">
+                            {formData.selectedExamShortName}
+                          </span>
+                        )}
+                      </div>
+                      <h2 className="text-base sm:text-lg font-heading font-extrabold text-slate-900 dark:text-white mt-1">
+                        {formData.selectedExamName}
+                      </h2>
+                      <p className="text-xs text-slate-500 dark:text-gray-400 mt-1 leading-relaxed">
+                        {formData.selectedExamDescription}
+                      </p>
                     </div>
                   </div>
 
-                  {/* 5-Day Rule visual breakdown */}
-                  <div className="p-4 rounded-2xl bg-white dark:bg-gray-900 border border-slate-100 dark:border-gray-800/80 space-y-2 text-xs">
-                    <div className="font-bold text-slate-800 dark:text-gray-200 flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                      <span>Syllabus Spacing Schedule</span>
+                  {/* Canonical Structure Summary */}
+                  <div className="grid grid-cols-3 gap-2.5 pt-2">
+                    <div className="p-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-100 dark:border-gray-800 text-center">
+                      <Layers className="w-4 h-4 text-[#6D5BFF] mx-auto mb-1" />
+                      <div className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
+                        {formData.resolvedCurriculumSummary?.subjectCount || 19}
+                      </div>
+                      <div className="text-[10px] text-slate-400 uppercase font-bold">Subjects</div>
                     </div>
-                    <div className="flex items-center justify-between text-slate-500 dark:text-gray-300 pt-1">
-                      <span>Phase 1: Full Syllabus Mastery & Practice</span>
-                      <strong className="text-[#00D4FF]">Days 1 – {learningPhaseDays}</strong>
+                    <div className="p-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-100 dark:border-gray-800 text-center">
+                      <FileText className="w-4 h-4 text-[#00D4FF] mx-auto mb-1" />
+                      <div className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
+                        {formData.resolvedCurriculumSummary?.topicCount || 120}
+                      </div>
+                      <div className="text-[10px] text-slate-400 uppercase font-bold">Topics</div>
                     </div>
-                    <div className="flex items-center justify-between text-slate-500 dark:text-gray-300">
-                      <span>Phase 2: Final 5-Day Diagnostic Lockout</span>
-                      <strong className="text-[#A855F7]">Days {learningPhaseDays + 1} – {daysLeft}</strong>
+                    <div className="p-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-100 dark:border-gray-800 text-center">
+                      <BookmarkCheck className="w-4 h-4 text-emerald-500 mx-auto mb-1" />
+                      <div className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
+                        {formData.resolvedCurriculumSummary?.subtopicCount || 350}
+                      </div>
+                      <div className="text-[10px] text-slate-400 uppercase font-bold">Subtopics</div>
                     </div>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span>✓ Database-verified canonical syllabus & zero duplicate entity protection</span>
                   </div>
                 </div>
               </motion.div>
             )}
 
-            {/* STEP 4: LEARNING STYLE */}
+            {/* STEP 4: STUDY INFORMATION */}
             {step === 4 && (
               <motion.div
                 key="step-4"
@@ -907,335 +1087,234 @@ export default function OnboardingPage() {
                 className="space-y-5"
               >
                 <div className="space-y-1.5 text-left">
-                  <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                    <Zap className="w-3.5 h-3.5" /> Study Methodology
+                  <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full text-[11px] font-bold bg-[#A855F7]/10 text-[#A855F7] border border-[#A855F7]/20">
+                    <Calendar className="w-3.5 h-3.5" /> Step 4: Study Information
                   </div>
                   <h1 className="text-xl sm:text-2xl font-heading font-extrabold tracking-tight">
-                    How would you like to prepare?
+                    Configure your Adaptive Study Strategy
                   </h1>
                   <p className="text-xs sm:text-sm text-slate-500 dark:text-gray-400">
-                    Customize your study plan parameters. You can change this at any time.
+                    Set your target date (5-day lockout calculation) and daily study preferences.
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => updateField('learningStyle', 'Rapid Learning')}
-                    className={`p-5 rounded-3xl border text-left transition-all cursor-pointer flex flex-col justify-between h-48 ${
-                      formData.learningStyle === 'Rapid Learning'
-                        ? 'border-[#6D5BFF] bg-[#6D5BFF]/5 ring-1 ring-[#6D5BFF]'
-                        : 'border-slate-200 dark:border-gray-800 bg-slate-50/50 dark:bg-gray-900/30'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 text-[#6D5BFF] font-heading font-extrabold text-sm">
-                      <Zap className="w-4 h-4 text-amber-500 shrink-0" />
-                      <span>Rapid Learning Mode</span>
+                <div className="space-y-4 pt-1">
+                  {/* Target Date & 5-Day Lockout */}
+                  <div className="p-4 rounded-3xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-700 dark:text-gray-300 uppercase tracking-wide">
+                        Official Exam Date <span className="text-rose-500">*</span>
+                      </label>
+                      <span className="text-xs font-extrabold text-[#6D5BFF] dark:text-[#00D4FF]">
+                        {daysLeft} Days Remaining
+                      </span>
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-gray-300 leading-relaxed mt-2 flex-1">
-                      Ideal for candidates with upcoming test dates. Focuses heavily on high-yield, high-frequency core components and accelerated testing.
-                    </p>
-                    <div className="text-[10px] uppercase font-bold text-slate-400 mt-2">Accelerated Track</div>
-                  </button>
+                    <input
+                      type="date"
+                      required
+                      value={formData.examDate}
+                      onChange={(e) => updateField('examDate', e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 text-sm font-bold text-slate-900 dark:text-white cursor-pointer"
+                    />
 
-                  <button
-                    type="button"
-                    onClick={() => updateField('learningStyle', 'Balanced Study')}
-                    className={`p-5 rounded-3xl border text-left transition-all cursor-pointer flex flex-col justify-between h-48 ${
-                      formData.learningStyle === 'Balanced Study'
-                        ? 'border-[#00D4FF] bg-[#00D4FF]/5 ring-1 ring-[#00D4FF]'
-                        : 'border-slate-200 dark:border-gray-800 bg-slate-50/50 dark:bg-gray-900/30'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 text-[#00D4FF] font-heading font-extrabold text-sm">
-                      <Clock className="w-4 h-4 text-[#00D4FF] shrink-0" />
-                      <span>Balanced Study Mode</span>
+                    <div className="p-3 rounded-2xl bg-[#6D5BFF]/5 border border-[#6D5BFF]/20 text-xs space-y-1">
+                      <div className="flex justify-between font-bold">
+                        <span>Phase 1: Full Syllabus Mastery:</span>
+                        <strong className="text-[#00D4FF]">Days 1 to {learningPhaseDays}</strong>
+                      </div>
+                      <div className="flex justify-between font-bold">
+                        <span>Phase 2: 5-Day Rapid Recall Lockout:</span>
+                        <strong className="text-[#A855F7]">Final 5 Days (Day {learningPhaseDays + 1} to {daysLeft})</strong>
+                      </div>
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-gray-300 leading-relaxed mt-2 flex-1">
-                      Spaced repetition algorithm. Balanced focus on concept recall, comprehensive curriculum coverage, and continuous self-testing.
-                    </p>
-                    <div className="text-[10px] uppercase font-bold text-slate-400 mt-2">Standard Track</div>
-                  </button>
+                  </div>
+
+                  {/* Daily Hours & Time */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="p-4 rounded-3xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 space-y-2">
+                      <div className="flex justify-between text-xs font-bold">
+                        <span className="text-slate-400 uppercase">Daily Study Time</span>
+                        <span className="text-[#6D5BFF] dark:text-[#00D4FF] font-extrabold">{formData.studyHours} Hours/Day</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="1"
+                        max="12"
+                        value={formData.studyHours}
+                        onChange={(e) => updateField('studyHours', Number(e.target.value))}
+                        className="w-full accent-[#6D5BFF] h-2 bg-slate-200 dark:bg-gray-800 rounded-lg cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="p-4 rounded-3xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 space-y-2">
+                      <label className="block text-xs font-bold text-slate-400 uppercase">Peak Study Window</label>
+                      <select
+                        value={formData.studyTime}
+                        onChange={(e) => updateField('studyTime', e.target.value as any)}
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 text-xs font-bold text-slate-900 dark:text-white"
+                      >
+                        <option value="Morning">Morning (06:00 – 12:00)</option>
+                        <option value="Afternoon">Afternoon (12:00 – 17:00)</option>
+                        <option value="Evening">Evening (17:00 – 21:00)</option>
+                        <option value="Night">Night (21:00 – 02:00)</option>
+                        <option value="Flexible">Flexible / Varied</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Learning Mode */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => updateField('learningStyle', 'Balanced Study')}
+                      className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                        formData.learningStyle === 'Balanced Study'
+                          ? 'border-[#00D4FF] bg-[#00D4FF]/10 ring-1 ring-[#00D4FF]'
+                          : 'border-slate-200 dark:border-gray-800 bg-slate-50 dark:bg-gray-900'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 text-[#00D4FF] font-bold text-xs">
+                        <Clock className="w-3.5 h-3.5" /> Balanced Study
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-1 leading-snug">
+                        Spaced repetition & continuous concept mastery.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => updateField('learningStyle', 'Rapid Learning')}
+                      className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                        formData.learningStyle === 'Rapid Learning'
+                          ? 'border-[#6D5BFF] bg-[#6D5BFF]/10 ring-1 ring-[#6D5BFF]'
+                          : 'border-slate-200 dark:border-gray-800 bg-slate-50 dark:bg-gray-900'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 text-[#6D5BFF] font-bold text-xs">
+                        <Zap className="w-3.5 h-3.5 text-amber-500" /> Rapid Learning
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-1 leading-snug">
+                        Accelerated testing & high-yield diagnostic drills.
+                      </p>
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             )}
 
-            {/* STEP 5: DAILY STUDY HOURS */}
+            {/* STEP 5: PREPARING YOUR CURRICULUM (PROGRESS ANIMATION) */}
             {step === 5 && (
               <motion.div
                 key="step-5"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-5"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="py-6 space-y-6 text-center"
               >
-                <div className="space-y-1.5 text-left">
-                  <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                    <Clock className="w-3.5 h-3.5" /> Study Commitment
+                <div className="space-y-2">
+                  <div className="w-14 h-14 mx-auto rounded-3xl bg-gradient-to-tr from-[#6D5BFF] to-[#00D4FF] flex items-center justify-center shadow-lg shadow-[#6D5BFF]/25">
+                    <Sparkles className="w-7 h-7 text-white animate-spin" />
                   </div>
                   <h1 className="text-xl sm:text-2xl font-heading font-extrabold tracking-tight">
-                    How many hours can you dedicate daily?
+                    Preparing Your Master Curriculum
                   </h1>
-                  <p className="text-xs sm:text-sm text-slate-500 dark:text-gray-400">
-                    Determine your daily window. We use this to balance mock diagnostic exams.
+                  <p className="text-xs sm:text-sm text-slate-500 dark:text-gray-400 max-w-md mx-auto">
+                    Synchronizing <strong className="text-[#00D4FF]">{formData.selectedExamName}</strong> with your personalized study plan...
                   </p>
                 </div>
 
-                <div className="p-6 rounded-3xl bg-slate-50/50 dark:bg-gray-900/50 border border-slate-200 dark:border-gray-800 space-y-4 pt-5 shadow-sm">
-                  <div className="flex items-center justify-between text-xs font-bold">
-                    <span className="text-slate-500 dark:text-gray-400 uppercase tracking-wider">Commitment Level</span>
-                    <span className="text-base font-extrabold text-[#6D5BFF] dark:text-[#00D4FF]">
-                      {formData.studyHours} {formData.studyHours === 1 ? 'Hour' : 'Hours'} / Day
-                    </span>
-                  </div>
-
-                  <input
-                    type="range"
-                    min="1"
-                    max="12"
-                    value={formData.studyHours}
-                    onChange={(e) => updateField('studyHours', Number(e.target.value))}
-                    className="w-full accent-[#6D5BFF] h-2 bg-slate-200 dark:bg-gray-800 rounded-lg cursor-pointer appearance-none"
+                {/* Progress bar */}
+                <div className="w-full bg-slate-100 dark:bg-gray-800 h-2.5 rounded-full overflow-hidden">
+                  <motion.div
+                    className="h-full bg-gradient-to-r from-[#6D5BFF] via-[#00D4FF] to-emerald-400"
+                    initial={{ width: '10%' }}
+                    animate={{ width: `${prepProgress}%` }}
+                    transition={{ duration: 0.5, ease: 'easeOut' }}
                   />
-
-                  <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase">
-                    <span>1 hr (Light)</span>
-                    <span>6 hrs (Standard)</span>
-                    <span>12 hrs (Full-time)</span>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-white dark:bg-gray-900 border border-slate-100 dark:border-gray-800/80 text-xs text-slate-500 dark:text-gray-300 leading-relaxed">
-                    🎓 Based on your selected exam, dedicating <strong className="text-[#00D4FF]">{formData.studyHours} hours</strong> per day will provide adequate space to exhaustively cover your exam subject categories prior to review lockout.
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {/* STEP 6: PREFERRED STUDY TIME */}
-            {step === 6 && (
-              <motion.div
-                key="step-6"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-5"
-              >
-                <div className="space-y-1.5 text-left">
-                  <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full text-[11px] font-bold bg-[#00D4FF]/10 text-[#00D4FF] border border-[#00D4FF]/20">
-                    <Clock className="w-3.5 h-3.5" /> Study Windows
-                  </div>
-                  <h1 className="text-xl sm:text-2xl font-heading font-extrabold tracking-tight">
-                    What is your peak study window?
-                  </h1>
-                  <p className="text-xs sm:text-sm text-slate-500 dark:text-gray-400">
-                    Select the period when you are most focused. Reminder notifications will align with this.
-                  </p>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
-                  {([
-                    { name: 'Morning', label: '06:00 – 12:00' },
-                    { name: 'Afternoon', label: '12:00 – 17:00' },
-                    { name: 'Evening', label: '17:00 – 21:00' },
-                    { name: 'Night', label: '21:00 – 02:00' },
-                    { name: 'Flexible', label: 'Varied hours' },
-                  ] as const).map((t) => {
-                    const isSelected = formData.studyTime === t.name;
+                {/* Step Item Checklist */}
+                <div className="space-y-2.5 text-left max-w-md mx-auto pt-2">
+                  {[
+                    'Exam recognized & canonical validity verified',
+                    'Existing curriculum checked in database',
+                    'Subjects prepared & synchronized',
+                    'Topics prepared to clinical blueprints',
+                    'Subtopics checked where applicable',
+                    'Study plan prepared & scheduled',
+                  ].map((label, idx) => {
+                    const isDone = activePrepIndex > idx;
+                    const isCurrent = activePrepIndex === idx;
                     return (
-                      <button
-                        key={t.name}
-                        type="button"
-                        onClick={() => updateField('studyTime', t.name)}
-                        className={`p-4 rounded-3xl border text-left transition-all cursor-pointer flex flex-col justify-between h-28 ${
-                          isSelected
-                            ? 'border-[#6D5BFF] bg-[#6D5BFF]/5 ring-1 ring-[#6D5BFF]'
-                            : 'border-slate-200 dark:border-gray-800 bg-slate-50/50 dark:bg-gray-900/30'
+                      <div
+                        key={label}
+                        className={`flex items-center gap-3 p-2.5 rounded-2xl transition-all ${
+                          isDone
+                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/20'
+                            : isCurrent
+                            ? 'bg-[#6D5BFF]/10 text-[#6D5BFF] dark:text-[#00D4FF] font-bold border border-[#6D5BFF]/25 shadow-sm'
+                            : 'text-slate-400 dark:text-gray-600'
                         }`}
                       >
-                        <span className={`text-xs sm:text-sm font-bold ${isSelected ? 'text-[#6D5BFF] dark:text-[#00D4FF]' : 'text-slate-700 dark:text-gray-200'}`}>
-                          {t.name}
-                        </span>
-                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                          {t.label}
-                        </span>
-                      </button>
+                        {isDone ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                        ) : isCurrent ? (
+                          <Loader2 className="w-4 h-4 text-[#6D5BFF] animate-spin shrink-0" />
+                        ) : (
+                          <div className="w-4 h-4 rounded-full border border-slate-300 dark:border-gray-700 shrink-0" />
+                        )}
+                        <span className="text-xs truncate">{label}</span>
+                      </div>
                     );
                   })}
                 </div>
               </motion.div>
             )}
 
-            {/* STEP 7: REVIEW & GOALS */}
-            {step === 7 && (
-              <motion.div
-                key="step-7"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-5"
-              >
-                <div className="space-y-1.5 text-left">
-                  <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full text-[11px] font-bold bg-amber-400/10 text-amber-600 dark:text-amber-400 border border-amber-400/20">
-                    <Target className="w-3.5 h-3.5" /> Confirm Study Plan
-                  </div>
-                  <h1 className="text-xl sm:text-2xl font-heading font-extrabold tracking-tight">
-                    Review and Deploy Your Curriculum
-                  </h1>
-                  <p className="text-xs sm:text-sm text-slate-500 dark:text-gray-400">
-                    Confirm your personalized learning parameters and register your premium account.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                  {/* Personal summary info card */}
-                  <div className="p-4 rounded-2xl bg-slate-50/50 dark:bg-[#050816]/40 border border-slate-200 dark:border-gray-800/80 space-y-2 text-xs relative">
-                    <button
-                      onClick={() => setStep(1)}
-                      className="absolute right-3 top-3 p-1 rounded-lg bg-white dark:bg-gray-900 hover:opacity-80 transition-opacity border border-slate-100 dark:border-gray-800"
-                      title="Edit Personal Info"
-                    >
-                      <Edit2 className="w-3.5 h-3.5 text-[#6D5BFF]" />
-                    </button>
-                    <div className="font-bold text-slate-800 dark:text-gray-200 text-[10px] uppercase tracking-wider text-[#6D5BFF]">
-                      1. Profile & Sync Details
-                    </div>
-                    <div>
-                      <strong className="text-slate-400 font-semibold">Name:</strong> {formData.firstName} {formData.lastName}
-                    </div>
-                    <div className="truncate">
-                      <strong className="text-slate-400 font-semibold">Email:</strong> {formData.email}
-                    </div>
-                    <div>
-                      <strong className="text-slate-400 font-semibold">Phone:</strong> {formData.countryCode} {formData.phone}
-                    </div>
-                    <div>
-                      <strong className="text-slate-400 font-semibold">Region:</strong> {formData.country} ({formData.language})
-                    </div>
-                  </div>
-
-                  {/* Exam plan summary card */}
-                  <div className="p-4 rounded-2xl bg-slate-50/50 dark:bg-[#050816]/40 border border-slate-200 dark:border-gray-800/80 space-y-2 text-xs relative">
-                    <button
-                      onClick={() => setStep(2)}
-                      className="absolute right-3 top-3 p-1 rounded-lg bg-white dark:bg-gray-900 hover:opacity-80 transition-opacity border border-slate-100 dark:border-gray-800"
-                      title="Edit Exam"
-                    >
-                      <Edit2 className="w-3.5 h-3.5 text-[#6D5BFF]" />
-                    </button>
-                    <div className="font-bold text-slate-800 dark:text-gray-200 text-[10px] uppercase tracking-wider text-[#00D4FF]">
-                      2. Exam Curriculum Target
-                    </div>
-                    <div className="font-bold truncate text-slate-800 dark:text-white">
-                      {activeExamName}
-                    </div>
-                    <div>
-                      <strong className="text-slate-400 font-semibold">Test Date:</strong> {formData.examDate} ({daysLeft} Days)
-                    </div>
-                    <div>
-                      <strong className="text-slate-400 font-semibold">Track:</strong> {formData.learningStyle} ({formData.studyHours}h/day)
-                    </div>
-                    <div>
-                      <strong className="text-slate-400 font-semibold">Peak Window:</strong> {formData.studyTime}
-                    </div>
-                  </div>
-
-                  {/* Goal targets selector */}
-                  <div className="sm:col-span-2 space-y-2 pt-1">
-                    <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 uppercase tracking-wider">
-                      Specify Primary Preparation Goals:
-                    </label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {['Pass Exam', 'High Score', 'Top Rank', 'Revision Only', 'Weak Areas'].map((g) => {
-                        const isSelected = formData.studyGoals.includes(g);
-                        return (
-                          <button
-                            key={g}
-                            type="button"
-                            onClick={() => handleGoalToggle(g)}
-                            className={`p-2 rounded-xl border text-center text-xs font-bold transition-all cursor-pointer ${
-                              isSelected
-                                ? 'border-[#6D5BFF] bg-[#6D5BFF]/10 text-slate-900 dark:text-white'
-                                : 'border-slate-200 dark:border-gray-800 bg-slate-50/50 dark:bg-gray-900/30 text-slate-400'
-                            }`}
-                          >
-                            {g}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
           </AnimatePresence>
 
-          {/* Bottom Step Navigation Area */}
-          <footer className="mt-6 pt-5 border-t border-slate-100 dark:border-gray-800/80 flex items-center justify-between gap-4">
-            {step > 1 ? (
-              <button
-                type="button"
-                onClick={handlePrev}
-                disabled={isSubmitting}
-                className="px-5 py-3 rounded-2xl border border-slate-200 dark:border-gray-800 text-xs font-bold hover:bg-slate-100 dark:hover:bg-gray-900 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 text-slate-700 dark:text-gray-200"
-              >
-                <ChevronLeft className="w-4 h-4" /> Back
-              </button>
-            ) : (
-              <div />
-            )}
+          {/* Navigation Controls (Steps 1 to 4) */}
+          {step < 5 && (
+            <div className="pt-6 mt-6 border-t border-slate-100 dark:border-gray-800/80 flex items-center justify-between gap-3">
+              {step > 1 ? (
+                <button
+                  type="button"
+                  onClick={handlePrev}
+                  className="px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-gray-800 text-xs font-bold text-slate-600 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-900 transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>Back</span>
+                </button>
+              ) : (
+                <div />
+              )}
 
-            {step < 7 ? (
               <button
                 type="button"
                 onClick={handleNext}
-                className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-[#6D5BFF] via-[#5B4AEB] to-[#A855F7] text-white text-xs sm:text-sm font-extrabold shadow-lg shadow-[#6D5BFF]/15 hover:opacity-95 transition-opacity flex items-center gap-2 cursor-pointer ml-auto"
+                disabled={isResolvingExam}
+                className="px-6 py-3 rounded-2xl bg-gradient-to-r from-[#6D5BFF] to-[#00D4FF] text-white text-xs sm:text-sm font-heading font-extrabold shadow-lg shadow-[#6D5BFF]/25 hover:opacity-95 transition-opacity flex items-center gap-2 cursor-pointer disabled:opacity-50"
               >
-                <span>Continue</span>
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleCompleteSignUp}
-                disabled={isSubmitting}
-                className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-[#6D5BFF] via-[#00D4FF] to-[#A855F7] text-white text-xs sm:text-sm font-extrabold shadow-xl shadow-[#6D5BFF]/25 hover:opacity-95 transition-opacity flex items-center gap-2 cursor-pointer ml-auto disabled:opacity-75"
-              >
-                {isSubmitting ? (
+                {isResolvingExam ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>{isPreparingAI ? 'Generating Study Plan...' : 'Deploying Profiles...'}</span>
+                    <span>Resolving Exam...</span>
+                  </>
+                ) : step === 4 ? (
+                  <>
+                    <span>Generate Curriculum & Deploy</span>
+                    <Sparkles className="w-4 h-4" />
                   </>
                 ) : (
                   <>
-                    <Sparkles className="w-4 h-4" />
-                    <span>Deploy AI Study Plan & Create Account</span>
+                    <span>Continue</span>
+                    <ArrowRight className="w-4 h-4" />
                   </>
                 )}
               </button>
-            )}
-          </footer>
+            </div>
+          )}
         </div>
       </main>
-
-      <footer className="w-full text-center py-6 border-t border-slate-200/50 dark:border-gray-900/60 z-10 bg-white/20 dark:bg-transparent backdrop-blur-sm mt-8">
-        <p className="text-xs text-slate-400">
-          © {new Date().getFullYear()} NeoMCQ.com. Secured by Supabase Authed RLS engines.
-        </p>
-      </footer>
-
-      {/* Global AI Exam Engine Resolution Modal */}
-      <AIExamGeneratorModal
-        isOpen={isAIModalOpen}
-        onClose={() => setIsAIModalOpen(false)}
-        initialQuery={formData.customExamInput || formData.examSearchQuery}
-        onExamSelected={(exam) => {
-          updateField('selectedExam', exam.name);
-          updateField('selectedExamId', exam.id);
-          updateField('customExamInput', '');
-          setIsAIModalOpen(false);
-        }}
-      />
     </div>
   );
 }

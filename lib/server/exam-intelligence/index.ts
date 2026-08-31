@@ -83,20 +83,20 @@ export async function resolveExam(options: ResolveExamOptions): Promise<ExamInte
     )
   }
 
-  // 1. Deterministic DB Check: Exact Match (Name or Slug)
+  // 1. Deterministic DB Check: Exact Match (Name or Slug or Short Name)
   try {
     const { data: exactExams } = await supabase
       .from('exams')
-      .select('id, name, slug, aliases')
-      .or(`slug.eq.${norm.slug},name.ilike.${norm.canonical}`)
+      .select('id, name, slug, short_name, normalized_name')
+      .or(`slug.eq.${norm.slug},name.ilike.${norm.canonical},short_name.ilike.${norm.canonical}`)
       .limit(5)
 
     if (exactExams && exactExams.length > 0) {
       const match = exactExams.find(
-        (e: any) => e.slug === norm.slug || e.name.toLowerCase().trim() === norm.canonical
+        (e: any) => e.slug === norm.slug || e.name.toLowerCase().trim() === norm.canonical || (e.short_name && e.short_name.toLowerCase().trim() === norm.canonical)
       ) || exactExams[0]
 
-      const isExact = match.name.toLowerCase().trim() === examInput.toLowerCase().trim() || match.slug === norm.slug
+      const isExact = match.name.toLowerCase().trim() === examInput.toLowerCase().trim() || match.slug === norm.slug || (match.short_name && match.short_name.toLowerCase().trim() === examInput.toLowerCase().trim())
       return buildResult(
         'EXAM',
         isExact ? 'EXACT_MATCH' : 'NORMALIZED_MATCH',
@@ -114,7 +114,7 @@ export async function resolveExam(options: ResolveExamOptions): Promise<ExamInte
   try {
     const { data: aliasMatch } = await supabase
       .from('exam_aliases')
-      .select('exam_id, alias, exams(id, name, slug)')
+      .select('exam_id, alias, exams(id, name, slug, short_name)')
       .ilike('alias', norm.canonical)
       .maybeSingle()
 
@@ -138,12 +138,12 @@ export async function resolveExam(options: ResolveExamOptions): Promise<ExamInte
     // Fetch list of active exams for context
     const { data: activeExams } = await supabase
       .from('exams')
-      .select('id, name, slug, aliases')
+      .select('id, name, slug, short_name')
       .neq('status', 'archived')
       .limit(100)
 
     const examListStr = (activeExams || [])
-      .map((e: any) => `- ID: ${e.id} | Name: "${e.name}" | Slug: "${e.slug}"${e.aliases ? ` | Aliases: ${JSON.stringify(e.aliases)}` : ''}`)
+      .map((e: any) => `- ID: ${e.id} | Name: "${e.name}" | Short: "${e.short_name || ''}" | Slug: "${e.slug}"`)
       .join('\n')
 
     const prompt = `You are the Lead Curriculum Intelligence Officer for NeoMCQ.

@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
 
     // 1. If query is empty, fetch featured or all active verified exams from DB
     if (!rawQuery) {
-      let dbExams: any[] | null = null;
+      let dbExams: any[] = []
       try {
         let dbQuery = (supabase as any)
           .from('exams')
@@ -23,44 +23,45 @@ export async function GET(req: NextRequest) {
             id,
             name,
             slug,
+            short_name,
             description,
             difficulty,
             question_count,
             time_limit_mins,
             is_featured,
-            official_website,
+            official_url,
             countries(name, iso2, flag_emoji),
             exam_categories(name, slug)
           `)
-          .neq('status', 'archived');
+          .neq('status', 'archived')
 
         if (featuredOnly) {
-          dbQuery = dbQuery.eq('is_featured', true);
+          dbQuery = dbQuery.eq('is_featured', true)
         }
 
-        const res = await dbQuery.order('name', { ascending: true }).limit(50);
-        if (res.error) {
-          // Fallback to simple select without joins if relation is missing
-          console.warn('Exams relational query warning, falling back to flat query:', res.error.message);
+        const res = await dbQuery.order('name', { ascending: true }).limit(50)
+        if (!res.error && res.data) {
+          dbExams = res.data
+        } else {
+          // Fallback to simple select without joins if needed
           const flatRes = await (supabase as any)
             .from('exams')
-            .select('id, name, slug, description, difficulty, question_count, time_limit_mins, is_featured, official_website')
+            .select('id, name, slug, short_name, description, difficulty, question_count, time_limit_mins, is_featured, official_url')
             .neq('status', 'archived')
             .order('name', { ascending: true })
-            .limit(50);
-          dbExams = flatRes.data || [];
-        } else {
-          dbExams = res.data || [];
+            .limit(50)
+          dbExams = flatRes.data || []
         }
       } catch (err: any) {
-        console.error('Error fetching exams from DB:', err);
-        dbExams = [];
+        console.error('Error fetching exams from DB:', err)
+        dbExams = []
       }
 
       let list = (dbExams || []).map((e: any) => ({
         id: e.id,
         name: e.name,
         slug: e.slug,
+        short_name: e.short_name || e.name,
         category: e.exam_categories?.name || 'Standard Exam Prep',
         country: e.countries?.name || 'India',
         flag: e.countries?.flag_emoji || '🇮🇳',
@@ -89,11 +90,11 @@ export async function GET(req: NextRequest) {
     // 2. Classify Input & Normalize
     const classification = classifyUserInput(rawQuery)
     const norm = normalizeInput(rawQuery)
-    const cleanQuery = norm.canonical.toLowerCase()
-    const querySlug = norm.slug.toLowerCase()
+    const cleanQuery = norm.canonical.toLowerCase().trim()
+    const querySlug = cleanQuery.replace(/[^a-z0-9]+/g, '-')
 
-    // 3. Search Supabase DB: fetch exams table
-    let dbMatches: any[] | null = null;
+    // 3. Search Supabase DB: fetch exams matching name, short_name, slug, or normalized_name
+    let dbMatches: any[] = []
     try {
       const { data, error: searchErr } = await (supabase as any)
         .from('exams')
@@ -101,40 +102,41 @@ export async function GET(req: NextRequest) {
           id,
           name,
           slug,
+          short_name,
           description,
           difficulty,
           question_count,
           time_limit_mins,
           is_featured,
-          aliases,
+          status,
           countries(name, iso2, flag_emoji),
           exam_categories(name, slug)
         `)
         .neq('status', 'archived')
-        .or(`name.ilike.%${rawQuery}%,slug.ilike.%${querySlug}%,description.ilike.%${rawQuery}%`)
-        .limit(50);
+        .or(`short_name.ilike.${rawQuery}%,name.ilike.${rawQuery}%,short_name.ilike.%${rawQuery}%,name.ilike.%${rawQuery}%,slug.ilike.%${querySlug}%,normalized_name.ilike.%${cleanQuery}%`)
+        .limit(60)
 
       if (searchErr) {
         // Fallback without joins
         const flatSearch = await (supabase as any)
           .from('exams')
-          .select('id, name, slug, description, difficulty, question_count, time_limit_mins, is_featured, aliases')
+          .select('id, name, slug, short_name, description, difficulty, question_count, time_limit_mins, is_featured, status')
           .neq('status', 'archived')
-          .or(`name.ilike.%${rawQuery}%,slug.ilike.%${querySlug}%,description.ilike.%${rawQuery}%`)
-          .limit(50);
-        dbMatches = flatSearch.data || [];
+          .or(`short_name.ilike.${rawQuery}%,name.ilike.${rawQuery}%,short_name.ilike.%${rawQuery}%,name.ilike.%${rawQuery}%,slug.ilike.%${querySlug}%`)
+          .limit(60)
+        dbMatches = flatSearch.data || []
       } else {
-        dbMatches = data || [];
+        dbMatches = data || []
       }
     } catch (searchErr) {
-      console.warn('DB exam search warning:', searchErr);
-      dbMatches = [];
+      console.warn('DB exam search warning:', searchErr)
+      dbMatches = []
     }
 
-    // Also check exam_aliases table safely
-    let aliasMatches: any[] = [];
+    // 4. Check exam_aliases table
+    let aliasMatches: any[] = []
     try {
-      const { data } = await (supabase as any)
+      const { data, error: aliasErr } = await (supabase as any)
         .from('exam_aliases')
         .select(`
           exam_id,
@@ -143,53 +145,62 @@ export async function GET(req: NextRequest) {
             id,
             name,
             slug,
+            short_name,
             description,
             difficulty,
             question_count,
             time_limit_mins,
             is_featured,
-            aliases,
             status,
             countries(name, iso2, flag_emoji),
             exam_categories(name, slug)
           )
         `)
         .ilike('alias', `%${rawQuery}%`)
-        .limit(30);
-      aliasMatches = data || [];
-    } catch (_) {}
+        .limit(40)
+
+      if (!aliasErr && data) {
+        aliasMatches = data
+      }
+    } catch (err) {
+      console.warn('Alias search warning:', err)
+    }
 
     const examMap = new Map<string, { exam: any; score: number }>()
 
     // Helper to process exam record
     const processExamRecord = (dbExam: any, aliasMatched: string | null = null) => {
       if (!dbExam || dbExam.status === 'archived') return
-      if (examMap.has(dbExam.id)) {
-        // If already present, maybe upgrade score if exact match
-        const existing = examMap.get(dbExam.id)!
-        if (aliasMatched && aliasMatched.toLowerCase() === cleanQuery) {
-          existing.score = Math.max(existing.score, 98)
-        }
-        return
-      }
+      
+      const nameLower = (dbExam.name || '').toLowerCase()
+      const shortLower = (dbExam.short_name || '').toLowerCase()
+      const slugLower = (dbExam.slug || '').toLowerCase()
+      const aliasLower = (aliasMatched || '').toLowerCase()
 
       let score = 50
-      const nameLower = dbExam.name.toLowerCase()
 
-      if (nameLower === cleanQuery || dbExam.slug === querySlug) {
+      if (shortLower === cleanQuery || nameLower === cleanQuery || slugLower === querySlug) {
         score = 100
-      } else if (aliasMatched && aliasMatched.toLowerCase() === cleanQuery) {
-        score = 98
+      } else if (aliasLower === cleanQuery) {
+        score = 99
+      } else if (shortLower.startsWith(cleanQuery)) {
+        score = 95
       } else if (nameLower.startsWith(cleanQuery)) {
         score = 90
+      } else if (aliasLower.startsWith(cleanQuery)) {
+        score = 88
+      } else if (shortLower.includes(cleanQuery)) {
+        score = 85
       } else if (nameLower.includes(cleanQuery)) {
         score = 80
-      } else if (dbExam.aliases && Array.isArray(dbExam.aliases)) {
-        if (dbExam.aliases.some((a: string) => a.toLowerCase() === cleanQuery)) {
-          score = 95
-        } else if (dbExam.aliases.some((a: string) => a.toLowerCase().includes(cleanQuery))) {
-          score = 85
-        }
+      } else if (aliasLower.includes(cleanQuery)) {
+        score = 75
+      }
+
+      if (examMap.has(dbExam.id)) {
+        const existing = examMap.get(dbExam.id)!
+        existing.score = Math.max(existing.score, score)
+        return
       }
 
       examMap.set(dbExam.id, {
@@ -197,6 +208,7 @@ export async function GET(req: NextRequest) {
           id: dbExam.id,
           name: dbExam.name,
           slug: dbExam.slug,
+          short_name: dbExam.short_name || dbExam.name,
           category: dbExam.exam_categories?.name || 'Professional Licensing',
           country: dbExam.countries?.name || 'India',
           flag: dbExam.countries?.flag_emoji || '🇮🇳',

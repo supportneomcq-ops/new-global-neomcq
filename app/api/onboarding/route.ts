@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getSupabaseAdmin } from '@/lib/supabase'
 import { z } from 'zod'
 import { reconcileCurriculum } from '@/lib/knowledge/reconciliation-service'
 
@@ -50,7 +51,6 @@ export async function POST(req: NextRequest) {
     if (examDate) {
       const parsedExamDate = new Date(examDate)
       const now = new Date()
-      // Normalize to midnight
       parsedExamDate.setHours(0, 0, 0, 0)
       now.setHours(0, 0, 0, 0)
       const diffTime = parsedExamDate.getTime() - now.getTime()
@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = await createClient()
+    const admin = getSupabaseAdmin()
 
     // Retrieve current authenticated user or authId
     const { data: { user } } = await supabase.auth.getUser()
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
       let resolvedTimezone = 'UTC'
 
       if (country) {
-        const { data: countryData } = await (supabase as any)
+        const { data: countryData } = await (admin as any)
           .from('countries')
           .select('id, default_timezone')
           .ilike('name', country.trim())
@@ -92,7 +93,7 @@ export async function POST(req: NextRequest) {
       }
 
       if (language) {
-        const { data: langData } = await (supabase as any)
+        const { data: langData } = await (admin as any)
           .from('languages')
           .select('id')
           .ilike('name', language.trim())
@@ -103,8 +104,8 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Update Profile (Profile creation is handled by trigger on_auth_user_created or manual signup)
-      await (supabase as any)
+      // Update Profile
+      await (admin as any)
         .from('profiles')
         .update({
           first_name: firstName,
@@ -116,11 +117,11 @@ export async function POST(req: NextRequest) {
         })
         .eq('id', targetUserId)
 
-      // 2. Find or insert exam (check slug or exact name, or direct inputExamId)
+      // 2. Find canonical exam in database
       let finalExamId: string | null = null
 
       if (inputExamId) {
-        const { data: matchedExam } = await (supabase as any)
+        const { data: matchedExam } = await (admin as any)
           .from('exams')
           .select('id')
           .eq('id', inputExamId)
@@ -132,7 +133,7 @@ export async function POST(req: NextRequest) {
 
       if (!finalExamId) {
         const examSlug = examName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-')
-        const { data: existingExams } = await (supabase as any)
+        const { data: existingExams } = await (admin as any)
           .from('exams')
           .select('id, name, slug')
           .or(`slug.eq.${examSlug},name.ilike.${examName.trim()}`)
@@ -141,8 +142,8 @@ export async function POST(req: NextRequest) {
         if (existingExams && existingExams.length > 0) {
           finalExamId = existingExams[0].id
         } else {
-          // Check exam_aliases before inserting a new custom exam
-          const { data: aliasExams } = await (supabase as any)
+          // Check exam_aliases before creating a new exam
+          const { data: aliasExams } = await (admin as any)
             .from('exam_aliases')
             .select('exam_id')
             .ilike('alias', examName.trim())
@@ -151,7 +152,7 @@ export async function POST(req: NextRequest) {
           if (aliasExams && aliasExams.length > 0) {
             finalExamId = aliasExams[0].exam_id
           } else {
-            const { data: newExam } = await (supabase as any)
+            const { data: newExam } = await (admin as any)
               .from('exams')
               .insert({
                 name: examName.trim(),
@@ -170,8 +171,7 @@ export async function POST(req: NextRequest) {
 
       // 3. User Exam Link & Profile Exam Lock
       if (finalExamId) {
-        // Set as initial locked exam on profile
-        await (supabase as any)
+        await (admin as any)
           .from('profiles')
           .update({
             current_exam_id: finalExamId,
@@ -180,10 +180,9 @@ export async function POST(req: NextRequest) {
             exam_switch_count: 0,
             updated_at: new Date().toISOString(),
           })
-          .eq('id', targetUserId);
+          .eq('id', targetUserId)
 
-        // First delete any previous user_exams if resetting, or upsert
-        await (supabase as any)
+        await (admin as any)
           .from('user_exams')
           .upsert(
             {
@@ -196,14 +195,14 @@ export async function POST(req: NextRequest) {
             { onConflict: 'user_id,exam_id' }
           )
 
-        // Kick off the background curriculum reconciliation job safely & silently
+        // Kick off background curriculum reconciliation job safely
         reconcileCurriculum(finalExamId, examName).catch((err) => {
-          console.error('[Onboarding] Background curriculum reconciliation failed:', err)
+          console.error('[Onboarding] Background curriculum reconciliation error:', err)
         })
       }
 
       // 4. Update Study Preferences
-      await (supabase as any).from('study_preferences').upsert({
+      await (admin as any).from('study_preferences').upsert({
         user_id: targetUserId,
         daily_hours: studyHours || 2.0,
         preferred_time: (studyTime?.toLowerCase() as any) || 'morning',
@@ -211,16 +210,16 @@ export async function POST(req: NextRequest) {
         reminders_enabled: true,
         language_id: resolvedLanguageId,
         timezone: resolvedTimezone,
-      })
+      }, { onConflict: 'user_id' })
 
       // 5. Enqueue Async AI Study Plan Generation Job
-      const { data: aiJob } = await (supabase as any).from('ai_jobs').insert({
+      const { data: aiJob } = await (admin as any).from('ai_jobs').insert({
         user_id: targetUserId,
         exam_id: finalExamId || null,
         task: 'study_plan_generation',
         status: 'queued',
         provider: 'Google Gemini AI',
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.5-flash',
         priority: 5,
         input_payload: {
           job_type: 'study_plan',
@@ -234,7 +233,6 @@ export async function POST(req: NextRequest) {
         },
       }).select('id').single()
 
-      // Async trigger process job worker in background
       if (aiJob?.id) {
         fetch(`${req.nextUrl.origin}/api/ai/process-job`, {
           method: 'POST',

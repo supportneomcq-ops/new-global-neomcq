@@ -73,7 +73,7 @@ export async function resolveCanonicalExam(
   // 1. Exact Slug or Name Match
   const { data: directMatches } = await supabase
     .from('exams')
-    .select('id, name, slug, code, description, difficulty, status, aliases')
+    .select('id, name, slug, code, description, difficulty, status')
     .or(`slug.eq.${norm.slug},name.ilike.${norm.canonical}`)
     .limit(5)
 
@@ -111,7 +111,7 @@ export async function resolveCanonicalExam(
   // 3. Fuzzy match across active exams
   const { data: allExams } = await supabase
     .from('exams')
-    .select('id, name, slug, code, description, difficulty, status, aliases')
+    .select('id, name, slug, code, description, difficulty, status')
     .neq('status', 'archived')
     .limit(100)
 
@@ -123,16 +123,8 @@ export async function resolveCanonicalExam(
       const nameSim = calculateLevenshteinSimilarity(norm.canonical, exam.name)
       const slugSim = calculateLevenshteinSimilarity(norm.slug, exam.slug)
       const rawSim = calculateLevenshteinSimilarity(rawExamInput.trim(), exam.name)
-      let aliasSim = 0
 
-      if (Array.isArray(exam.aliases)) {
-        for (const al of exam.aliases) {
-          const sim = calculateLevenshteinSimilarity(norm.canonical, al)
-          if (sim > aliasSim) aliasSim = sim
-        }
-      }
-
-      const score = Math.max(nameSim, slugSim, rawSim, aliasSim)
+      const score = Math.max(nameSim, slugSim, rawSim)
       if (score > maxConfidence) {
         maxConfidence = score
         bestMatch = exam
@@ -164,7 +156,6 @@ export async function resolveCanonicalExam(
         difficulty: 'Advanced',
         created_by_ai: true,
         status: 'published',
-        aliases: [rawExamInput.trim(), norm.canonical],
       })
       .select('id, name, slug, code, description, difficulty, status')
       .single()
