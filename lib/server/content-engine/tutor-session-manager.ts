@@ -31,7 +31,8 @@ export class TutorSessionManager {
     errorCode?: string;
   }> {
     const supabase = options.supabaseClient || getSupabaseAdmin();
-    const { examId, subjectId, topicId, userId } = options;
+    const { examId, subjectId, topicId } = options;
+    let userId = options.userId;
 
     if (!userId) {
       return {
@@ -39,6 +40,25 @@ export class TutorSessionManager {
         error: 'User authentication required to create or resume a Tutor lesson.',
         errorCode: 'UNAUTHORIZED',
       };
+    }
+
+    // Normalize userId if an email string was provided
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+    if (!isUuid) {
+      if (userId.includes('@')) {
+        try {
+          const { data: prof } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('email', userId.toLowerCase())
+            .maybeSingle();
+          if (prof?.id) {
+            userId = prof.id;
+          }
+        } catch (err) {
+          console.warn('[TutorSessionManager] Profile lookup note:', err);
+        }
+      }
     }
 
     // 1. Verify Canonical Hierarchy

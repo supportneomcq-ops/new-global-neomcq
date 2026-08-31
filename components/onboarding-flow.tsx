@@ -42,6 +42,7 @@ interface OnboardingFlowProps {
 }
 
 export interface OnboardingData {
+  userId?: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -240,6 +241,9 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
   // Submission State
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPreparingAI, setIsPreparingAI] = useState(false);
+  const [isResolvingExam, setIsResolvingExam] = useState(false);
+  const [resolutionStage, setResolutionStage] = useState('Understanding your exam...');
+  const [resolvedExamInfo, setResolvedExamInfo] = useState<any>(null);
   const [showVerificationScreen, setShowVerificationScreen] = useState(false);
 
   // Time calculations
@@ -341,9 +345,65 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
     return true;
   };
 
-  const handleNextStep = () => {
-    if (step === 1 && !validateStep1()) return;
-    if (step === 2 && !validateStep2()) return;
+  const handleNextStep = async () => {
+    if (step === 1) {
+      if (!validateStep1()) return;
+      setFormError('');
+      setStep(2);
+      return;
+    }
+
+    if (step === 2) {
+      if (!validateStep2()) return;
+      setFormError('');
+      setIsResolvingExam(true);
+      setResolutionStage('Understanding your exam...');
+
+      const stageTimer1 = setTimeout(() => setResolutionStage('Building your subject structure...'), 800);
+      const stageTimer2 = setTimeout(() => setResolutionStage('Creating main topics...'), 1800);
+      const stageTimer3 = setTimeout(() => setResolutionStage('Preparing your AI learning system...'), 2800);
+
+      try {
+        const res = await fetch('/api/exams/resolve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            examQuery: activeExamName,
+            country: selectedExamCountry,
+            category: selectedExamCategory,
+          }),
+        });
+
+        const data = await res.json();
+        clearTimeout(stageTimer1);
+        clearTimeout(stageTimer2);
+        clearTimeout(stageTimer3);
+
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || 'Failed to resolve examination curriculum');
+        }
+
+        if (data.exam) {
+          setSelectedExamId(data.exam.id);
+          setSelectedExam(data.exam.name);
+          if (data.exam.country) setSelectedExamCountry(data.exam.country);
+          if (data.exam.flag) setSelectedExamFlag(data.exam.flag);
+          setResolvedExamInfo(data.exam);
+        }
+
+        setFormError('');
+        setIsResolvingExam(false);
+        setStep(3);
+      } catch (err: any) {
+        clearTimeout(stageTimer1);
+        clearTimeout(stageTimer2);
+        clearTimeout(stageTimer3);
+        setIsResolvingExam(false);
+        setFormError(err.message || 'Unable to resolve exam structure. Please check the name or try again.');
+      }
+      return;
+    }
+
     if (step === 3 && !validateStep3()) return;
     if (step === 4 && !validateStep4()) return;
     setFormError('');
@@ -1142,9 +1202,9 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
             <button
               type="button"
               onClick={handlePrevStep}
-              disabled={step === 1 || isSubmitting}
+              disabled={step === 1 || isSubmitting || isResolvingExam}
               className={`px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors cursor-pointer ${
-                step === 1 ? 'opacity-0 pointer-events-none' : 'opacity-100'
+                step === 1 || isResolvingExam ? 'opacity-0 pointer-events-none' : 'opacity-100'
               }`}
             >
               Back
@@ -1155,10 +1215,20 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                 <button
                   type="button"
                   onClick={handleNextStep}
-                  className="px-6 py-2.5 rounded-2xl bg-[#6D5BFF] hover:bg-[#5C4AE4] text-white text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer"
+                  disabled={isResolvingExam || isSubmitting}
+                  className="px-6 py-2.5 rounded-2xl bg-[#6D5BFF] hover:bg-[#5C4AE4] disabled:opacity-80 text-white text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer"
                 >
-                  <span>Continue</span>
-                  <ChevronRight className="w-4 h-4" />
+                  {isResolvingExam ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="truncate max-w-[200px]">{resolutionStage}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Continue</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
               ) : (
                 <button

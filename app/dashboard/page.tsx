@@ -46,6 +46,7 @@ export default function DashboardPage() {
           const daysLeftVal = Math.max(1, Math.ceil((new Date(examDateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
 
           const fullUser: OnboardingData = {
+            userId: user.id,
             firstName: profile?.first_name || user.email?.split('@')[0] || 'Learner',
             lastName: profile?.last_name || '',
             email: user.email || '',

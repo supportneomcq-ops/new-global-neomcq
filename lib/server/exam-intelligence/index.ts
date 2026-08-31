@@ -16,6 +16,7 @@ import type {
 } from './types.ts'
 
 export * from './types.ts'
+export * from './engine.ts'
 
 /**
  * Server-only assertion

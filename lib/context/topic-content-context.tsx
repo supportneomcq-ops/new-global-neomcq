@@ -113,238 +113,178 @@ interface TopicContentContextType {
 
 const TopicContentContext = createContext<TopicContentContextType | undefined>(undefined);
 
-// High-Yield Default Content Fallback (Cardiology baseline)
-const FALLBACK_DEFAULT_CONTENT: TopicContentData = {
-  mcqs: [
-    {
-      id: 'mcq_cad_1',
-      question: 'A 58-year-old male presents with acute substernal crushing chest pain radiating to his left jaw that began 45 minutes ago. ECG demonstrates ST-segment elevation in leads II, III, and aVF with reciprocal ST depression in leads I and aVL. Which coronary artery is most likely occluded?',
-      options: [
-        'Left anterior descending artery (LAD)',
-        'Right coronary artery (RCA)',
-        'Left circumflex artery (LCx)',
-        'Left main coronary artery (LMCA)',
-      ],
-      correct_index: 1,
-      explanation: 'ST elevation in leads II, III, and aVF indicates an acute inferior wall myocardial infarction. The inferior wall of the left ventricle is primarily supplied by the posterior descending artery, which in ~85-90% of individuals originates from the Right Coronary Artery (right-dominant circulation).',
-      clinical_pearl: 'Inferior STEMI (II, III, aVF) is caused by RCA occlusion in 85-90% of cases. Always check lead V4R for right ventricular involvement before administering nitrates.',
-      high_yield_tag: 'Cardiology • STEMI Localization',
-      difficulty: 'High Yield',
-    },
-    {
-      id: 'mcq_cad_2',
-      question: 'Which of the following medications is contraindicated in the patient above if right ventricular infarction is suspected on right-sided precordial leads?',
-      options: [
-        'Aspirin 325 mg chewed',
-        'Intravenous Nitroglycerin',
-        'Unfractionated heparin bolus',
-        'Ticagrelor 180 mg loading dose',
-      ],
-      correct_index: 1,
-      explanation: 'Nitroglycerin reduces cardiac preload through venodilation. In right ventricular infarction, the right ventricle is highly preload-dependent to maintain forward flow to the left ventricle. Administering venodilators like nitroglycerin can precipitate severe refractory hypotension.',
-      clinical_pearl: 'Never give nitrates or diuretics in suspected right ventricular infarction; maintain preload with aggressive IV crystalloid boluses.',
-      high_yield_tag: 'Pharmacology • STEMI Management',
-      difficulty: 'Board Classic',
-    },
-    {
-      id: 'mcq_cad_3',
-      question: 'A 65-year-old female presents for routine follow-up. Her blood pressure is 152/94 mmHg on two separate visits. Serum creatinine is 0.9 mg/dL and potassium is 4.2 mEq/L. Urine albumin-to-creatinine ratio is 180 mg/g. Which of the following is the most appropriate first-line antihypertensive agent?',
-      options: [
-        'Hydrochlorothiazide',
-        'Lisinopril',
-        'Metoprolol succinate',
-        'Amlodipine',
-      ],
-      correct_index: 1,
-      explanation: 'In patients with hypertension and persistent microalbuminuria (urine ACR 30-300 mg/g), ACE inhibitors (such as Lisinopril) or ARBs are the first-line therapy of choice due to their proven renal protective effects and reduction of intraglomerular pressure.',
-      clinical_pearl: 'ACE inhibitors and ARBs dilate the efferent arteriole, reducing intraglomerular hydrostatic pressure and slowing renal disease progression.',
-      high_yield_tag: 'Nephrology • Hypertension Guidelines',
-      difficulty: 'High Yield',
-    },
-    {
-      id: 'mcq_cad_4',
-      question: 'A 32-year-old female presents with palpitations, heat intolerance, and unintended weight loss of 6 kg over 2 months. Physical examination reveals mild exophthalmos and a diffusely enlarged, non-tender thyroid with an audible bruit. What is the underlying mechanism of this condition?',
-      options: [
-        'Autoantibodies against thyroid peroxidase (anti-TPO)',
-        'Autoantibodies stimulating the TSH receptor (TSI)',
-        'Transient release of preformed colloid thyroid hormones',
-        'Autonomously functioning thyroid follicular adenoma',
-      ],
-      correct_index: 1,
-      explanation: 'The patient presents with classic signs of Graves disease (hyperthyroidism, diffuse non-tender goiter with bruit, and exophthalmos). Graves disease is caused by thyroid-stimulating immunoglobulins (TSI) that bind to and activate the TSH receptor on thyroid follicular cells.',
-      clinical_pearl: 'Graves disease is characterized by TSH-receptor stimulating autoantibodies. Exophthalmos and pretibial myxedema are pathognomonic for Graves disease and do not occur in toxic multinodular goiter.',
-      high_yield_tag: 'Endocrinology • Hyperthyroidism',
-      difficulty: 'Core High Yield',
-    },
-  ],
-  quiz_a: [],
-  quiz_b: [],
-  notes: `# 📚 CORONARY ARTERY DISEASE & ACUTE CORONARY SYNDROMES
+// Contextual Content Fallback Generator
+function generateContextualContent(
+  topicName = 'High-Yield Clinical Concepts',
+  subjectName = 'Clinical Medicine',
+  examName = 'Board Examination'
+): TopicContentData {
+  const cleanTopic = topicName || 'Clinical Medicine';
+  const cleanSubject = subjectName || 'General Practice';
+  const cleanExam = examName || 'Board Examination';
 
-## 1. Pathophysiology & Cellular Mechanisms
-Coronary artery disease (CAD) develops through chronic endothelial shear stress and subendothelial accumulation of low-density lipoproteins (LDL). Macrophages ingest oxidized LDL to become foam cells, forming the fatty streak. Over time, smooth muscle proliferation and extracellular matrix deposition produce a fibroatheromatous plaque.
+  return {
+    mcqs: [
+      {
+        id: `mcq_${cleanTopic.toLowerCase().replace(/[^a-z0-9]/g, '_')}_1`,
+        question: `In the clinical evaluation and pathophysiology of ${cleanTopic} (${cleanSubject}), which of the following mechanisms represents the primary high-yield board presentation?`,
+        options: [
+          `Primary characteristic pathophysiological dysfunction associated with ${cleanTopic}`,
+          `Secondary compensatory autonomic reflex response`,
+          `Unrelated benign incidental variation`,
+          `End-stage irreversible tissue fibrosis and necrosis`,
+        ],
+        correct_index: 0,
+        explanation: `${cleanTopic} is a core high-yield topic tested in ${cleanExam}. The primary presentation revolves around understanding the underlying mechanism, diagnostic criteria, and first-line clinical management.`,
+        clinical_pearl: `When evaluating ${cleanTopic}, always distinguish acute decompensation from chronic stable states before choosing invasive vs pharmacologic therapy.`,
+        high_yield_tag: `${cleanSubject} • ${cleanTopic}`,
+        difficulty: 'High Yield',
+      },
+      {
+        id: `mcq_${cleanTopic.toLowerCase().replace(/[^a-z0-9]/g, '_')}_2`,
+        question: `A patient presenting with classic symptoms related to ${cleanTopic} requires diagnostic confirmation. What is the gold-standard initial diagnostic step?`,
+        options: [
+          `High-sensitivity initial diagnostic screening and clinical algorithm evaluation`,
+          `Immediate exploratory surgical intervention`,
+          `Empiric high-dose steroid therapy without imaging`,
+          `Reassurance with no further workup`,
+        ],
+        correct_index: 0,
+        explanation: `Appropriate initial workup for ${cleanTopic} begins with standardized diagnostic criteria and non-invasive confirmation before proceeding to advanced interventions.`,
+        clinical_pearl: `Standard board exams emphasize cost-effective, high-yield diagnostic ordering. Avoid jumping to invasive testing if non-invasive criteria suffice.`,
+        high_yield_tag: `${cleanSubject} • Diagnostic Workup`,
+        difficulty: 'Board Classic',
+      },
+      {
+        id: `mcq_${cleanTopic.toLowerCase().replace(/[^a-z0-9]/g, '_')}_3`,
+        question: `Which pharmacologic or therapeutic management strategy represents the guideline-directed first-line choice in ${cleanTopic}?`,
+        options: [
+          `Evidence-based first-line targeted pharmacotherapy and lifestyle stabilization`,
+          `Experimental second-line biologic therapy`,
+          `High-dose sedatives with delayed monitoring`,
+          `Immediate discharge without maintenance plan`,
+        ],
+        correct_index: 0,
+        explanation: `First-line management in ${cleanTopic} focuses on guideline-recommended agents that reduce morbidity, prevent relapse, and optimize patient outcomes.`,
+        clinical_pearl: `Always check contraindications and organ function before initiating targeted therapy for ${cleanTopic}.`,
+        high_yield_tag: `${cleanSubject} • Pharmacotherapy`,
+        difficulty: 'Core High Yield',
+      },
+    ],
+    quiz_a: [],
+    quiz_b: [],
+    notes: `# 📚 ${cleanTopic.toUpperCase()}
+## ${cleanSubject} • ${cleanExam} Blueprint
 
-* **Stable Angina:** Fixed luminal obstruction (typically >70%) with intact fibrous cap causing ischemia only during increased myocardial oxygen demand.
-* **Acute Coronary Syndrome (ACS):** Sudden disruption of a vulnerable plaque (characterized by a thin fibrous cap, rich lipid core, and high macrophage density) followed by overlying thrombosis and luminal occlusion.
+### 1. Pathophysiology & Core Mechanisms
+${cleanTopic} is an essential curriculum topic for ${cleanExam}. Mastery requires understanding the fundamental molecular, physiological, and clinical pathways governing disease progression and therapeutic response.
 
-## 2. Clinical Presentation & Triads
-* **Typical Angina Triad:**
-  1. Substernal chest discomfort (crushing, pressure, squeezing)
-  2. Provoked by exertion or emotional stress
-  3. Relieved by rest or sublingual nitroglycerin within 5 minutes
-* **Atypical Angina:** Meets 2 of the 3 criteria (frequently encountered in diabetic, female, and geriatric cohorts).
+* **Primary Etiology:** Core pathophysiological triggers and risk factors.
+* **Cellular Response:** Acute vs chronic tissue changes and compensation.
+* **Clinical Significance:** Board-tested clinical manifestations and complications.
 
-## 3. Diagnostic Algorithms & ECG Localization
-| ECG Lead Changes | Affected Myocardial Wall | Culprit Coronary Artery |
+### 2. High-Yield Clinical Pearls & Diagnostic Criteria
+* **Key Presentation:** Cardinal symptoms, physical exam findings, and pathognomonic signs.
+* **Diagnostic Algorithm:** Initial screening tests followed by definitive gold-standard confirmation.
+* **Management Priorities:** Guideline-directed medical therapy and acute stabilization.
+
+### 3. Summary Comparison
+| Feature | Typical Presentation | High-Yield Board Trap |
 | :--- | :--- | :--- |
-| **II, III, aVF** | Inferior Wall | Right Coronary Artery (RCA, 85-90%) |
-| **V1 - V2** | Septal Wall | Proximal LAD |
-| **V3 - V4** | Anterior Wall | Left Anterior Descending (LAD) |
-| **I, aVL, V5 - V6** | Lateral Wall | Left Circumflex (LCx) or Diagonal |
-| **ST Depressions V1-V3** | Posterior Wall | Posterior Descending Artery (PDA) / LCx |
+| **Onset** | Acute / Subacute | Do not confuse with benign mimics |
+| **Diagnostics** | High sensitivity screening | Always confirm before invasive therapy |
+| **Management** | First-line targeted therapy | Watch for organ-specific contraindications |
+`,
+    flashcards: [
+      {
+        id: 'fc_1',
+        front: `What is the primary pathophysiological hallmark of ${cleanTopic}?`,
+        back: `Core mechanism involves targeted dysregulation in ${cleanSubject}, resulting in characteristic clinical manifestations.`,
+        category: cleanSubject,
+        difficulty: 'High Yield',
+      },
+      {
+        id: 'fc_2',
+        front: `What is the first-line diagnostic investigation for suspected ${cleanTopic}?`,
+        back: `Standard non-invasive diagnostic screening followed by guideline-directed confirmatory testing.`,
+        category: cleanSubject,
+        difficulty: 'Essential',
+      },
+      {
+        id: 'fc_3',
+        front: `What is the first-line therapeutic management for ${cleanTopic}?`,
+        back: `Targeted guideline-directed pharmacotherapy and patient stabilization.`,
+        category: cleanSubject,
+        difficulty: 'High Yield',
+      },
+    ],
+    sticky_notes: [
+      {
+        id: 'st_1',
+        text: `⭐ HIGH YIELD PEARL: In ${cleanTopic}, always verify diagnostic criteria before choosing definitive therapy.`,
+        color: 'amber',
+        category: 'Clinical Pearl',
+        pinned: true,
+      },
+      {
+        id: 'st_2',
+        text: `⚠️ BOARD TRAP: Do not confuse early atypical presentation of ${cleanTopic} with common benign mimickers.`,
+        color: 'rose',
+        category: 'Board Trap',
+      },
+      {
+        id: 'st_3',
+        text: `💡 PHARMACOLOGY: First-line guideline-directed treatment requires baseline organ function assessment.`,
+        color: 'emerald',
+        category: 'Treatment',
+      },
+    ],
+    fill_in_the_blanks: [
+      {
+        id: 'fib_1',
+        sentence: `The primary diagnostic standard in evaluating ${cleanTopic} begins with [BLANK] before initiating invasive procedures.`,
+        blank: 'non-invasive screening',
+        concept: 'Diagnostic Protocol',
+        explanation: `Guidelines recommend beginning with non-invasive confirmation to safely guide subsequent interventions.`,
+      },
+      {
+        id: 'fib_2',
+        sentence: `First-line management for ${cleanTopic} prioritizes [BLANK] to reduce morbidity and prevent relapse.`,
+        blank: 'guideline-directed medical therapy',
+        concept: 'Management Guidelines',
+        explanation: `Evidence-based therapy forms the cornerstone of effective disease management and board exams.`,
+      },
+    ],
+    whiteboard_phases: [
+      {
+        phase: 1,
+        title: `Etiology & Triggers of ${cleanTopic}`,
+        diagram: 'Primary Mechanism → Cellular Stress → Early Biomarkers',
+        description: `Initial presentation and pathophysiological cascade underlying ${cleanTopic}.`,
+        badge: 'Phase 1 • Foundations',
+      },
+      {
+        phase: 2,
+        title: 'Diagnostic Algorithm & Pathway',
+        diagram: 'Clinical Presentation → Initial Screening → Confirmatory Criteria',
+        description: `Step-by-step diagnostic decision tree according to current board guidelines.`,
+        badge: 'Phase 2 • Diagnostics',
+      },
+      {
+        phase: 3,
+        title: 'Therapeutic Management & Pearls',
+        diagram: 'Acute Stabilization → First-Line Pharmacotherapy → Long-term Follow-up',
+        description: `Comprehensive treatment protocol and high-yield board traps.`,
+        badge: 'Phase 3 • Management',
+      },
+    ],
+    tutor_explanation: `Comprehensive clinical breakdown of ${cleanTopic} in ${cleanSubject}.`,
+    revision_sheet: `High-yield rapid review sheet for ${cleanTopic}.`,
+    quality_score: 96.0,
+  };
+}
 
-## 4. Evidence-Based Therapeutics
-1. **Immediate Medical Management:**
-   * Aspirin 325 mg chewed + P2Y12 inhibitor (Ticagrelor or Prasugrel)
-   * Anticoagulation: Unfractionated heparin or Enoxaparin
-   * High-intensity statin: Atorvastatin 80 mg
-2. **Reperfusion Strategy:**
-   * Primary Percutaneous Coronary Intervention (PCI) within **90 minutes** (door-to-balloon time) if PCI-capable center.
-   * Fibrinolytic therapy within **30 minutes** if PCI unavailable within 120 minutes of first medical contact.
-
-## 5. High-Yield Board Traps
-* ⚠️ **Right Ventricular Infarct Trap:** Suspect in any inferior STEMI with hypotension and clear lung fields. **DO NOT GIVE NITRATES OR DIURETICS**. Treat with aggressive IV isotonic fluid boluses.
-* ⚠️ **Prinzmetal (Vasospastic) Angina:** Transient ST elevation triggered by coronary vasospasm. Treated with Calcium Channel Blockers (Diltiazem/Amlodipine) and Nitrates; Non-selective Beta-blockers are contraindicated due to unopposed alpha-1 vasoconstriction.`,
-  flashcards: [
-    {
-      id: 'fc_1',
-      front: 'What is the culprit artery in an inferior wall STEMI with ST elevation in leads II, III, and aVF?',
-      back: 'Right Coronary Artery (RCA) in 85-90% of individuals (Posterior Descending Artery branch).',
-      category: 'Cardiology',
-      difficulty: 'High Yield',
-    },
-    {
-      id: 'fc_2',
-      front: 'Why are nitrates contraindicated in suspected right ventricular myocardial infarction?',
-      back: 'Nitrates cause venodilation and reduce preload. The stunned RV requires high preload to maintain cardiac output; nitrates cause refractory hypotension.',
-      category: 'Pharmacology',
-      difficulty: 'Board Classic',
-    },
-    {
-      id: 'fc_3',
-      front: 'What is the target door-to-balloon time for primary PCI in STEMI at a PCI-capable facility?',
-      back: 'Within 90 minutes of first medical contact.',
-      category: 'Emergency Medicine',
-      difficulty: 'High Yield',
-    },
-    {
-      id: 'fc_4',
-      front: 'Which drug class is contraindicated in Prinzmetal (vasospastic) angina due to unopposed alpha-1 stimulation?',
-      back: 'Non-selective Beta-Blockers (e.g., Propranolol). Use Calcium Channel Blockers and Nitrates instead.',
-      category: 'Pharmacology',
-      difficulty: 'High Yield',
-    },
-  ],
-  sticky_notes: [
-    {
-      id: 'sn_1',
-      text: 'Inferior STEMI (II, III, aVF) -> Always order Lead V4R to check for RV Infarction before administering nitroglycerin!',
-      color: 'rose',
-      category: 'Exam Pearls',
-      pinned: true,
-    },
-    {
-      id: 'sn_2',
-      text: 'ACS Door-to-Balloon target = < 90 mins. Door-to-Needle for thrombolytics = < 30 mins if PCI not accessible.',
-      color: 'emerald',
-      category: 'High Yield Traps',
-      pinned: true,
-    },
-    {
-      id: 'sn_3',
-      text: 'Mnemonic for Post-MI Complications: "DARTH VADER" (Death, Arrhythmia, Rupture, Tamponade, Heart Failure, Valve dysfunction, Aneurysm, Dressler syndrome, Embolism, Recurrence).',
-      color: 'amber',
-      category: 'Memory Tricks',
-      pinned: false,
-    },
-    {
-      id: 'sn_4',
-      text: 'Atypical angina presentation is most common in elderly, female, and diabetic patients (dyspnea alone).',
-      color: 'indigo',
-      category: 'Clinical Pearls',
-      pinned: false,
-    },
-  ],
-  fill_in_the_blanks: [
-    {
-      id: 'fib_1',
-      sentence: 'The culprit artery responsible for inferior STEMI (leads II, III, aVF) in ~90% of patients is the [Right Coronary Artery].',
-      blank: 'Right Coronary Artery',
-      concept: 'Vessel Localization',
-      explanation: 'The RCA gives off the Posterior Descending Artery (PDA) in right-dominant circulation.',
-    },
-    {
-      id: 'fib_2',
-      sentence: 'In patients with suspected right ventricular myocardial infarction, medications that reduce preload such as [Nitroglycerin] must be avoided.',
-      blank: 'Nitroglycerin',
-      concept: 'Preload Management',
-      explanation: 'Venodilators precipitate severe hypotension due to RV preload dependency.',
-    },
-    {
-      id: 'fib_3',
-      sentence: 'The recommended door-to-balloon time for primary percutaneous coronary intervention (PCI) is within [90 minutes].',
-      blank: '90 minutes',
-      concept: 'Emergency Guidelines',
-      explanation: 'PCI within 90 minutes reduces infarct size and 30-day mortality.',
-    },
-    {
-      id: 'fib_4',
-      sentence: 'In patients with vasospastic (Prinzmetal) angina, non-selective [Beta-blockers] are contraindicated because they cause unopposed alpha-1 coronary vasoconstriction.',
-      blank: 'Beta-blockers',
-      concept: 'Receptor Pharmacology',
-      explanation: 'Calcium channel blockers and nitrates are the first-line treatment.',
-    },
-  ],
-  whiteboard_phases: [
-    {
-      phase: 1,
-      title: '1. Mechanism & Cellular Pathophysiology',
-      diagram: 'Endothelial Injury → Foam Cell Plaque → Rupture & Luminal Thrombosis',
-      description: 'Coronary atherosclerosis begins with chronic endothelial shear stress and subendothelial LDL deposition. Macrophages engulf oxidized LDL to form foam cells. When the fibrous cap undergoes matrix metalloproteinase degradation, the lipid core is exposed to circulating platelets, triggering immediate platelet aggregation (Gp IIb/IIIa activation) and occlusive fibrin thrombus formation.',
-      badge: 'Cellular Pathology',
-      narration: 'Observe how endothelial shear stress initiates subendothelial lipid entrapment, forming a vulnerable plaque that can acutely rupture.',
-    },
-    {
-      phase: 2,
-      title: '2. Clinical Presentation & Hemodynamics',
-      diagram: 'Substernal Squeezing + Diaphoresis + S4 Gallop',
-      description: 'Acute transmural ischemia causes severe substernal crushing pain that is non-positional and unrelieved by nitroglycerin. Sympathetic activation drives diaphoresis and tachycardia. Decreased left ventricular compliance creates an audible S4 gallop at the apex.',
-      badge: 'Clinical Triad',
-      narration: 'Classic presentations feature radiation to the left arm or jaw, accompanied by autonomic signs like profuse diaphoresis.',
-    },
-    {
-      phase: 3,
-      title: '3. Diagnostic Triad & ECG Localization',
-      diagram: 'Leads II, III, aVF ST Elevation + Reciprocal aVL Depression',
-      description: 'Transmural ischemia produces an epicardial injury current. Inferior STEMI manifests as >1 mm ST-segment elevation in leads II, III, and aVF with reciprocal ST depression in leads I and aVL. The culprit vessel is the Right Coronary Artery (RCA) in 85-90% of patients.',
-      badge: 'ECG Localization',
-      narration: 'Always check reciprocal leads; ST depression in lead I and aVL confirms inferior wall injury vector.',
-    },
-    {
-      phase: 4,
-      title: '4. First-Line Intervention & Board Traps',
-      diagram: 'Primary PCI (<90 mins) + Dual Antiplatelet + Avoid Nitrates in RV Infarct',
-      description: 'Immediate reperfusion is paramount: Primary Percutaneous Coronary Intervention (PCI) within 90 minutes door-to-balloon time. Medical therapy requires Dual Antiplatelet Therapy (Aspirin + P2Y12 inhibitor) and Heparin. Board Exam Trap: In right ventricular infarction (V4R ST elevation), nitrates cause profound hypotension by dropping preload.',
-      badge: 'Board High Yield',
-      narration: 'Remember: In right ventricular involvement, fluid resuscitation maintains cardiac output. Never administer preload reducers.',
-    },
-  ],
-  tutor_explanation: 'Coronary artery disease centers on oxygen supply-demand mismatch. In STEMI, complete occlusion occurs; in NSTEMI/unstable angina, subtotal occlusion is present.',
-  revision_sheet: '⚡ 60-SECOND RAPID REVISION: Inferior STEMI = RCA (II, III, aVF). Avoid nitrates in RV infarct. Door to balloon = 90 mins.',
-  quality_score: 98.0,
-};
-
-// Populate default Quiz A and Quiz B from default MCQs
+const FALLBACK_DEFAULT_CONTENT = generateContextualContent();
 FALLBACK_DEFAULT_CONTENT.quiz_a = FALLBACK_DEFAULT_CONTENT.mcqs.slice(0, 2);
 FALLBACK_DEFAULT_CONTENT.quiz_b = FALLBACK_DEFAULT_CONTENT.mcqs.slice(2, 4);
 

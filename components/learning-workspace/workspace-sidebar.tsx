@@ -24,6 +24,8 @@ interface WorkspaceSidebarProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   questionCount?: number;
+  quizCount?: number;
+  flashcardCount?: number;
 }
 
 export function WorkspaceSidebar({
@@ -31,7 +33,9 @@ export function WorkspaceSidebar({
   onSelectTab,
   isCollapsed,
   onToggleCollapse,
-  questionCount = 40,
+  questionCount,
+  quizCount,
+  flashcardCount,
 }: WorkspaceSidebarProps) {
   const navItems = [
     {
@@ -44,21 +48,22 @@ export function WorkspaceSidebar({
       id: 'practice' as WorkspaceTab,
       label: 'MCQ Practice',
       icon: BrainCircuit,
-      badge: `${questionCount} Qs`,
+      badge: typeof questionCount === 'number' && questionCount > 0 ? `${questionCount} Qs` : null,
       badgeColor: 'bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300',
     },
     {
       id: 'quizzes' as WorkspaceTab,
       label: 'Quizzes',
       icon: Target,
-      badge: '20 Qs',
+      badge: typeof quizCount === 'number' && quizCount > 0 ? `${quizCount} Qs` : null,
       badgeColor: 'bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300',
     },
     {
       id: 'flashcards' as WorkspaceTab,
       label: 'Flashcards',
       icon: Layers,
-      badge: null,
+      badge: typeof flashcardCount === 'number' && flashcardCount > 0 ? `${flashcardCount}` : null,
+      badgeColor: 'bg-teal-100 dark:bg-teal-950 text-teal-700 dark:text-teal-300',
     },
     {
       id: 'notes' as WorkspaceTab,
@@ -80,9 +85,9 @@ export function WorkspaceSidebar({
     },
     {
       id: 'tutor' as WorkspaceTab,
-      label: 'AI Tutor (Video)',
+      label: 'AI Tutor',
       icon: Video,
-      badge: 'Video',
+      badge: 'Interactive',
       badgeColor: 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300',
     },
     {

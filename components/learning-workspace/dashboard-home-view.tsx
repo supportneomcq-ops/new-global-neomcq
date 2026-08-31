@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Brain,
   Zap,
@@ -22,13 +22,14 @@ import {
   Check,
   Activity,
   AlertTriangle,
-  TrendingUp,
   Search,
+  Loader2,
 } from 'lucide-react';
 import { WorkspaceTab, StudySubTab } from './types';
-
 import { useSelection } from '@/lib/context/selection-context';
+import { useTopicContent } from '@/lib/context/topic-content-context';
 import { OnboardingData } from '@/components/onboarding-flow';
+import { getSupabaseClient } from '@/lib/supabase';
 
 interface DashboardHomeViewProps {
   user: OnboardingData;
@@ -40,11 +41,42 @@ interface DashboardHomeViewProps {
   onOpenExamSwitch: () => void;
 }
 
+interface UserStudyStats {
+  streakDays: number;
+  completedHoursToday: number;
+  targetHours: number;
+  readinessPercentage: number;
+  questionsSolved: number;
+  correctAnswers: number;
+  overallAccuracy: number;
+  recentActivities: Array<{
+    id: string;
+    title: string;
+    type: string;
+    score: string;
+    time: string;
+  }>;
+  subjectMastery: Array<{
+    id: string;
+    name: string;
+    score: number;
+    questionsDone: number;
+    status: string;
+    color: string;
+  }>;
+  weaknessGap: {
+    subjectName: string;
+    score: number;
+    message: string;
+  } | null;
+  sevenDayConsistency: boolean[];
+}
+
 export function DashboardHomeView({
   user,
-  streakDays,
-  completedHours,
-  onLogStudyTime,
+  streakDays: propStreakDays,
+  completedHours: propCompletedHours,
+  onLogStudyTime: propOnLogStudyTime,
   onSelectTab,
   onOpenAddTopic,
   onOpenExamSwitch,
@@ -59,16 +91,86 @@ export function DashboardHomeView({
     targetDate,
   } = useSelection();
 
-  const [searchTopicQuery, setSearchTopicQuery] = useState('');
-  const [activeSubjectFilter, setActiveSubjectFilter] = useState<string>('all');
+  const { content, isLoading: isContentLoading } = useTopicContent();
 
-  const targetHours = Math.max(1, user.studyHours || 2);
-  const progressPercentage = Math.min(100, Math.round((completedHours / targetHours) * 100));
+  const [searchTopicQuery, setSearchTopicQuery] = useState('');
+  const [dbStats, setDbStats] = useState<UserStudyStats | null>(null);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const [isLoggingTime, setIsLoggingTime] = useState(false);
+
+  // Fetch real user study statistics
+  const loadUserStats = useCallback(async () => {
+    try {
+      setIsLoadingStats(true);
+      const supabase = getSupabaseClient();
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const effectiveUserId = authUser?.id || user.userId;
+
+      const examId = selection.exam?.id;
+      const params = new URLSearchParams();
+      if (examId) params.set('examId', examId);
+      if (effectiveUserId) params.set('userId', effectiveUserId);
+
+      const res = await fetch(`/api/user/study-stats?${params.toString()}`);
+      const json = await res.json();
+      if (json.success && json.stats) {
+        setDbStats(json.stats);
+      }
+    } catch (err) {
+      console.warn('[DashboardHomeView] Failed to load study stats:', err);
+    } finally {
+      setIsLoadingStats(false);
+    }
+  }, [selection.exam?.id, user.userId]);
+
+  useEffect(() => {
+    loadUserStats();
+  }, [loadUserStats]);
+
+  // Log real study time to database
+  const handleLogStudyTime = async (hours: number) => {
+    try {
+      setIsLoggingTime(true);
+      propOnLogStudyTime(hours);
+
+      const supabase = getSupabaseClient();
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const effectiveUserId = authUser?.id || user.userId;
+
+      if (effectiveUserId) {
+        await fetch('/api/user/study-stats', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: effectiveUserId,
+            examId: selection.exam?.id,
+            subjectId: selection.subject?.id,
+            topicId: selection.topic?.id,
+            hours,
+            durationMins: Math.round(hours * 60),
+            mode: 'self_study',
+          }),
+        });
+        await loadUserStats();
+      }
+    } catch (err) {
+      console.error('[DashboardHomeView] Log time error:', err);
+    } finally {
+      setIsLoggingTime(false);
+    }
+  };
+
+  // Resolved dynamic values
+  const effectiveStreak = dbStats?.streakDays ?? propStreakDays ?? 0;
+  const effectiveCompletedHours = dbStats?.completedHoursToday ?? propCompletedHours ?? 0;
+  const effectiveTargetHours = dbStats?.targetHours ?? Math.max(1, user.studyHours || 2);
+  const effectiveReadiness = dbStats?.readinessPercentage ?? 0;
+  const progressPercentage = Math.min(100, Math.round((effectiveCompletedHours / effectiveTargetHours) * 100));
 
   // Current focus labels
   const activeExamName = selection.exam?.name || user.examName || 'USMLE Step 1';
-  const activeSubjectName = selection.subject?.name || (availableSubjects[0]?.name ?? 'General Subject');
-  const activeTopicName = selection.topic?.name || (availableTopics[0]?.name ?? 'Core Topic');
+  const activeSubjectName = selection.subject?.name || (availableSubjects[0]?.name ?? 'Core Foundations');
+  const activeTopicName = selection.topic?.name || (availableTopics[0]?.name ?? 'High-Yield Clinical Concepts');
   const activeSubtopicName = selection.subtopic?.name;
 
   // Exact target date & days left computation
@@ -83,9 +185,29 @@ export function DashboardHomeView({
 
   // Filter topics
   const filteredTopics = availableTopics.filter((t) => {
-    const matchesSearch = t.name.toLowerCase().includes(searchTopicQuery.toLowerCase());
-    return matchesSearch;
+    return t.name.toLowerCase().includes(searchTopicQuery.toLowerCase());
   });
+
+  // Resolved Subject Mastery list for the active exam
+  const resolvedSubjectMastery = (dbStats?.subjectMastery && dbStats.subjectMastery.length > 0)
+    ? dbStats.subjectMastery
+    : availableSubjects.map((s) => ({
+        id: s.id,
+        name: s.name,
+        score: 0,
+        questionsDone: 0,
+        status: 'Ready to Practice',
+        color: 'bg-slate-300 dark:bg-slate-700',
+      }));
+
+  // Real Counts for Learning Cards based on active topic content
+  const mcqCount = content?.mcqs?.length ?? 0;
+  const quizACount = content?.quiz_a?.length ?? 0;
+  const quizBCount = content?.quiz_b?.length ?? 0;
+  const flashcardCount = content?.flashcards?.length ?? 0;
+  const stickyCount = content?.sticky_notes?.length ?? 0;
+  const blanksCount = content?.fill_in_the_blanks?.length ?? 0;
+  const tutorPhasesCount = content?.whiteboard_phases?.length ?? 0;
 
   return (
     <div className="space-y-8 pb-16">
@@ -105,13 +227,13 @@ export function DashboardHomeView({
                 <Sparkles className="w-3.5 h-3.5" /> High-Yield Learning OS
               </span>
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
-                <ShieldCheck className="w-3.5 h-3.5" /> Adaptive Blueprint Synced
+                <ShieldCheck className="w-3.5 h-3.5" /> Canonical Blueprint Synced
               </span>
             </div>
 
             <div>
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white leading-tight">
-                Welcome back, {user.firstName || 'Doctor'}!
+                Welcome back, {user.firstName || 'Learner'}!
               </h1>
               <p className="text-sm sm:text-base text-slate-300 mt-2 leading-relaxed">
                 Your preparation for <span className="text-white font-bold underline decoration-indigo-400 decoration-2 underline-offset-4">{activeExamName}</span> is currently active. Target exam date is <span className="text-white font-semibold">{resolvedTargetDate || 'Scheduled'}</span> ({calculatedDaysLeft} days remaining).
@@ -156,7 +278,7 @@ export function DashboardHomeView({
             {/* Study Streak */}
             <div className="text-center px-3">
               <div className="text-3xl sm:text-4xl font-black text-amber-400 flex items-center justify-center gap-1.5 tracking-tight">
-                <Flame className="w-6 h-6 fill-amber-400 text-amber-400" /> {streakDays}
+                <Flame className="w-6 h-6 fill-amber-400 text-amber-400" /> {effectiveStreak}
               </div>
               <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mt-1 flex items-center justify-center gap-1">
                 Day Streak
@@ -168,7 +290,7 @@ export function DashboardHomeView({
             {/* Readiness Index */}
             <div className="text-center px-3">
               <div className="text-3xl sm:text-4xl font-black text-emerald-400 tracking-tight">
-                78%
+                {effectiveReadiness > 0 ? `${effectiveReadiness}%` : 'New'}
               </div>
               <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mt-1 flex items-center justify-center gap-1">
                 <Award className="w-3 h-3 text-emerald-400" /> Readiness
@@ -213,7 +335,7 @@ export function DashboardHomeView({
               <Compass className="w-5 h-5 text-indigo-600 dark:text-indigo-400" /> What Should I Study Now?
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-              AI-curated next high-yield actions based on your active topic and exam readiness index.
+              AI-curated high-yield actions based on your active topic and syllabus blueprint.
             </p>
           </div>
           <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 shrink-0 self-start sm:self-auto">
@@ -261,10 +383,10 @@ export function DashboardHomeView({
               </div>
               <div>
                 <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                  Review 15 Clinical Pearls
+                  Review {flashcardCount} Clinical Flashcards
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                  Drill high-yield diagnostic criteria, triad associations, and first-line pharmacotherapy flashcards.
+                  Drill high-yield diagnostic criteria, triad associations, and first-line pharmacotherapy cards.
                 </p>
               </div>
             </div>
@@ -289,10 +411,10 @@ export function DashboardHomeView({
               </div>
               <div>
                 <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
-                  AI Synaptic Whiteboard Case
+                  AI Synaptic Whiteboard Lesson
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                  Step-by-step interactive diagram breakdown of pathophysiological pathways and clinical algorithms.
+                  Step-by-step interactive diagram breakdown of pathophysiological pathways on {activeTopicName}.
                 </p>
               </div>
             </div>
@@ -318,7 +440,7 @@ export function DashboardHomeView({
               <Sparkles className="w-5 h-5 text-indigo-600 dark:text-indigo-400" /> Content Hub & Learning Tools
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-              Targeted study assets dynamically generated for <strong className="text-slate-800 dark:text-slate-200">{activeTopicName}</strong>.
+              Targeted study assets dynamically available for <strong className="text-slate-800 dark:text-slate-200">{activeTopicName}</strong>.
             </p>
           </div>
           <span className="text-xs font-bold text-slate-500 dark:text-slate-400">8 High-Yield Assets Available</span>
@@ -336,7 +458,7 @@ export function DashboardHomeView({
                   <Brain className="w-5 h-5" />
                 </div>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">
-                  40 MCQs Ready
+                  {mcqCount} MCQs Ready
                 </span>
               </div>
 
@@ -345,7 +467,7 @@ export function DashboardHomeView({
                   MCQ Practice
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
-                  40 topic-specific MCQs with clinical vignettes, explanations, difficulty tags, and progress tracker.
+                  Topic-specific MCQs with clinical vignettes, explanations, difficulty tags, and progress tracker.
                 </p>
               </div>
 
@@ -372,7 +494,7 @@ export function DashboardHomeView({
                   <Zap className="w-5 h-5" />
                 </div>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
-                  20 Qs • Max 3 Attempts
+                  {quizACount} Qs • Set A
                 </span>
               </div>
 
@@ -381,13 +503,13 @@ export function DashboardHomeView({
                   Quiz A Engine
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
-                  First formal evaluation quiz set. Tracks best score, time per question, and completion status.
+                  First formal evaluation quiz set. Tracks score percentage, pacing, and completion status.
                 </p>
               </div>
 
               <div className="pt-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Attempt 1/3</span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Best: 85%</span>
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Formal CBT</span>
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Diagnostic</span>
               </div>
             </div>
 
@@ -408,7 +530,7 @@ export function DashboardHomeView({
                   <Target className="w-5 h-5" />
                 </div>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-950 text-cyan-700 dark:text-cyan-300">
-                  20 Qs • Separate Set
+                  {quizBCount} Qs • Set B
                 </span>
               </div>
 
@@ -422,8 +544,8 @@ export function DashboardHomeView({
               </div>
 
               <div className="pt-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Attempt 0/3</span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Unattempted</span>
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Parallel Set</span>
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Re-Evaluation</span>
               </div>
             </div>
 
@@ -444,7 +566,7 @@ export function DashboardHomeView({
                   <Layers className="w-5 h-5" />
                 </div>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300">
-                  Spaced Repetition
+                  {flashcardCount} Cards Ready
                 </span>
               </div>
 
@@ -453,13 +575,13 @@ export function DashboardHomeView({
                   Flashcard Decks
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
-                  Active recall card decks with 3D flip animation preview, mastery scoring, and shuffle mode.
+                  Active recall card decks with 3D flip animation, mastery scoring, and shuffle mode.
                 </p>
               </div>
 
               <div className="pt-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">18 Cards Due</span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Mastered: 12</span>
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Spaced Recall</span>
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">3D Flip</span>
               </div>
             </div>
 
@@ -480,7 +602,7 @@ export function DashboardHomeView({
                   <BookOpen className="w-5 h-5" />
                 </div>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
-                  A4 Paper View
+                  A4 View Ready
                 </span>
               </div>
 
@@ -489,13 +611,13 @@ export function DashboardHomeView({
                   A4 Study Notes
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
-                  Formatted A4 sheet preview with pathophysiological pathways, clinical pearls, and blue annotations.
+                  Formatted A4 sheet with pathophysiological pathways, clinical pearls, and high-yield tables.
                 </p>
               </div>
 
               <div className="pt-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
                 <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Printable</span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">High-Yield Tables</span>
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">High-Yield</span>
               </div>
             </div>
 
@@ -516,7 +638,7 @@ export function DashboardHomeView({
                   <Flame className="w-5 h-5" />
                 </div>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300">
-                  Sticky Board
+                  {stickyCount} Sticky Notes
                 </span>
               </div>
 
@@ -525,12 +647,12 @@ export function DashboardHomeView({
                   Sticky Notes Board
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
-                  Physical note cards preview with amber, rose, violet, and blue colored tiles for rapid key point scanning.
+                  Interactive note cards with amber, rose, violet, and blue colored tiles for rapid key point scanning.
                 </p>
               </div>
 
               <div className="pt-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Amber / Rose</span>
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Visual Board</span>
                 <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Quick Recall</span>
               </div>
             </div>
@@ -552,7 +674,7 @@ export function DashboardHomeView({
                   <Activity className="w-5 h-5" />
                 </div>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300">
-                  Cloze Deletion
+                  {blanksCount} Blanks
                 </span>
               </div>
 
@@ -566,7 +688,7 @@ export function DashboardHomeView({
               </div>
 
               <div className="pt-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Mask & Reveal</span>
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Cloze Deletion</span>
                 <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Score Tracker</span>
               </div>
             </div>
@@ -588,16 +710,16 @@ export function DashboardHomeView({
                   <GraduationCap className="w-5 h-5" />
                 </div>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300">
-                  12:45 • Whiteboard Lesson
+                  {tutorPhasesCount} Whiteboard Scenes
                 </span>
               </div>
 
               <div>
                 <h3 className="font-extrabold text-sm text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
-                  AI Tutor Video
+                  AI Tutor Whiteboard
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
-                  Synchronized educational video lesson player with interactive scene timeline, narration, and Q&A assistant.
+                  Synchronized whiteboard lesson with visual diagrams, audio narration, and interactive Q&A.
                 </p>
               </div>
 
@@ -695,15 +817,15 @@ export function DashboardHomeView({
                   >
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                        <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider truncate max-w-[140px]">
                           {activeSubjectName}
                         </span>
                         {isSelected ? (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-indigo-600 text-white flex items-center gap-1">
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-indigo-600 text-white flex items-center gap-1 shrink-0">
                             <Check className="w-2.5 h-2.5" /> Active Focus
                           </span>
                         ) : (
-                          <span className="text-[10px] font-semibold text-slate-400">
+                          <span className="text-[10px] font-semibold text-slate-400 shrink-0">
                             High Yield
                           </span>
                         )}
@@ -715,7 +837,9 @@ export function DashboardHomeView({
                     </div>
 
                     <div className="flex items-center justify-between pt-3 text-[11px] text-slate-500 dark:text-slate-400 border-t border-slate-200/60 dark:border-slate-700/60 mt-3">
-                      <span className="font-semibold text-slate-700 dark:text-slate-300">20+ Questions</span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">
+                        {isSelected && mcqCount > 0 ? `${mcqCount} Qs Active` : 'Syllabus Topic'}
+                      </span>
                       <span className="text-indigo-600 dark:text-indigo-400 font-bold flex items-center gap-1 group-hover:translate-x-1 transition-transform">
                         Study Now <ArrowRight className="w-3 h-3" />
                       </span>
@@ -754,61 +878,55 @@ export function DashboardHomeView({
             </div>
 
             <div className="space-y-3 pt-1">
-              {[
-                {
-                  title: '10-Q Sprint: Coronary Artery Disease',
-                  type: 'CBT Practice',
-                  score: '80% Correct (8/10)',
-                  time: 'Today, 2:45 PM',
-                  statusColor: 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800',
-                  action: () => onSelectTab('practice'),
-                },
-                {
-                  title: 'Spaced Flashcards: Cardiopulmonary Triads',
-                  type: 'Active Recall',
-                  score: '15 Cards Mastered',
-                  time: 'Today, 11:20 AM',
-                  statusColor: 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-800',
-                  action: () => onSelectTab('flashcards'),
-                },
-                {
-                  title: 'Clinical Notes: Heart Failure Pathophysiology',
-                  type: 'Notes Review',
-                  score: 'High Yield Read',
-                  time: 'Yesterday, 8:15 PM',
-                  statusColor: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800',
-                  action: () => onSelectTab('notes'),
-                },
-              ].map((activity, idx) => (
-                <div
-                  key={idx}
-                  onClick={activity.action}
-                  className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all flex items-center justify-between gap-3 cursor-pointer"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-300 shrink-0">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    </div>
-                    <div className="min-w-0">
-                      <h5 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
-                        {activity.title}
-                      </h5>
-                      <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                        <span className="font-medium">{activity.type}</span>
-                        <span>•</span>
-                        <span>{activity.time}</span>
+              {dbStats?.recentActivities && dbStats.recentActivities.length > 0 ? (
+                dbStats.recentActivities.map((activity, idx) => (
+                  <div
+                    key={activity.id || idx}
+                    onClick={() => onSelectTab('practice')}
+                    className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all flex items-center justify-between gap-3 cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-300 shrink-0">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                      </div>
+                      <div className="min-w-0">
+                        <h5 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
+                          {activity.title}
+                        </h5>
+                        <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          <span className="font-medium">{activity.type}</span>
+                          <span>•</span>
+                          <span>{activity.time}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border ${activity.statusColor}`}>
-                      {activity.score}
-                    </span>
-                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg border text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800">
+                        {activity.score}
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-slate-400" />
+                    </div>
                   </div>
+                ))
+              ) : (
+                <div className="p-6 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-700 text-center space-y-2">
+                  <Brain className="w-8 h-8 text-indigo-400 mx-auto" />
+                  <div className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    No study sessions recorded yet today
+                  </div>
+                  <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                    Launch your first MCQ Practice sprint or Whiteboard lesson on <strong className="text-indigo-500">{activeTopicName}</strong> to record your learning metrics.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onSelectTab('practice')}
+                    className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-500 transition-colors"
+                  >
+                    <Zap className="w-3.5 h-3.5" /> Start First CBT Drill
+                  </button>
                 </div>
-              ))}
+              )}
             </div>
           </div>
         </div>
@@ -823,11 +941,11 @@ export function DashboardHomeView({
                   <Clock className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> Daily Study Target
                 </h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Target: {targetHours} hrs/day ({user.studyTime || 'Morning'} schedule)
+                  Target: {effectiveTargetHours} hrs/day ({user.studyTime || 'Morning'} schedule)
                 </p>
               </div>
               <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">
-                {completedHours} / {targetHours} hrs
+                {effectiveCompletedHours} / {effectiveTargetHours} hrs
               </span>
             </div>
 
@@ -841,7 +959,7 @@ export function DashboardHomeView({
               </div>
               <div className="flex justify-between text-[11px] text-slate-400 font-semibold">
                 <span>{progressPercentage}% Completed</span>
-                <span>{Math.max(0, +(targetHours - completedHours).toFixed(1))}h Remaining</span>
+                <span>{Math.max(0, +(effectiveTargetHours - effectiveCompletedHours).toFixed(1))}h Remaining</span>
               </div>
             </div>
 
@@ -849,31 +967,33 @@ export function DashboardHomeView({
             <div className="grid grid-cols-2 gap-2 pt-1">
               <button
                 type="button"
-                onClick={() => onLogStudyTime(0.5)}
-                className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 hover:text-indigo-600 text-xs font-bold text-slate-700 dark:text-slate-300 transition-colors cursor-pointer text-center"
+                disabled={isLoggingTime}
+                onClick={() => handleLogStudyTime(0.5)}
+                className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 hover:text-indigo-600 text-xs font-bold text-slate-700 dark:text-slate-300 transition-colors cursor-pointer text-center disabled:opacity-50"
               >
-                +30m Logged
+                {isLoggingTime ? <Loader2 className="w-3.5 h-3.5 animate-spin mx-auto" /> : '+30m Logged'}
               </button>
               <button
                 type="button"
-                onClick={() => onLogStudyTime(1.0)}
-                className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-colors cursor-pointer text-center shadow-xs"
+                disabled={isLoggingTime}
+                onClick={() => handleLogStudyTime(1.0)}
+                className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-colors cursor-pointer text-center shadow-xs disabled:opacity-50"
               >
-                +1h Logged
+                {isLoggingTime ? <Loader2 className="w-3.5 h-3.5 animate-spin mx-auto" /> : '+1h Logged'}
               </button>
             </div>
 
-            {/* 7-Day Streak Dots */}
+            {/* 7-Day Consistency Dots */}
             <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
               <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
                 <span>7-Day Consistency</span>
                 <span className="text-amber-500 flex items-center gap-1">
-                  <Flame className="w-3 h-3 fill-amber-500" /> {streakDays}d Active
+                  <Flame className="w-3 h-3 fill-amber-500" /> {effectiveStreak}d Active
                 </span>
               </div>
               <div className="grid grid-cols-7 gap-1.5 text-center">
                 {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, idx) => {
-                  const isDone = idx < 5; // 5 days completed
+                  const isDone = dbStats?.sevenDayConsistency ? dbStats.sevenDayConsistency[idx] : idx === 0;
                   return (
                     <div key={idx} className="space-y-1">
                       <div
@@ -901,7 +1021,7 @@ export function DashboardHomeView({
                   <Target className="w-4 h-4 text-emerald-500" /> Subject Mastery
                 </h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  High-yield accuracy by discipline
+                  Accuracy by {activeExamName} discipline
                 </p>
               </div>
 
@@ -916,18 +1036,13 @@ export function DashboardHomeView({
 
             {/* Subject Accuracy Meters */}
             <div className="space-y-3.5 pt-1">
-              {[
-                { name: 'Cardiovascular System', score: 84, color: 'bg-emerald-500', status: 'Strong' },
-                { name: 'Respiratory Medicine', score: 88, color: 'bg-emerald-500', status: 'Strong' },
-                { name: 'Renal & Acid-Base Physiology', score: 62, color: 'bg-amber-500', status: 'Reinforce' },
-                { name: 'Autonomic Pharmacology', score: 54, color: 'bg-rose-500', status: 'High Yield Gap' },
-              ].map((item, idx) => (
-                <div key={idx} className="space-y-1.5">
+              {resolvedSubjectMastery.slice(0, 4).map((item, idx) => (
+                <div key={item.id || idx} className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs font-semibold">
                     <span className="text-slate-800 dark:text-slate-200 truncate max-w-[180px]">{item.name}</span>
                     <div className="flex items-center gap-1.5">
                       <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-sm ${
-                        item.score >= 80 ? 'text-emerald-600' : item.score >= 60 ? 'text-amber-600' : 'text-rose-600'
+                        item.score >= 80 ? 'text-emerald-600' : item.score >= 60 ? 'text-amber-600' : item.score > 0 ? 'text-rose-600' : 'text-slate-400'
                       }`}>
                         {item.status}
                       </span>
@@ -942,15 +1057,22 @@ export function DashboardHomeView({
             </div>
 
             {/* High-Yield Gap Notice */}
-            <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/80 flex items-start gap-2.5 text-xs text-rose-900 dark:text-rose-200">
-              <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-bold">High-Yield Gap Detected:</span>
-                <p className="text-[11px] text-rose-700 dark:text-rose-300 mt-0.5">
-                  Autonomic Pharmacology is under 60% accuracy. Complete a 10-Q focused sprint to boost readiness.
-                </p>
+            {dbStats?.weaknessGap ? (
+              <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/80 flex items-start gap-2.5 text-xs text-rose-900 dark:text-rose-200">
+                <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold">High-Yield Gap Detected:</span>
+                  <p className="text-[11px] text-rose-700 dark:text-rose-300 mt-0.5">
+                    {dbStats.weaknessGap.message}
+                  </p>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="p-3 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/80 flex items-center gap-2.5 text-xs text-indigo-900 dark:text-indigo-200">
+                <Sparkles className="w-4 h-4 text-indigo-500 shrink-0" />
+                <span>Solve questions on each subject to populate your adaptive Weakness Radar.</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

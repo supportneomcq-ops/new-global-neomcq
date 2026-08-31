@@ -21,6 +21,7 @@ import {
 import { useSelection, SelectedItem } from '@/lib/context/selection-context';
 import { useTopicContent } from '@/lib/context/topic-content-context';
 import { ExamSwitchModal } from '@/components/exam-switch-modal';
+import { AddMissingCurriculumModal, AddMissingMode } from '@/components/learning-workspace/add-missing-curriculum-modal';
 
 export function LearningContextBar() {
   const {
@@ -31,9 +32,6 @@ export function LearningContextBar() {
     setSubject,
     setTopic,
     setSubtopic,
-    addSubject,
-    addTopic,
-    addSubtopic,
     isExamLocked,
     examSwitchCount,
   } = useSelection();
@@ -56,20 +54,9 @@ export function LearningContextBar() {
   const [topicQuery, setTopicQuery] = useState('');
   const [subtopicQuery, setSubtopicQuery] = useState('');
 
-  // Modals
-  const [isAddSubjectOpen, setIsAddSubjectOpen] = useState(false);
-  const [isAddTopicOpen, setIsAddTopicOpen] = useState(false);
-  const [isAddSubtopicOpen, setIsAddSubtopicOpen] = useState(false);
-
-  // Form Inputs
-  const [newSubjectName, setNewSubjectName] = useState('');
-  const [newTopicName, setNewTopicName] = useState('');
-  const [newSubtopicName, setNewSubtopicName] = useState('');
-
-  // Submitting / Error states
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [modalError, setModalError] = useState<string | null>(null);
-  const [modalSuccess, setModalSuccess] = useState<string | null>(null);
+  // Unified Add Missing Curriculum Modal
+  const [isAddMissingOpen, setIsAddMissingOpen] = useState(false);
+  const [addMissingMode, setAddMissingMode] = useState<AddMissingMode>('topic');
 
   // Refs for click outside
   const subjectRef = useRef<HTMLDivElement>(null);
@@ -286,7 +273,8 @@ export function LearningContextBar() {
                         type="button"
                         onClick={() => {
                           setIsSubjectOpen(false);
-                          setIsAddSubjectOpen(true);
+                          setAddMissingMode('subject');
+                          setIsAddMissingOpen(true);
                         }}
                         className="w-full py-1.5 px-2 rounded-xl bg-[#6D5BFF]/10 hover:bg-[#6D5BFF]/20 text-[#6D5BFF] dark:text-[#8877FF] font-bold flex items-center justify-center gap-1 transition-colors"
                       >
@@ -377,7 +365,8 @@ export function LearningContextBar() {
                         type="button"
                         onClick={() => {
                           setIsTopicOpen(false);
-                          setIsAddTopicOpen(true);
+                          setAddMissingMode('topic');
+                          setIsAddMissingOpen(true);
                         }}
                         className="w-full py-1.5 px-2 rounded-xl bg-[#A855F7]/10 hover:bg-[#A855F7]/20 text-[#A855F7] font-bold flex items-center justify-center gap-1 transition-colors"
                       >
@@ -476,7 +465,8 @@ export function LearningContextBar() {
                         type="button"
                         onClick={() => {
                           setIsSubtopicOpen(false);
-                          setIsAddSubtopicOpen(true);
+                          setAddMissingMode('subtopic');
+                          setIsAddMissingOpen(true);
                         }}
                         className="w-full py-1.5 px-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold flex items-center justify-center gap-1 transition-colors"
                       >
@@ -494,7 +484,10 @@ export function LearningContextBar() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setIsAddTopicOpen(true)}
+              onClick={() => {
+                setAddMissingMode('topic');
+                setIsAddMissingOpen(true);
+              }}
               className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs"
               title="Add a missing subject, topic, or subtopic"
             >
@@ -529,261 +522,12 @@ export function LearningContextBar() {
         </div>
       </div>
 
-      {/* Modals for Add Subject, Add Topic, Add Subtopic */}
-      {/* 1. Add Subject Modal */}
-      <AnimatePresence>
-        {isAddSubjectOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl text-slate-900 dark:text-white"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-[#6D5BFF]/10 text-[#6D5BFF]">
-                    <Layers className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-heading font-extrabold text-base">Add Subject</h3>
-                    <p className="text-xs text-slate-400">Under {activeExam?.name}</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsAddSubjectOpen(false);
-                    setModalError(null);
-                    setModalSuccess(null);
-                  }}
-                  className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {modalError && (
-                <div className="mb-4 p-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{modalError}</span>
-                </div>
-              )}
-
-              {modalSuccess && (
-                <div className="mb-4 p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 shrink-0" />
-                  <span>{modalSuccess}</span>
-                </div>
-              )}
-
-              <form onSubmit={handleAddSubjectSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                    Subject Name
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={newSubjectName}
-                    onChange={(e) => setNewSubjectName(e.target.value)}
-                    placeholder="e.g. Pharmacology, Pathology, Biochemistry"
-                    className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm focus:outline-none focus:border-[#6D5BFF]"
-                  />
-                </div>
-
-                <div className="flex gap-2 justify-end pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsAddSubjectOpen(false)}
-                    className="px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting || !newSubjectName.trim()}
-                    className="px-5 py-2.5 rounded-2xl bg-[#6D5BFF] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5 shadow-md shadow-[#6D5BFF]/20"
-                  >
-                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                    <span>Save Subject</span>
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* 2. Add Topic Modal */}
-      <AnimatePresence>
-        {isAddTopicOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl text-slate-900 dark:text-white"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-[#A855F7]/10 text-[#A855F7]">
-                    <FileText className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-heading font-extrabold text-base">Add Topic</h3>
-                    <p className="text-xs text-slate-400">Under {activeSubject?.name || 'Subject'}</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsAddTopicOpen(false);
-                    setModalError(null);
-                    setModalSuccess(null);
-                  }}
-                  className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {modalError && (
-                <div className="mb-4 p-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{modalError}</span>
-                </div>
-              )}
-
-              {modalSuccess && (
-                <div className="mb-4 p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 shrink-0" />
-                  <span>{modalSuccess}</span>
-                </div>
-              )}
-
-              <form onSubmit={handleAddTopicSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                    Topic Name
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={newTopicName}
-                    onChange={(e) => setNewTopicName(e.target.value)}
-                    placeholder="e.g. Antimicrobial Agents, Valvular Heart Diseases"
-                    className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm focus:outline-none focus:border-[#A855F7]"
-                  />
-                </div>
-
-                <div className="flex gap-2 justify-end pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsAddTopicOpen(false)}
-                    className="px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting || !newTopicName.trim()}
-                    className="px-5 py-2.5 rounded-2xl bg-[#A855F7] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5 shadow-md shadow-[#A855F7]/20"
-                  >
-                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                    <span>Save Topic</span>
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* 3. Add Subtopic Modal */}
-      <AnimatePresence>
-        {isAddSubtopicOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl text-slate-900 dark:text-white"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
-                    <Bookmark className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-heading font-extrabold text-base">Add Subtopic</h3>
-                    <p className="text-xs text-slate-400">Under {activeTopic?.name || 'Topic'}</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsAddSubtopicOpen(false);
-                    setModalError(null);
-                    setModalSuccess(null);
-                  }}
-                  className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {modalError && (
-                <div className="mb-4 p-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{modalError}</span>
-                </div>
-              )}
-
-              {modalSuccess && (
-                <div className="mb-4 p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 shrink-0" />
-                  <span>{modalSuccess}</span>
-                </div>
-              )}
-
-              <form onSubmit={handleAddSubtopicSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                    Subtopic Name
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={newSubtopicName}
-                    onChange={(e) => setNewSubtopicName(e.target.value)}
-                    placeholder="e.g. Beta-Lactam Antibiotics, Mechanism of Action"
-                    className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div className="flex gap-2 justify-end pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsAddSubtopicOpen(false)}
-                    className="px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting || !newSubtopicName.trim()}
-                    className="px-5 py-2.5 rounded-2xl bg-emerald-500 text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5 shadow-md shadow-emerald-500/20"
-                  >
-                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                    <span>Save Subtopic</span>
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* Unified Add Missing Curriculum Modal */}
+      <AddMissingCurriculumModal
+        isOpen={isAddMissingOpen}
+        onClose={() => setIsAddMissingOpen(false)}
+        initialMode={addMissingMode}
+      />
 
       {/* Exam Switch Modal */}
       {isExamSwitchModalOpen && (

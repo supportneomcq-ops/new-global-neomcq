@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { z } from 'zod'
-import { reconcileCurriculum } from '@/lib/knowledge/reconciliation-service'
+import { resolveOrInitializeExamIntelligence } from '@/lib/server/exam-intelligence'
 
 const onboardingSchema = z.object({
   authId: z.string().optional(),
@@ -71,6 +71,8 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     const targetUserId = user?.id || authId
 
+    let finalExamId: string | null = inputExamId || null
+
     if (targetUserId) {
       // 1. Resolve country_id and language_id from database
       let resolvedCountryId: string | null = null
@@ -104,6 +106,20 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // 2. Resolve or Initialize Exam Intelligence & Curriculum
+      try {
+        const resolved = await resolveOrInitializeExamIntelligence({
+          examQuery: examName,
+          country,
+          userId: targetUserId,
+        })
+        if (resolved.success && resolved.exam?.id) {
+          finalExamId = resolved.exam.id
+        }
+      } catch (examErr) {
+        console.error('[Onboarding] Error resolving exam intelligence:', examErr)
+      }
+
       // Update Profile
       await (admin as any)
         .from('profiles')
@@ -114,74 +130,16 @@ export async function POST(req: NextRequest) {
           country_id: resolvedCountryId,
           language_id: resolvedLanguageId,
           timezone: resolvedTimezone,
+          current_exam_id: finalExamId,
+          exam_locked: true,
+          exam_selected_at: new Date().toISOString(),
+          exam_switch_count: 0,
+          updated_at: new Date().toISOString(),
         })
         .eq('id', targetUserId)
 
-      // 2. Find canonical exam in database
-      let finalExamId: string | null = null
-
-      if (inputExamId) {
-        const { data: matchedExam } = await (admin as any)
-          .from('exams')
-          .select('id')
-          .eq('id', inputExamId)
-          .limit(1)
-        if (matchedExam && matchedExam.length > 0) {
-          finalExamId = matchedExam[0].id
-        }
-      }
-
-      if (!finalExamId) {
-        const examSlug = examName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-')
-        const { data: existingExams } = await (admin as any)
-          .from('exams')
-          .select('id, name, slug')
-          .or(`slug.eq.${examSlug},name.ilike.${examName.trim()}`)
-          .limit(1)
-
-        if (existingExams && existingExams.length > 0) {
-          finalExamId = existingExams[0].id
-        } else {
-          // Check exam_aliases before creating a new exam
-          const { data: aliasExams } = await (admin as any)
-            .from('exam_aliases')
-            .select('exam_id')
-            .ilike('alias', examName.trim())
-            .limit(1)
-
-          if (aliasExams && aliasExams.length > 0) {
-            finalExamId = aliasExams[0].exam_id
-          } else {
-            const { data: newExam } = await (admin as any)
-              .from('exams')
-              .insert({
-                name: examName.trim(),
-                slug: examSlug,
-                difficulty: 'Adaptive',
-                status: 'active',
-                created_by_ai: true,
-              })
-              .select('id')
-              .single()
-
-            if (newExam) finalExamId = newExam.id
-          }
-        }
-      }
-
-      // 3. User Exam Link & Profile Exam Lock
+      // 3. User Exam Link
       if (finalExamId) {
-        await (admin as any)
-          .from('profiles')
-          .update({
-            current_exam_id: finalExamId,
-            exam_locked: true,
-            exam_selected_at: new Date().toISOString(),
-            exam_switch_count: 0,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', targetUserId)
-
         await (admin as any)
           .from('user_exams')
           .upsert(
@@ -191,14 +149,11 @@ export async function POST(req: NextRequest) {
               target_date: examDate || null,
               target_score: 85.0,
               status: 'in_progress',
+              is_primary: true,
+              last_accessed_at: new Date().toISOString(),
             },
             { onConflict: 'user_id,exam_id' }
           )
-
-        // Kick off background curriculum reconciliation job safely
-        reconcileCurriculum(finalExamId, examName).catch((err) => {
-          console.error('[Onboarding] Background curriculum reconciliation error:', err)
-        })
       }
 
       // 4. Update Study Preferences
@@ -246,6 +201,7 @@ export async function POST(req: NextRequest) {
       success: true,
       message: 'Onboarding preferences saved and AI study plan job enqueued',
       userId: targetUserId,
+      examId: finalExamId,
     })
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Onboarding failed' }, { status: 500 })

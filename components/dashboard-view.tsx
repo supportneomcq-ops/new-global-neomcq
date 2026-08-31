@@ -28,8 +28,8 @@ interface DashboardViewProps {
 }
 
 export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardViewProps) {
-  const [completedHours, setCompletedHours] = useState<number>(1.5);
-  const [streakDays, setStreakDays] = useState<number>(5);
+  const [completedHours, setCompletedHours] = useState<number>(0);
+  const [streakDays, setStreakDays] = useState<number>(0);
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('dashboard');
   const [studySubTab, setStudySubTab] = useState<StudySubTab>('notes');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -48,7 +48,7 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
     refreshHierarchy,
   } = useSelection();
 
-  const { refreshTopicContent } = useTopicContent();
+  const { content, refreshTopicContent } = useTopicContent();
 
   const handleLogStudyTime = (hours: number) => {
     setCompletedHours((prev) => Math.min(Math.max(1, user.studyHours), +(prev + hours).toFixed(1)));
@@ -86,6 +86,9 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
           onSelectTab={handleSelectTab}
           isCollapsed={isSidebarCollapsed}
           onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          questionCount={content?.mcqs?.length}
+          quizCount={content?.quiz_a?.length}
+          flashcardCount={content?.flashcards?.length}
         />
 
         {/* Dynamic Main Workspace Content */}
