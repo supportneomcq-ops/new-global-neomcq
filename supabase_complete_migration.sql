@@ -1536,6 +1536,219 @@ ALTER TABLE public.exam_subjects
 ALTER TABLE public.exam_topics 
   ADD CONSTRAINT unique_subject_topic_normalized UNIQUE (subject_id, normalized_name);
 
+-- ---------------------------------------------------------------------
+-- 024 - 029. PRODUCTION HARDENING, AI TUTOR, STICKY NOTES & LEARNING ASSETS
+-- ---------------------------------------------------------------------
+
+-- AI Tutor Lessons with full scene, segment, difficulty_level & metadata support
+CREATE TABLE IF NOT EXISTS public.ai_tutor_lessons (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    exam_id UUID REFERENCES public.exams(id) ON DELETE CASCADE,
+    subject_id UUID REFERENCES public.exam_subjects(id) ON DELETE CASCADE,
+    topic_id UUID REFERENCES public.exam_topics(id) ON DELETE CASCADE,
+    subtopic_id UUID REFERENCES public.exam_subtopics(id) ON DELETE SET NULL,
+    title TEXT NOT NULL,
+    slug TEXT,
+    current_phase TEXT DEFAULT 'Introduction',
+    current_sequence INT DEFAULT 1 NOT NULL,
+    total_duration_seconds INT DEFAULT 360 NOT NULL,
+    scenes_data JSONB DEFAULT '[]'::jsonb NOT NULL,
+    segments JSONB DEFAULT '[]'::jsonb NOT NULL,
+    video_engine_version TEXT DEFAULT '2.0',
+    difficulty_level TEXT DEFAULT 'High-Yield Board Level',
+    target_exam TEXT DEFAULT 'Medical Board Exam',
+    content JSONB DEFAULT '{}'::jsonb NOT NULL,
+    lesson_state TEXT DEFAULT 'NOT_STARTED',
+    status TEXT DEFAULT 'approved',
+    content_version INT DEFAULT 1 NOT NULL,
+    version INT DEFAULT 1 NOT NULL,
+    batch_id TEXT,
+    content_hash TEXT,
+    source_generation_id TEXT,
+    generation_status TEXT DEFAULT 'ready',
+    is_published BOOLEAN DEFAULT true NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+-- Ensure all columns exist on ai_tutor_lessons
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_tutor_lessons' AND column_name = 'difficulty_level') THEN
+        ALTER TABLE public.ai_tutor_lessons ADD COLUMN difficulty_level TEXT DEFAULT 'High-Yield Board Level';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_tutor_lessons' AND column_name = 'scenes_data') THEN
+        ALTER TABLE public.ai_tutor_lessons ADD COLUMN scenes_data JSONB DEFAULT '[]'::jsonb NOT NULL;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_tutor_lessons' AND column_name = 'segments') THEN
+        ALTER TABLE public.ai_tutor_lessons ADD COLUMN segments JSONB DEFAULT '[]'::jsonb NOT NULL;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_tutor_lessons' AND column_name = 'video_engine_version') THEN
+        ALTER TABLE public.ai_tutor_lessons ADD COLUMN video_engine_version TEXT DEFAULT '2.0';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_tutor_lessons' AND column_name = 'target_exam') THEN
+        ALTER TABLE public.ai_tutor_lessons ADD COLUMN target_exam TEXT DEFAULT 'Medical Board Exam';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_tutor_lessons' AND column_name = 'current_phase') THEN
+        ALTER TABLE public.ai_tutor_lessons ADD COLUMN current_phase TEXT DEFAULT 'Introduction';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_tutor_lessons' AND column_name = 'current_sequence') THEN
+        ALTER TABLE public.ai_tutor_lessons ADD COLUMN current_sequence INT DEFAULT 1 NOT NULL;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_tutor_lessons' AND column_name = 'total_duration_seconds') THEN
+        ALTER TABLE public.ai_tutor_lessons ADD COLUMN total_duration_seconds INT DEFAULT 360 NOT NULL;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_tutor_lessons' AND column_name = 'content') THEN
+        ALTER TABLE public.ai_tutor_lessons ADD COLUMN content JSONB DEFAULT '{}'::jsonb NOT NULL;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_tutor_lessons' AND column_name = 'lesson_state') THEN
+        ALTER TABLE public.ai_tutor_lessons ADD COLUMN lesson_state TEXT DEFAULT 'NOT_STARTED';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_tutor_lessons' AND column_name = 'status') THEN
+        ALTER TABLE public.ai_tutor_lessons ADD COLUMN status TEXT DEFAULT 'approved';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_tutor_lessons' AND column_name = 'content_version') THEN
+        ALTER TABLE public.ai_tutor_lessons ADD COLUMN content_version INT DEFAULT 1 NOT NULL;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_tutor_lessons' AND column_name = 'version') THEN
+        ALTER TABLE public.ai_tutor_lessons ADD COLUMN version INT DEFAULT 1 NOT NULL;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_tutor_lessons' AND column_name = 'subtopic_id') THEN
+        ALTER TABLE public.ai_tutor_lessons ADD COLUMN subtopic_id UUID REFERENCES public.exam_subtopics(id) ON DELETE SET NULL;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_tutor_lessons' AND column_name = 'batch_id') THEN
+        ALTER TABLE public.ai_tutor_lessons ADD COLUMN batch_id TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_tutor_lessons' AND column_name = 'content_hash') THEN
+        ALTER TABLE public.ai_tutor_lessons ADD COLUMN content_hash TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_tutor_lessons' AND column_name = 'source_generation_id') THEN
+        ALTER TABLE public.ai_tutor_lessons ADD COLUMN source_generation_id TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_tutor_lessons' AND column_name = 'generation_status') THEN
+        ALTER TABLE public.ai_tutor_lessons ADD COLUMN generation_status TEXT DEFAULT 'ready';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_tutor_lessons' AND column_name = 'is_published') THEN
+        ALTER TABLE public.ai_tutor_lessons ADD COLUMN is_published BOOLEAN DEFAULT true NOT NULL;
+    END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS public.ai_tutor_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    lesson_id UUID REFERENCES public.ai_tutor_lessons(id) ON DELETE CASCADE NOT NULL,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    sender TEXT NOT NULL CHECK (sender IN ('user', 'tutor', 'system')),
+    message TEXT NOT NULL,
+    scene_index INT DEFAULT 0,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.ai_tutor_faqs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    lesson_id UUID REFERENCES public.ai_tutor_lessons(id) ON DELETE CASCADE,
+    topic_id UUID REFERENCES public.exam_topics(id) ON DELETE CASCADE,
+    question TEXT NOT NULL,
+    answer TEXT NOT NULL,
+    timestamp_seconds INT DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.ai_tutor_tts_cache (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    lesson_id UUID REFERENCES public.ai_tutor_lessons(id) ON DELETE CASCADE,
+    scene_id TEXT NOT NULL,
+    text_hash TEXT NOT NULL,
+    audio_url TEXT NOT NULL,
+    provider TEXT DEFAULT 'google',
+    voice_id TEXT DEFAULT 'en-US-Journey-F',
+    duration_seconds NUMERIC(6,2),
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    UNIQUE(scene_id, text_hash)
+);
+
+-- Ensure all columns on user_sticky_notes
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_sticky_notes' AND column_name = 'exam_id') THEN
+        ALTER TABLE public.user_sticky_notes ADD COLUMN exam_id UUID REFERENCES public.exams(id) ON DELETE CASCADE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_sticky_notes' AND column_name = 'subject_id') THEN
+        ALTER TABLE public.user_sticky_notes ADD COLUMN subject_id UUID REFERENCES public.exam_subjects(id) ON DELETE CASCADE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_sticky_notes' AND column_name = 'subtopic_id') THEN
+        ALTER TABLE public.user_sticky_notes ADD COLUMN subtopic_id UUID REFERENCES public.exam_subtopics(id) ON DELETE SET NULL;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_sticky_notes' AND column_name = 'title') THEN
+        ALTER TABLE public.user_sticky_notes ADD COLUMN title TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_sticky_notes' AND column_name = 'category') THEN
+        ALTER TABLE public.user_sticky_notes ADD COLUMN category TEXT DEFAULT 'high_yield' NOT NULL;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_sticky_notes' AND column_name = 'rotation_deg') THEN
+        ALTER TABLE public.user_sticky_notes ADD COLUMN rotation_deg REAL DEFAULT 0 NOT NULL;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_sticky_notes' AND column_name = 'is_ai_generated') THEN
+        ALTER TABLE public.user_sticky_notes ADD COLUMN is_ai_generated BOOLEAN DEFAULT FALSE NOT NULL;
+    END IF;
+END $$;
+
+-- Active Recall System Tables
+CREATE TABLE IF NOT EXISTS public.active_recall_attempts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+    exam_id UUID REFERENCES public.exams(id) ON DELETE CASCADE,
+    subject_id UUID REFERENCES public.exam_subjects(id) ON DELETE CASCADE,
+    topic_id UUID REFERENCES public.exam_topics(id) ON DELETE CASCADE NOT NULL,
+    subtopic_id UUID REFERENCES public.exam_subtopics(id) ON DELETE SET NULL,
+    recall_item_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    user_answer TEXT NOT NULL,
+    correct_answer TEXT NOT NULL,
+    is_correct BOOLEAN NOT NULL DEFAULT false,
+    is_revealed BOOLEAN NOT NULL DEFAULT false,
+    response_time_ms INTEGER DEFAULT 0,
+    review_due_at TIMESTAMPTZ,
+    attempted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.active_recall_sessions (
+    id TEXT PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+    exam_id UUID REFERENCES public.exams(id) ON DELETE CASCADE,
+    subject_id UUID REFERENCES public.exam_subjects(id) ON DELETE CASCADE,
+    topic_id UUID REFERENCES public.exam_topics(id) ON DELETE CASCADE NOT NULL,
+    subtopic_id UUID REFERENCES public.exam_subtopics(id) ON DELETE SET NULL,
+    version_id UUID REFERENCES public.content_versions(id) ON DELETE SET NULL,
+    total_items INTEGER NOT NULL DEFAULT 0,
+    correct_count INTEGER NOT NULL DEFAULT 0,
+    revealed_count INTEGER NOT NULL DEFAULT 0,
+    reviewed_count INTEGER NOT NULL DEFAULT 0,
+    accuracy NUMERIC(5,2) DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'in_progress',
+    started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- RLS enablement
+ALTER TABLE public.ai_tutor_lessons ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_tutor_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_tutor_faqs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_tutor_tts_cache ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.active_recall_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.active_recall_sessions ENABLE ROW LEVEL SECURITY;
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_ai_tutor_lessons_hierarchy ON public.ai_tutor_lessons(exam_id, subject_id, topic_id, subtopic_id);
+CREATE INDEX IF NOT EXISTS idx_ai_tutor_lessons_user_topic ON public.ai_tutor_lessons(user_id, topic_id);
+CREATE INDEX IF NOT EXISTS idx_user_sticky_notes_scoping ON public.user_sticky_notes(user_id, topic_id, subtopic_id);
+CREATE INDEX IF NOT EXISTS idx_user_sticky_notes_hierarchy ON public.user_sticky_notes(user_id, exam_id, subject_id, topic_id);
+
+
 
 
 

@@ -2,8 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Check, Sparkles, HelpCircle, Mail, Shield, BookOpen, Globe2, Cpu, ArrowRight, Database, Loader2, Award, Zap, HeartHandshake, Lock, Eye, EyeOff } from 'lucide-react';
+import { X, Check, Sparkles, HelpCircle, Mail, Shield, BookOpen, Globe2, Cpu, ArrowRight, Database, Loader2, Award, Zap, HeartHandshake, Lock, Eye, EyeOff, Crown, CreditCard, RefreshCw } from 'lucide-react';
 import { loginAction } from '@/app/actions/auth';
+import { AUTHORITATIVE_PLANS, PlanCode } from '@/lib/plans/plan-config';
+import { usePlanCheckout } from '@/lib/checkout/use-plan-checkout';
+import Link from 'next/link';
 
 export type ModalType = 'pricing' | 'features' | 'faq' | 'contact' | 'signin' | 'start' | 'exams' | 'why' | 'about' | null;
 
@@ -38,6 +41,9 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
 
   // Supabase Status
   const [dbStatus, setDbStatus] = useState<string>('Connecting...');
+
+  // Plan Checkout Hook
+  const { checkoutPlan, isProcessing: isCheckoutProcessing, activePlanCode, statusMessage: checkoutStatus, errorMessage: checkoutError } = usePlanCheckout();
 
   useEffect(() => {
     fetch('/api/supabase-status')
@@ -185,58 +191,118 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
             <div className="space-y-6">
               <div className="text-center space-y-2">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-[#6D5BFF]/10 text-[#6D5BFF] border border-[#6D5BFF]/20">
-                  <Sparkles className="w-3.5 h-3.5" /> Flexible AI Plans
+                  <Sparkles className="w-3.5 h-3.5" /> Canonical Paid Plans
                 </div>
                 <h2 className="text-2xl sm:text-3xl font-heading font-bold">Simple, Transparent Pricing</h2>
                 <p className="text-sm text-gray-600 dark:text-[#A6ADC8]">
-                  Zero hidden fees. Unlimited AI practice questions tailored for any global exam.
+                  From adaptive clinical practice to truly unlimited multi-exam mastery.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-                <div className="p-6 rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/40 flex flex-col justify-between">
+              {checkoutError && (
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 text-xs font-medium text-center">
+                  {checkoutError}
+                </div>
+              )}
+
+              {isCheckoutProcessing && checkoutStatus && (
+                <div className="p-3 rounded-xl bg-[#6D5BFF]/10 border border-[#6D5BFF]/30 text-[#6D5BFF] text-xs font-medium text-center flex items-center justify-center gap-2 animate-pulse">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  {checkoutStatus}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                {/* 1. Pro Plan */}
+                <div className="p-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/40 flex flex-col justify-between">
                   <div>
-                    <h3 className="font-heading text-lg font-bold">Free Forever</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Perfect for trying out NeoMCQ AI</p>
-                    <div className="mt-4 text-3xl font-heading font-extrabold">$0 <span className="text-sm font-normal text-gray-500">/ mo</span></div>
-                    <ul className="mt-6 space-y-3 text-sm text-gray-600 dark:text-gray-300">
-                      <li className="flex items-center gap-2.5"><Check className="w-4 h-4 text-[#00D4FF]" /> 50 AI-generated questions / day</li>
-                      <li className="flex items-center gap-2.5"><Check className="w-4 h-4 text-[#00D4FF]" /> Standard explanations</li>
-                      <li className="flex items-center gap-2.5"><Check className="w-4 h-4 text-[#00D4FF]" /> Access to 180+ country exams</li>
+                    <h3 className="font-heading text-base font-bold text-slate-900 dark:text-white">Pro</h3>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Essential clinical practice</p>
+                    <div className="mt-3 text-2xl font-heading font-extrabold text-slate-900 dark:text-white">
+                      $9.99 <span className="text-xs font-normal text-gray-500">/ mo</span>
+                    </div>
+                    <ul className="mt-4 space-y-2 text-xs text-gray-600 dark:text-gray-300">
+                      <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> 180+ Country Syllabus & Blueprints</li>
+                      <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> Adaptive MCQ Practice & Notes</li>
+                      <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> $2.00 USD Exam Switch Fee</li>
                     </ul>
                   </div>
                   <button
-                    onClick={onClose}
-                    className="mt-8 w-full py-2.5 px-4 rounded-xl border border-gray-300 dark:border-gray-700 text-sm font-semibold hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    onClick={() => checkoutPlan('PRO')}
+                    disabled={isCheckoutProcessing}
+                    className="mt-6 w-full py-2 px-3 rounded-xl border-2 border-[#6D5BFF] text-[#6D5BFF] hover:bg-[#6D5BFF] hover:text-white dark:border-[#8E7CFF] dark:text-[#8E7CFF] text-xs font-bold transition-colors cursor-pointer text-center"
                   >
-                    Current Plan
+                    {isCheckoutProcessing && activePlanCode === 'PRO' ? 'Processing...' : 'Get Pro ($9.99/mo)'}
                   </button>
                 </div>
 
-                <div className="relative p-6 rounded-2xl border-2 border-[#6D5BFF] bg-gradient-to-b from-[#6D5BFF]/10 to-transparent flex flex-col justify-between shadow-lg">
-                  <div className="absolute -top-3 right-4 px-3 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-[#6D5BFF] text-white">
+                {/* 2. Max Plan */}
+                <div className="relative p-5 rounded-2xl border-2 border-[#6D5BFF] bg-[#6D5BFF]/5 flex flex-col justify-between shadow-md">
+                  <div className="absolute -top-2.5 right-4 px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-widest bg-[#6D5BFF] text-white">
                     Most Popular
                   </div>
                   <div>
-                    <h3 className="font-heading text-lg font-bold flex items-center gap-2">
-                      Pro AI Master <Sparkles className="w-4 h-4 text-[#00D4FF]" />
+                    <h3 className="font-heading text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      Max <Zap className="w-3.5 h-3.5 text-[#6D5BFF]" />
                     </h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Unlimited power for exam success</p>
-                    <div className="mt-4 text-3xl font-heading font-extrabold">$12 <span className="text-sm font-normal text-gray-500">/ mo</span></div>
-                    <ul className="mt-6 space-y-3 text-sm text-gray-600 dark:text-gray-200">
-                      <li className="flex items-center gap-2.5"><Check className="w-4 h-4 text-[#6D5BFF]" /> <strong>Unlimited</strong> AI Questions & Mock Tests</li>
-                      <li className="flex items-center gap-2.5"><Check className="w-4 h-4 text-[#6D5BFF]" /> Deep Neural Explanations & Step Analysis</li>
-                      <li className="flex items-center gap-2.5"><Check className="w-4 h-4 text-[#6D5BFF]" /> Personal Knowledge Weakness Radar</li>
-                      <li className="flex items-center gap-2.5"><Check className="w-4 h-4 text-[#6D5BFF]" /> Custom Exam Simulation Mode</li>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Clinical reasoning & TTS</p>
+                    <div className="mt-3 text-2xl font-heading font-extrabold text-slate-900 dark:text-white">
+                      $19.99 <span className="text-xs font-normal text-gray-500">/ mo</span>
+                    </div>
+                    <ul className="mt-4 space-y-2 text-xs text-gray-600 dark:text-gray-200">
+                      <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-[#6D5BFF] shrink-0" /> Everything in Pro included</li>
+                      <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-[#6D5BFF] shrink-0" /> Interactive AI Tutor Whiteboard</li>
+                      <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-[#6D5BFF] shrink-0" /> High-Speed Neural Audio TTS</li>
+                      <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-[#6D5BFF] shrink-0" /> $2.00 USD Exam Switch Fee</li>
                     </ul>
                   </div>
                   <button
-                    onClick={onClose}
-                    className="mt-8 w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#6D5BFF] to-[#A855F7] text-white text-sm font-semibold shadow-md hover:opacity-95 transition-opacity"
+                    onClick={() => checkoutPlan('MAX')}
+                    disabled={isCheckoutProcessing}
+                    className="mt-6 w-full py-2 px-3 rounded-xl bg-gradient-to-r from-[#6D5BFF] to-[#8E7CFF] text-white text-xs font-bold shadow-md hover:opacity-95 transition-opacity cursor-pointer text-center"
                   >
-                    Upgrade to Pro AI
+                    {isCheckoutProcessing && activePlanCode === 'MAX' ? 'Processing...' : 'Get Max ($19.99/mo)'}
                   </button>
                 </div>
+
+                {/* 3. Elite Plan */}
+                <div className="relative p-5 rounded-2xl border-2 border-amber-500/70 bg-amber-500/5 flex flex-col justify-between shadow-md">
+                  <div className="absolute -top-2.5 right-4 px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-widest bg-amber-500 text-white flex items-center gap-1">
+                    <Crown className="w-2.5 h-2.5 fill-white" /> 1-Year Unlimited
+                  </div>
+                  <div>
+                    <h3 className="font-heading text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      Elite <Crown className="w-3.5 h-3.5 text-amber-500" />
+                    </h3>
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold mt-0.5">Zero Exam Switch Fees</p>
+                    <div className="mt-3 text-2xl font-heading font-extrabold text-slate-900 dark:text-white">
+                      $499 <span className="text-xs font-normal text-gray-500">/ 1 yr</span>
+                    </div>
+                    <ul className="mt-4 space-y-2 text-xs text-gray-600 dark:text-gray-300">
+                      <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-amber-500 shrink-0 font-bold" /> <strong>FREE Unlimited Exam Switching</strong></li>
+                      <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-amber-500 shrink-0 font-bold" /> Truly Unlimited AI Practice</li>
+                      <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-amber-500 shrink-0" /> Zero Artificial Credit Caps</li>
+                      <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-amber-500 shrink-0" /> VIP 24/7 Dedicated Compute</li>
+                    </ul>
+                  </div>
+                  <button
+                    onClick={() => checkoutPlan('ELITE')}
+                    disabled={isCheckoutProcessing}
+                    className="mt-6 w-full py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-white text-xs font-bold shadow-md hover:opacity-95 transition-opacity cursor-pointer text-center"
+                  >
+                    {isCheckoutProcessing && activePlanCode === 'ELITE' ? 'Processing...' : 'Get Elite ($499/yr)'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-2 text-center">
+                <Link
+                  href="/pricing"
+                  onClick={onClose}
+                  className="text-xs font-bold text-[#6D5BFF] dark:text-[#8E7CFF] hover:underline"
+                >
+                  View full plan comparison table & FAQ →
+                </Link>
               </div>
             </div>
           )}

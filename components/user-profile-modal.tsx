@@ -16,8 +16,14 @@ import {
   Building,
   Mail,
   Phone,
-  Lock
+  Lock,
+  CreditCard,
+  Crown,
+  Sparkles,
+  ArrowRight,
+  Zap,
 } from 'lucide-react';
+import Link from 'next/link';
 import { getSupabaseClient } from '@/lib/supabase';
 import { GLOBAL_COUNTRIES } from '@/lib/data/countries';
 
@@ -36,7 +42,7 @@ interface UserProfileModalProps {
 }
 
 export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile }: UserProfileModalProps) {
-  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'devices' | 'danger'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'billing' | 'devices' | 'danger'>('profile');
 
   // Form State
   const [firstName, setFirstName] = useState(user.firstName || '');
@@ -213,9 +219,10 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile }: Use
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex items-center gap-2 px-6 py-2 border-b border-slate-200 dark:border-gray-800 bg-slate-100/50 dark:bg-gray-900/30 text-xs font-bold">
+          <div className="flex items-center gap-2 px-6 py-2 border-b border-slate-200 dark:border-gray-800 bg-slate-100/50 dark:bg-gray-900/30 text-xs font-bold overflow-x-auto">
             {[
               { id: 'profile', label: 'Profile Details', icon: User },
+              { id: 'billing', label: 'Plan & Billing', icon: CreditCard },
               { id: 'security', label: 'Password & Auth', icon: Key },
               { id: 'devices', label: 'Active Sessions', icon: Smartphone },
               { id: 'danger', label: 'Danger Zone', icon: ShieldAlert },
@@ -226,7 +233,7 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile }: Use
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all cursor-pointer ${
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all cursor-pointer shrink-0 ${
                     isActive
                       ? 'bg-[#6D5BFF] text-white shadow'
                       : 'text-slate-600 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-gray-800'
@@ -337,6 +344,76 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile }: Use
                   </button>
                 </div>
               </form>
+            )}
+
+            {/* TAB: PLAN & BILLING */}
+            {activeTab === 'billing' && (
+              <div className="space-y-4 text-xs font-semibold">
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-[#6D5BFF]/10 via-[#00D4FF]/5 to-transparent border border-[#6D5BFF]/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-xl bg-[#6D5BFF]/20 text-[#6D5BFF] flex items-center justify-center">
+                        <CreditCard className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="font-heading font-extrabold text-sm text-slate-900 dark:text-white">
+                          Canonical Paid Plans
+                        </h4>
+                        <p className="text-[11px] text-slate-500 dark:text-gray-400">
+                          Pro ($9.99/mo), Max ($19.99/mo), Elite ($499/yr)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-slate-600 dark:text-gray-300 font-normal leading-relaxed">
+                    Manage your active subscription, download invoices, review billing history, or upgrade to Elite for truly unlimited access with zero exam switch fees.
+                  </p>
+
+                  <div className="flex flex-wrap gap-2.5 pt-1">
+                    <Link
+                      href="/billing"
+                      onClick={onClose}
+                      className="px-4 py-2 rounded-xl bg-[#6D5BFF] text-white text-xs font-bold hover:opacity-90 transition-opacity flex items-center gap-1.5 cursor-pointer shadow-md"
+                    >
+                      <CreditCard className="w-3.5 h-3.5" />
+                      <span>Open Billing Portal</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+
+                    <Link
+                      href="/pricing"
+                      onClick={onClose}
+                      className="px-4 py-2 rounded-xl border border-slate-300 dark:border-gray-700 hover:bg-slate-100 dark:hover:bg-gray-800 text-slate-800 dark:text-white text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-[#6D5BFF]" />
+                      <span>View Pricing Plans</span>
+                    </Link>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-gray-900/60 border border-slate-200 dark:border-gray-800 space-y-1">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase">PRO PLAN</div>
+                    <div className="text-base font-heading font-black text-slate-900 dark:text-white">$9.99 <span className="text-[10px] font-normal text-slate-500">/mo</span></div>
+                    <div className="text-[10px] text-slate-500 dark:text-gray-400">Essential clinical practice ($2 exam switch)</div>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-[#6D5BFF]/5 border border-[#6D5BFF]/30 space-y-1">
+                    <div className="text-[10px] font-bold text-[#6D5BFF] uppercase">MAX PLAN</div>
+                    <div className="text-base font-heading font-black text-slate-900 dark:text-white">$19.99 <span className="text-[10px] font-normal text-slate-500">/mo</span></div>
+                    <div className="text-[10px] text-slate-500 dark:text-gray-400">AI Tutor Whiteboard & TTS ($2 exam switch)</div>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-1">
+                    <div className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase flex items-center gap-1">
+                      <Crown className="w-3 h-3" /> ELITE PLAN
+                    </div>
+                    <div className="text-base font-heading font-black text-slate-900 dark:text-white">$499 <span className="text-[10px] font-normal text-slate-500">/yr</span></div>
+                    <div className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">FREE unlimited exam switching</div>
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* TAB 2: CHANGE PASSWORD */}

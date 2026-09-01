@@ -1,93 +1,216 @@
-import { NextRequest, NextResponse } from 'next/server'
-import crypto from 'crypto'
-import { createClient } from '@/lib/supabase/server'
+import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
+import { getSupabaseAdmin } from '@/lib/supabase';
+import { getPlanByCode, PlanCode } from '@/lib/plans/plan-config';
 
 export async function POST(req: NextRequest) {
   try {
-    const rawBody = await req.text()
-    const signature = req.headers.get('x-razorpay-signature')
-    const secret = process.env.RAZORPAY_WEBHOOK_SECRET || 'demo_webhook_secret'
+    const rawBody = await req.text();
+    const signature = req.headers.get('x-razorpay-signature');
+    const secret = process.env.RAZORPAY_WEBHOOK_SECRET || '';
 
     if (!signature) {
       return NextResponse.json(
         { error: 'Missing x-razorpay-signature header' },
         { status: 400 }
-      )
+      );
     }
 
-    // Verify webhook HMAC SHA256 signature
-    const expectedSignature = crypto
-      .createHmac('sha256', secret)
-      .update(rawBody)
-      .digest('hex')
+    // Verify webhook HMAC SHA256 signature if secret is set
+    if (secret) {
+      const expectedSignature = crypto
+        .createHmac('sha256', secret)
+        .update(rawBody)
+        .digest('hex');
 
-    // Timing safe comparison in production
-    const isSignatureValid = crypto.timingSafeEqual(
-      Buffer.from(signature),
-      Buffer.from(expectedSignature)
-    )
+      const isSignatureValid = crypto.timingSafeEqual(
+        Buffer.from(signature),
+        Buffer.from(expectedSignature)
+      );
 
-    if (!isSignatureValid && process.env.NODE_ENV === 'production') {
-      return NextResponse.json(
-        { error: 'Invalid webhook signature' },
-        { status: 401 }
-      )
-    }
-
-    const event = JSON.parse(rawBody)
-    const eventType = event.event
-    const payload = event.payload
-
-    const supabase = await createClient()
-
-    // 1. Idempotency Check using razorpay payment id or event id
-    const paymentEntity = payload?.payment?.entity
-    const paymentId = paymentEntity?.id || event.id
-
-    if (paymentId) {
-      const { data: existingPayment } = await (supabase as any)
-        .from('payments')
-        .select('id, status')
-        .eq('razorpay_payment_id', paymentId)
-        .single()
-
-      if (existingPayment && (existingPayment as any).status === 'captured') {
-        // Already processed - idempotent early return
-        return NextResponse.json({
-          status: 'success',
-          message: 'Event already processed (idempotent duplicate skipped)',
-        })
+      if (!isSignatureValid && process.env.NODE_ENV === 'production') {
+        return NextResponse.json(
+          { error: 'Invalid webhook signature' },
+          { status: 401 }
+        );
       }
     }
 
-    const userId = paymentEntity?.notes?.user_id || payload?.subscription?.entity?.notes?.user_id
-    const planId = paymentEntity?.notes?.plan_id || payload?.subscription?.entity?.notes?.plan_id
-    const creditPackId = paymentEntity?.notes?.credit_pack_id
-    const isExamSwitch = paymentEntity?.notes?.type === 'exam_switch' || !!paymentEntity?.notes?.to_exam_id
-    const toExamId = paymentEntity?.notes?.to_exam_id
-    const fromExamId = paymentEntity?.notes?.from_exam_id
+    const event = JSON.parse(rawBody);
+    const eventId = event.id || `evt_${Date.now()}`;
+    const eventType = event.event;
+    const payload = event.payload;
 
-    // Handle key Razorpay events
-    if (eventType === 'payment.captured' || eventType === 'order.paid') {
-      const amount = (paymentEntity?.amount || 0) / 100 // Convert cents/paise
-      const currency = paymentEntity?.currency || 'USD'
+    const admin = getSupabaseAdmin();
+
+    // 1. STRICT IDEMPOTENCY CHECK via webhook_events table
+    const { data: existingEvent } = await admin
+      .from('webhook_events')
+      .select('id, status')
+      .eq('event_id', eventId)
+      .maybeSingle();
+
+    if (existingEvent && existingEvent.status === 'processed') {
+      return NextResponse.json({
+        status: 'success',
+        message: 'Event already processed (idempotent duplicate skipped)',
+      });
+    }
+
+    // Record receipt of webhook event
+    await admin.from('webhook_events').upsert(
+      {
+        event_id: eventId,
+        event_type: eventType,
+        entity_id: payload?.payment?.entity?.id || payload?.subscription?.entity?.id || null,
+        status: 'processing',
+        payload: event,
+        received_at: new Date().toISOString(),
+      },
+      { onConflict: 'event_id' }
+    );
+
+    const paymentEntity = payload?.payment?.entity;
+    const subscriptionEntity = payload?.subscription?.entity;
+    const paymentId = paymentEntity?.id;
+    const subscriptionId = subscriptionEntity?.id || paymentEntity?.subscription_id;
+
+    const userId =
+      paymentEntity?.notes?.user_id ||
+      subscriptionEntity?.notes?.user_id ||
+      payload?.order?.entity?.notes?.user_id;
+
+    const rawPlanCode =
+      paymentEntity?.notes?.plan_code ||
+      subscriptionEntity?.notes?.plan_code ||
+      payload?.order?.entity?.notes?.plan_code;
+
+    const planCode = rawPlanCode ? (rawPlanCode.toUpperCase() as PlanCode) : null;
+    const plan = getPlanByCode(planCode);
+
+    const isExamSwitch =
+      paymentEntity?.notes?.type === 'exam_switch' ||
+      !!paymentEntity?.notes?.to_exam_id;
+    const toExamId = paymentEntity?.notes?.to_exam_id;
+    const fromExamId = paymentEntity?.notes?.from_exam_id;
+
+    // =========================================================================
+    // 2. EVENT ROUTING & PROCESSING
+    // =========================================================================
+
+    if (eventType === 'subscription.activated' || eventType === 'subscription.authenticated') {
+      if (userId && plan) {
+        const startDate = new Date();
+        const endDate = new Date(startDate);
+        if (plan.annual) {
+          endDate.setFullYear(endDate.getFullYear() + 1);
+        } else {
+          endDate.setMonth(endDate.getMonth() + 1);
+        }
+
+        await admin.from('subscriptions').upsert(
+          {
+            user_id: userId,
+            plan_code: plan.code,
+            status: 'active',
+            razorpay_subscription_id: subscriptionId,
+            razorpay_customer_id: subscriptionEntity?.customer_id || null,
+            razorpay_plan_id: subscriptionEntity?.plan_id || null,
+            currency: 'USD',
+            amount: plan.price_usd,
+            started_at: startDate.toISOString(),
+            current_period_start: startDate.toISOString(),
+            current_period_end: endDate.toISOString(),
+            cancel_at_period_end: false,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id' }
+        );
+
+        if (plan.code === 'ELITE') {
+          await admin.from('profiles').update({ exam_locked: false }).eq('id', userId);
+        }
+      }
+    } else if (eventType === 'subscription.charged') {
+      if (userId && plan) {
+        const periodEndTimestamp = subscriptionEntity?.current_end
+          ? new Date(subscriptionEntity.current_end * 1000).toISOString()
+          : new Date(Date.now() + plan.duration_days * 24 * 60 * 60 * 1000).toISOString();
+
+        await admin.from('subscriptions').upsert(
+          {
+            user_id: userId,
+            plan_code: plan.code,
+            status: 'active',
+            razorpay_subscription_id: subscriptionId,
+            current_period_end: periodEndTimestamp,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id' }
+        );
+
+        if (paymentId) {
+          await admin.from('payments').upsert(
+            {
+              user_id: userId,
+              razorpay_payment_id: paymentId,
+              razorpay_order_id: paymentEntity?.order_id || null,
+              amount: plan.price_usd,
+              currency: 'USD',
+              status: 'captured',
+              webhook_payload: event,
+            },
+            { onConflict: 'razorpay_payment_id' }
+          );
+        }
+      }
+    } else if (eventType === 'subscription.cancelled') {
+      if (userId) {
+        await admin
+          .from('subscriptions')
+          .update({
+            status: 'cancelled',
+            cancel_at_period_end: true,
+            cancelled_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('user_id', userId);
+      }
+    } else if (eventType === 'subscription.paused' || eventType === 'subscription.halted') {
+      if (userId) {
+        await admin
+          .from('subscriptions')
+          .update({
+            status: eventType === 'subscription.paused' ? 'paused' : 'halted',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('user_id', userId);
+      }
+    } else if (eventType === 'payment.captured' || eventType === 'order.paid') {
+      const amount = (paymentEntity?.amount || 0) / 100;
+      const currency = paymentEntity?.currency || 'USD';
 
       if (userId) {
-        // Record or update payment
-        await (supabase as any).from('payments').upsert({
-          user_id: userId,
-          razorpay_payment_id: paymentId,
-          razorpay_order_id: paymentEntity?.order_id || null,
-          amount,
-          currency,
-          status: 'captured',
-          webhook_payload: event,
-        })
+        // Record payment
+        if (paymentId) {
+          await admin.from('payments').upsert(
+            {
+              user_id: userId,
+              razorpay_payment_id: paymentId,
+              razorpay_order_id: paymentEntity?.order_id || null,
+              amount,
+              currency,
+              status: 'captured',
+              webhook_payload: event,
+            },
+            { onConflict: 'razorpay_payment_id' }
+          );
+        }
 
-        // ATOMIC EXAM SWITCH PROCESSING
+        // Exam Switch handling
         if (isExamSwitch && toExamId) {
           try {
-            await (supabase as any).rpc('execute_exam_switch_atomic', {
+            await admin.rpc('execute_exam_switch_atomic', {
               p_user_id: userId,
               p_switch_request_id: null,
               p_razorpay_payment_id: paymentId,
@@ -97,8 +220,7 @@ export async function POST(req: NextRequest) {
               p_currency: currency,
             });
 
-            // Fallback updates in case RPC not loaded
-            await (supabase as any)
+            await admin
               .from('profiles')
               .update({
                 current_exam_id: toExamId,
@@ -108,16 +230,17 @@ export async function POST(req: NextRequest) {
               })
               .eq('id', userId);
 
-            await (supabase as any)
-              .from('user_exams')
-              .upsert({
+            await admin.from('user_exams').upsert(
+              {
                 user_id: userId,
                 exam_id: toExamId,
                 status: 'in_progress',
-              }, { onConflict: 'user_id,exam_id' });
+              },
+              { onConflict: 'user_id,exam_id' }
+            );
 
             if (fromExamId) {
-              await (supabase as any).from('exam_switch_history').insert({
+              await admin.from('exam_switch_history').insert({
                 user_id: userId,
                 from_exam_id: fromExamId,
                 to_exam_id: toExamId,
@@ -128,173 +251,81 @@ export async function POST(req: NextRequest) {
               });
             }
           } catch (switchErr) {
-            console.error('Webhook failed to execute atomic exam switch:', switchErr);
+            console.error('Webhook atomic exam switch error:', switchErr);
           }
         }
 
-        // Activate or extend subscription if plan specified
-        if (planId) {
-          const startDate = new Date()
-          const endDate = new Date()
-          endDate.setMonth(endDate.getMonth() + 1) // Default 1 month access
+        // Standard subscription purchase via direct order
+        if (plan && !isExamSwitch) {
+          const startDate = new Date();
+          const endDate = new Date(startDate);
+          if (plan.annual) {
+            endDate.setFullYear(endDate.getFullYear() + 1);
+          } else {
+            endDate.setMonth(endDate.getMonth() + 1);
+          }
 
-          await (supabase as any).from('subscriptions').upsert({
-            user_id: userId,
-            plan_id: planId,
-            razorpay_subscription_id: paymentEntity?.subscription_id || null,
-            status: 'active',
-            current_period_start: startDate.toISOString(),
-            current_period_end: endDate.toISOString(),
-          })
+          await admin.from('subscriptions').upsert(
+            {
+              user_id: userId,
+              plan_code: plan.code,
+              status: 'active',
+              razorpay_payment_id: paymentId,
+              currency: 'USD',
+              amount: plan.price_usd,
+              started_at: startDate.toISOString(),
+              current_period_start: startDate.toISOString(),
+              current_period_end: endDate.toISOString(),
+              cancel_at_period_end: false,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'user_id' }
+          );
 
-          // IDEMPOTENT SUBSCRIPTION CREDIT ALLOCATION
-          const { data: alreadyGrantedSub } = await (supabase as any)
-            .from('credit_ledger')
-            .select('id')
-            .eq('user_id', userId)
-            .eq('reference_type', 'subscription')
-            .eq('reference_id', paymentId)
-            .maybeSingle()
-
-          if (!alreadyGrantedSub) {
-            const { data: planLimits } = await (supabase as any)
-              .from('plan_ai_limits')
-              .select('monthly_credit_grant')
-              .eq('plan_id', planId)
-              .maybeSingle()
-
-            if (planLimits && Number(planLimits.monthly_credit_grant) > 0) {
-              const monthlyCredits = Number(planLimits.monthly_credit_grant)
-              const { data: wallet } = await (supabase as any)
-                .from('credit_accounts')
-                .select('credit_balance, lifetime_credits_granted')
-                .eq('user_id', userId)
-                .maybeSingle()
-
-              if (wallet) {
-                const oldBal = Number(wallet.credit_balance)
-                const newBal = oldBal + monthlyCredits
-                await (supabase as any)
-                  .from('credit_accounts')
-                  .update({
-                    credit_balance: newBal,
-                    lifetime_credits_granted: Number(wallet.lifetime_credits_granted || 0) + monthlyCredits,
-                    updated_at: new Date().toISOString()
-                  })
-                  .eq('user_id', userId)
-
-                await (supabase as any).from('credit_ledger').insert({
-                  user_id: userId,
-                  transaction_type: 'SUBSCRIPTION_GRANT',
-                  credits: monthlyCredits,
-                  balance_before: oldBal,
-                  balance_after: newBal,
-                  reference_type: 'subscription',
-                  reference_id: paymentId,
-                  description: `Monthly subscription AI credits allocation`
-                })
-              }
-            }
+          if (plan.code === 'ELITE') {
+            await admin.from('profiles').update({ exam_locked: false }).eq('id', userId);
           }
         }
-
-        // IDEMPOTENT CREDIT PACK ALLOCATION
-        if (creditPackId) {
-          const { data: alreadyGrantedPack } = await (supabase as any)
-            .from('credit_ledger')
-            .select('id')
-            .eq('user_id', userId)
-            .eq('reference_type', 'credit_pack')
-            .eq('reference_id', paymentId)
-            .maybeSingle()
-
-          if (!alreadyGrantedPack) {
-            const { data: pack } = await (supabase as any)
-              .from('credit_packs')
-              .select('*')
-              .eq('id', creditPackId)
-              .maybeSingle()
-
-            if (pack) {
-              const totalCredits = Number(pack.credits) + Number(pack.bonus_credits || 0)
-              const { data: wallet } = await (supabase as any)
-                .from('credit_accounts')
-                .select('credit_balance, lifetime_credits_purchased')
-                .eq('user_id', userId)
-                .maybeSingle()
-
-              if (wallet) {
-                const oldBal = Number(wallet.credit_balance)
-                const newBal = oldBal + totalCredits
-                await (supabase as any)
-                  .from('credit_accounts')
-                  .update({
-                    credit_balance: newBal,
-                    lifetime_credits_purchased: Number(wallet.lifetime_credits_purchased || 0) + totalCredits,
-                    updated_at: new Date().toISOString()
-                  })
-                  .eq('user_id', userId)
-
-                await (supabase as any).from('credit_ledger').insert({
-                  user_id: userId,
-                  transaction_type: 'PURCHASE',
-                  credits: totalCredits,
-                  balance_before: oldBal,
-                  balance_after: newBal,
-                  reference_type: 'credit_pack',
-                  reference_id: paymentId,
-                  description: `Purchased credit pack: ${pack.name}`
-                })
-              }
-            }
-          }
-        }
-
-        // Notify user
-        await (supabase as any).from('notifications').insert({
-          user_id: userId,
-          title: 'Payment Successful',
-          message: `Your payment of ${currency} ${amount.toFixed(2)} was received successfully. Your subscription is active.`,
-          type: 'success',
-          metadata: { paymentId, eventType },
-        })
-
-        // Audit Log
-        await (supabase as any).rpc('log_audit_event', {
-          p_user_id: userId,
-          p_action: 'PAYMENT_CAPTURED',
-          p_entity_type: 'payments',
-          p_entity_id: paymentId,
-          p_details: { amount, currency, eventType },
-        })
       }
     } else if (eventType === 'payment.failed') {
-      if (userId) {
-        await (supabase as any).from('payments').upsert({
-          user_id: userId,
-          razorpay_payment_id: paymentId,
-          amount: (paymentEntity?.amount || 0) / 100,
-          currency: paymentEntity?.currency || 'INR',
-          status: 'failed',
-          webhook_payload: event,
-        })
+      if (userId && paymentId) {
+        await admin.from('payments').upsert(
+          {
+            user_id: userId,
+            razorpay_payment_id: paymentId,
+            amount: (paymentEntity?.amount || 0) / 100,
+            currency: paymentEntity?.currency || 'USD',
+            status: 'failed',
+            webhook_payload: event,
+          },
+          { onConflict: 'razorpay_payment_id' }
+        );
 
-        await (supabase as any).from('notifications').insert({
+        await admin.from('notifications').insert({
           user_id: userId,
-          title: 'Payment Failed',
-          message: 'Your recent payment attempt failed. Please check your payment details and retry.',
+          title: 'Payment Attempt Failed',
+          message: 'Your recent payment attempt could not be processed. Please verify your card details or try a different payment method.',
           type: 'error',
-          metadata: { paymentId, eventType },
-        })
+          metadata: { paymentId },
+        });
       }
     }
 
-    return NextResponse.json({ success: true, event: eventType })
+    // 3. Mark webhook as processed
+    await admin
+      .from('webhook_events')
+      .update({
+        status: 'processed',
+        processed_at: new Date().toISOString(),
+      })
+      .eq('event_id', eventId);
+
+    return NextResponse.json({ success: true, event: eventType });
   } catch (error: any) {
-    console.error('Razorpay Webhook Error:', error)
+    console.error('Razorpay Webhook Error:', error);
     return NextResponse.json(
       { error: error.message || 'Webhook processing failed' },
       { status: 500 }
-    )
+    );
   }
 }

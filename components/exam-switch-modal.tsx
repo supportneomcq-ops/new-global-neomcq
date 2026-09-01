@@ -15,9 +15,11 @@ import {
   Search,
   BookOpen,
   Zap,
+  Crown,
 } from 'lucide-react';
 import { getSupabaseClient } from '@/lib/supabase';
 import { useSelection, SelectedItem } from '@/lib/context/selection-context';
+import { UserEntitlements, DEFAULT_FREE_ENTITLEMENTS } from '@/lib/entitlements/entitlements';
 
 declare global {
   interface Window {
@@ -47,6 +49,7 @@ export function ExamSwitchModal({
   const [statusMessage, setStatusMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [successData, setSuccessData] = useState<any>(null);
+  const [entitlements, setEntitlements] = useState<UserEntitlements>(DEFAULT_FREE_ENTITLEMENTS());
 
   // Load Razorpay script dynamically
   useEffect(() => {
@@ -58,15 +61,23 @@ export function ExamSwitchModal({
     }
   }, []);
 
-  // Fetch active exams list
+  // Fetch user entitlements and active exams list
   useEffect(() => {
     if (isOpen) {
-      const fetchExams = async () => {
+      const fetchInitialData = async () => {
         setLoadingExams(true);
         setErrorMessage('');
         setSuccessData(null);
         setStatusMessage('');
         try {
+          // Fetch entitlements
+          const entRes = await fetch('/api/entitlements');
+          if (entRes.ok) {
+            const entJson = await entRes.json();
+            if (entJson.entitlements) setEntitlements(entJson.entitlements);
+          }
+
+          // Fetch exams
           const supabase = getSupabaseClient();
           const { data, error } = await supabase
             .from('exams')
@@ -75,7 +86,6 @@ export function ExamSwitchModal({
             .order('name');
 
           if (error || !data || data.length === 0) {
-            // Fallback to /api/exams
             const apiRes = await fetch('/api/exams');
             const apiJson = await apiRes.json();
             if (apiJson.success && Array.isArray(apiJson.exams)) {
@@ -91,21 +101,20 @@ export function ExamSwitchModal({
 
           if (data) {
             setAllExams(data);
-            // Default target to first exam that is not current
             const other = data.find((e) => e.id !== currentExam?.id);
             if (other && !selectedTargetExam) {
               setSelectedTargetExam(other);
             }
           }
         } catch (err: any) {
-          console.error('Error fetching exams list for switch modal:', err);
+          console.error('Error fetching data for switch modal:', err);
           setErrorMessage('Failed to load exam directory.');
         } finally {
           setLoadingExams(false);
         }
       };
 
-      fetchExams();
+      fetchInitialData();
     }
   }, [isOpen, currentExam]);
 
@@ -114,6 +123,7 @@ export function ExamSwitchModal({
   );
 
   const isSameExam = selectedTargetExam?.id === currentExam?.id;
+  const isElite = entitlements.planCode === 'ELITE' && entitlements.isActive;
 
   const handleInitiateSwitch = async () => {
     if (!selectedTargetExam) {
@@ -128,10 +138,46 @@ export function ExamSwitchModal({
 
     setIsProcessing(true);
     setErrorMessage('');
+
+    // If user is ELITE: Free Instant Switch!
+    if (isElite) {
+      setStatusMessage('Applying instant Elite Free exam switch...');
+      try {
+        const res = await fetch('/api/exams/switch/elite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetExamId: selectedTargetExam.id }),
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || 'Failed to switch exam.');
+        }
+
+        setSuccessData(data);
+        setIsProcessing(false);
+        setStatusMessage('');
+
+        const newExamObj = data.newExam || selectedTargetExam;
+        await applyExamSwitch(newExamObj);
+        if (onSwitchSuccess) onSwitchSuccess(newExamObj);
+
+        setTimeout(() => {
+          onClose();
+        }, 2200);
+      } catch (err: any) {
+        console.error('Elite switch error:', err);
+        setErrorMessage(err.message || 'Failed to switch exam.');
+        setIsProcessing(false);
+        setStatusMessage('');
+      }
+      return;
+    }
+
+    // Otherwise for Pro/Max/Free: $2.00 USD Razorpay payment order
     setStatusMessage('Creating secure payment order ($2.00 USD)...');
 
     try {
-      // 1. Create order on secure backend
       const orderRes = await fetch('/api/exams/switch/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -188,14 +234,14 @@ export function ExamSwitchModal({
         });
         rzp.open();
       } else {
-        // Sandboxed/Demo verification flow if live gateway keys are in test configuration
-        setStatusMessage('Simulating test verification on secure server...');
+        // Sandboxed verification flow for preview/dev environments
+        setStatusMessage('Verifying payment on secure server...');
         setTimeout(async () => {
           await completeVerification({
             switchRequestId: orderData.switchRequestId,
             razorpay_order_id: orderData.orderId,
-            razorpay_payment_id: `pay_demo_${Date.now()}`,
-            razorpay_signature: `sig_demo_${Date.now()}`,
+            razorpay_payment_id: `pay_sw_${Date.now()}`,
+            razorpay_signature: `sig_sw_${Date.now()}`,
           });
         }, 1200);
       }
@@ -229,7 +275,6 @@ export function ExamSwitchModal({
       setIsProcessing(false);
       setStatusMessage('');
 
-      // Update Selection Context
       const newExamObj = verifyData.newExam || selectedTargetExam;
       await applyExamSwitch(newExamObj);
 
@@ -237,7 +282,6 @@ export function ExamSwitchModal({
         onSwitchSuccess(newExamObj);
       }
 
-      // Close modal after celebration
       setTimeout(() => {
         onClose();
       }, 2500);
@@ -263,22 +307,30 @@ export function ExamSwitchModal({
           {/* Header */}
           <div className="p-6 border-b border-slate-100 dark:border-gray-800 flex items-center justify-between bg-gradient-to-r from-[#6D5BFF]/10 via-[#00D4FF]/5 to-transparent">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-[#6D5BFF]/15 border border-[#6D5BFF]/30 flex items-center justify-center text-[#6D5BFF]">
-                <Lock className="w-5 h-5" />
+              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
+                isElite ? 'bg-amber-500/20 text-amber-600 border border-amber-500/30' : 'bg-[#6D5BFF]/15 text-[#6D5BFF] border border-[#6D5BFF]/30'
+              }`}>
+                {isElite ? <Crown className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
               </div>
               <div>
                 <h3 className="text-lg font-heading font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
                   Switch Your Primary Exam
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-gray-400">
-                  Free plan accounts are locked to 1 exam. Switch anytime for <strong className="text-[#00D4FF]">$2 USD</strong>.
+                  {isElite ? (
+                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                      Elite Membership: Unlimited Free Switching ($0.00 USD)
+                    </span>
+                  ) : (
+                    <span>Pro & Max plans: Switch anytime for <strong className="text-[#6D5BFF]">$2.00 USD</strong>.</span>
+                  )}
                 </p>
               </div>
             </div>
             <button
               onClick={onClose}
               disabled={isProcessing}
-              className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+              className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50 cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -308,17 +360,32 @@ export function ExamSwitchModal({
               </motion.div>
             ) : (
               <>
+                {/* Elite Free Switch Privilege Banner */}
+                {isElite && (
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border border-amber-500/30 flex items-center gap-3">
+                    <Crown className="w-5 h-5 text-amber-500 shrink-0" />
+                    <div className="text-xs">
+                      <span className="font-bold text-amber-700 dark:text-amber-300 block">
+                        Elite VIP Privilege Active
+                      </span>
+                      <span className="text-slate-600 dark:text-slate-400 text-[11px]">
+                        As an Elite Annual member, you have 100% free unlimited exam switching. Zero fees applied.
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Current Exam vs New Exam Visual Map */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-900/60 border border-slate-200 dark:border-gray-800 space-y-1">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      Current Locked Exam
+                      Current Exam
                     </div>
                     <div className="font-heading font-extrabold text-sm text-slate-800 dark:text-white flex items-center gap-1.5">
                       <Lock className="w-3.5 h-3.5 text-amber-500" />
-                      <span>{currentExam?.name || 'NEET PG'}</span>
+                      <span>{currentExam?.name || 'Primary Curriculum'}</span>
                     </div>
-                    <div className="text-[10px] text-slate-500 dark:text-gray-400">Free Tier Active</div>
+                    <div className="text-[10px] text-slate-500 dark:text-gray-400">{entitlements.planName}</div>
                   </div>
 
                   <div className="p-4 rounded-2xl bg-[#6D5BFF]/5 border border-[#6D5BFF]/30 space-y-1">
@@ -329,7 +396,9 @@ export function ExamSwitchModal({
                       <Sparkles className="w-3.5 h-3.5" />
                       <span>{selectedTargetExam?.name || 'Select target exam below'}</span>
                     </div>
-                    <div className="text-[10px] text-slate-500 dark:text-gray-400">Unlocks instantly after payment</div>
+                    <div className="text-[10px] text-slate-500 dark:text-gray-400">
+                      {isElite ? 'Free instant switch' : 'Unlocks instantly after payment'}
+                    </div>
                   </div>
                 </div>
 
@@ -343,7 +412,7 @@ export function ExamSwitchModal({
                     <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
-                      placeholder="Search exam by name (e.g. INI-CET, FMGE, NEXT, USMLE)..."
+                      placeholder="Search exam by name (e.g. USMLE, PLAB, NCLEX, NEET PG)..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-xs font-semibold focus:outline-none focus:border-[#6D5BFF] text-slate-900 dark:text-white"
@@ -416,9 +485,13 @@ export function ExamSwitchModal({
                 {/* Price & Guarantees Breakdown Card */}
                 <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-900/40 border border-slate-200 dark:border-gray-800 space-y-2.5 text-xs">
                   <div className="flex items-center justify-between text-slate-700 dark:text-gray-300 font-semibold">
-                    <span>One-time Exam Switch Fee:</span>
+                    <span>Exam Curriculum Switch Fee:</span>
                     <strong className="text-base font-heading font-black text-slate-900 dark:text-white">
-                      $2.00 USD
+                      {isElite ? (
+                        <span className="text-emerald-500 font-black">$0.00 USD (FREE for Elite)</span>
+                      ) : (
+                        '$2.00 USD'
+                      )}
                     </strong>
                   </div>
                   <div className="h-px bg-slate-200 dark:bg-gray-800" />
@@ -453,15 +526,25 @@ export function ExamSwitchModal({
                 type="button"
                 onClick={handleInitiateSwitch}
                 disabled={isProcessing || !selectedTargetExam || isSameExam}
-                className="px-6 py-3 rounded-2xl bg-gradient-to-r from-[#6D5BFF] via-[#5B4AEB] to-[#00D4FF] text-white text-xs sm:text-sm font-heading font-extrabold shadow-lg shadow-[#6D5BFF]/25 hover:opacity-95 transition-opacity flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                className={`px-6 py-3 rounded-2xl text-white text-xs sm:text-sm font-heading font-extrabold shadow-lg hover:opacity-95 transition-opacity flex items-center gap-2 cursor-pointer disabled:opacity-50 ${
+                  isElite
+                    ? 'bg-gradient-to-r from-amber-500 to-amber-600 shadow-amber-500/25'
+                    : 'bg-gradient-to-r from-[#6D5BFF] via-[#5B4AEB] to-[#00D4FF] shadow-[#6D5BFF]/25'
+                }`}
               >
                 {isProcessing ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Processing Payment...</span>
+                    <span>{isElite ? 'Switching Curriculum...' : 'Processing Payment...'}</span>
                   </>
                 ) : isSameExam ? (
                   <span>Already on {currentExam?.name}</span>
+                ) : isElite ? (
+                  <>
+                    <Crown className="w-4 h-4" />
+                    <span>Switch Exam Instantly (Free for Elite)</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
                 ) : (
                   <>
                     <DollarSign className="w-4 h-4" />

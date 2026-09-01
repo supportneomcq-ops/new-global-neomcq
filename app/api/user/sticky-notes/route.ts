@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/server';
 
 export async function GET(req: NextRequest) {
   try {
@@ -8,10 +9,19 @@ export async function GET(req: NextRequest) {
     const subtopicId = searchParams.get('subtopicId');
     const examId = searchParams.get('examId');
     const subjectId = searchParams.get('subjectId');
-    const userId = searchParams.get('userId');
+    let userId = searchParams.get('userId');
 
     if (!topicId) {
       return NextResponse.json({ success: true, stickyNotes: [] });
+    }
+
+    // Attempt to resolve authenticated user if not provided in search params
+    if (!userId) {
+      try {
+        const supabaseUserClient = await createClient();
+        const { data: { user } } = await supabaseUserClient.auth.getUser();
+        if (user) userId = user.id;
+      } catch (_) {}
     }
 
     const supabase = getSupabaseAdmin();
@@ -22,7 +32,7 @@ export async function GET(req: NextRequest) {
       .eq('topic_id', topicId);
 
     if (userId) {
-      query = query.eq('user_id', userId);
+      query = query.or(`user_id.eq.${userId},user_id.is.null`);
     }
     if (examId) {
       query = query.or(`exam_id.eq.${examId},exam_id.is.null`);
@@ -74,8 +84,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'topicId and text are required' }, { status: 400 });
     }
 
+    let targetUserId: string | null = userId || null;
+    if (!targetUserId) {
+      try {
+        const supabaseUserClient = await createClient();
+        const { data: { user } } = await supabaseUserClient.auth.getUser();
+        if (user) targetUserId = user.id;
+      } catch (_) {}
+    }
+
     const supabase = getSupabaseAdmin();
-    const targetUserId = userId || '00000000-0000-0000-0000-000000000000';
 
     const insertPayload: any = {
       user_id: targetUserId,
@@ -99,6 +117,17 @@ export async function POST(req: NextRequest) {
       .insert(insertPayload)
       .select('*')
       .single();
+
+    if (error) {
+      console.error('Failed inserting sticky note to Supabase:', error);
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, stickyNote: data });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
 
     if (error) {
       console.error('Failed inserting sticky note to Supabase:', error);

@@ -96,6 +96,9 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.webmanifest" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&family=Gloria+Hallelujah&family=Kalam:wght@400;700&family=Patrick+Hand&display=swap" rel="stylesheet" />
         {/* Schema.org Organization Structured Data */}
         <script
           type="application/ld+json"

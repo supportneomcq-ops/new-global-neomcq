@@ -3,28 +3,17 @@
 import React, { useState } from 'react';
 import {
   BookOpen,
-  Sparkles,
-  Printer,
-  Bookmark,
-  BookmarkCheck,
   RotateCw,
   CheckCircle2,
   XCircle,
   Shuffle,
-  Pin,
-  PinOff,
-  Trash2,
-  Plus,
-  Eye,
-  EyeOff,
-  List,
 } from 'lucide-react';
-import { StudySubTab, FlashcardItem, StickyNoteItem } from './types';
+import { StudySubTab, FlashcardItem } from './types';
 import { useSelection } from '@/lib/context/selection-context';
-import { useTopicContent } from '@/lib/context/topic-content-context';
 import { OnboardingData } from '@/components/onboarding-flow';
 import { StickyBoardWorkspaceView } from './sticky-board-workspace-view';
 import { ActiveRecallWorkspaceView } from '@/components/active-recall/active-recall-workspace-view';
+import { A4NotebookViewer } from '@/components/notes-a4/a4-notebook-viewer';
 
 interface StudyHubViewProps {
   user?: OnboardingData;
@@ -291,178 +280,9 @@ export function StudyHubView({ user, initialSubTab = 'notes' }: StudyHubViewProp
         </div>
       </div>
 
-      {/* 1. A4 STRUCTURED NOTES VIEW */}
+      {/* 1. A4 HANDWRITTEN NOTES VIEW */}
       {activeSubTab === 'notes' && (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Table of Contents (1 Col) */}
-          <div className="space-y-4">
-            <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
-              <h3 className="font-bold text-xs uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <List className="w-3.5 h-3.5 text-indigo-500" /> Table of Contents
-              </h3>
-              <nav className="space-y-1 text-xs">
-                {[
-                  { title: '1. Pathophysiology & Mechanisms', href: '#section-1' },
-                  { title: '2. Clinical Presentation & Triads', href: '#section-2' },
-                  { title: '3. Diagnostic Algorithms & ECG', href: '#section-3' },
-                  { title: '4. Evidence-Based Therapeutics', href: '#section-4' },
-                  { title: '5. High-Yield Board Traps', href: '#section-5' },
-                ].map((item, idx) => (
-                  <a
-                    key={idx}
-                    href={item.href}
-                    className="block px-2.5 py-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-indigo-600 font-medium transition-colors"
-                  >
-                    {item.title}
-                  </a>
-                ))}
-              </nav>
-            </div>
-
-            {/* Quick Actions Card */}
-            <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="w-full py-2 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-center gap-2 transition-colors cursor-pointer"
-              >
-                <Printer className="w-4 h-4" /> Print / Export Note
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsBookmarked(!isBookmarked)}
-                className={`w-full py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer ${
-                  isBookmarked
-                    ? 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border border-amber-300'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                }`}
-              >
-                {isBookmarked ? (
-                  <>
-                    <BookmarkCheck className="w-4 h-4 text-amber-500" /> Bookmarked
-                  </>
-                ) : (
-                  <>
-                    <Bookmark className="w-4 h-4" /> Bookmark Topic Note
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* A4 Structured Document (3 Cols) */}
-          <div className="lg:col-span-3">
-            <div className="p-8 sm:p-12 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-8 max-w-3xl mx-auto">
-              {/* Document Header */}
-              <div className="border-b border-slate-200 dark:border-slate-800 pb-6 space-y-2">
-                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
-                  <span>{selection.subject?.name || 'Cardiovascular Medicine'}</span>
-                  <span>•</span>
-                  <span>Core Board Review</span>
-                </div>
-                <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
-                  {selection.topic?.name || 'Coronary Artery Disease & Acute Coronary Syndromes'}
-                </h1>
-                <p className="text-xs text-slate-500">
-                  Comprehensive high-yield notes calibrated to official examination standards.
-                </p>
-              </div>
-
-              {/* Section 1 */}
-              <section id="section-1" className="space-y-3">
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-indigo-600" /> 1. Pathophysiology & Mechanisms
-                </h2>
-                <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-                  Coronary artery disease is primarily initiated by endothelial injury followed by subendothelial lipid accumulation, macrophage migration, foam cell formation, and fibrous plaque growth.
-                </p>
-                <div className="p-4 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-xs text-indigo-900 dark:text-indigo-200 leading-relaxed">
-                  <strong>High-Yield Core:</strong> Acute coronary syndrome (ACS) occurs upon plaque rupture with overlying thrombosis. Plaque vulnerability depends on a thin fibrous cap and large necrotic lipid core, rather than degree of luminal stenosis alone.
-                </div>
-              </section>
-
-              {/* Section 2 */}
-              <section id="section-2" className="space-y-3">
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-600" /> 2. Clinical Presentation & Triads
-                </h2>
-                <ul className="list-disc list-inside text-sm text-slate-700 dark:text-slate-300 space-y-1.5 leading-relaxed">
-                  <li><strong>Typical Angina:</strong> Substernal pressure/heaviness, provoked by exertion/emotional stress, relieved by rest or sublingual nitroglycerin within 5 minutes.</li>
-                  <li><strong>Atypical Angina:</strong> Meets 2 of the 3 typical characteristics. Frequently seen in females, elderly, and diabetic patients (e.g. dyspnea, nausea, fatigue).</li>
-                  <li><strong>Non-anginal Chest Pain:</strong> Meets 1 or none of the typical characteristics.</li>
-                </ul>
-              </section>
-
-              {/* Section 3 */}
-              <section id="section-3" className="space-y-3">
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-amber-600" /> 3. Diagnostic Algorithms & ECG Localization
-                </h2>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-                    <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold">
-                      <tr>
-                        <th className="p-2.5">Infarct Location</th>
-                        <th className="p-2.5">ECG Leads</th>
-                        <th className="p-2.5">Culprit Artery</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-600 dark:text-slate-400">
-                      <tr>
-                        <td className="p-2.5 font-semibold text-slate-900 dark:text-white">Anterior / Septal</td>
-                        <td className="p-2.5">V1, V2, V3, V4</td>
-                        <td className="p-2.5 font-bold text-indigo-600 dark:text-indigo-400">LAD</td>
-                      </tr>
-                      <tr>
-                        <td className="p-2.5 font-semibold text-slate-900 dark:text-white">Inferior</td>
-                        <td className="p-2.5">II, III, aVF</td>
-                        <td className="p-2.5 font-bold text-indigo-600 dark:text-indigo-400">RCA (85-90%)</td>
-                      </tr>
-                      <tr>
-                        <td className="p-2.5 font-semibold text-slate-900 dark:text-white">Lateral</td>
-                        <td className="p-2.5">I, aVL, V5, V6</td>
-                        <td className="p-2.5 font-bold text-indigo-600 dark:text-indigo-400">LCx or Diagonal LAD</td>
-                      </tr>
-                      <tr>
-                        <td className="p-2.5 font-semibold text-slate-900 dark:text-white">Posterior</td>
-                        <td className="p-2.5">Tall R waves & ST depression in V1-V2</td>
-                        <td className="p-2.5 font-bold text-indigo-600 dark:text-indigo-400">PDA / LCx</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-
-              {/* Section 4 */}
-              <section id="section-4" className="space-y-3">
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-purple-600" /> 4. Evidence-Based Therapeutics
-                </h2>
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-xs space-y-2 text-slate-700 dark:text-slate-300">
-                  <div className="font-bold text-slate-900 dark:text-white">Mortality-Reducing Medications in Post-MI:</div>
-                  <ul className="list-disc list-inside space-y-1">
-                    <li><strong>Dual Antiplatelet Therapy (DAPT):</strong> Aspirin + Clopidogrel / Ticagrelor for ≥12 months.</li>
-                    <li><strong>High-Intensity Statin:</strong> Atorvastatin 80 mg or Rosuvastatin 40 mg regardless of baseline LDL.</li>
-                    <li><strong>Beta-Blocker:</strong> Metoprolol succinate or Carvedilol (reduces arrhythmic risk and cardiac remodeling).</li>
-                    <li><strong>ACE-Inhibitor / ARB:</strong> Especially indicated if LVEF &lt; 40%, anterior MI, diabetes, or CKD.</li>
-                  </ul>
-                </div>
-              </section>
-
-              {/* Section 5: Board Traps */}
-              <section id="section-5" className="space-y-3">
-                <h2 className="text-lg font-bold text-rose-600 dark:text-rose-400 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-rose-600" /> 5. High-Yield Board Exam Traps
-                </h2>
-                <div className="p-4 rounded-2xl bg-rose-50/60 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-900 dark:text-rose-200 space-y-1.5 leading-relaxed">
-                  <div><strong>Trap 1:</strong> Administering nitrates in inferior STEMI without verifying right ventricular involvement (V4R). Right ventricular infarcts are preload-dependent; nitrates cause refractory shock.</div>
-                  <div><strong>Trap 2:</strong> Measuring Troponin at 1 hour after chest pain onset. Troponin takes 2-4 hours to rise; a single negative early troponin does NOT rule out MI.</div>
-                </div>
-              </section>
-            </div>
-          </div>
-        </div>
+        <A4NotebookViewer onBookmark={setIsBookmarked} />
       )}
 
       {/* 2. 3D PHYSICAL FLASHCARDS VIEW */}

@@ -885,6 +885,731 @@ export interface Database {
           created_at?: string
         }
       }
+      user_sticky_notes: {
+        Row: {
+          id: string
+          user_id: string
+          exam_id: string | null
+          subject_id: string | null
+          topic_id: string
+          subtopic_id: string | null
+          title: string | null
+          text: string
+          category: string
+          color: string
+          pinned: boolean
+          size: string
+          rotation_deg: number
+          is_ai_generated: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          exam_id?: string | null
+          subject_id?: string | null
+          topic_id: string
+          subtopic_id?: string | null
+          title?: string | null
+          text: string
+          category?: string
+          color?: string
+          pinned?: boolean
+          size?: string
+          rotation_deg?: number
+          is_ai_generated?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          exam_id?: string | null
+          subject_id?: string | null
+          topic_id?: string
+          subtopic_id?: string | null
+          title?: string | null
+          text?: string
+          category?: string
+          color?: string
+          pinned?: boolean
+          size?: string
+          rotation_deg?: number
+          is_ai_generated?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      ai_tutor_lessons: {
+        Row: {
+          id: string
+          user_id: string | null
+          exam_id: string | null
+          subject_id: string | null
+          topic_id: string | null
+          subtopic_id: string | null
+          title: string
+          slug: string | null
+          current_phase: string
+          current_sequence: number
+          total_duration_seconds: number
+          scenes_data: Json
+          segments: Json
+          video_engine_version: string
+          difficulty_level: string
+          target_exam: string
+          content: Json
+          lesson_state: string
+          status: string
+          content_version: number
+          version: number
+          batch_id: string | null
+          content_hash: string | null
+          source_generation_id: string | null
+          generation_status: string
+          is_published: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id?: string | null
+          exam_id?: string | null
+          subject_id?: string | null
+          topic_id?: string | null
+          subtopic_id?: string | null
+          title: string
+          slug?: string | null
+          current_phase?: string
+          current_sequence?: number
+          total_duration_seconds?: number
+          scenes_data?: Json
+          segments?: Json
+          video_engine_version?: string
+          difficulty_level?: string
+          target_exam?: string
+          content?: Json
+          lesson_state?: string
+          status?: string
+          content_version?: number
+          version?: number
+          batch_id?: string | null
+          content_hash?: string | null
+          source_generation_id?: string | null
+          generation_status?: string
+          is_published?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string | null
+          exam_id?: string | null
+          subject_id?: string | null
+          topic_id?: string | null
+          subtopic_id?: string | null
+          title?: string
+          slug?: string | null
+          current_phase?: string
+          current_sequence?: number
+          total_duration_seconds?: number
+          scenes_data?: Json
+          segments?: Json
+          video_engine_version?: string
+          difficulty_level?: string
+          target_exam?: string
+          content?: Json
+          lesson_state?: string
+          status?: string
+          content_version?: number
+          version?: number
+          batch_id?: string | null
+          content_hash?: string | null
+          source_generation_id?: string | null
+          generation_status?: string
+          is_published?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      ai_tutor_messages: {
+        Row: {
+          id: string
+          lesson_id: string
+          user_id: string | null
+          sender: 'user' | 'tutor' | 'system'
+          message: string
+          scene_index: number
+          metadata: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          lesson_id: string
+          user_id?: string | null
+          sender: 'user' | 'tutor' | 'system'
+          message: string
+          scene_index?: number
+          metadata?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          lesson_id?: string
+          user_id?: string | null
+          sender?: 'user' | 'tutor' | 'system'
+          message?: string
+          scene_index?: number
+          metadata?: Json
+          created_at?: string
+        }
+      }
+      mcqs: {
+        Row: {
+          id: string
+          exam_id: string | null
+          subject_id: string | null
+          topic_id: string | null
+          subtopic_id: string | null
+          slug: string | null
+          question: string
+          options: Json
+          correct_answer: string
+          explanation: string
+          step_by_step_explanation: Json | null
+          clinical_pearl: string | null
+          difficulty: string
+          question_type: string
+          tags: string[] | null
+          high_yield: boolean
+          high_yield_tag: string | null
+          fingerprint: string | null
+          content_version: number
+          version: number
+          batch_id: string | null
+          content_hash: string | null
+          source_generation_id: string | null
+          generation_status: string
+          status: string
+          visibility: string
+          answer_visibility: string
+          ai_generated: boolean
+          ai_provider: string | null
+          ai_model: string | null
+          is_canonical: boolean
+          is_published: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          exam_id?: string | null
+          subject_id?: string | null
+          topic_id?: string | null
+          subtopic_id?: string | null
+          slug?: string | null
+          question: string
+          options?: Json
+          correct_answer: string
+          explanation: string
+          step_by_step_explanation?: Json | null
+          clinical_pearl?: string | null
+          difficulty?: string
+          question_type?: string
+          tags?: string[] | null
+          high_yield?: boolean
+          high_yield_tag?: string | null
+          fingerprint?: string | null
+          content_version?: number
+          version?: number
+          batch_id?: string | null
+          content_hash?: string | null
+          source_generation_id?: string | null
+          generation_status?: string
+          status?: string
+          visibility?: string
+          answer_visibility?: string
+          ai_generated?: boolean
+          ai_provider?: string | null
+          ai_model?: string | null
+          is_canonical?: boolean
+          is_published?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          exam_id?: string | null
+          subject_id?: string | null
+          topic_id?: string | null
+          subtopic_id?: string | null
+          slug?: string | null
+          question?: string
+          options?: Json
+          correct_answer?: string
+          explanation?: string
+          step_by_step_explanation?: Json | null
+          clinical_pearl?: string | null
+          difficulty?: string
+          question_type?: string
+          tags?: string[] | null
+          high_yield?: boolean
+          high_yield_tag?: string | null
+          fingerprint?: string | null
+          content_version?: number
+          version?: number
+          batch_id?: string | null
+          content_hash?: string | null
+          source_generation_id?: string | null
+          generation_status?: string
+          status?: string
+          visibility?: string
+          answer_visibility?: string
+          ai_generated?: boolean
+          ai_provider?: string | null
+          ai_model?: string | null
+          is_canonical?: boolean
+          is_published?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      notes: {
+        Row: {
+          id: string
+          exam_id: string | null
+          subject_id: string | null
+          topic_id: string | null
+          subtopic_id: string | null
+          slug: string | null
+          title: string
+          content: Json
+          summary: string | null
+          high_yield_points: Json | null
+          clinical_correlations: Json | null
+          mnemonics: Json | null
+          diagnostic_pearls: Json | null
+          note_type: string
+          status: string
+          content_version: number
+          version: number
+          batch_id: string | null
+          content_hash: string | null
+          source_generation_id: string | null
+          generation_status: string
+          ai_generated: boolean
+          ai_provider: string | null
+          ai_model: string | null
+          is_canonical: boolean
+          is_published: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          exam_id?: string | null
+          subject_id?: string | null
+          topic_id?: string | null
+          subtopic_id?: string | null
+          slug?: string | null
+          title: string
+          content?: Json
+          summary?: string | null
+          high_yield_points?: Json | null
+          clinical_correlations?: Json | null
+          mnemonics?: Json | null
+          diagnostic_pearls?: Json | null
+          note_type?: string
+          status?: string
+          content_version?: number
+          version?: number
+          batch_id?: string | null
+          content_hash?: string | null
+          source_generation_id?: string | null
+          generation_status?: string
+          ai_generated?: boolean
+          ai_provider?: string | null
+          ai_model?: string | null
+          is_canonical?: boolean
+          is_published?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          exam_id?: string | null
+          subject_id?: string | null
+          topic_id?: string | null
+          subtopic_id?: string | null
+          slug?: string | null
+          title?: string
+          content?: Json
+          summary?: string | null
+          high_yield_points?: Json | null
+          clinical_correlations?: Json | null
+          mnemonics?: Json | null
+          diagnostic_pearls?: Json | null
+          note_type?: string
+          status?: string
+          content_version?: number
+          version?: number
+          batch_id?: string | null
+          content_hash?: string | null
+          source_generation_id?: string | null
+          generation_status?: string
+          ai_generated?: boolean
+          ai_provider?: string | null
+          ai_model?: string | null
+          is_canonical?: boolean
+          is_published?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      flashcards: {
+        Row: {
+          id: string
+          deck_id: string | null
+          exam_id: string | null
+          subject_id: string | null
+          topic_id: string | null
+          subtopic_id: string | null
+          front: string
+          back: string
+          clinical_pearl: string | null
+          difficulty: string
+          status: string
+          content_version: number
+          version: number
+          batch_id: string | null
+          content_hash: string | null
+          source_generation_id: string | null
+          generation_status: string
+          ai_generated: boolean
+          is_canonical: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          deck_id?: string | null
+          exam_id?: string | null
+          subject_id?: string | null
+          topic_id?: string | null
+          subtopic_id?: string | null
+          front: string
+          back: string
+          clinical_pearl?: string | null
+          difficulty?: string
+          status?: string
+          content_version?: number
+          version?: number
+          batch_id?: string | null
+          content_hash?: string | null
+          source_generation_id?: string | null
+          generation_status?: string
+          ai_generated?: boolean
+          is_canonical?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          deck_id?: string | null
+          exam_id?: string | null
+          subject_id?: string | null
+          topic_id?: string | null
+          subtopic_id?: string | null
+          front?: string
+          back?: string
+          clinical_pearl?: string | null
+          difficulty?: string
+          status?: string
+          content_version?: number
+          version?: number
+          batch_id?: string | null
+          content_hash?: string | null
+          source_generation_id?: string | null
+          generation_status?: string
+          ai_generated?: boolean
+          is_canonical?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      revision_sheets: {
+        Row: {
+          id: string
+          exam_id: string | null
+          subject_id: string | null
+          topic_id: string | null
+          subtopic_id: string | null
+          slug: string | null
+          title: string
+          subtitle: string | null
+          sheet_type: string
+          content: Json
+          status: string
+          content_version: number
+          version: number
+          batch_id: string | null
+          content_hash: string | null
+          source_generation_id: string | null
+          generation_status: string
+          ai_generated: boolean
+          is_canonical: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          exam_id?: string | null
+          subject_id?: string | null
+          topic_id?: string | null
+          subtopic_id?: string | null
+          slug?: string | null
+          title: string
+          subtitle?: string | null
+          sheet_type?: string
+          content?: Json
+          status?: string
+          content_version?: number
+          version?: number
+          batch_id?: string | null
+          content_hash?: string | null
+          source_generation_id?: string | null
+          generation_status?: string
+          ai_generated?: boolean
+          is_canonical?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          exam_id?: string | null
+          subject_id?: string | null
+          topic_id?: string | null
+          subtopic_id?: string | null
+          slug?: string | null
+          title?: string
+          subtitle?: string | null
+          sheet_type?: string
+          content?: Json
+          status?: string
+          content_version?: number
+          version?: number
+          batch_id?: string | null
+          content_hash?: string | null
+          source_generation_id?: string | null
+          generation_status?: string
+          ai_generated?: boolean
+          is_canonical?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      content_versions: {
+        Row: {
+          id: string
+          asset_id: string
+          asset_type: string
+          exam_id: string | null
+          subject_id: string | null
+          topic_id: string | null
+          subtopic_id: string | null
+          version: number
+          is_current: boolean
+          generation_reason: string
+          requested_by: string | null
+          provider: string | null
+          model: string | null
+          input_tokens: number
+          cached_input_tokens: number
+          output_tokens: number
+          actual_cost_usd: number
+          quality_score: number
+          content_count: number
+          change_summary: string | null
+          batch_id: string | null
+          content_hash: string | null
+          source_generation_id: string | null
+          generation_status: string
+          snapshot: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          asset_id: string
+          asset_type?: string
+          exam_id?: string | null
+          subject_id?: string | null
+          topic_id?: string | null
+          subtopic_id?: string | null
+          version?: number
+          is_current?: boolean
+          generation_reason?: string
+          requested_by?: string | null
+          provider?: string | null
+          model?: string | null
+          input_tokens?: number
+          cached_input_tokens?: number
+          output_tokens?: number
+          actual_cost_usd?: number
+          quality_score?: number
+          content_count?: number
+          change_summary?: string | null
+          batch_id?: string | null
+          content_hash?: string | null
+          source_generation_id?: string | null
+          generation_status?: string
+          snapshot?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          asset_id?: string
+          asset_type?: string
+          exam_id?: string | null
+          subject_id?: string | null
+          topic_id?: string | null
+          subtopic_id?: string | null
+          version?: number
+          is_current?: boolean
+          generation_reason?: string
+          requested_by?: string | null
+          provider?: string | null
+          model?: string | null
+          input_tokens?: number
+          cached_input_tokens?: number
+          output_tokens?: number
+          actual_cost_usd?: number
+          quality_score?: number
+          content_count?: number
+          change_summary?: string | null
+          batch_id?: string | null
+          content_hash?: string | null
+          source_generation_id?: string | null
+          generation_status?: string
+          snapshot?: Json
+          created_at?: string
+        }
+      }
+      active_recall_sessions: {
+        Row: {
+          id: string
+          user_id: string
+          exam_id: string | null
+          subject_id: string | null
+          topic_id: string
+          subtopic_id: string | null
+          version_id: string | null
+          total_items: number
+          correct_count: number
+          revealed_count: number
+          reviewed_count: number
+          accuracy: number
+          status: string
+          started_at: string
+          completed_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id: string
+          user_id: string
+          exam_id?: string | null
+          subject_id?: string | null
+          topic_id: string
+          subtopic_id?: string | null
+          version_id?: string | null
+          total_items?: number
+          correct_count?: number
+          revealed_count?: number
+          reviewed_count?: number
+          accuracy?: number
+          status?: string
+          started_at?: string
+          completed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          exam_id?: string | null
+          subject_id?: string | null
+          topic_id?: string
+          subtopic_id?: string | null
+          version_id?: string | null
+          total_items?: number
+          correct_count?: number
+          revealed_count?: number
+          reviewed_count?: number
+          accuracy?: number
+          status?: string
+          started_at?: string
+          completed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      active_recall_attempts: {
+        Row: {
+          id: string
+          user_id: string
+          exam_id: string | null
+          subject_id: string | null
+          topic_id: string
+          subtopic_id: string | null
+          recall_item_id: string
+          session_id: string
+          user_answer: string
+          correct_answer: string
+          is_correct: boolean
+          is_revealed: boolean
+          response_time_ms: number
+          review_due_at: string | null
+          attempted_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          exam_id?: string | null
+          subject_id?: string | null
+          topic_id: string
+          subtopic_id?: string | null
+          recall_item_id: string
+          session_id: string
+          user_answer: string
+          correct_answer: string
+          is_correct?: boolean
+          is_revealed?: boolean
+          response_time_ms?: number
+          review_due_at?: string | null
+          attempted_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          exam_id?: string | null
+          subject_id?: string | null
+          topic_id?: string
+          subtopic_id?: string | null
+          recall_item_id?: string
+          session_id?: string
+          user_answer?: string
+          correct_answer?: string
+          is_correct?: boolean
+          is_revealed?: boolean
+          response_time_ms?: number
+          review_due_at?: string | null
+          attempted_at?: string
+          created_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never

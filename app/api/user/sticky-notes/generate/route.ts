@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/server';
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,15 +15,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const targetUserId = userId || '00000000-0000-0000-0000-000000000000';
+    let targetUserId: string | null = userId || null;
+    if (!targetUserId) {
+      try {
+        const supabaseUserClient = await createClient();
+        const { data: { user } } = await supabaseUserClient.auth.getUser();
+        if (user) targetUserId = user.id;
+      } catch (_) {}
+    }
+
     const supabase = getSupabaseAdmin();
 
     // 1. Fetch existing sticky notes for this user & topic to prevent duplicates
-    const { data: existingNotes } = await (supabase as any)
+    let existingNotesQuery = (supabase as any)
       .from('user_sticky_notes')
       .select('title, text')
-      .eq('user_id', targetUserId)
       .eq('topic_id', topic.id);
+
+    if (targetUserId) {
+      existingNotesQuery = existingNotesQuery.eq('user_id', targetUserId);
+    }
+
+    const { data: existingNotes } = await existingNotesQuery;
 
     const existingSummary = (existingNotes || [])
       .map((n: any) => `- ${n.title ? n.title + ': ' : ''}${n.text}`)

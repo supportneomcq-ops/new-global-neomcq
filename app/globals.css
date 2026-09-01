@@ -298,15 +298,38 @@ body {
   font-family: 'Caveat', cursive, sans-serif;
 }
 
+/* Handwritten Fonts */
+.font-kalam {
+  font-family: 'Kalam', 'Caveat', cursive, sans-serif;
+}
+.font-patrick {
+  font-family: 'Patrick Hand', 'Kalam', cursive, sans-serif;
+}
+.font-caveat {
+  font-family: 'Caveat', 'Patrick Hand', cursive, sans-serif;
+}
+.font-gloria {
+  font-family: 'Gloria Hallelujah', 'Kalam', cursive, sans-serif;
+}
+
 /* Authentic Ruled A4 Notebook Paper Styling */
 .a4-notebook-paper {
-  background-color: #fcfaf4;
+  background-color: #faf7ee;
   background-image: 
-    linear-gradient(90deg, rgba(239, 68, 68, 0.25) 1px, transparent 1px),
-    linear-gradient(0deg, rgba(71, 85, 105, 0.08) 1px, transparent 1px);
-  background-size: 100% 100%, 100% 28px;
-  background-position: 52px 0, 0 8px;
+    linear-gradient(90deg, transparent 48px, rgba(239, 68, 68, 0.3) 48px, rgba(239, 68, 68, 0.3) 50px, transparent 50px),
+    linear-gradient(0deg, rgba(148, 163, 184, 0.22) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 30px;
+  background-position: 0 0, 0 10px;
   box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.15), 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
+.dark .a4-notebook-paper {
+  background-color: #0f172a;
+  background-image: 
+    linear-gradient(90deg, transparent 48px, rgba(248, 113, 113, 0.25) 48px, rgba(248, 113, 113, 0.25) 50px, transparent 50px),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 30px;
+  background-position: 0 0, 0 10px;
 }
 
 /* Print Media Stylesheet */

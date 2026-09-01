@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { createExamSwitchRazorpayOrder, EXAM_SWITCH_CONFIG } from '@/lib/razorpay';
+import { getServerUserEntitlements } from '@/lib/entitlements/server-entitlements';
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,9 +20,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Target exam ID is required' }, { status: 400 });
     }
 
+    // 1. Check user entitlements: If ELITE, exam switching is 100% free!
+    const entitlements = await getServerUserEntitlements(user.id);
+    if (entitlements.planCode === 'ELITE' && entitlements.isActive) {
+      return NextResponse.json({
+        success: true,
+        isElite: true,
+        freeSwitch: true,
+        message: 'Elite Annual Membership includes unlimited free exam switching. Use the Elite switch endpoint.',
+        displayPrice: '$0.00 USD (Elite Privilege)',
+      });
+    }
+
     const admin = getSupabaseAdmin();
 
-    // 1. Fetch user's current exam from profile or user_exams
+    // 2. Fetch user's current exam from profile or user_exams
     const { data: profile } = await admin
       .from('profiles')
       .select('id, email, first_name, last_name, current_exam_id, exam_locked')
@@ -37,7 +50,7 @@ export async function POST(req: NextRequest) {
         .order('created_at', { ascending: true })
         .limit(1)
         .maybeSingle();
-      
+
       if (ue?.exam_id) {
         currentExamId = ue.exam_id;
       }
@@ -50,7 +63,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Fetch current and target exam details
+    // 3. Fetch current and target exam details
     const { data: fromExam } = await admin
       .from('exams')
       .select('id, name, slug')
@@ -67,7 +80,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Target exam not found in directory.' }, { status: 404 });
     }
 
-    // 3. Prevent Same Exam Switch Rule
+    // 4. Prevent Same Exam Switch Rule
     if (currentExamId === targetExamId) {
       return NextResponse.json(
         { error: `You are already preparing for ${fromExam?.name || 'this exam'}.` },
@@ -75,7 +88,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Create Razorpay Order Server-Side (Server enforces $2 USD strictly)
+    // 5. Create Razorpay Order Server-Side (Server strictly enforces $2.00 USD for Pro/Max)
     const razorpayOrder = await createExamSwitchRazorpayOrder({
       userId: user.id,
       fromExamId: currentExamId,
@@ -86,7 +99,7 @@ export async function POST(req: NextRequest) {
       preferredCurrency: preferredCurrency === 'INR' ? 'INR' : 'USD',
     });
 
-    // 5. Store switch request in database
+    // 6. Store switch request in database
     const { data: switchRequest, error: reqError } = await admin
       .from('exam_switch_requests')
       .insert({
