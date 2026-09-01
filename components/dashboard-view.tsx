@@ -92,7 +92,7 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
         />
 
         {/* Dynamic Main Workspace Content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0 space-y-6">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-8 min-w-0 space-y-6">
           {/* Unified Subject & Topic selection bar rendered across all learning tabs */}
           {activeTab !== 'dashboard' && activeTab !== 'radar' && activeTab !== 'plan' && activeTab !== 'saved' && (
             <LearningContextBar />
@@ -149,7 +149,9 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
       {/* 3. Floating Mobile Bottom Nav */}
       <WorkspaceMobileNav
         activeTab={activeTab}
+        studySubTab={studySubTab}
         onSelectTab={handleSelectTab}
+        onOpenSettings={() => setIsProfileOpen(true)}
       />
 
       {/* 4. Interactive Modals */}
