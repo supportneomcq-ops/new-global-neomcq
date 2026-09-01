@@ -129,17 +129,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-    if (error) {
-      console.error('Failed inserting sticky note to Supabase:', error);
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true, stickyNote: data });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  }
-}
-
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
