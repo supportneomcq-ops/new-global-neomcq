@@ -8,8 +8,8 @@
  * 4. Difficulty Normalization: Standardized to 'Easy' | 'Medium' | 'Hard'
  */
 
-import type { CanonicalMCQItem, MCQValidationResult, BatchMCQValidationResult, MCQDifficulty } from './types.ts';
-import { MCQDeDuplicator } from './mcq-deduplicator.ts';
+import type { CanonicalMCQItem, MCQValidationResult, BatchMCQValidationResult, MCQDifficulty } from './types';
+import { MCQDeDuplicator } from './mcq-deduplicator';
 
 export class MCQValidator {
   /**

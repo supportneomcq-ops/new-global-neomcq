@@ -8,8 +8,8 @@
  * 4. Inter-Batch Cross-Database Collision Prevention (checks against existing canonical mcqs)
  */
 
-import { getSupabaseAdmin } from '../../supabase.ts';
-import type { CanonicalMCQItem } from './types.ts';
+import { getSupabaseAdmin } from '../../supabase';
+import type { CanonicalMCQItem } from './types';
 
 export class MCQDeDuplicator {
   /**

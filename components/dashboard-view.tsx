@@ -16,6 +16,7 @@ import { DashboardHomeView } from './learning-workspace/dashboard-home-view';
 import { PracticeCbtView } from './learning-workspace/practice-cbt-view';
 import { StudyHubView } from './learning-workspace/study-hub-view';
 import { AiTutorWhiteboardView } from './learning-workspace/ai-tutor-whiteboard-view';
+import { ActiveRecallWorkspaceView } from './active-recall/active-recall-workspace-view';
 import { WeaknessRadarView } from './learning-workspace/weakness-radar-view';
 import { StudyPlanWorkspaceView } from './learning-workspace/study-plan-workspace-view';
 import { TopicPreparationModal } from './learning-workspace/topic-preparation-modal';
@@ -128,7 +129,15 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
             />
           )}
 
-          {(activeTab === 'notes' || activeTab === 'flashcards' || activeTab === 'sticky' || activeTab === 'blanks') && (
+          {activeTab === 'flashcards' && (
+            <StudyHubView user={user} initialSubTab="flashcards" />
+          )}
+
+          {activeTab === 'blanks' && (
+            <ActiveRecallWorkspaceView user={user} />
+          )}
+
+          {(activeTab === 'notes' || activeTab === 'sticky') && (
             <StudyHubView user={user} initialSubTab={studySubTab} />
           )}
 

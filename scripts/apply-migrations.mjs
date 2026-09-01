@@ -21,6 +21,7 @@ async function applyMigrations() {
     '019_topic_access_refresh_and_append.sql',
     '023_safe_curriculum_canonicalization.sql',
     '025_curriculum_intelligence_subtopics.sql',
+    '026_quiz_true_simulation.sql',
   ];
 
   for (const mig of migrationsToRun) {

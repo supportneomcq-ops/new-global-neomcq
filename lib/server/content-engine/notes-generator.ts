@@ -14,20 +14,21 @@
  */
 
 import { GoogleGenAI, Type } from '@google/genai';
-import { getSupabaseAdmin } from '../../supabase.ts';
+import { getSupabaseAdmin } from '../../supabase';
 import type {
   CanonicalNotesPackage,
   EducationalMediaItem,
   NotesGenerationRequest,
   NotesGenerationResult,
   GlobalContentPackage,
-} from './types.ts';
-import { verifyCanonicalHierarchy, buildCanonicalPackageKey } from './canonical-identity.ts';
-import { GenerationJobManager } from './job-manager.ts';
-import { ContentCacheManager } from './content-cache-manager.ts';
-import { ContentCostAuditor } from './cost-auditor.ts';
-import { NotesValidator } from './notes-validator.ts';
-import { EducationalMediaRetriever } from './media-retriever.ts';
+} from './types';
+import { CANONICAL_FLASHCARD_TARGET_COUNT } from './types';
+import { verifyCanonicalHierarchy, buildCanonicalPackageKey } from './canonical-identity';
+import { GenerationJobManager } from './job-manager';
+import { ContentCacheManager } from './content-cache-manager';
+import { ContentCostAuditor } from './cost-auditor';
+import { NotesValidator } from './notes-validator';
+import { EducationalMediaRetriever } from './media-retriever';
 
 export class CanonicalNotesGenerator {
   /**
@@ -368,7 +369,7 @@ export class CanonicalNotesGenerator {
         content: formattedNotesMarkdown,
         package: validatedNotes,
       },
-      flashcardsSlot: existingPackage?.flashcardsSlot || { count: 0 },
+      flashcardsSlot: existingPackage?.flashcardsSlot || { targetCount: CANONICAL_FLASHCARD_TARGET_COUNT, count: 0 },
       aiTutorSlot: existingPackage?.aiTutorSlot || { present: false },
       mediaReferencesSlot: {
         count: validatedMedia.length,
@@ -611,15 +612,15 @@ export class CanonicalNotesGenerator {
     // Clinical Features
     if (notes.clinicalFeatures) {
       lines.push('## Clinical Features');
-      if (notes.clinicalFeatures.signs?.length > 0) {
+      if (notes.clinicalFeatures.signs && notes.clinicalFeatures.signs.length > 0) {
         lines.push('**Key Signs:**');
         notes.clinicalFeatures.signs.forEach((s) => lines.push(`- ${s}`));
       }
-      if (notes.clinicalFeatures.symptoms?.length > 0) {
+      if (notes.clinicalFeatures.symptoms && notes.clinicalFeatures.symptoms.length > 0) {
         lines.push('**Cardinal Symptoms:**');
         notes.clinicalFeatures.symptoms.forEach((sym) => lines.push(`- ${sym}`));
       }
-      if (notes.clinicalFeatures.complications?.length > 0) {
+      if (notes.clinicalFeatures.complications && notes.clinicalFeatures.complications.length > 0) {
         lines.push('**Potential Complications:**');
         notes.clinicalFeatures.complications.forEach((c) => lines.push(`- ${c}`));
       }
@@ -635,7 +636,7 @@ export class CanonicalNotesGenerator {
       if (notes.diagnosisAndInvestigation.firstLine) {
         lines.push(`- **First-Line Investigation:** ${notes.diagnosisAndInvestigation.firstLine}`);
       }
-      if (notes.diagnosisAndInvestigation.findings?.length > 0) {
+      if (notes.diagnosisAndInvestigation.findings && notes.diagnosisAndInvestigation.findings.length > 0) {
         lines.push('**Characteristic Findings:**');
         notes.diagnosisAndInvestigation.findings.forEach((f) => lines.push(`  - ${f}`));
       }
@@ -651,7 +652,7 @@ export class CanonicalNotesGenerator {
       if (notes.management.definitive) {
         lines.push(`- **Definitive Treatment:** ${notes.management.definitive}`);
       }
-      if (notes.management.contraindications?.length > 0) {
+      if (notes.management.contraindications && notes.management.contraindications.length > 0) {
         lines.push('**Contraindications / Pitfalls:**');
         notes.management.contraindications.forEach((c) => lines.push(`  - ⚠️ ${c}`));
       }

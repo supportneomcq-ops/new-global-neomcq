@@ -8,9 +8,9 @@
  * 4. Bounded Retry & Backoff (Max 3 attempts, failed jobs allow retry)
  */
 
-import { getSupabaseAdmin } from '../../supabase.ts';
-import type { JobState, GenerationJobRecord, ContentPackageType } from './types.ts';
-import { buildIdempotencyKey } from './canonical-identity.ts';
+import { getSupabaseAdmin } from '../../supabase';
+import type { JobState, GenerationJobRecord, ContentPackageType } from './types';
+import { buildIdempotencyKey } from './canonical-identity';
 
 const ACTIVE_JOB_STATUSES = ['queued', 'running', 'validating', 'processing', 'pending'];
 

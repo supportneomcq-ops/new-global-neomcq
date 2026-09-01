@@ -14,8 +14,8 @@ import type {
   CanonicalFlashcardItem,
   FlashcardDifficulty,
   FlashcardsValidationResult,
-} from './types.ts';
-import { CANONICAL_FLASHCARD_TARGET_COUNT } from './types.ts';
+} from './types';
+import { CANONICAL_FLASHCARD_TARGET_COUNT } from './types';
 
 export interface FlashcardRawItem {
   id?: string;

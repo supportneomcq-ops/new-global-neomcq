@@ -773,8 +773,8 @@ export function buildFallbackCurriculum(
             description: `Core standards and foundational theory for ${examName}.`,
             order: 1,
             subtopics: [
-              { name: 'Core Terminology & Diagnostic Frameworks', order: 1 },
-              { name: 'High-Yield Principles & Definitions', order: 2 },
+              { name: 'Core Terminology & Diagnostic Frameworks', description: 'Core terminology definitions.', order: 1 },
+              { name: 'High-Yield Principles & Definitions', description: 'High-yield principles.', order: 2 },
             ],
           },
         ],
@@ -791,8 +791,8 @@ export function buildFallbackCurriculum(
             description: `Applied practice and decision-making scenarios for ${examName}.`,
             order: 1,
             subtopics: [
-              { name: 'Complex Problem Solving & Decision Trees', order: 1 },
-              { name: 'High-Frequency Exam Pitfalls', order: 2 },
+              { name: 'Complex Problem Solving & Decision Trees', description: 'Complex problem solving principles.', order: 1 },
+              { name: 'High-Frequency Exam Pitfalls', description: 'High-frequency exam pitfalls.', order: 2 },
             ],
           },
         ],

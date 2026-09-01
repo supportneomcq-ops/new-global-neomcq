@@ -1,7 +1,7 @@
-import { getSupabaseAdmin } from '../supabase/admin.ts';
-import type { ProviderModelMetadata, AIProviderId, VerificationStatus } from './types.ts';
-import { GoogleGeminiProvider } from './adapters/gemini-adapter.ts';
-import { OpenAIProvider } from './adapters/openai-adapter.ts';
+import { getSupabaseAdmin } from '../supabase/admin';
+import type { ProviderModelMetadata, AIProviderId, VerificationStatus } from './types';
+import { GoogleGeminiProvider } from './adapters/gemini-adapter';
+import { OpenAIProvider } from './adapters/openai-adapter';
 
 /**
  * Standard Production Pricing and Capability Seed Registry
@@ -182,7 +182,7 @@ export class ModelRegistry {
 
     // 2. Fetch overrides from database if accessible
     try {
-      const supabase = getSupabaseAdmin();
+      const supabase: any = getSupabaseAdmin();
       const { data: dbModels, error } = await supabase
         .from('ai_models')
         .select('*');
@@ -326,7 +326,7 @@ export class ModelRegistry {
 
     // Persist status updates to Supabase tables
     try {
-      const supabase = getSupabaseAdmin();
+      const supabase: any = getSupabaseAdmin();
       const allUpdated = [...geminiResults, ...openaiResults];
 
       for (const item of allUpdated) {
@@ -381,7 +381,7 @@ export class ModelRegistry {
     this.cache.set(key, updated);
 
     try {
-      const supabase = getSupabaseAdmin();
+      const supabase: any = getSupabaseAdmin();
       await supabase
         .from('ai_models')
         .update({

@@ -1,6 +1,6 @@
-import { getSupabaseAdmin } from '../supabase/admin.ts';
-import type { TaskRoutingRule, AIProviderId } from './types.ts';
-import { ModelRegistry } from './model-registry.ts';
+import { getSupabaseAdmin } from '../supabase/admin';
+import type { TaskRoutingRule, AIProviderId } from './types';
+import { ModelRegistry } from './model-registry';
 
 export const CANONICAL_TASK_ROUTING_DEFAULTS: TaskRoutingRule[] = [
   {
@@ -331,7 +331,7 @@ export class TaskRouter {
 
     // 2. Load overrides from database
     try {
-      const supabase = getSupabaseAdmin();
+      const supabase: any = getSupabaseAdmin();
       const { data: dbRules, error } = await supabase
         .from('ai_task_routing')
         .select('*');
@@ -487,7 +487,7 @@ export class TaskRouter {
     this.rulesCache.set(normalized, updated);
 
     try {
-      const supabase = getSupabaseAdmin();
+      const supabase: any = getSupabaseAdmin();
       await supabase.from('ai_task_routing').upsert(
         {
           task_type: normalized,

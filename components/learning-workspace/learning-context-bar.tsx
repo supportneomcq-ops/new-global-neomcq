@@ -101,67 +101,6 @@ export function LearningContextBar() {
     );
   }, [availableSubtopics, subtopicQuery]);
 
-  // Handlers for Adding
-  const handleAddSubjectSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newSubjectName.trim()) return;
-    setIsSubmitting(true);
-    setModalError(null);
-    try {
-      const created = await addSubject(newSubjectName.trim());
-      setModalSuccess(`Subject '${created.name}' added successfully!`);
-      setTimeout(() => {
-        setIsAddSubjectOpen(false);
-        setNewSubjectName('');
-        setModalSuccess(null);
-      }, 1000);
-    } catch (err: any) {
-      setModalError(err.message || 'Failed to add subject.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleAddTopicSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTopicName.trim()) return;
-    setIsSubmitting(true);
-    setModalError(null);
-    try {
-      const created = await addTopic(newTopicName.trim());
-      setModalSuccess(`Topic '${created.name}' added successfully!`);
-      setTimeout(() => {
-        setIsAddTopicOpen(false);
-        setNewTopicName('');
-        setModalSuccess(null);
-      }, 1000);
-    } catch (err: any) {
-      setModalError(err.message || 'Failed to add topic.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleAddSubtopicSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newSubtopicName.trim()) return;
-    setIsSubmitting(true);
-    setModalError(null);
-    try {
-      const created = await addSubtopic(newSubtopicName.trim());
-      setModalSuccess(`Subtopic '${created.name}' added successfully!`);
-      setTimeout(() => {
-        setIsAddSubtopicOpen(false);
-        setNewSubtopicName('');
-        setModalSuccess(null);
-      }, 1000);
-    } catch (err: any) {
-      setModalError(err.message || 'Failed to add subtopic.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   return (
     <>
       <div className="w-full bg-white dark:bg-[#0B101E] border-b border-slate-200 dark:border-slate-800/80 px-4 py-2.5 shadow-sm transition-colors">
@@ -535,7 +474,6 @@ export function LearningContextBar() {
           isOpen={isExamSwitchModalOpen}
           onClose={() => setIsExamSwitchModalOpen(false)}
           currentExam={activeExam}
-          switchCount={examSwitchCount}
         />
       )}
     </>

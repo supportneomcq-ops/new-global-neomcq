@@ -5,7 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase/admin';
 export async function GET(req: NextRequest) {
   try {
     const supabase = await createClient();
-    const admin = getSupabaseAdmin();
+    const admin: any = getSupabaseAdmin();
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -140,7 +140,7 @@ export async function GET(req: NextRequest) {
       startDate: now.toISOString().split('T')[0],
       targetDate: targetDate.toISOString().split('T')[0],
       targetScore: userExam?.target_score || 85.0,
-      subjects: subjectList.map(s => s.name),
+      subjects: subjectList.map((s: any) => s.name),
       schedule: generatedSchedule,
       status: 'active',
       generatedAt: new Date().toISOString(),
@@ -185,7 +185,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient();
-    const admin = getSupabaseAdmin();
+    const admin: any = getSupabaseAdmin();
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {

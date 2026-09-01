@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
     const examId = searchParams.get('examId');
     const authHeader = req.headers.get('authorization');
 
-    const admin = getSupabaseAdmin();
+    const admin: any = getSupabaseAdmin();
     let userId: string | null = searchParams.get('userId');
 
     if (!userId && authHeader) {

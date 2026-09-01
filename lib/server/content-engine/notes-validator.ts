@@ -16,7 +16,7 @@ import type {
   NotesValidationResult,
   NotesSectionType,
   MediaRecommendation,
-} from './types.ts';
+} from './types';
 
 export class NotesValidator {
   /**

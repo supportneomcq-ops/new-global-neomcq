@@ -12,7 +12,7 @@ import type {
   CanonicalRevisionSheet,
   RevisionSheetValidationResult,
   RevisionSheetSection,
-} from './types.ts';
+} from './types';
 
 export class RevisionSheetValidator {
   private static readonly MIN_WORD_COUNT = 250;

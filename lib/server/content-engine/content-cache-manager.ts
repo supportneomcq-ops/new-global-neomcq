@@ -8,9 +8,9 @@
  * 4. Immutable Historical Snapshots (v1 remains accessible when v2 is created)
  */
 
-import { getSupabaseAdmin } from '../../supabase.ts';
-import type { GlobalContentPackage } from './types.ts';
-import { buildCanonicalPackageKey } from './canonical-identity.ts';
+import { getSupabaseAdmin } from '../../supabase';
+import type { GlobalContentPackage } from './types';
+import { buildCanonicalPackageKey } from './canonical-identity';
 
 const DEFAULT_FRESHNESS_WINDOW_MS = 30 * 24 * 60 * 60 * 1000; // 30 Days
 

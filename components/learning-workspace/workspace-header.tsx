@@ -28,6 +28,9 @@ interface WorkspaceHeaderProps {
   onOpenProfile: (tab?: string) => void;
   onSelectTab?: (tab: WorkspaceTab) => void;
   onToggleSidebar?: () => void;
+  onOpenExamSwitch?: () => void;
+  onOpenAddTopic?: () => void;
+  onOpenDiscoverExam?: () => void;
 }
 
 export function WorkspaceHeader({

@@ -12,9 +12,9 @@
  */
 
 import { GoogleGenAI } from '@google/genai';
-import { getSupabaseAdmin } from '../../supabase.ts';
-import { TutorSessionManager } from './tutor-session-manager.ts';
-import { ContentCostAuditor } from './cost-auditor.ts';
+import { getSupabaseAdmin } from '../../supabase';
+import { TutorSessionManager } from './tutor-session-manager';
+import { ContentCostAuditor } from './cost-auditor';
 
 export interface AskDoubtParams {
   lessonId: string;
@@ -397,6 +397,8 @@ export class TutorChatEngine {
           if (!astErr && assistantMsg) {
             // Record $0 COGS audit event
             await ContentCostAuditor.recordGlobalGenerationCost({
+              userId: null,
+              jobId: undefined,
               taskType: 'tutor_doubt_faq_hit',
               provider: 'FAQ_REUSE',
               model: 'faq-cache',
@@ -404,8 +406,8 @@ export class TutorChatEngine {
               cachedTokens: Math.ceil(cleanQuestion.length / 4),
               outputTokens: 0,
               actualCostUsd: 0,
-              requestId,
-              idempotencyKey,
+              requestId: requestId || undefined,
+              idempotencyKey: idempotencyKey || undefined,
             }, supabase);
 
             return {
@@ -504,8 +506,8 @@ ${JSON.stringify(recentSegments, null, 2).slice(0, 1500)}
         outputTokens,
         actualCostUsd: estProviderCost,
         creditsCharged: 1, // 1 credit per personalized doubt response
-        requestId,
-        idempotencyKey,
+        requestId: requestId || undefined,
+        idempotencyKey: idempotencyKey || undefined,
       }, supabase);
 
       // Insert Assistant Message

@@ -9,7 +9,7 @@
  * Step 5: Create Exactly One New Generation Job & Coordinate Execution
  */
 
-import { getSupabaseAdmin } from '../../supabase.ts';
+import { getSupabaseAdmin } from '../../supabase';
 import type {
   OrchestratorResolutionResult,
   DeduplicationPipelineStep,
@@ -26,17 +26,17 @@ import type {
   TutorLessonRequest,
   TutorSegmentRequest,
   TutorLessonResult,
-} from './types.ts';
-import { verifyCanonicalHierarchy, buildCanonicalPackageKey } from './canonical-identity.ts';
-import { ContentCacheManager } from './content-cache-manager.ts';
-import { GenerationJobManager } from './job-manager.ts';
-import { MainMCQGenerator } from './main-mcq-generator.ts';
-import { QuizMCQGenerator } from './quiz-mcq-generator.ts';
-import { CanonicalNotesGenerator } from './notes-generator.ts';
-import { CanonicalFlashcardsGenerator } from './flashcards-generator.ts';
-import { CanonicalRevisionSheetGenerator } from './revision-sheet-generator.ts';
-import { TutorSessionManager } from './tutor-session-manager.ts';
-import { CanonicalTutorGenerator } from './tutor-generator.ts';
+} from './types';
+import { verifyCanonicalHierarchy, buildCanonicalPackageKey } from './canonical-identity';
+import { ContentCacheManager } from './content-cache-manager';
+import { GenerationJobManager } from './job-manager';
+import { MainMCQGenerator } from './main-mcq-generator';
+import { QuizMCQGenerator } from './quiz-mcq-generator';
+import { CanonicalNotesGenerator } from './notes-generator';
+import { CanonicalFlashcardsGenerator } from './flashcards-generator';
+import { CanonicalRevisionSheetGenerator } from './revision-sheet-generator';
+import { TutorSessionManager } from './tutor-session-manager';
+import { CanonicalTutorGenerator } from './tutor-generator';
 
 export interface OrchestrationOptions {
   examId: string;

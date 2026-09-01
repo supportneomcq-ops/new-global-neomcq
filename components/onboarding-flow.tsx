@@ -42,6 +42,7 @@ interface OnboardingFlowProps {
 }
 
 export interface OnboardingData {
+  id?: string;
   userId?: string;
   firstName: string;
   lastName: string;

@@ -7,8 +7,8 @@
  * 3. Never trust client-supplied raw text, slugs, or browser state for generation jobs
  */
 
-import { getSupabaseAdmin } from '../../supabase.ts';
-import type { ContentPackageType } from './types.ts';
+import { getSupabaseAdmin } from '../../supabase';
+import type { ContentPackageType } from './types';
 
 export function buildCanonicalPackageKey(
   examId: string,

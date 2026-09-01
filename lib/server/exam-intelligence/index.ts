@@ -1,10 +1,10 @@
-import { getSupabaseAdmin } from '../../supabase/admin.ts'
-import { normalizeInput, calculateLevenshteinSimilarity } from '../../knowledge/normalizer.ts'
-import { classifyUserInput } from '../../knowledge/classifier.ts'
-import { AIGateway } from '../../ai/ai-gateway.ts'
+import { getSupabaseAdmin } from '../../supabase/admin'
+import { normalizeInput, calculateLevenshteinSimilarity } from '../../knowledge/normalizer'
+import { classifyUserInput } from '../../knowledge/classifier'
+import { AIGateway } from '../../ai/ai-gateway'
 import {
   ExamIntelligenceResultSchema,
-} from './types.ts'
+} from './types'
 import type {
   ExamIntelligenceResult,
   EntityType,
@@ -13,10 +13,10 @@ import type {
   ResolveSubjectOptions,
   ResolveTopicOptions,
   ResolveSubtopicOptions,
-} from './types.ts'
+} from './types'
 
-export * from './types.ts'
-export * from './engine.ts'
+export * from './types'
+export * from './engine'
 
 /**
  * Server-only assertion
@@ -61,7 +61,7 @@ function buildResult(
  */
 export async function resolveExam(options: ResolveExamOptions): Promise<ExamIntelligenceResult> {
   const { examInput } = options
-  const supabase = getSupabaseAdmin()
+  const supabase = getSupabaseAdmin() as any
 
   if (!examInput || typeof examInput !== 'string' || !examInput.trim()) {
     return buildResult('EXAM', 'INVALID', null, 1.0, 'Exam name input is empty or missing.')
@@ -210,7 +210,7 @@ Return ONLY a JSON object adhering to this schema:
  */
 export async function resolveSubject(options: ResolveSubjectOptions): Promise<ExamIntelligenceResult> {
   const { examInput, subjectInput } = options
-  const supabase = getSupabaseAdmin()
+  const supabase = getSupabaseAdmin() as any
 
   if (!subjectInput || typeof subjectInput !== 'string' || !subjectInput.trim()) {
     return buildResult('SUBJECT', 'INVALID', null, 1.0, 'Subject input is empty or missing.')
@@ -399,7 +399,7 @@ Return ONLY a JSON object adhering to this schema:
  */
 export async function resolveTopic(options: ResolveTopicOptions): Promise<ExamIntelligenceResult> {
   const { examInput, subjectInput, topicInput } = options
-  const supabase = getSupabaseAdmin()
+  const supabase = getSupabaseAdmin() as any
 
   if (!topicInput || typeof topicInput !== 'string' || !topicInput.trim()) {
     return buildResult('TOPIC', 'INVALID', null, 1.0, 'Topic input is empty or missing.')
@@ -593,7 +593,7 @@ Return ONLY a JSON object adhering to this schema:
  */
 export async function resolveSubtopic(options: ResolveSubtopicOptions): Promise<ExamIntelligenceResult> {
   const { examInput, subjectInput, topicInput, subtopicInput } = options
-  const supabase = getSupabaseAdmin()
+  const supabase = getSupabaseAdmin() as any
 
   if (!subtopicInput || typeof subtopicInput !== 'string' || !subtopicInput.trim()) {
     return buildResult('SUBTOPIC', 'INVALID', null, 1.0, 'Subtopic input is empty or missing.')

@@ -2,8 +2,8 @@ import OpenAI from 'openai';
 import {
   ProviderAdapter,
   AIProviderError,
-} from './provider-adapter.ts';
-import type { AdapterGenerationResult } from './provider-adapter.ts';
+} from './provider-adapter';
+import type { AdapterGenerationResult } from './provider-adapter';
 import type {
   AIProviderId,
   AIGenerationOptions,
@@ -11,7 +11,7 @@ import type {
   AIProviderErrorDetails,
   ProviderConnectionTestResult,
   ModelVerificationItem,
-} from '../types.ts';
+} from '../types';
 
 export class OpenAIProvider extends ProviderAdapter {
   public readonly providerId: AIProviderId = 'openai';

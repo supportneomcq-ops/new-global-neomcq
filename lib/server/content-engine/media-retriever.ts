@@ -17,7 +17,7 @@ import type {
   EducationalMediaItem,
   MediaValidationResult,
   CanonicalNotesSection,
-} from './types.ts';
+} from './types';
 
 export class EducationalMediaRetriever {
   /**

@@ -11,8 +11,8 @@
  *    output_tokens, actual_provider_cost, credits_deducted, timestamp, and request_id.
  */
 
-import { getSupabaseAdmin } from '../../supabase.ts';
-import type { CostAccountingEvent } from './types.ts';
+import { getSupabaseAdmin } from '../../supabase';
+import type { CostAccountingEvent } from './types';
 
 const DEFAULT_PRICING_TABLE: Record<string, { inputPrice: number; cachedInputPrice: number; outputPrice: number }> = {
   'gemini-3.7-flash': { inputPrice: 0.10, cachedInputPrice: 0.025, outputPrice: 0.40 },

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&family=Kalam:wght@300;400;700&family=Patrick+Hand&display=swap');
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -108,8 +109,6 @@ body {
   background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
-  transform: translateZ(0);
-  backface-visibility: hidden;
 }
 
 /* GPU Hardware Acceleration Performance Helpers */
@@ -273,6 +272,66 @@ body {
 .animate-fade-in-scale {
   animation: fade-in-scale 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   will-change: opacity, transform;
+}
+
+/* Sticky Board Canvas Background Patterns */
+.bg-study-board-light {
+  background-color: #f5f3ec;
+  background-image: radial-gradient(rgba(30, 41, 59, 0.13) 1.2px, transparent 1.2px);
+  background-size: 24px 24px;
+}
+
+.bg-study-board-dark {
+  background-color: #090c15;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.11) 1.2px, transparent 1.2px);
+  background-size: 24px 24px;
+}
+
+/* Handwritten Typography Utilities */
+.font-kalam {
+  font-family: 'Kalam', cursive, sans-serif;
+}
+.font-patrick {
+  font-family: 'Patrick Hand', cursive, sans-serif;
+}
+.font-caveat {
+  font-family: 'Caveat', cursive, sans-serif;
+}
+
+/* Authentic Ruled A4 Notebook Paper Styling */
+.a4-notebook-paper {
+  background-color: #fcfaf4;
+  background-image: 
+    linear-gradient(90deg, rgba(239, 68, 68, 0.25) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(71, 85, 105, 0.08) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 28px;
+  background-position: 52px 0, 0 8px;
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.15), 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
+/* Print Media Stylesheet */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  header, nav, sidebar, footer, .no-print, button, input {
+    display: none !important;
+  }
+  .print-only-a4 {
+    display: block !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    margin: 0 auto !important;
+    page-break-after: always !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+  .a4-notebook-paper {
+    background-color: #ffffff !important;
+    background-image: none !important;
+    box-shadow: none !important;
+  }
 }
 
 

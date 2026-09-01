@@ -13,18 +13,18 @@
  */
 
 import { GoogleGenAI, Type } from '@google/genai';
-import { getSupabaseAdmin } from '../../supabase.ts';
+import { getSupabaseAdmin } from '../../supabase';
 import type {
   CanonicalRevisionSheet,
   RevisionSheetGenerationRequest,
   RevisionSheetGenerationResult,
   GlobalContentPackage,
-} from './types.ts';
-import { verifyCanonicalHierarchy, buildCanonicalPackageKey, buildIdempotencyKey } from './canonical-identity.ts';
-import { GenerationJobManager } from './job-manager.ts';
-import { ContentCacheManager } from './content-cache-manager.ts';
-import { ContentCostAuditor } from './cost-auditor.ts';
-import { RevisionSheetValidator } from './revision-sheet-validator.ts';
+} from './types';
+import { verifyCanonicalHierarchy, buildCanonicalPackageKey, buildIdempotencyKey } from './canonical-identity';
+import { GenerationJobManager } from './job-manager';
+import { ContentCacheManager } from './content-cache-manager';
+import { ContentCostAuditor } from './cost-auditor';
+import { RevisionSheetValidator } from './revision-sheet-validator';
 
 export class CanonicalRevisionSheetGenerator {
   /**
@@ -347,7 +347,6 @@ export class CanonicalRevisionSheetGenerator {
     const costEvent = await ContentCostAuditor.recordCostEvent(
       {
         jobId,
-        isGlobalGeneration: true,
         userId: null,
         taskType: 'canonical_revision_sheet_generation',
         provider: 'gemini',
@@ -356,8 +355,6 @@ export class CanonicalRevisionSheetGenerator {
         cachedTokens,
         outputTokens,
         actualCostUsd: (inputTokens * 0.00000015) + (outputTokens * 0.0000006),
-        creditsDeducted: 0, // CRITICAL: strictly 0 user credit deduction
-        timestamp: new Date().toISOString(),
       },
       supabase
     );

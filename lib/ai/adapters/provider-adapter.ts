@@ -5,7 +5,7 @@ import type {
   AIProviderErrorDetails,
   ProviderConnectionTestResult,
   ModelVerificationItem,
-} from '../types.ts';
+} from '../types';
 
 export class AIProviderError extends Error {
   public details: AIProviderErrorDetails;

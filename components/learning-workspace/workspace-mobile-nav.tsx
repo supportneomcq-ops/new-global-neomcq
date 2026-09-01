@@ -135,7 +135,7 @@ export function WorkspaceMobileNav({
       {/* Invisible Outside Click Backdrop overlay */}
       {isMoreOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/30 backdrop-blur-xs md:hidden"
+          className="fixed inset-0 z-[95] bg-black/30 backdrop-blur-xs md:hidden"
           onClick={() => setIsMoreOpen(false)}
           aria-hidden="true"
         />
@@ -144,7 +144,7 @@ export function WorkspaceMobileNav({
       {/* Viewport-fixed Mobile Navigation Bar */}
       <nav
         id="global-mobile-bottom-nav"
-        className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0B0F19]/90 dark:bg-[#070B19]/95 backdrop-blur-2xl border-t border-slate-200/10 dark:border-slate-800/80 px-2 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] shadow-2xl transition-all"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-[100] bg-[#0B0F19]/90 dark:bg-[#070B19]/95 backdrop-blur-2xl border-t border-slate-200/10 dark:border-slate-800/80 px-2 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] shadow-2xl transition-all"
         aria-label="Global mobile navigation"
       >
         <div className="flex items-center justify-around max-w-lg mx-auto relative">
@@ -215,7 +215,7 @@ export function WorkspaceMobileNav({
                 exit={{ opacity: 0, y: 15, scale: 0.96 }}
                 transition={{ duration: 0.18, ease: 'easeOut' }}
                 style={{ originX: 0.9, originY: 1 }}
-                className="absolute bottom-[calc(100%+0.75rem)] right-2 z-50 w-64 max-w-[calc(100vw-1.5rem)] bg-[#0B0F19]/98 dark:bg-[#070B19]/98 border border-slate-200/10 dark:border-slate-800/80 backdrop-blur-3xl shadow-2xl rounded-3xl p-3 flex flex-col gap-1 overflow-hidden"
+                className="absolute bottom-[calc(100%+0.75rem)] right-2 z-[110] w-64 max-w-[calc(100vw-1.5rem)] bg-[#0B0F19]/98 dark:bg-[#070B19]/98 border border-slate-200/10 dark:border-slate-800/80 backdrop-blur-3xl shadow-2xl rounded-3xl p-3 flex flex-col gap-1 overflow-hidden"
               >
                 {/* floating menu head */}
                 <div className="flex items-center justify-between px-2 pb-1.5 border-b border-slate-200/5 dark:border-slate-800/40">

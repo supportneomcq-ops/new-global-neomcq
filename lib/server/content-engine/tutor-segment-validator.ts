@@ -3,7 +3,7 @@
  * Phase 5B: Schema Validation, Quality Checks & Duplication Prevention
  */
 
-import type { TutorSegmentData, TutorSegment } from './tutor-types.ts';
+import type { TutorSegmentData, TutorSegment } from './tutor-types';
 
 export interface SegmentValidationResult {
   valid: boolean;

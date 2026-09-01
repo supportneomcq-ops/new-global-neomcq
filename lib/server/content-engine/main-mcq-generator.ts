@@ -14,20 +14,21 @@
  */
 
 import { GoogleGenAI, Type } from '@google/genai';
-import { getSupabaseAdmin } from '../../supabase.ts';
+import { getSupabaseAdmin } from '../../supabase';
 import type {
   CanonicalMCQItem,
   MainMCQGenerationRequest,
   MainMCQGenerationResult,
   BatchMCQValidationResult,
   GlobalContentPackage,
-} from './types.ts';
-import { verifyCanonicalHierarchy, buildCanonicalPackageKey } from './canonical-identity.ts';
-import { GenerationJobManager } from './job-manager.ts';
-import { ContentCacheManager } from './content-cache-manager.ts';
-import { ContentCostAuditor } from './cost-auditor.ts';
-import { MCQDeDuplicator } from './mcq-deduplicator.ts';
-import { MCQValidator } from './mcq-validator.ts';
+} from './types';
+import { CANONICAL_FLASHCARD_TARGET_COUNT } from './types';
+import { verifyCanonicalHierarchy, buildCanonicalPackageKey } from './canonical-identity';
+import { GenerationJobManager } from './job-manager';
+import { ContentCacheManager } from './content-cache-manager';
+import { ContentCostAuditor } from './cost-auditor';
+import { MCQDeDuplicator } from './mcq-deduplicator';
+import { MCQValidator } from './mcq-validator';
 
 const CANONICAL_TARGET_MAIN_MCQ_COUNT = 40;
 
@@ -309,7 +310,7 @@ export class MainMCQGenerator {
       quiz1Slot: activeCache.pkg?.quiz1Slot || { targetCount: 20, actualCount: 0 },
       quiz2Slot: activeCache.pkg?.quiz2Slot || { targetCount: 20, actualCount: 0 },
       notesSlot: activeCache.pkg?.notesSlot || { present: false },
-      flashcardsSlot: activeCache.pkg?.flashcardsSlot || { count: 0 },
+      flashcardsSlot: activeCache.pkg?.flashcardsSlot || { targetCount: CANONICAL_FLASHCARD_TARGET_COUNT, count: 0 },
       aiTutorSlot: activeCache.pkg?.aiTutorSlot || { present: false },
       mediaReferencesSlot: activeCache.pkg?.mediaReferencesSlot || { count: 0 },
       validationMetadata: {

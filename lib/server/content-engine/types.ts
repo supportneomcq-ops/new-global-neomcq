@@ -410,7 +410,7 @@ export interface NotesGenerationResult {
 }
 
 export interface CostAccountingEvent {
-  jobId: string;
+  jobId?: string;
   isGlobalGeneration: true; // Distinguishes global platform generation from user personal AI queries
   userId: string | null; // System-attributed
   taskType: string;

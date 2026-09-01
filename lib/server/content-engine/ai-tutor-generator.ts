@@ -3,7 +3,6 @@
  * Re-exports CanonicalTutorGenerator for seamless import resolution across API routes and components
  */
 
-import { CanonicalTutorGenerator } from './tutor-generator.ts';
+import { CanonicalTutorGenerator } from './tutor-generator';
 
 export { CanonicalTutorGenerator, CanonicalTutorGenerator as AITutorGenerator };
-export * from './tutor-generator.ts';

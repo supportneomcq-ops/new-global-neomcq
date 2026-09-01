@@ -32,20 +32,26 @@ export async function POST(req: NextRequest) {
 
       if (cachedTts && cachedTts.audio_base64) {
         // Increment hit_count asynchronously
-        supabase
-          .from('ai_tutor_tts_cache')
-          .update({
-            hit_count: Number(cachedTts.hit_count || 1) + 1,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', cachedTts.id)
-          .then(() => {})
-          .catch(() => {});
+        (async () => {
+          try {
+            await (supabase as any)
+              .from('ai_tutor_tts_cache')
+              .update({
+                hit_count: Number(cachedTts.hit_count || 1) + 1,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', cachedTts.id);
+          } catch {
+            // Ignore non-blocking update errors
+          }
+        })();
 
         const audioUrl = `data:${cachedTts.content_type || 'audio/mp3'};base64,${cachedTts.audio_base64}`;
 
         // Record $0 COGS audit event for cached hit
         await ContentCostAuditor.recordGlobalGenerationCost({
+          userId: null,
+          jobId: undefined,
           taskType: 'tutor_tts_cached_hit',
           provider: cachedTts.provider || 'cache',
           model: 'tts-1',
@@ -53,7 +59,7 @@ export async function POST(req: NextRequest) {
           cachedTokens: Math.ceil(cleanText.length / 4),
           outputTokens: 0,
           actualCostUsd: 0,
-          requestId,
+          requestId: requestId || undefined,
         }, supabase);
 
         return NextResponse.json({
@@ -110,6 +116,8 @@ export async function POST(req: NextRequest) {
         const charCount = cleanText.length;
         const estCost = Number(((charCount / 1000) * 0.015).toFixed(6)); // $0.015 per 1k chars for tts-1
         await ContentCostAuditor.recordGlobalGenerationCost({
+          userId: null,
+          jobId: undefined,
           taskType: 'tutor_tts_generated',
           provider: 'OpenAI',
           model: 'tts-1',
@@ -117,7 +125,7 @@ export async function POST(req: NextRequest) {
           cachedTokens: 0,
           outputTokens: 0,
           actualCostUsd: estCost,
-          requestId,
+          requestId: requestId || undefined,
         }, supabase);
 
         return NextResponse.json({

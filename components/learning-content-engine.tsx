@@ -51,6 +51,8 @@ import {
 import { getSupabaseClient } from '@/lib/supabase'
 import { useSelection } from '@/lib/context/selection-context'
 import { AddTopicModal } from './add-topic-modal'
+import { StickyBoardWorkspaceView } from './learning-workspace/sticky-board-workspace-view'
+import { TutorInteractiveWorkspace } from './ai-tutor/tutor-interactive-workspace'
 
 interface LearningContentEngineProps {
   initialExamName?: string
@@ -1682,144 +1684,17 @@ export function LearningContentEngine({
 
               {/* TAB 5: AI STICKY NOTES CORKBOARD */}
               {activeAssetTab === 'sticky' && (
-                <div className="space-y-5">
-                  <div className="p-4 rounded-3xl bg-white dark:bg-[#0B0F19] border border-slate-200/80 dark:border-[#1E293B] shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div>
-                      <h3 className="font-heading font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                        <Tag className="w-4.5 h-4.5 text-amber-500" />
-                        <span>High-Yield Active Sticky Notes</span>
-                      </h3>
-                      <p className="text-[10px] text-slate-500">
-                        Create custom snippets to group your medical retention rules.
-                      </p>
-                    </div>
-
-                    <form onSubmit={handleAddSticky} className="flex gap-2 w-full md:w-auto">
-                      <input
-                        type="text"
-                        value={newStickyText}
-                        onChange={(e) => setNewStickyText(e.target.value)}
-                        placeholder="New high-yield rule..."
-                        className="flex-1 md:w-64 px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:border-amber-500 text-slate-900 dark:text-white"
-                      />
-                      <button
-                        type="submit"
-                        disabled={!newStickyText.trim()}
-                        className="px-4 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold hover:opacity-95 disabled:opacity-50 cursor-pointer flex items-center gap-1 shrink-0"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Add Note</span>
-                      </button>
-                    </form>
-                  </div>
-
-                  {/* Sticky Notes Corkboard Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
-                    {stickyNotes.map((note) => (
-                      <div
-                        key={note.id}
-                        className={`p-5 rounded-3xl border shadow-sm flex flex-col justify-between space-y-3 relative group transition-all ${note.color}`}
-                      >
-                        <div className="flex items-center justify-between text-[9px] font-bold opacity-60">
-                          <span className="flex items-center gap-1">
-                            <Pin className="w-3 h-3 text-slate-400" />
-                            {note.pinned ? 'Pinned' : 'Study Board'}
-                          </span>
-                        </div>
-
-                        <p className="text-xs font-semibold leading-relaxed font-sans">{note.text}</p>
-
-                        <div className="flex items-center justify-between pt-2.5 border-t border-slate-900/10 dark:border-white/10 text-[10px] opacity-80">
-                          <button
-                            onClick={() => handleTogglePinSticky(note.id)}
-                            className="hover:underline cursor-pointer font-bold"
-                          >
-                            {note.pinned ? '📍 Unpin' : '📍 Pin Note'}
-                          </button>
-                          <button
-                            onClick={() => handleDeleteSticky(note.id)}
-                            className="hover:text-rose-600 cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <StickyBoardWorkspaceView />
               )}
 
-              {/* TAB 6: AI TUTOR PRIVATE PROFESSOR LESSON */}
+              {/* TAB 6: AI TUTOR VIDEO TEACHING & BOARD MASTERCLASS */}
               {activeAssetTab === 'tutor' && (
-                <div className="p-6 rounded-3xl bg-white dark:bg-[#0B0F19] border border-slate-200/80 dark:border-[#1E293B] shadow-sm space-y-5">
-                  <div className="flex items-center gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
-                    <div className="p-2.5 bg-[#6D5BFF]/10 rounded-2xl border border-[#6D5BFF]/20">
-                      <GraduationCap className="w-5 h-5 text-[#6D5BFF]" />
-                    </div>
-                    <div>
-                      <h3 className="font-heading font-black text-sm text-slate-900 dark:text-white">
-                        Private AI Professor Dialogue — {selectedTopic?.name}
-                      </h3>
-                      <p className="text-[10px] text-slate-500">
-                        Interactive dialogue, concept breakdown, step-by-step diagnostic reasoning.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Main chat window */}
-                  <div className="space-y-4 max-h-[380px] overflow-y-auto p-2.5 border border-slate-100 dark:border-slate-800 rounded-2xl bg-slate-50/50 dark:bg-slate-900/30">
-                    <div className="p-4 rounded-2xl bg-[#6D5BFF]/10 text-[#6D5BFF] text-xs leading-relaxed space-y-1 max-w-[85%]">
-                      <div className="font-black text-[10px] uppercase tracking-wide flex items-center gap-1 text-slate-500">
-                        <Sparkles className="w-3 h-3 text-purple-500" /> Neo AI Tutor
-                      </div>
-                      <p>{contentPayload?.tutor_explanation}</p>
-                    </div>
-
-                    {tutorMessages.map((msg, i) => {
-                      const isUser = msg.sender === 'user'
-                      return (
-                        <div
-                          key={i}
-                          className={`p-4 rounded-2xl text-xs leading-relaxed max-w-[85%] space-y-1 ${
-                            isUser
-                              ? 'bg-[#6D5BFF] text-white ml-auto'
-                              : 'bg-white dark:bg-[#1E293B] text-slate-700 dark:text-gray-200 border border-slate-200/80 dark:border-slate-800'
-                          }`}
-                        >
-                          <div className={`font-black text-[9px] uppercase tracking-wide ${isUser ? 'text-white/80' : 'text-slate-400'}`}>
-                            {isUser ? 'You' : 'Neo AI Tutor'}
-                          </div>
-                          <p className="whitespace-pre-line">{msg.text}</p>
-                        </div>
-                      )
-                    })}
-
-                    {tutorTyping && (
-                      <div className="p-3 bg-white dark:bg-[#1E293B] border border-slate-100 dark:border-slate-800 rounded-2xl text-xs text-slate-400 flex items-center gap-1.5 w-max">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-[#6D5BFF]" />
-                        <span>Typing simulation stream...</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Command Buttons */}
-                  <div className="flex flex-wrap items-center gap-2 pt-2">
-                    {[
-                      { id: 'simpler', label: 'Explain Simpler 💡', action: 'simpler' },
-                      { id: 'deeper', label: 'Explain Deeper 🧠', action: 'deeper' },
-                      { id: 'diagram', label: 'Show Diagram 📊', action: 'diagram' },
-                      { id: 'analogy', label: 'Generate Analogy ⚡', action: 'analogy' },
-                    ].map((btn) => (
-                      <button
-                        key={btn.id}
-                        onClick={() => triggerTutorReply(btn.action, btn.label)}
-                        className="px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-[#1E293B] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 text-[11px] font-bold hover:bg-slate-200 dark:hover:bg-gray-800 transition-all cursor-pointer"
-                      >
-                        {btn.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <TutorInteractiveWorkspace
+                  topicId={selectedTopic?.id}
+                  topicName={selectedTopic?.name}
+                  subjectName={subjectName}
+                  examName={examName}
+                />
               )}
 
               {/* TAB 7: RETENTION STUDY STATS ANALYTICS */}

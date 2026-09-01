@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from '../supabase/admin.ts';
+import { getSupabaseAdmin } from '../supabase/admin';
 import type {
   AIProviderId,
   AIGenerationOptions,
@@ -7,13 +7,13 @@ import type {
   AIProviderCost,
   ProviderConnectionTestResult,
   ModelVerificationItem,
-} from './types.ts';
-import { GoogleGeminiProvider } from './adapters/gemini-adapter.ts';
-import { OpenAIProvider } from './adapters/openai-adapter.ts';
-import { ModelRegistry } from './model-registry.ts';
-import { TaskRouter } from './task-router.ts';
-import { ProviderAdapter, AIProviderError } from './adapters/provider-adapter.ts';
-import { validateServerAIEnvironment } from './env-validator.ts';
+} from './types';
+import { GoogleGeminiProvider } from './adapters/gemini-adapter';
+import { OpenAIProvider } from './adapters/openai-adapter';
+import { ModelRegistry } from './model-registry';
+import { TaskRouter } from './task-router';
+import { ProviderAdapter, AIProviderError } from './adapters/provider-adapter';
+import { validateServerAIEnvironment } from './env-validator';
 
 export class AIGateway {
   private static geminiProvider = new GoogleGeminiProvider();
@@ -159,7 +159,8 @@ export class AIGateway {
     let reservedCredits = 0;
     if (userId) {
       try {
-        const { data: wallet } = await supabase
+        const supabaseAdmin: any = supabase;
+        const { data: wallet } = await supabaseAdmin
           .from('credit_accounts')
           .select('balance, reserved_balance, frozen')
           .eq('user_id', userId)
@@ -178,7 +179,7 @@ export class AIGateway {
           }
 
           // Atomic increment of reserved balance
-          await supabase
+          await supabaseAdmin
             .from('credit_accounts')
             .update({
               reserved_balance: Number(wallet.reserved_balance || 0) + effectiveCreditCost,
@@ -279,7 +280,8 @@ export class AIGateway {
     // 5. Settle Credit Deduction & Record Audit Events in Database
     if (userId && reservedCredits > 0) {
       try {
-        const { data: wallet } = await supabase
+        const supabaseAdmin: any = supabase;
+        const { data: wallet } = await supabaseAdmin
           .from('credit_accounts')
           .select('balance, reserved_balance')
           .eq('user_id', userId)
@@ -291,7 +293,7 @@ export class AIGateway {
           const newBal = Math.max(0, curBal - effectiveCreditCost);
           const newRes = Math.max(0, curRes - reservedCredits);
 
-          await supabase
+          await supabaseAdmin
             .from('credit_accounts')
             .update({
               balance: newBal,
@@ -300,7 +302,7 @@ export class AIGateway {
             })
             .eq('user_id', userId);
 
-          await supabase.from('credit_ledger').insert({
+          await supabaseAdmin.from('credit_ledger').insert({
             user_id: userId,
             transaction_type: 'AI_USAGE',
             credits: -effectiveCreditCost,
@@ -317,7 +319,8 @@ export class AIGateway {
 
     // 6. Record immutable AI Cost Event
     try {
-      await supabase.from('ai_cost_events').insert({
+      const supabaseAdmin: any = supabase;
+      await supabaseAdmin.from('ai_cost_events').insert({
         user_id: userId || null,
         job_id: options.jobId || null,
         content_version_id: options.contentVersionId || null,
@@ -356,8 +359,8 @@ export class AIGateway {
   private static async releaseCreditReservation(userId?: string | null, amount = 0): Promise<void> {
     if (!userId || amount <= 0) return;
     try {
-      const supabase = getSupabaseAdmin();
-      const { data: wallet } = await supabase
+      const supabaseAdmin: any = getSupabaseAdmin();
+      const { data: wallet } = await supabaseAdmin
         .from('credit_accounts')
         .select('reserved_balance')
         .eq('user_id', userId)
@@ -365,7 +368,7 @@ export class AIGateway {
 
       if (wallet) {
         const curRes = Number(wallet.reserved_balance || 0);
-        await supabase
+        await supabaseAdmin
           .from('credit_accounts')
           .update({
             reserved_balance: Math.max(0, curRes - amount),
