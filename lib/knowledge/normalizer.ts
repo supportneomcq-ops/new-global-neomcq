@@ -4,15 +4,23 @@
  */
 
 const COMMON_ABBREVIATIONS: Record<string, string> = {
+  fmge: 'fmge',
   fmges: 'fmge',
   fmg: 'fmge',
+  'fmge foreign medical graduate examination': 'fmge',
+  'foreign medical graduate examination fmge': 'fmge',
   'foreign medical graduate exam': 'fmge',
   'foreign medical graduate examination': 'fmge',
+  'mci screening test': 'fmge',
+  'mci screening': 'fmge',
   'usmle step one': 'usmle step 1',
   'usmle step two': 'usmle step 2',
   'usmle step three': 'usmle step 3',
+  'usmle step 1 2 ck': 'usmle step 1',
+  'usmle united states medical licensing examination': 'usmle step 1',
   neetpg: 'neet pg',
   'neet-pg': 'neet pg',
+  'neet pg national eligibility cum entrance test': 'neet pg',
   inicet: 'ini cet',
   'ini-cet': 'ini cet',
   plab1: 'plab 1',
@@ -44,6 +52,9 @@ const COMMON_ABBREVIATIONS: Record<string, string> = {
   'psm': 'preventive and social medicine',
   'radio': 'radiology',
   'anaesthesia': 'anesthesia',
+  'anatomy': 'anatomy',
+  'human anatomy': 'anatomy',
+  'gross anatomy': 'anatomy',
 }
 
 export interface NormalizedResult {
@@ -51,6 +62,7 @@ export interface NormalizedResult {
   canonical: string
   slug: string
   tokens: string[]
+  extractedCode?: string
 }
 
 export function normalizeInput(input?: string | null): NormalizedResult {
@@ -59,6 +71,16 @@ export function normalizeInput(input?: string | null): NormalizedResult {
   }
 
   const raw = input.trim()
+
+  // Extract acronym inside or before parentheses: e.g. "FMGE (Foreign Medical Graduate Examination)" -> "FMGE"
+  let extractedCode = ''
+  const parenMatch = raw.match(/^([A-Za-z0-9\s-]{2,12})\s*\(([^)]+)\)$/) || raw.match(/\(([^)]+)\)$/)
+  if (parenMatch) {
+    const candidate = parenMatch[1].trim()
+    if (candidate.length >= 2 && candidate.length <= 10) {
+      extractedCode = candidate.toUpperCase()
+    }
+  }
 
   // 1. Lowercase & sanitize emojis, special symbols
   let cleaned = raw
@@ -73,7 +95,7 @@ export function normalizeInput(input?: string | null): NormalizedResult {
     cleaned = COMMON_ABBREVIATIONS[cleaned]
   }
 
-  // 3. Word tokenization & plural normalization (simple s stripping where appropriate)
+  // 3. Word tokenization & plural normalization
   const tokens = cleaned
     .split(' ')
     .filter(Boolean)
@@ -97,6 +119,7 @@ export function normalizeInput(input?: string | null): NormalizedResult {
     canonical,
     slug,
     tokens,
+    extractedCode,
   }
 }
 

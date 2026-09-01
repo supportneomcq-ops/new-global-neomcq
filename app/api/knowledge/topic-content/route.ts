@@ -69,9 +69,9 @@ export async function POST(req: NextRequest) {
 
     // Execute through Master AI Content Intelligence Engine
     const result = await getOrGenerateCanonicalTopicContent({
-      examInput: examNameInput,
-      subjectInput: subjectNameInput,
-      topicInput: topicNameInput,
+      examInput: examId || examNameInput,
+      subjectInput: subjectId || subjectNameInput,
+      topicInput: topicId || topicNameInput,
       userId,
       difficulty,
       language,
