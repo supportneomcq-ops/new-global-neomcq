@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, CircleDashed, Sparkles, BookOpen, Layers, X } from 'lucide-react';
 import { useTopicContent, PREPARATION_STEPS } from '@/lib/context/topic-content-context';
 import { useSelection } from '@/lib/context/selection-context';
