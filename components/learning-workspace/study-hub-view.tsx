@@ -10,10 +10,12 @@ import {
 } from 'lucide-react';
 import { StudySubTab, FlashcardItem } from './types';
 import { useSelection } from '@/lib/context/selection-context';
+import { useTopicContent } from '@/lib/context/topic-content-context';
 import { OnboardingData } from '@/components/onboarding-flow';
 import { StickyBoardWorkspaceView } from './sticky-board-workspace-view';
 import { ActiveRecallWorkspaceView } from '@/components/active-recall/active-recall-workspace-view';
 import { A4NotebookViewer } from '@/components/notes-a4/a4-notebook-viewer';
+import { FlashcardWorkspaceView } from './flashcard-workspace-view';
 
 interface StudyHubViewProps {
   user?: OnboardingData;
@@ -287,129 +289,7 @@ export function StudyHubView({ user, initialSubTab = 'notes' }: StudyHubViewProp
 
       {/* 2. 3D PHYSICAL FLASHCARDS VIEW */}
       {activeSubTab === 'flashcards' && (
-        <div className="space-y-6 max-w-2xl mx-auto">
-          {/* Deck Controls Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
-            {/* Filter pills */}
-            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-              <button
-                type="button"
-                onClick={() => {
-                  setFcFilter('all');
-                  setFcIndex(0);
-                  setIsFlipped(false);
-                }}
-                className={`px-3 py-1 rounded-lg font-bold transition-colors cursor-pointer ${
-                  fcFilter === 'all' ? 'bg-white dark:bg-slate-900 text-indigo-600 shadow-xs' : 'text-slate-600 dark:text-slate-400'
-                }`}
-              >
-                All ({flashcards.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setFcFilter('revision');
-                  setFcIndex(0);
-                  setIsFlipped(false);
-                }}
-                className={`px-3 py-1 rounded-lg font-bold transition-colors cursor-pointer ${
-                  fcFilter === 'revision' ? 'bg-white dark:bg-slate-900 text-amber-600 shadow-xs' : 'text-slate-600 dark:text-slate-400'
-                }`}
-              >
-                Repeat ({flashcards.filter((c) => c.status === 'revision').length})
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setFcFilter('mastered');
-                  setFcIndex(0);
-                  setIsFlipped(false);
-                }}
-                className={`px-3 py-1 rounded-lg font-bold transition-colors cursor-pointer ${
-                  fcFilter === 'mastered' ? 'bg-white dark:bg-slate-900 text-emerald-600 shadow-xs' : 'text-slate-600 dark:text-slate-400'
-                }`}
-              >
-                Mastered ({flashcards.filter((c) => c.status === 'mastered').length})
-              </button>
-            </div>
-
-            {/* Shuffle & Progress */}
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={handleShuffleCards}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold transition-colors cursor-pointer"
-              >
-                <Shuffle className="w-3.5 h-3.5" /> Shuffle
-              </button>
-
-              <span className="font-bold text-slate-700 dark:text-slate-300">
-                Card {fcIndex + 1} of {Math.max(1, filteredCards.length)}
-              </span>
-            </div>
-          </div>
-
-          {/* The Physical Card Container with 3D Flip */}
-          {currentCard ? (
-            <div
-              onClick={() => setIsFlipped(!isFlipped)}
-              className="relative min-h-[300px] sm:min-h-[340px] rounded-3xl p-8 bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 shadow-xl cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-600 transition-all flex flex-col justify-between select-none"
-            >
-              {/* Card Top Pill */}
-              <div className="flex items-center justify-between text-xs">
-                <span className="px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[10px]">
-                  {currentCard.category || 'High-Yield Concept'}
-                </span>
-                <span className="text-[11px] text-slate-400 flex items-center gap-1 font-semibold">
-                  <RotateCw className="w-3.5 h-3.5" /> Click to {isFlipped ? 'Show Question' : 'Reveal Answer'}
-                </span>
-              </div>
-
-              {/* Card Body */}
-              <div className="py-6 my-auto text-center space-y-4">
-                <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
-                  {isFlipped ? 'Answer & High Yield Mnemonic' : 'Active Recall Prompt'}
-                </span>
-                <div className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-relaxed max-w-lg mx-auto whitespace-pre-line">
-                  {isFlipped ? currentCard.back : currentCard.front}
-                </div>
-              </div>
-
-              {/* Card Footer Indicator */}
-              <div className="flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-100 dark:border-slate-800 pt-3">
-                <span className="font-semibold">{currentCard.difficulty || 'High Yield'}</span>
-                <span className="font-bold text-indigo-600 dark:text-indigo-400">
-                  {isFlipped ? 'Back Side' : 'Front Side'}
-                </span>
-              </div>
-            </div>
-          ) : (
-            <div className="p-12 text-center rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 text-xs">
-              No flashcards in this filter category.
-            </div>
-          )}
-
-          {/* Leitner Spaced Repetition Rating Buttons */}
-          {currentCard && (
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => handleRateCard('revision')}
-                className="py-3 px-4 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
-              >
-                <XCircle className="w-4 h-4 text-amber-500" /> Hard / Needs Revision (Repeat)
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleRateCard('mastered')}
-                className="py-3 px-4 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
-              >
-                <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Good / Mastered Concept
-              </button>
-            </div>
-          )}
-        </div>
+        <FlashcardWorkspaceView />
       )}
 
       {/* 3. STICKY NOTES CORKBOARD VIEW */}
