@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { createClient } from '@/lib/supabase/server';
+import { extractJsonFromAiResponse } from '@/lib/ai/json-cleaner';
 
 export async function POST(req: NextRequest) {
   try {
@@ -130,11 +131,9 @@ Do NOT include any markdown formatting like \`\`\`json. Output ONLY valid raw JS
     });
 
     let rawText = response.text || '';
-    rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-
     let generatedArray: any[] = [];
     try {
-      generatedArray = JSON.parse(rawText);
+      generatedArray = extractJsonFromAiResponse(rawText);
     } catch (parseErr) {
       console.error('Failed to parse Gemini JSON output for sticky notes:', rawText);
       return NextResponse.json({ success: false, error: 'Failed to generate structured sticky notes from AI.' }, { status: 500 });

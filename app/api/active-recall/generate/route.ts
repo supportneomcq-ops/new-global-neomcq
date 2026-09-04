@@ -3,6 +3,8 @@ import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { AIGateway } from '@/lib/ai/ai-gateway';
 import { ActiveRecallSet, ActiveRecallItem } from '@/lib/types/active-recall';
 
+import { extractJsonFromAiResponse } from '@/lib/ai/json-cleaner';
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -141,14 +143,10 @@ Respond strictly in valid JSON format with NO markdown wrapping:
     // 5. Parse JSON Payload
     let parsed: any = {};
     try {
-      const cleaned = rawResultText
-        .replace(/```json/g, '')
-        .replace(/```/g, '')
-        .trim();
-      parsed = JSON.parse(cleaned);
-    } catch (parseErr) {
+      parsed = extractJsonFromAiResponse(rawResultText);
+    } catch (parseErr: any) {
       console.error('Failed to parse AI recall JSON:', rawResultText);
-      throw new Error('AI produced invalid JSON output. Please retry.');
+      throw new Error(`AI produced invalid JSON output: ${parseErr.message}`);
     }
 
     const rawList = Array.isArray(parsed.fill_in_the_blanks) ? parsed.fill_in_the_blanks : [];

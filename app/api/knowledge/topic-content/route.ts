@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
       examInput: examId || examNameInput,
       subjectInput: subjectId || subjectNameInput,
       topicInput: topicId || topicNameInput,
-      userId,
+      userId: activeUserId,
       difficulty,
       language,
       forceRefresh,

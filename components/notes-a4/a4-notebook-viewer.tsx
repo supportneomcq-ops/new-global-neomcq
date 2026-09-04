@@ -182,6 +182,22 @@ export function A4NotebookViewer({ onBookmark }: A4NotebookViewerProps) {
             useCORS: true,
             logging: false,
             backgroundColor: '#fcfaf4',
+            onclone: (clonedDoc) => {
+              // Replace any OKLCH colors in cloned document style tags to avoid html2canvas parser crash
+              const styles = clonedDoc.querySelectorAll('style');
+              styles.forEach((style) => {
+                if (style.textContent && style.textContent.includes('oklch')) {
+                  style.textContent = style.textContent.replace(/oklch\([^)]+\)/g, '#0f172a');
+                }
+              });
+              const clonedElement = clonedDoc.getElementById('a4-active-page-render');
+              if (clonedElement) {
+                clonedElement.style.transform = 'none';
+                clonedElement.style.boxShadow = 'none';
+                clonedElement.style.backgroundColor = '#fcfaf4';
+                clonedElement.style.color = '#0f172a';
+              }
+            },
           });
 
           const imgData = canvas.toDataURL('image/jpeg', 0.95);
