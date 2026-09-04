@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import OpenAI from 'openai';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/server';
+import { checkFeatureQuota } from '@/lib/entitlements/quota-checker';
 import { ContentCostAuditor } from '@/lib/server/content-engine/cost-auditor';
 
 export async function POST(req: NextRequest) {
@@ -11,6 +13,37 @@ export async function POST(req: NextRequest) {
 
     if (!text || typeof text !== 'string' || !text.trim()) {
       return NextResponse.json({ success: false, error: 'Valid text string is required for TTS.' }, { status: 400 });
+    }
+
+    // 0. Server-side Entitlement & Quota Verification
+    try {
+      const supabaseUser = await createClient();
+      const { data: { user } } = await supabaseUser.auth.getUser();
+      const effectiveUserId = user?.id || body.userId;
+
+      if (effectiveUserId) {
+        const quotaCheck = await checkFeatureQuota({
+          userId: effectiveUserId,
+          feature: 'tutor_tts',
+          topicId,
+          examId,
+          subjectId,
+        });
+
+        if (!quotaCheck.allowed) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: quotaCheck.reason || 'Neural Audio (TTS) daily limit reached.',
+              upgradeMessage: quotaCheck.upgradeMessage,
+              limitReached: true,
+            },
+            { status: 403 }
+          );
+        }
+      }
+    } catch (quotaErr) {
+      console.warn('[TTS API] Quota check notice:', quotaErr);
     }
 
     const cleanText = text.trim();

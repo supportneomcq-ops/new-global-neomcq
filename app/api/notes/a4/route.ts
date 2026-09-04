@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/server';
+import { checkFeatureQuota } from '@/lib/entitlements/quota-checker';
 import { paginateHandwrittenA4Note } from '@/lib/notes-a4/pagination';
 import { HandwrittenNoteItem, MnemonicCard, ComparisonMiniTable } from '@/types/notes-a4.types';
 
@@ -20,6 +22,7 @@ export async function POST(req: NextRequest) {
       subtopicName = null,
       version = 1,
       regenerate = false,
+      userId,
     } = body;
 
     if (!topicId) {
@@ -27,6 +30,38 @@ export async function POST(req: NextRequest) {
         { error: 'topicId is required' },
         { status: 400 }
       );
+    }
+
+    let activeUserId = userId || null;
+    if (!activeUserId) {
+      try {
+        const userClient = await createClient();
+        const { data: { user } } = await userClient.auth.getUser();
+        if (user) activeUserId = user.id;
+      } catch (_) {}
+    }
+
+    if (activeUserId) {
+      const quotaResult = await checkFeatureQuota({
+        userId: activeUserId,
+        feature: 'notes',
+        topicId,
+        examId,
+        subjectId,
+      });
+
+      if (!quotaResult.allowed) {
+        return NextResponse.json(
+          {
+            error: quotaResult.upgradeMessage || quotaResult.reason,
+            limitReached: true,
+            limitType: quotaResult.limitType,
+            upgradeRequired: true,
+            planCode: quotaResult.planCode,
+          },
+          { status: 403 }
+        );
+      }
     }
 
     const supabase = getSupabaseAdmin();
@@ -42,48 +77,57 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
 
       if (existingNote && existingNote.content) {
-        let parsedContent = null;
-        try {
-          if (typeof existingNote.content === 'string') {
-            parsedContent = JSON.parse(existingNote.content);
-          } else {
-            parsedContent = existingNote.content;
+        const lastUpdated = new Date(existingNote.updated_at || existingNote.created_at || Date.now()).getTime();
+        const ageInDays = (Date.now() - lastUpdated) / (1000 * 60 * 60 * 24);
+
+        // Content remains valid for 30 days
+        if (ageInDays < 30) {
+          let parsedContent = null;
+          try {
+            if (typeof existingNote.content === 'string') {
+              parsedContent = JSON.parse(existingNote.content);
+            } else {
+              parsedContent = existingNote.content;
+            }
+          } catch {
+            parsedContent = null;
           }
-        } catch {
-          // If plain text or markdown, we will synthesize A4 structure
-          parsedContent = null;
-        }
 
-        if (parsedContent && (parsedContent.rawItems || parsedContent.items || parsedContent.pages)) {
-          const rawItems: HandwrittenNoteItem[] = parsedContent.rawItems || parsedContent.items || [];
-          const keyPoints: string[] = parsedContent.keyPoints || (parsedContent.keyPointsSticky ? parsedContent.keyPointsSticky.points : []);
-          const mnemonics: MnemonicCard[] = parsedContent.mnemonics || [];
-          const comparisonTables: ComparisonMiniTable[] = parsedContent.comparisonTables || [];
+          if (parsedContent && (parsedContent.rawItems || parsedContent.items || parsedContent.pages)) {
+            const rawItems: HandwrittenNoteItem[] = parsedContent.rawItems || parsedContent.items || [];
+            const keyPoints: string[] = parsedContent.keyPoints || (parsedContent.keyPointsSticky ? parsedContent.keyPointsSticky.points : []);
+            const mnemonics: MnemonicCard[] = parsedContent.mnemonics || [];
+            const comparisonTables: ComparisonMiniTable[] = parsedContent.comparisonTables || [];
 
-          const paginated = paginateHandwrittenA4Note({
-            id: existingNote.id,
-            examId: existingNote.exam_id || examId,
-            subjectId: existingNote.subject_id || subjectId,
-            topicId: existingNote.topic_id || topicId,
-            subtopicId: existingNote.subtopic_id || subtopicId,
-            examName,
-            subjectName,
-            topicName,
-            subtopicName,
-            title: existingNote.title || topicName,
-            version: existingNote.version || 1,
-            items: rawItems,
-            keyPoints,
-            mnemonics,
-            comparisonTables,
-            createdAt: existingNote.created_at,
-            updatedAt: existingNote.updated_at,
-          });
+            const paginated = paginateHandwrittenA4Note({
+              id: existingNote.id,
+              examId: existingNote.exam_id || examId,
+              subjectId: existingNote.subject_id || subjectId,
+              topicId: existingNote.topic_id || topicId,
+              subtopicId: existingNote.subtopic_id || subtopicId,
+              examName,
+              subjectName,
+              topicName,
+              subtopicName,
+              title: existingNote.title || topicName,
+              version: existingNote.version || 1,
+              items: rawItems,
+              keyPoints,
+              mnemonics,
+              comparisonTables,
+              createdAt: existingNote.created_at,
+              updatedAt: existingNote.updated_at,
+            });
 
-          return NextResponse.json({
-            note: paginated,
-            source: 'database',
-          });
+            return NextResponse.json({
+              note: paginated,
+              source: 'database',
+              ageInDays: Math.floor(ageInDays),
+            });
+          }
+        } else {
+          // Content is older than 30 days -> generate new version on open
+          console.log(`[A4 Notes] Note for topic ${topicId} is ${Math.floor(ageInDays)} days old (>= 30 days). Regenerating new version...`);
         }
       }
     }

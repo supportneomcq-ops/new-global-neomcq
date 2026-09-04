@@ -11,7 +11,7 @@ export function AIOrb() {
   ];
 
   return (
-    <div className="relative w-full max-w-[340px] sm:max-w-[440px] lg:max-w-[480px] aspect-square mx-auto flex items-center justify-center select-none pointer-events-none">
+    <div className="relative w-full max-w-[280px] sm:max-w-[360px] lg:max-w-[390px] aspect-square mx-auto flex items-center justify-center select-none pointer-events-none">
       {/* 1. Ambient Background Multi-Layer Radial Glow */}
       <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#6D5BFF]/30 via-[#00D4FF]/20 to-[#A855F7]/30 blur-3xl opacity-75 animate-pulse" />
       <div className="absolute w-3/4 h-3/4 rounded-full bg-[#6D5BFF]/20 blur-2xl opacity-60" />

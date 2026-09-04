@@ -51,6 +51,7 @@ export function TutorWhiteboard({
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [ttsProvider, setTtsProvider] = useState<string>('Initializing');
+  const [ttsQuotaNotice, setTtsQuotaNotice] = useState<string | null>(null);
   const [selectedImageModal, setSelectedImageModal] = useState<EducationalMediaItem | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -117,9 +118,10 @@ export function TutorWhiteboard({
     };
   }, [segment?.sequence, segment?.phase, fullText]);
 
-  // Request server TTS audio or fallback to Web Speech API
+  // Request server TTS audio or handle quota limit
   const fetchTtsAudio = async (textToSpeak: string) => {
     try {
+      setTtsQuotaNotice(null);
       const res = await fetch('/api/ai-tutor/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -133,6 +135,13 @@ export function TutorWhiteboard({
       });
 
       const data = await res.json();
+
+      if (res.status === 403 || data.limitReached) {
+        setTtsQuotaNotice(data.upgradeMessage || data.error || 'Daily Neural Audio (TTS) limit reached.');
+        setTtsProvider('Quota Limit Reached');
+        return;
+      }
+
       setTtsProvider(data.provider || 'Server TTS');
 
       if (data.success && data.audioUrl && !data.fallbackToWebSpeech) {
@@ -246,14 +255,14 @@ export function TutorWhiteboard({
 
   if (isGenerating) {
     return (
-      <div className="p-8 rounded-3xl bg-slate-950 text-white border border-slate-800 shadow-2xl space-y-6 min-h-[420px] flex flex-col justify-center items-center text-center">
+      <div className="p-8 rounded-3xl bg-white text-slate-900 border border-slate-200 shadow-xl space-y-6 min-h-[420px] flex flex-col justify-center items-center text-center">
         <div className="relative">
-          <div className="w-16 h-16 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin" />
-          <Sparkles className="w-6 h-6 text-indigo-400 absolute inset-0 m-auto" />
+          <div className="w-16 h-16 rounded-full border-4 border-indigo-500/20 border-t-indigo-600 animate-spin" />
+          <Sparkles className="w-6 h-6 text-indigo-600 absolute inset-0 m-auto" />
         </div>
         <div className="space-y-2">
-          <h3 className="text-lg font-bold text-white">Generating AI Tutor Sequence...</h3>
-          <p className="text-xs text-slate-400 max-w-md">
+          <h3 className="text-lg font-bold text-slate-900">Generating AI Tutor Sequence...</h3>
+          <p className="text-xs text-slate-500 max-w-md">
             Synthesizing teaching segment grounded strictly in canonical notes context with zero duplicate content.
           </p>
         </div>
@@ -263,32 +272,32 @@ export function TutorWhiteboard({
 
   if (!segment) {
     return (
-      <div className="p-8 rounded-3xl bg-slate-950 text-white border border-slate-800 min-h-[380px] flex flex-col justify-center items-center text-center space-y-4">
-        <AlertCircle className="w-12 h-12 text-slate-600" />
-        <p className="text-sm text-slate-400">No active tutor segment available. Click Start to begin.</p>
+      <div className="p-8 rounded-3xl bg-white text-slate-900 border border-slate-200 min-h-[380px] flex flex-col justify-center items-center text-center space-y-4">
+        <AlertCircle className="w-12 h-12 text-slate-400" />
+        <p className="text-sm text-slate-600">No active tutor segment available. Click Start to begin.</p>
       </div>
     );
   }
 
   return (
-    <div className="rounded-3xl bg-slate-950 text-white border border-slate-800 shadow-2xl p-5 sm:p-6 space-y-5 relative overflow-hidden">
-      {/* Subtle Grid Watermark */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:2rem_2rem] opacity-20 pointer-events-none" />
+    <div className="rounded-3xl bg-white text-slate-900 border border-slate-200 shadow-xl p-5 sm:p-6 space-y-5 relative overflow-hidden">
+      {/* Light Blueprint / Grid Paper Watermark */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] bg-[size:2rem_2rem] opacity-60 pointer-events-none" />
 
       {/* Top Header Bar */}
-      <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-800 text-xs">
+      <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-200 text-xs">
         <div className="flex items-center gap-2.5">
-          <span className={`w-2.5 h-2.5 rounded-full ${isTyping || isPlayingAudio ? 'bg-emerald-400 animate-pulse' : 'bg-indigo-400'}`} />
-          <span className="font-bold text-slate-300 uppercase tracking-wider text-[11px]">
+          <span className={`w-2.5 h-2.5 rounded-full ${isTyping || isPlayingAudio ? 'bg-emerald-500 animate-pulse' : 'bg-indigo-600'}`} />
+          <span className="font-bold text-slate-700 uppercase tracking-wider text-[11px]">
             Sequence {segment.sequence} • {segment.phase}
           </span>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[11px] font-bold">
+          <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 text-[11px] font-bold">
             {segment.title}
           </span>
-          <span className="px-2.5 py-1 rounded-full bg-slate-800 text-slate-400 text-[10px] font-mono">
+          <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] font-mono border border-slate-200">
             {ttsProvider}
           </span>
         </div>
@@ -296,33 +305,33 @@ export function TutorWhiteboard({
 
       {/* Main Whiteboard Display Area (Auto-wrapping text & media layout) */}
       <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[280px]">
-        {/* Teaching Text Canvas (Auto-wrapping, progressive typing) */}
+        {/* Teaching Text Canvas (Auto-wrapped, progressive typing) */}
         <div className={`${activeImage || activeVideo ? 'lg:col-span-7' : 'lg:col-span-12'} space-y-4`}>
-          <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800/80 backdrop-blur-xs min-h-[220px] flex flex-col justify-between space-y-4">
+          <div className="p-5 rounded-2xl bg-slate-50/90 border border-slate-200 backdrop-blur-xs min-h-[220px] flex flex-col justify-between space-y-4">
             <div className="space-y-3">
-              <h3 className="text-base sm:text-lg font-bold text-white flex items-center justify-between">
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 flex items-center justify-between">
                 <span>{segment.title}</span>
                 {isTyping && (
-                  <span className="text-[11px] text-amber-400 font-normal animate-pulse flex items-center gap-1">
+                  <span className="text-[11px] text-amber-600 font-normal animate-pulse flex items-center gap-1">
                     Writing...
                   </span>
                 )}
               </h3>
 
               {/* Progressively Typed Teaching Text (Auto-wrapped, no overflow) */}
-              <div className="text-xs sm:text-sm text-slate-200 leading-relaxed font-sans whitespace-pre-wrap break-words max-h-[360px] overflow-y-auto pr-2">
+              <div className="text-xs sm:text-sm text-slate-800 leading-relaxed font-sans whitespace-pre-wrap break-words max-h-[360px] overflow-y-auto pr-2">
                 {displayedText}
-                {isTyping && <span className="inline-block w-2 h-4 ml-1 bg-indigo-400 animate-pulse align-middle" />}
+                {isTyping && <span className="inline-block w-2 h-4 ml-1 bg-indigo-600 animate-pulse align-middle" />}
               </div>
             </div>
 
             {/* Key Points Badges */}
             {segment.keyPoints && segment.keyPoints.length > 0 && (
-              <div className="pt-3 border-t border-slate-800/80 flex flex-wrap gap-1.5">
+              <div className="pt-3 border-t border-slate-200 flex flex-wrap gap-1.5">
                 {segment.keyPoints.map((kp, i) => (
                   <span
                     key={i}
-                    className="px-2.5 py-1 rounded-lg bg-indigo-950/60 text-indigo-300 border border-indigo-800/40 text-[11px] font-medium"
+                    className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-900 border border-indigo-200 text-[11px] font-medium"
                   >
                     • {kp}
                   </span>
@@ -337,15 +346,15 @@ export function TutorWhiteboard({
           <div className="lg:col-span-5 space-y-3">
             {/* Active Educational Image */}
             {activeImage && (
-              <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-2 relative group">
-                <div className="flex items-center justify-between text-[11px] font-bold text-slate-300">
-                  <span className="flex items-center gap-1.5 text-indigo-400">
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 relative group">
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
+                  <span className="flex items-center gap-1.5 text-indigo-600">
                     <ImageIcon className="w-3.5 h-3.5" /> Canonical Reference Plate
                   </span>
                   <button
                     type="button"
                     onClick={() => setSelectedImageModal(activeImage)}
-                    className="p-1 hover:bg-slate-800 rounded-md text-slate-400 hover:text-white transition-colors"
+                    className="p-1 hover:bg-slate-200 rounded-md text-slate-500 hover:text-slate-900 transition-colors"
                     title="Expand image"
                   >
                     <Maximize2 className="w-3.5 h-3.5" />
@@ -429,6 +438,18 @@ export function TutorWhiteboard({
 
       {/* Synchronized Player Controls Scrubber Bar */}
       <div className="relative z-10 space-y-3 pt-3 border-t border-slate-800">
+        {ttsQuotaNotice && (
+          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs flex flex-wrap items-center justify-between gap-3">
+            <span className="font-medium">{ttsQuotaNotice}</span>
+            <a
+              href="/pricing"
+              className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs whitespace-nowrap transition-colors shadow-xs"
+            >
+              Upgrade Plan
+            </a>
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center justify-between gap-3">
           {/* Main Playback Buttons */}
           <div className="flex items-center gap-2">

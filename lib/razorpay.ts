@@ -99,7 +99,7 @@ export async function createSubscriptionRazorpayOrder(params: {
     }
 
     // Fallback to standard verified Razorpay Order
-    const response = await fetch('https://api.razorpay.com/v1/orders', {
+    let response = await fetch('https://api.razorpay.com/v1/orders', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -116,11 +116,41 @@ export async function createSubscriptionRazorpayOrder(params: {
           user_email: params.userEmail || '',
           plan_name: plan.name,
           duration_days: plan.duration_days,
+          canonical_price_usd: plan.price_usd,
         },
       }),
     });
 
-    const data = await response.json();
+    let data = await response.json();
+
+    // If Razorpay merchant account rejects USD currency, fallback server-side to INR transaction
+    if (!response.ok && currency === 'USD' && data.error?.description?.toLowerCase().includes('currency')) {
+      const inrAmount = plan.amount_paise || Math.round(plan.price_usd * 85 * 100);
+      response = await fetch('https://api.razorpay.com/v1/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: authHeader,
+        },
+        body: JSON.stringify({
+          amount: inrAmount,
+          currency: 'INR',
+          receipt,
+          notes: {
+            type: 'subscription',
+            plan_code: params.planCode,
+            user_id: params.userId,
+            user_email: params.userEmail || '',
+            plan_name: plan.name,
+            duration_days: plan.duration_days,
+            canonical_price_usd: plan.price_usd,
+            converted_from_usd: true,
+          },
+        }),
+      });
+      data = await response.json();
+    }
+
     if (!response.ok) {
       console.error('Razorpay Order Creation Failed:', data);
       throw new Error(data.error?.description || 'Failed to create payment order with Razorpay.');

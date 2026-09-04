@@ -328,7 +328,7 @@ function SignInContent() {
           </motion.div>
           
           <p className="text-center text-[11px] text-slate-500 dark:text-gray-500 mt-6 font-medium">
-            Protected by Supabase Auth and NeoMCQ security engines.
+            Protected by enterprise-grade 256-bit encryption.
           </p>
         </div>
       </main>

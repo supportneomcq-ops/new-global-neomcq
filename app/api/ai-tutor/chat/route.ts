@@ -31,6 +31,29 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (userId && userId !== 'system-user') {
+      const { checkFeatureQuota } = await import('@/lib/entitlements/quota-checker');
+      const quotaResult = await checkFeatureQuota({
+        userId,
+        feature: 'tutor',
+        topicId,
+      });
+
+      if (!quotaResult.allowed) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: quotaResult.upgradeMessage || quotaResult.reason,
+            limitReached: true,
+            limitType: quotaResult.limitType,
+            upgradeRequired: true,
+            planCode: quotaResult.planCode,
+          },
+          { status: 403 }
+        );
+      }
+    }
+
     const result = await TutorChatEngine.askDoubtQuestion({
       lessonId,
       userId,

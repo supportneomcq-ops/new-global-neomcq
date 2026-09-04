@@ -157,24 +157,24 @@ export function TutorChatPanel({
   };
 
   return (
-    <div className="flex flex-col h-full min-h-[500px] max-h-[640px] rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs p-4 sm:p-5 space-y-4">
+    <div className="flex flex-col h-full min-h-[500px] max-h-[640px] rounded-3xl bg-white text-slate-900 border border-slate-200 shadow-xs p-4 sm:p-5 space-y-4">
       {/* Panel Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+      <div className="flex items-center justify-between pb-3 border-b border-slate-200">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
             <Sparkles className="w-4 h-4" />
           </div>
           <div>
-            <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+            <h4 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
               <span>AI Doubt Mentor</span>
             </h4>
-            <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+            <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3" /> Grounded in Canonical Notes
             </p>
           </div>
         </div>
 
-        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
           $0 FAQ Reuse
         </span>
       </div>
@@ -187,11 +187,11 @@ export function TutorChatPanel({
             <p className="text-xs">Loading tutor chat history...</p>
           </div>
         ) : messages.length === 0 ? (
-          <div className="text-center py-8 px-4 space-y-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+          <div className="text-center py-8 px-4 space-y-3 bg-slate-50 rounded-2xl border border-slate-100">
             <HelpCircle className="w-8 h-8 text-indigo-500 mx-auto" />
             <div className="space-y-1">
-              <p className="font-bold text-slate-800 dark:text-slate-200 text-xs">Have a question about {topicName}?</p>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              <p className="font-bold text-slate-800 text-xs">Have a question about {topicName}?</p>
+              <p className="text-[11px] text-slate-500">
                 Ask any conceptual doubt, request visual analogies, or query board traps.
               </p>
             </div>
@@ -203,12 +203,12 @@ export function TutorChatPanel({
               className={`p-3.5 rounded-2xl space-y-1 ${
                 msg.role === 'user'
                   ? 'bg-indigo-600 text-white ml-6 rounded-tr-none font-medium'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 mr-6 rounded-tl-none border border-slate-200 dark:border-slate-700 leading-relaxed'
+                  : 'bg-slate-100 text-slate-800 mr-6 rounded-tl-none border border-slate-200 leading-relaxed'
               }`}
             >
               <div className="flex items-center justify-between text-[10px] opacity-75 font-semibold">
                 <span className="flex items-center gap-1">
-                  {msg.role === 'user' ? <User className="w-3 h-3" /> : <Bot className="w-3 h-3 text-indigo-400" />}
+                  {msg.role === 'user' ? <User className="w-3 h-3" /> : <Bot className="w-3 h-3 text-indigo-600" />}
                   {msg.role === 'user' ? 'You' : 'AI Tutor'}
                 </span>
                 {msg.role === 'assistant' && (
@@ -223,7 +223,7 @@ export function TutorChatPanel({
         )}
 
         {isLoading && (
-          <div className="p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-500 text-xs flex items-center gap-2 w-fit">
+          <div className="p-3.5 rounded-2xl bg-slate-100 text-slate-600 text-xs flex items-center gap-2 w-fit">
             <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
             <span>Formulating answer grounded in canonical notes...</span>
           </div>
@@ -244,7 +244,7 @@ export function TutorChatPanel({
                 key={faq.id}
                 type="button"
                 onClick={() => handleSubmitQuestion(faq.question)}
-                className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-semibold whitespace-nowrap transition-colors cursor-pointer border border-slate-200 dark:border-slate-700 shrink-0"
+                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 text-indigo-600 font-semibold whitespace-nowrap transition-colors cursor-pointer border border-slate-200 shrink-0"
               >
                 💡 {faq.question}
               </button>
@@ -259,7 +259,7 @@ export function TutorChatPanel({
           e.preventDefault();
           handleSubmitQuestion(inputText);
         }}
-        className="flex gap-2 pt-2 border-t border-slate-200 dark:border-slate-800"
+        className="flex gap-2 pt-2 border-t border-slate-200"
       >
         <input
           type="text"
@@ -267,7 +267,7 @@ export function TutorChatPanel({
           onChange={(e) => setInputText(e.target.value)}
           placeholder="Ask a doubt about this lesson..."
           disabled={isLoading}
-          className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:border-indigo-600 disabled:opacity-50"
+          className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-900 placeholder:text-slate-400 text-xs focus:outline-none focus:border-indigo-600 disabled:opacity-50"
         />
         <button
           type="submit"

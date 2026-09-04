@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { AUTHORITATIVE_PLANS, PlanCode } from '@/lib/plans/plan-config';
 import { usePlanCheckout } from '@/lib/checkout/use-plan-checkout';
 import { Header } from '@/components/header';
+import { Footer } from '@/components/footer';
 import { MobileMenu } from '@/components/mobile-menu';
 import { InteractiveModals, ModalType } from '@/components/interactive-modals';
 import {
@@ -54,30 +55,6 @@ export default function PricingPage() {
           <p className="text-base sm:text-lg text-slate-600 dark:text-slate-400 font-normal">
             Choose the plan that matches your study pace. From adaptive question banks to unlimited multi-exam mastery.
           </p>
-
-          {/* Currency Switcher */}
-          <div className="mt-8 inline-flex items-center p-1 rounded-xl bg-slate-200/80 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700">
-            <button
-              onClick={() => setCurrency('USD')}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                currency === 'USD'
-                  ? 'bg-white dark:bg-[#6D5BFF] text-slate-900 dark:text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              USD ($)
-            </button>
-            <button
-              onClick={() => setCurrency('INR')}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                currency === 'INR'
-                  ? 'bg-white dark:bg-[#6D5BFF] text-slate-900 dark:text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              INR (₹)
-            </button>
-          </div>
         </div>
 
         {/* Global Status / Alert Banners */}
@@ -117,7 +94,7 @@ export default function PricingPage() {
 
               <div className="flex items-baseline gap-1.5 mb-6">
                 <span className="text-4xl font-extrabold text-slate-900 dark:text-white">
-                  {currency === 'USD' ? '$9.99' : '₹849'}
+                  $9.99
                 </span>
                 <span className="text-sm font-medium text-slate-500 dark:text-slate-400">/ month</span>
               </div>
@@ -163,7 +140,7 @@ export default function PricingPage() {
 
               <div className="flex items-baseline gap-1.5 mb-6">
                 <span className="text-4xl font-extrabold text-slate-900 dark:text-white">
-                  {currency === 'USD' ? '$19.99' : '₹1,699'}
+                  $19.99
                 </span>
                 <span className="text-sm font-medium text-slate-500 dark:text-slate-400">/ month</span>
               </div>
@@ -214,7 +191,7 @@ export default function PricingPage() {
 
               <div className="flex items-baseline gap-1.5 mb-2">
                 <span className="text-4xl font-extrabold text-slate-900 dark:text-white">
-                  {currency === 'USD' ? '$499' : '₹41,999'}
+                  $499
                 </span>
                 <span className="text-sm font-medium text-slate-500 dark:text-slate-400">/ 1 year</span>
               </div>
@@ -245,6 +222,23 @@ export default function PricingPage() {
               {isProcessing && activePlanCode === 'ELITE' ? 'Processing...' : 'Get Elite 1-Year Unlimited'}
             </button>
           </div>
+        </div>
+
+        {/* Pre-Checkout Legal & Billing Disclosures */}
+        <div className="max-w-4xl mx-auto mb-16 p-5 rounded-2xl bg-white/80 dark:bg-[#0E1324]/80 border border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400 space-y-2">
+          <p className="font-semibold text-slate-700 dark:text-slate-300">
+            Payment & Subscription Terms Disclosures:
+          </p>
+          <p className="leading-relaxed max-w-3xl mx-auto">
+            All subscriptions are billed in USD ($) via Razorpay 256-bit SSL encrypted payment processing. By completing a transaction, you agree to NeoMCQ’s{' '}
+            <Link href="/terms-and-conditions" className="text-[#6D5BFF] dark:text-[#00D4FF] underline font-medium">Terms & Conditions</Link>,{' '}
+            <Link href="/privacy-policy" className="text-[#6D5BFF] dark:text-[#00D4FF] underline font-medium">Privacy Policy</Link>,{' '}
+            <Link href="/refund-and-cancellation-policy" className="text-[#6D5BFF] dark:text-[#00D4FF] underline font-medium">Refund & Cancellation Policy</Link>, and{' '}
+            <Link href="/shipping-and-delivery-policy" className="text-[#6D5BFF] dark:text-[#00D4FF] underline font-medium">Digital Delivery Policy</Link>.
+          </p>
+          <p className="text-[11px] text-slate-400">
+            Pro ($9.99/mo) and Max ($19.99/mo) plans include a $2.00 USD curriculum switching fee per switch. Elite ($499/yr) subscribers enjoy unlimited zero-fee curriculum switches. Subscriptions can be canceled anytime from your Billing Portal.
+          </p>
         </div>
 
         {/* Feature Comparison Table */}
@@ -376,6 +370,8 @@ export default function PricingPage() {
         onClose={() => setMobileMenuOpen(false)}
         onOpenModal={(modal) => setActiveModal(modal)}
       />
+
+      <Footer />
     </div>
   );
 }

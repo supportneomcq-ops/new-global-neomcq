@@ -11,7 +11,7 @@ interface HeroActionsProps {
 
 export function HeroActions({ onStartFree, onExploreFeatures }: HeroActionsProps) {
   return (
-    <div className="flex flex-col items-center lg:items-start space-y-6 w-full">
+    <div className="flex flex-col items-center lg:items-start space-y-3 sm:space-y-4 w-full">
       {/* Interactive Badge */}
       <button
         onClick={onExploreFeatures}

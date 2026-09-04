@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { FuturisticLoader } from './futuristic-loader';
 import { Header } from './header';
+import { Footer } from './footer';
 import { Hero } from './hero';
 import { MobileMenu } from './mobile-menu';
 import { InteractiveModals, ModalType } from './interactive-modals';
@@ -179,6 +180,9 @@ export function HomeInteractionManager({ marquee }: HomeInteractionManagerProps)
           onClose={() => setIsOnboardingOpen(false)}
           onComplete={handleOnboardingComplete}
         />
+
+        {/* Global Legal & Public Footer */}
+        <Footer />
       </div>
     </>
   );

@@ -93,7 +93,7 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
         />
 
         {/* Dynamic Main Workspace Content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-8 min-w-0 space-y-6">
+        <main className="flex-1 p-3.5 sm:p-5 lg:p-6 pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-6 min-w-0 space-y-4 sm:space-y-5">
           {/* Unified Subject & Topic selection bar rendered across all learning tabs */}
           {activeTab !== 'dashboard' && activeTab !== 'radar' && activeTab !== 'plan' && activeTab !== 'saved' && (
             <LearningContextBar />

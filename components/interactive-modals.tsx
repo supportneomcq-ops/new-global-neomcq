@@ -39,24 +39,8 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
   const [startExamLoading, setStartExamLoading] = useState(false);
   const [startExamSuccess, setStartExamSuccess] = useState(false);
 
-  // Supabase Status
-  const [dbStatus, setDbStatus] = useState<string>('Connecting...');
-
   // Plan Checkout Hook
   const { checkoutPlan, isProcessing: isCheckoutProcessing, activePlanCode, statusMessage: checkoutStatus, errorMessage: checkoutError } = usePlanCheckout();
-
-  useEffect(() => {
-    fetch('/api/supabase-status')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.status === 'connected') {
-          setDbStatus('Supabase Cloud Database Connected');
-        } else {
-          setDbStatus('Supabase Ready');
-        }
-      })
-      .catch(() => setDbStatus('Supabase Ready'));
-  }, []);
 
   useEffect(() => {
     if (activeModal) {
@@ -164,7 +148,7 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
 
       {/* Modal Window */}
       <div
-        className={`relative w-full max-w-3xl h-[min(88dvh,660px)] max-h-[88dvh] rounded-3xl bg-white dark:bg-[#0E1324] border border-gray-200 dark:border-[#6D5BFF]/30 p-5 sm:p-7 shadow-2xl z-10 my-auto text-gray-900 dark:text-white flex flex-col overflow-y-auto scrollbar-thin transition-all duration-300 transform ${
+        className={`relative w-full max-w-3xl max-h-[85vh] rounded-3xl bg-white dark:bg-[#0E1324] border border-gray-200 dark:border-[#6D5BFF]/30 p-5 sm:p-7 shadow-2xl z-10 my-auto text-gray-900 dark:text-white flex flex-col overflow-y-auto scrollbar-thin transition-all duration-300 transform ${
           isOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-4'
         }`}
       >
@@ -179,12 +163,6 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
           >
             <X className="w-5 h-5" />
           </button>
-
-          {/* Supabase Status Tag */}
-          <div className="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 mb-4 bg-emerald-500/10 dark:bg-emerald-500/15 px-3 py-1 rounded-full w-fit border border-emerald-500/20">
-            <Database className="w-3 h-3" />
-            <span>{dbStatus}</span>
-          </div>
 
           {/* Pricing Modal */}
           {activeModal === 'pricing' && (
@@ -491,7 +469,7 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
                   <div className="w-12 h-12 mx-auto rounded-full bg-[#6D5BFF] text-white flex items-center justify-center">
                     <Check className="w-6 h-6" />
                   </div>
-                  <h3 className="font-heading font-bold text-lg">Message Saved to Supabase!</h3>
+                  <h3 className="font-heading font-bold text-lg">Message Sent Successfully!</h3>
                   <p className="text-sm text-gray-600 dark:text-gray-300">
                     Thank you, {contactName || 'learner'}. Our team will review your inquiry and reach out within 2 hours.
                   </p>
@@ -549,7 +527,7 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
                   >
                     {contactLoading ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin" /> Saving to Supabase...
+                        <Loader2 className="w-4 h-4 animate-spin" /> Submitting message...
                       </>
                     ) : (
                       'Send Message'
@@ -686,7 +664,7 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
                   </div>
                   <h3 className="font-heading font-bold text-lg">AI Session Initialized!</h3>
                   <p className="text-sm text-gray-600 dark:text-gray-300">
-                    Targeted practice session for <strong>{selectedExam}</strong> saved in Supabase. Preparing your custom neural Q-Bank vignette...
+                    Targeted practice session for <strong>{selectedExam}</strong> saved to your account. Preparing your custom neural Q-Bank vignette...
                   </p>
                   <button
                     onClick={onClose}

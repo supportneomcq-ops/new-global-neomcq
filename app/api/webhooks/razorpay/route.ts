@@ -23,10 +23,12 @@ export async function POST(req: NextRequest) {
         .update(rawBody)
         .digest('hex');
 
-      const isSignatureValid = crypto.timingSafeEqual(
-        Buffer.from(signature),
-        Buffer.from(expectedSignature)
-      );
+      const sigBuf = Buffer.from(signature);
+      const expectedBuf = Buffer.from(expectedSignature);
+
+      const isSignatureValid =
+        sigBuf.length === expectedBuf.length &&
+        crypto.timingSafeEqual(sigBuf, expectedBuf);
 
       if (!isSignatureValid && process.env.NODE_ENV === 'production') {
         return NextResponse.json(

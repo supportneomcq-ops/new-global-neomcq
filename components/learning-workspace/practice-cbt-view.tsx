@@ -527,7 +527,7 @@ export function PracticeCbtView({
         {dbLoading ? (
           <div className="flex flex-col items-center justify-center py-20 space-y-4">
             <div className="w-10 h-10 border-4 border-indigo-500/30 border-t-indigo-600 rounded-full animate-spin" />
-            <p className="text-xs text-slate-400 font-medium">Retrieving real Supabase records...</p>
+            <p className="text-xs text-slate-400 font-medium">Loading practice records...</p>
           </div>
         ) : versions.length === 0 ? (
           <div className="text-center py-16 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 space-y-5">

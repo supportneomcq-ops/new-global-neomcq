@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     if (!auth.authorized) return auth.response!;
 
     const body = await req.json();
-    const { name, slug, description, price_inr, price_usd, billing_interval, features, is_active } = body;
+    const { name, slug, description, price_inr, price_usd, billing_interval, features, limits, is_active } = body;
 
     if (!name || !slug) {
       return NextResponse.json({ error: 'Plan name and slug are required' }, { status: 400 });
@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
       price_usd: Number(price_usd) || 0,
       billing_interval: billing_interval || 'monthly',
       features: Array.isArray(features) ? features : [],
+      limits: limits || {},
       is_active: is_active !== false,
       updated_at: new Date().toISOString(),
     };

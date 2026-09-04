@@ -137,7 +137,7 @@ export function FuturisticLoader({ onComplete }: FuturisticLoaderProps) {
           {/* Security Badge */}
           <div className="mt-8 flex items-center gap-1.5 text-[10px] font-mono text-slate-400">
             <ShieldCheck className="w-3.5 h-3.5 text-[#00D4FF]" />
-            <span>SUPABASE SHARD CONNECTED • ISO 27001 ENCRYPTED</span>
+            <span>NEOMCQ SECURE ENGINE • 256-BIT ENCRYPTED</span>
           </div>
         </motion.div>
       )}

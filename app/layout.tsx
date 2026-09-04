@@ -4,6 +4,7 @@ import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
 import { SelectionProvider } from '@/lib/context/selection-context';
 import { TopicContentProvider } from '@/lib/context/topic-content-context';
+import { GlobalLoadingProvider } from '@/components/global-loading-provider';
 import { ServiceWorkerRegister } from '@/components/pwa/sw-register';
 import { PWAInstallPrompt } from '@/components/pwa/install-prompt';
 import { generateOrganizationSchema, generateWebSiteSchema } from '@/lib/seo/structured-data';
@@ -120,13 +121,15 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <SelectionProvider>
-            <TopicContentProvider>
-              {children}
-              <ServiceWorkerRegister />
-              <PWAInstallPrompt />
-            </TopicContentProvider>
-          </SelectionProvider>
+          <GlobalLoadingProvider>
+            <SelectionProvider>
+              <TopicContentProvider>
+                {children}
+                <ServiceWorkerRegister />
+                <PWAInstallPrompt />
+              </TopicContentProvider>
+            </SelectionProvider>
+          </GlobalLoadingProvider>
         </ThemeProvider>
       </body>
     </html>

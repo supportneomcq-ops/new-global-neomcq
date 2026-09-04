@@ -24,6 +24,31 @@ export async function POST(req: NextRequest) {
       } catch (_) {}
     }
 
+    if (targetUserId) {
+      const { checkFeatureQuota } = await import('@/lib/entitlements/quota-checker');
+      const quotaResult = await checkFeatureQuota({
+        userId: targetUserId,
+        feature: 'sticky_notes',
+        topicId: topic.id,
+        examId: exam?.id,
+        subjectId: subject?.id,
+      });
+
+      if (!quotaResult.allowed) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: quotaResult.upgradeMessage || quotaResult.reason,
+            limitReached: true,
+            limitType: quotaResult.limitType,
+            upgradeRequired: true,
+            planCode: quotaResult.planCode,
+          },
+          { status: 403 }
+        );
+      }
+    }
+
     const supabase = getSupabaseAdmin();
 
     // 1. Fetch existing sticky notes for this user & topic to prevent duplicates

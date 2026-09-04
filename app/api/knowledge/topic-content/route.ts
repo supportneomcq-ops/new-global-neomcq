@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase/server'
+import { checkFeatureQuota } from '@/lib/entitlements/quota-checker'
 import { getOrGenerateCanonicalTopicContent } from '@/lib/knowledge/ai-content-intelligence'
 
 export async function POST(req: NextRequest) {
@@ -21,7 +23,39 @@ export async function POST(req: NextRequest) {
     const difficulty = body.difficulty || 'Intermediate'
     const language = body.language || 'en'
     const forceRefresh = !!body.forceRefresh
-    const userId = body.userId || body.user_id || null
+    
+    let activeUserId = body.userId || body.user_id || null
+    if (!activeUserId) {
+      try {
+        const userClient = await createClient()
+        const { data: { user } } = await userClient.auth.getUser()
+        if (user) activeUserId = user.id
+      } catch (_) {}
+    }
+
+    const featureKey = (body.feature || (contentType === 'quiz' ? 'quiz' : contentType === 'flashcards' ? 'flashcards' : 'mcq')) as any
+
+    // Enforce quota checking
+    if (activeUserId) {
+      const quotaResult = await checkFeatureQuota({
+        userId: activeUserId,
+        feature: featureKey,
+        topicId: topicId || topicNameInput,
+        examId,
+        subjectId,
+      })
+
+      if (!quotaResult.allowed) {
+        return NextResponse.json({
+          success: false,
+          limitReached: true,
+          limitType: quotaResult.limitType,
+          error: quotaResult.upgradeMessage || quotaResult.reason,
+          upgradeRequired: true,
+          planCode: quotaResult.planCode,
+        }, { status: 403 })
+      }
+    }
 
     const supabase = getSupabaseAdmin()
 
