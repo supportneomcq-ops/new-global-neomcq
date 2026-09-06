@@ -39,9 +39,9 @@ export const OFFICIAL_PROVIDER_PRICING: OfficialModelPrice[] = [
     context_window: 1048576,
     max_output_tokens: 8192,
     recommended_tier: 'reasoning',
-    task_types: ['FIRST_CANONICAL_CONTENT_CREATION', 'FIRST_GENERATION', 'DIFFICULT_MEDICAL_REASONING', 'CLINICAL_SCENARIO_GENERATION'],
+    task_types: ['FIRST_CANONICAL_CONTENT_CREATION', 'FIRST_GENERATION', 'DIFFICULT_EXAM_REASONING', 'EXAM_SCENARIO_GENERATION'],
     enabled: true,
-    description: 'Premier hybrid reasoning model for first-generation canonical topic creation, complex clinical stems, and difficult explanations.',
+    description: 'Premier hybrid reasoning model for first-generation canonical topic creation, complex exam question stems, and difficult explanations.',
   },
   {
     provider: 'gemini',
@@ -113,7 +113,7 @@ export const OFFICIAL_PROVIDER_PRICING: OfficialModelPrice[] = [
     recommended_tier: 'reasoning',
     task_types: ['FALLBACK_REASONING', 'NOTE_GENERATION', 'NORMAL_MCQ_GENERATION', 'DIFFICULT_MCQ_GENERATION', 'FIRST_CANONICAL_CONTENT_CREATION', 'CONTENT_30_DAY_REFRESH', 'AI_TUTOR_NORMAL', 'AI_TUTOR_DIFFICULT'],
     enabled: true,
-    description: 'Secondary high-quality reasoning and fallback provider for difficult medical MCQs and refresh operations.',
+    description: 'Secondary high-quality reasoning and fallback provider for difficult exam MCQs and refresh operations.',
   },
   {
     provider: 'openai',

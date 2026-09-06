@@ -44,6 +44,8 @@ export interface PlanDefinition {
   limits: {
     daily_ai_questions: number; // Infinity for ELITE
     monthly_ai_tutor_sessions: number; // Infinity for ELITE
+    daily_topic_switches: number;
+    daily_tutor_tts: number;
     audio_tts_enabled: boolean;
     priority_queue: boolean;
     unlimited_exam_switches: boolean; // true for ELITE

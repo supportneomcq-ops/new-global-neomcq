@@ -13,6 +13,7 @@ export type ModalType = 'pricing' | 'features' | 'faq' | 'contact' | 'signin' | 
 interface ModalProps {
   activeModal: ModalType;
   onClose: () => void;
+  onOpenModal?: (modal: any) => void;
 }
 
 export function InteractiveModals({ activeModal, onClose }: ModalProps) {

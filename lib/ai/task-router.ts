@@ -6,7 +6,7 @@ export const CANONICAL_TASK_ROUTING_DEFAULTS: TaskRoutingRule[] = [
   {
     task_type: 'FIRST_CANONICAL_CONTENT_CREATION',
     display_name: 'First-Time Canonical Topic Generation',
-    description: 'Premier reasoning model for clinical accuracy and high-yield canonical assets',
+    description: 'High-accuracy reasoning model for canonical exam content',
     primary_provider: 'gemini',
     primary_model: 'gemini-3.7-flash',
     fallback_provider: 'openai',
@@ -33,8 +33,8 @@ export const CANONICAL_TASK_ROUTING_DEFAULTS: TaskRoutingRule[] = [
   },
   {
     task_type: 'DIFFICULT_MCQ_GENERATION',
-    display_name: 'Difficult / Multi-Step Clinical Vignettes',
-    description: 'High-order medical diagnostic questions with clinical distractors',
+    display_name: 'Difficult / Multi-Step Reasoning Questions',
+    description: 'High-order complex questions with rigorous distractors',
     primary_provider: 'gemini',
     primary_model: 'gemini-3.7-flash',
     fallback_provider: 'openai',
@@ -62,7 +62,7 @@ export const CANONICAL_TASK_ROUTING_DEFAULTS: TaskRoutingRule[] = [
   {
     task_type: 'NOTE_GENERATION',
     display_name: 'High-Yield Comprehensive Notes',
-    description: 'Structured markdown clinical summaries and revision sheets',
+    description: 'Structured markdown summaries and core revision sheets',
     primary_provider: 'gemini',
     primary_model: 'gemini-3.5-flash',
     fallback_provider: 'openai',
@@ -76,7 +76,7 @@ export const CANONICAL_TASK_ROUTING_DEFAULTS: TaskRoutingRule[] = [
   {
     task_type: 'FLASHCARD_GENERATION',
     display_name: 'Active Recall Flashcards',
-    description: 'Front/back rapid recall diagnostic and pharmacological cards',
+    description: 'Front/back rapid recall cards for exam preparation',
     primary_provider: 'gemini',
     primary_model: 'gemini-3.5-flash',
     fallback_provider: 'openai',
@@ -90,7 +90,7 @@ export const CANONICAL_TASK_ROUTING_DEFAULTS: TaskRoutingRule[] = [
   {
     task_type: 'STUDY_PLAN',
     display_name: 'Custom AI Study Plan & Timeline',
-    description: 'Curriculum timeline, high-yield target scheduling, and pacing',
+    description: 'Curriculum timeline, key target scheduling, and pacing',
     primary_provider: 'gemini',
     primary_model: 'gemini-3.5-flash',
     fallback_provider: 'openai',
@@ -104,7 +104,7 @@ export const CANONICAL_TASK_ROUTING_DEFAULTS: TaskRoutingRule[] = [
   {
     task_type: 'AI_TUTOR_SIMPLE',
     display_name: 'AI Tutor - Instant Doubt Clarification',
-    description: 'Concise medical explanations and quick concept reviews',
+    description: 'Concise conceptual explanations and quick topic reviews',
     primary_provider: 'gemini',
     primary_model: 'gemini-3.5-flash',
     fallback_provider: 'openai',
@@ -117,8 +117,8 @@ export const CANONICAL_TASK_ROUTING_DEFAULTS: TaskRoutingRule[] = [
   },
   {
     task_type: 'AI_TUTOR_NORMAL',
-    display_name: 'AI Tutor - Interactive Medical Dialogue',
-    description: 'Conversational Socratic tutoring with clinical feedback',
+    display_name: 'AI Tutor - Interactive Discussion',
+    description: 'Conversational Socratic tutoring with logical feedback',
     primary_provider: 'gemini',
     primary_model: 'gemini-3.5-flash',
     fallback_provider: 'openai',
@@ -131,8 +131,8 @@ export const CANONICAL_TASK_ROUTING_DEFAULTS: TaskRoutingRule[] = [
   },
   {
     task_type: 'AI_TUTOR_DIFFICULT',
-    display_name: 'AI Tutor - Deep Clinical Reasoning',
-    description: 'Complex multi-step differential diagnosis and mechanism analysis',
+    display_name: 'AI Tutor - Deep Conceptual Reasoning',
+    description: 'Complex multi-step analytical reasoning and concept breakdown',
     primary_provider: 'gemini',
     primary_model: 'gemini-3.7-flash',
     fallback_provider: 'openai',
@@ -145,7 +145,7 @@ export const CANONICAL_TASK_ROUTING_DEFAULTS: TaskRoutingRule[] = [
   },
   {
     task_type: 'ENTITY_RESOLUTION',
-    display_name: 'Medical Entity Resolution',
+    display_name: 'Canonical Entity Resolution',
     description: 'Fast entity normalization, canonical topic matching, and aliases',
     primary_provider: 'gemini',
     primary_model: 'gemini-3.1-flash-lite',
@@ -174,7 +174,7 @@ export const CANONICAL_TASK_ROUTING_DEFAULTS: TaskRoutingRule[] = [
   {
     task_type: 'CONTENT_QUALITY_VALIDATION',
     display_name: 'Automated Content Quality Review',
-    description: 'Medical correctness, distractor audit, and guideline conformity',
+    description: 'Syllabus alignment correctness, distractor audit, and quality standards',
     primary_provider: 'gemini',
     primary_model: 'gemini-3.7-flash',
     fallback_provider: 'openai',
@@ -201,8 +201,8 @@ export const CANONICAL_TASK_ROUTING_DEFAULTS: TaskRoutingRule[] = [
   },
   {
     task_type: 'CONTENT_METADATA_EXTRACTION',
-    display_name: 'Medical Metadata & Taxonomy Extraction',
-    description: 'ICD/MeSH taxonomy extraction and difficulty indexing',
+    display_name: 'Syllabus Metadata & Taxonomy Extraction',
+    description: 'Subject-topic categorization, taxonomy mapping, and difficulty indexing',
     primary_provider: 'gemini',
     primary_model: 'gemini-3.1-flash-lite',
     fallback_provider: 'openai',

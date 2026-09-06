@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { AIGateway } from '@/lib/ai/ai-gateway';
 import { ActiveRecallSet, ActiveRecallItem } from '@/lib/types/active-recall';
-
 import { extractJsonFromAiResponse } from '@/lib/ai/json-cleaner';
+import { getExamStyleAndPattern } from '@/lib/server/content-engine/exam-style-helper';
 
 export async function POST(req: NextRequest) {
   try {
@@ -46,9 +46,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const examName = topicData.exam_subjects?.exams?.name || 'Medical Board Exam';
-    const subjectName = topicData.exam_subjects?.name || 'Clinical Medicine';
+    const examName = topicData.exam_subjects?.exams?.name || 'Board Exam';
+    const subjectName = topicData.exam_subjects?.name || 'Core Subject';
     const topicName = topicData.name;
+
+    const finalExamId = examId || topicData.exam_subjects?.exam_id;
+    const styleAndPattern = await getExamStyleAndPattern(finalExamId, supabase);
 
     // Optional Subtopic Context
     let subtopicName = '';
@@ -75,8 +78,8 @@ export async function POST(req: NextRequest) {
     const nextVersion = existingVersions && existingVersions.length > 0 ? (existingVersions[0].version || 1) + 1 : 1;
     const previousSnapshot = existingVersions && existingVersions[0]?.snapshot ? existingVersions[0].snapshot : {};
 
-    // 3. Construct System Prompt for Medical Active Recall Generation
-    const prompt = `You are a Senior Medical Professor, Board Examination Item Writer, and Active Recall Specialist.
+    // 3. Construct System Prompt for Domain-Neutral Active Recall Generation
+    const prompt = `You are a Senior ${styleAndPattern.role}, Board Examination Item Writer, and Active Recall Specialist.
 Create 12 to 15 high-yield ACTIVE RECALL (Cloze / Fill-in-the-Blank) items strictly for the following curriculum scope:
 
 EXAM: ${examName}
@@ -85,28 +88,32 @@ TOPIC: ${topicName}
 ${subtopicName ? `SUBTOPIC: ${subtopicName}` : ''}
 DIFFICULTY: ${difficulty}
 
+Domain/Style Guidelines:
+- Domain: ${styleAndPattern.domain}
+- Style: ${styleAndPattern.styleDescription}
+
 RULES FOR ACTIVE RECALL GENERATION:
-1. Every blank must test a crucial high-yield medical target (e.g. Investigation of Choice, First-Line Drug, Pathognomonic Histology / Triad, Key Anatomical Landmark, Hallmark Diagnostic Threshold, or Fatal Contraindication).
-2. DO NOT create trivial grammar blanks (e.g., "is", "located in", "the"). The blank must require genuine diagnostic, anatomical, or pharmacological active recall.
+1. Every blank must test a crucial high-yield target (e.g., core formula, standard definition, statutory section, main diagnostic tool, first-line choice, key mechanism, or critical trap).
+2. DO NOT create trivial grammar blanks (e.g., "is", "located in", "the"). The blank must require genuine conceptual, structural, or factual active recall.
 3. In the sentence, replace the primary test term with "[BLANK]".
-4. "blank" must be the exact canonical medical term.
-5. "acceptedAnswers" must include 2-4 medically valid synonyms, common acronyms, and alternative clinical naming conventions (e.g. for "Ultrasound", include ["USG", "Ultrasonography", "Ultrasound scan", "Sonography"]).
-6. "explanation" must explain the pathophysiology, diagnostic mechanism, or clinical guideline.
-7. "highYieldPoint" must summarize the board exam rule or takeaway.
-8. "memoryHook" must provide a memorable mnemonic, triad rule, or visual association.
-9. "examTip" must warn about common board exam distractors, traps, or look-alike conditions.
+4. "blank" must be the exact canonical term.
+5. "acceptedAnswers" must include 2-4 valid synonyms, common acronyms, and alternative naming conventions or notations.
+6. "explanation" must explain the underlying theory, logic, formula derivation, statutory rationale, or domain-specific guideline.
+7. "highYieldPoint" must summarize the board exam rule, formula, or takeaway.
+8. "memoryHook" must provide a memorable mnemonic, analogy, or conceptual association.
+9. "examTip" must warn about common board exam distractors, traps, or look-alike entities.
 
 Respond strictly in valid JSON format with NO markdown wrapping:
 {
   "fill_in_the_blanks": [
     {
-      "concept": "Specific Clinical Entity / Mechanism",
-      "sentence": "The gold standard investigation for evaluating [BLANK] in acute presentation is [BLANK].",
-      "blank": "Contrast-enhanced CT",
-      "acceptedAnswers": ["CECT", "Contrast CT", "Computed tomography with contrast", "CT scan with IV contrast"],
-      "explanation": "Why this is the standard of care based on international guidelines...",
+      "concept": "Specific Target Entity / Mechanism / Principle",
+      "sentence": "The core mechanism or equation governing [BLANK] under standard conditions is [BLANK].",
+      "blank": "Governing Rule or Formula",
+      "acceptedAnswers": ["Synonym 1", "Synonym 2", "Alternate acronym"],
+      "explanation": "Why this is the standard of care or industry benchmark based on guidelines...",
       "highYieldPoint": "Core rule to remember for board exams.",
-      "memoryHook": "Mnemonic or clinical association.",
+      "memoryHook": "Mnemonic, analogy, or conceptual association.",
       "examTip": "Common distractor warning or trap to avoid.",
       "difficulty": "High Yield"
     }

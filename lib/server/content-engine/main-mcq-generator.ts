@@ -29,6 +29,7 @@ import { ContentCacheManager } from './content-cache-manager';
 import { ContentCostAuditor } from './cost-auditor';
 import { MCQDeDuplicator } from './mcq-deduplicator';
 import { MCQValidator } from './mcq-validator';
+import { getExamStyleAndPattern } from './exam-style-helper';
 
 const CANONICAL_TARGET_MAIN_MCQ_COUNT = 40;
 
@@ -206,6 +207,7 @@ export class MainMCQGenerator {
 
       try {
         const generationResponse = await this.callAIForMCQs({
+          examId,
           examName,
           subjectName,
           topicName,
@@ -400,6 +402,7 @@ export class MainMCQGenerator {
    * Invokes Gemini GenAI model to generate structured high-yield MCQs
    */
   private static async callAIForMCQs(params: {
+    examId: string;
     examName: string;
     subjectName: string;
     topicName: string;
@@ -419,19 +422,20 @@ export class MainMCQGenerator {
       return this.generateSimulatedBatch(params);
     }
 
+    const styleAndPattern = await getExamStyleAndPattern(params.examId);
     const ai = new GoogleGenAI({ apiKey });
     const prompt = `
-You are the Chief Academic Medical Director for NeoMCQ.
-Generate exactly ${params.count} high-yield, canonical examination multiple-choice questions (MCQs) for:
-- Examination: ${params.examName}
+You are the ${styleAndPattern.role} for NeoMCQ.
+Generate exactly ${params.count} high-yield, canonical examination multiple-choice questions (MCQs) for the official syllabus:
+- Examination: ${params.examName} (Pattern/Domain: ${styleAndPattern.domain}, Difficulty Level: ${styleAndPattern.difficulty})
 - Subject: ${params.subjectName}
 - Topic: ${params.topicName}
 
 STRICT STANDARDS:
-1. Every question must be a realistic clinical scenario or high-yield medical reasoning stem (25-80 words).
-2. Exactly 4 distinct, plausible options (A, B, C, D).
+1. ${styleAndPattern.styleDescription}
+2. ${styleAndPattern.markingSchemeInstruction}
 3. Exactly 1 single indisputable correct answer.
-4. Detailed, comprehensive explanation explaining why the correct answer is right and why the other 3 distractors are incorrect.
+4. Detailed, comprehensive explanation explaining why the correct answer is right and why the other distractors are incorrect.
 5. Difficulty distribution: ~30% Easy, ~50% Medium, ~20% Hard.
 6. NO generic distractor clichés (e.g. do not use "None of the above" or "All of the above").
 7. DO NOT duplicate any of the following pre-existing question concepts:
@@ -453,18 +457,18 @@ Return JSON matching the schema.
             items: {
               type: Type.OBJECT,
               properties: {
-                question: { type: Type.STRING, description: 'Clinical vignette or conceptual medical question stem' },
+                question: { type: Type.STRING, description: 'Question stem tailored to exam domain, style, and syllabus pattern guidelines' },
                 options: {
                   type: Type.ARRAY,
                   items: { type: Type.STRING },
-                  description: 'Exactly 4 distinct plausible options',
+                  description: 'Exactly plausible option count matching the exam specification (usually 4 options)',
                 },
-                correct_index: { type: Type.INTEGER, description: '0-based index of correct option (0, 1, 2, or 3)' },
+                correct_index: { type: Type.INTEGER, description: '0-based index of correct option (usually 0, 1, 2, or 3)' },
                 correct_answer: { type: Type.STRING, description: 'Exact string of the correct option' },
                 explanation: { type: Type.STRING, description: 'Comprehensive rationale for correct and incorrect options' },
                 difficulty: { type: Type.STRING, description: 'Easy, Medium, or Hard' },
-                clinical_pearl: { type: Type.STRING, description: 'High-yield memory anchor or key takeaway' },
-                high_yield_tag: { type: Type.STRING, description: 'Key medical sub-concept tag' },
+                clinical_pearl: { type: Type.STRING, description: 'High-yield memory anchor, formula, core principle, or takeaway' },
+                high_yield_tag: { type: Type.STRING, description: 'Key syllabus sub-concept tag' },
               },
               required: ['question', 'options', 'correct_index', 'correct_answer', 'explanation', 'difficulty'],
             },

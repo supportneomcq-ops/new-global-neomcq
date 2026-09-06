@@ -68,7 +68,7 @@ export const DEFAULT_MODEL_METADATA: ProviderModelMetadata[] = [
   {
     provider: 'gemini',
     model_id: 'gemini-3.1-pro-preview',
-    display_name: 'Gemini 3.1 Pro Preview (Complex STEM / Clinical)',
+    display_name: 'Gemini 3.1 Pro Preview (Complex STEM / Advanced Reasoning)',
     active: true,
     input_price: 1.25,
     cached_input_price: 0.3125,
@@ -146,7 +146,7 @@ export const DEFAULT_MODEL_METADATA: ProviderModelMetadata[] = [
   {
     provider: 'openai',
     model_id: 'o3-mini',
-    display_name: 'o3-mini (High Reasoning Clinical Deduction)',
+    display_name: 'o3-mini (High Reasoning Scientific / Complex Deduction)',
     active: true,
     input_price: 1.10,
     cached_input_price: 0.55,

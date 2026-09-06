@@ -23,7 +23,11 @@ import { useTopicContent } from '@/lib/context/topic-content-context';
 import { ExamSwitchModal } from '@/components/exam-switch-modal';
 import { AddMissingCurriculumModal, AddMissingMode } from '@/components/learning-workspace/add-missing-curriculum-modal';
 
-export function LearningContextBar() {
+interface LearningContextBarProps {
+  onShowClick?: () => void;
+}
+
+export function LearningContextBar({ onShowClick }: LearningContextBarProps = {}) {
   const {
     selection,
     availableSubjects,
@@ -36,7 +40,7 @@ export function LearningContextBar() {
     examSwitchCount,
   } = useSelection();
 
-  const { refreshTopicContent, isLoading, isRefreshing } = useTopicContent();
+  const { orchestrateTopic, refreshTopicContent, isOrchestrating, isLoading, isRefreshing } = useTopicContent();
 
   const activeExam = selection.exam;
   const activeSubject = selection.subject;
@@ -436,19 +440,24 @@ export function LearningContextBar() {
 
             <button
               type="button"
-              onClick={() => refreshTopicContent(true)}
-              disabled={isLoading || isRefreshing}
-              className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs ${
-                isLoading || isRefreshing
+              onClick={async () => {
+                await orchestrateTopic(false);
+                if (onShowClick) {
+                  onShowClick();
+                }
+              }}
+              disabled={isOrchestrating || isLoading || isRefreshing}
+              className={`px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-md ${
+                isOrchestrating || isLoading || isRefreshing
                   ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 cursor-not-allowed'
-                  : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20 active:scale-95'
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/30 active:scale-95 cursor-pointer'
               }`}
-              title="Generate or reload high-yield content (MCQs, Notes, Flashcards, Tutor) for selected topic"
+              title="Initialize topic workspace and check content library cards"
             >
-              {isLoading || isRefreshing ? (
+              {isOrchestrating || isLoading || isRefreshing ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Resolving...</span>
+                  <span>Checking...</span>
                 </>
               ) : (
                 <>

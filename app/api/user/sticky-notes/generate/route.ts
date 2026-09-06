@@ -3,6 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { createClient } from '@/lib/supabase/server';
 import { extractJsonFromAiResponse } from '@/lib/ai/json-cleaner';
+import { getExamStyleAndPattern } from '@/lib/server/content-engine/exam-style-helper';
 
 export async function POST(req: NextRequest) {
   try {
@@ -78,6 +79,7 @@ export async function POST(req: NextRequest) {
     }
 
     const ai = new GoogleGenAI({ apiKey });
+    const styleAndPattern = await getExamStyleAndPattern(exam?.id, supabase);
 
     const contextHierarchy = [
       exam?.name ? `Exam: ${exam.name}` : null,
@@ -88,9 +90,13 @@ export async function POST(req: NextRequest) {
       .filter(Boolean)
       .join(' > ');
 
-    const prompt = `You are a top-tier medical exam board author and high-yield study strategist.
+    const prompt = `You are the ${styleAndPattern.role} and high-yield study strategist.
 Create 3 to 4 distinct, ultra-high-yield memory sticky notes for a candidate studying for:
 Context: ${contextHierarchy}
+
+Domain/Style Guidelines:
+- Domain: ${styleAndPattern.domain}
+- Style: ${styleAndPattern.styleDescription}
 
 ${
   existingSummary
@@ -98,19 +104,19 @@ ${
 The user ALREADY HAS the following sticky notes on their board for this topic:
 ${existingSummary}
 
-DO NOT repeat or duplicate any of these concepts or mnemonics! Generate NEW, unique, complementary high-yield exam pearls.`
+DO NOT repeat or duplicate any of these concepts! Generate NEW, unique, complementary high-yield exam pearls.`
     : ''
 }
 
-Each sticky note MUST focus on a distinct category from this list:
-- "high_yield" (High-Yield Pearl)
-- "board_trap" (Common Exam Trick / Mimicker)
-- "clinical" (Diagnostic Clue / Classic Presentation)
-- "pharmacology" (Drug of Choice / Key Side Effect)
-- "diagnosis" (Gold Standard Test / Diagnostic Criteria)
-- "treatment" (First-line Management / Surgical Landmark)
+Each sticky note MUST focus on a distinct category from this list, adapted to the target domain:
+- "high_yield" (High-Yield Pearl / Core Principle)
+- "board_trap" (Common Exam Trick / Mimicker / Pitfall)
+- "clinical" (Diagnostic Clue / Classic Scenario / Use Case)
+- "pharmacology" (Key Component / Tool / Underlying Material / Statutory Article)
+- "diagnosis" (Gold Standard Test / Verification Method / Proof)
+- "treatment" (First-line Management / Standard Mitigation / Correct Implementation)
 - "remember" (Key Mnemonic or Rule of Thumb)
-- "formula" (Important Calculation / Cutoff Score)
+- "formula" (Important Calculation / Governing Rule / Standard Metric)
 
 Return strictly a JSON array of objects with the following schema:
 [

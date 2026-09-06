@@ -91,8 +91,25 @@ export const PREPARATION_STEPS: PreparationStep[] = [
   { id: 'saving', label: 'Saving to Learning Library', detail: 'Ready for instant practice...' },
 ];
 
+export interface ContentCardItem {
+  featureId: string;
+  featureName: string;
+  versionNumber: number;
+  versionLabel: string;
+  status: 'READY' | 'GENERATING' | 'QUEUED' | 'FAILED' | 'EXPIRED' | 'NOT_AVAILABLE';
+  createdAt: string;
+  updatedAt: string;
+  quantity: number;
+  quantityLabel: string;
+  contentVersionId: string;
+  description: string;
+  error?: string | null;
+}
+
 interface TopicContentContextType {
   content: TopicContentData | null;
+  cards: ContentCardItem[];
+  isOrchestrating: boolean;
   isLoading: boolean;
   isInitialLoad: boolean;
   isRefreshing: boolean;
@@ -102,6 +119,7 @@ interface TopicContentContextType {
   error: string | null;
   currentStage: PreparationStage;
   currentStageIndex: number;
+  orchestrateTopic: (force?: boolean) => Promise<ContentCardItem[]>;
   refreshTopicContent: (force?: boolean) => Promise<void>;
   activeQuiz: 'A' | 'B';
   setActiveQuiz: (quiz: 'A' | 'B') => void;
@@ -292,6 +310,8 @@ export function TopicContentProvider({ children }: { children: React.ReactNode }
   const { selection } = useSelection();
 
   const [content, setContent] = useState<TopicContentData | null>(FALLBACK_DEFAULT_CONTENT);
+  const [cards, setCards] = useState<ContentCardItem[]>([]);
+  const [isOrchestrating, setIsOrchestrating] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -475,25 +495,93 @@ export function TopicContentProvider({ children }: { children: React.ReactNode }
     [selection.topic?.id, selection.topic?.name, selection.subject?.id, selection.subject?.name, selection.exam?.id, selection.exam?.name]
   );
 
-  // Auto-fetch whenever topic selection changes
+  const orchestrateTopic = useCallback(
+    async (forceRefresh = false): Promise<ContentCardItem[]> => {
+      const topicName = selection.topic?.name;
+      const topicId = selection.topic?.id;
+      if (!topicName && !topicId) return [];
+
+      setIsOrchestrating(true);
+      setError(null);
+
+      try {
+        const res = await fetch('/api/topic-content/orchestrate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            examId: selection.exam?.id,
+            examName: selection.exam?.name,
+            subjectId: selection.subject?.id,
+            subjectName: selection.subject?.name,
+            topicId: selection.topic?.id,
+            topicName: selection.topic?.name,
+            subtopicId: selection.subtopic?.id,
+            subtopicName: selection.subtopic?.name,
+            forceRefresh,
+          }),
+        });
+
+        const data = await res.json();
+        if (data.success && Array.isArray(data.cards)) {
+          setCards(data.cards);
+          if (data.versionRecord?.version) {
+            setVersion(data.versionRecord.version);
+          }
+          if (data.versionRecord?.createdAt) {
+            setLastRefreshedAt(data.versionRecord.createdAt);
+          }
+          // Also fetch topic content into memory
+          fetchTopicContent(false);
+          return data.cards;
+        } else {
+          console.warn('[orchestrateTopic] Non-success response:', data.error);
+          return [];
+        }
+      } catch (err: any) {
+        console.error('[orchestrateTopic] Failed to orchestrate topic cards:', err);
+        setError(err.message || 'Failed to check topic cards.');
+        return [];
+      } finally {
+        setIsOrchestrating(false);
+      }
+    },
+    [selection.topic?.id, selection.topic?.name, selection.subject?.id, selection.subject?.name, selection.exam?.id, selection.exam?.name, selection.subtopic?.id, selection.subtopic?.name, fetchTopicContent]
+  );
+
+  // Poll for live card status updates whenever any card is GENERATING or QUEUED
   useEffect(() => {
+    const hasPendingCards = cards.some((c) => c.status === 'GENERATING' || c.status === 'QUEUED');
+    if (!hasPendingCards) return;
+
+    const interval = setInterval(() => {
+      orchestrateTopic(false);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [cards, orchestrateTopic]);
+
+  // When active topic changes, immediately reset cards so no stale cards are shown!
+  useEffect(() => {
+    setCards([]);
     if (selection.topic?.name) {
-      fetchTopicContent(false);
+      orchestrateTopic(false);
     }
-  }, [selection.topic?.name, selection.exam?.id, fetchTopicContent]);
+  }, [selection.topic?.id, selection.topic?.name, orchestrateTopic]);
 
   const refreshTopicContent = useCallback(
     async (force = true) => {
       setIsRefreshing(true);
-      await fetchTopicContent(force);
+      await orchestrateTopic(force);
     },
-    [fetchTopicContent]
+    [orchestrateTopic]
   );
 
   return (
     <TopicContentContext.Provider
       value={{
         content,
+        cards,
+        isOrchestrating,
         isLoading,
         isInitialLoad,
         isRefreshing,
@@ -503,6 +591,7 @@ export function TopicContentProvider({ children }: { children: React.ReactNode }
         error,
         currentStage,
         currentStageIndex,
+        orchestrateTopic,
         refreshTopicContent,
         activeQuiz,
         setActiveQuiz,

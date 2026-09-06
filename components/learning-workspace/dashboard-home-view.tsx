@@ -30,6 +30,7 @@ import { useSelection } from '@/lib/context/selection-context';
 import { useTopicContent } from '@/lib/context/topic-content-context';
 import { OnboardingData } from '@/components/onboarding-flow';
 import { getSupabaseClient } from '@/lib/supabase';
+import { LearningContextBar } from './learning-context-bar';
 
 interface DashboardHomeViewProps {
   user: OnboardingData;
@@ -91,7 +92,7 @@ export function DashboardHomeView({
     targetDate,
   } = useSelection();
 
-  const { content, isLoading: isContentLoading } = useTopicContent();
+  const { content, cards, isOrchestrating, orchestrateTopic, isLoading: isContentLoading } = useTopicContent();
 
   const [searchTopicQuery, setSearchTopicQuery] = useState('');
   const [dbStats, setDbStats] = useState<UserStudyStats | null>(null);
@@ -210,7 +211,9 @@ export function DashboardHomeView({
   const tutorPhasesCount = content?.whiteboard_phases?.length ?? 0;
 
   return (
-    <div className="space-y-8 pb-16">
+    <div className="space-y-6 sm:space-y-8 pb-16">
+      {/* Selection Context Bar (Exam -> Subject -> Topic -> Subtopic + SHOW) */}
+      <LearningContextBar />
       {/* ========================================================================= */}
       {/* 1. TOP COMMAND CENTER: HERO READY & EXAM STATUS */}
       {/* ========================================================================= */}
@@ -431,309 +434,257 @@ export function DashboardHomeView({
       </section>
 
       {/* ========================================================================= */}
-      {/* 3. CONTENT HUB — THE 8 CORE LEARNING CARDS */}
+      {/* 3. CONTENT HUB — THE 8 CORE LEARNING CARDS (LATEST CANONICAL VERSIONS) */}
       {/* ========================================================================= */}
       <section className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-indigo-600 dark:text-indigo-400" /> Content Hub & Learning Tools
+              <Sparkles className="w-5 h-5 text-indigo-600 dark:text-indigo-400" /> Content Library & Learning Cards
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-              Targeted study assets dynamically available for <strong className="text-slate-800 dark:text-slate-200">{activeTopicName}</strong>.
+              Latest generated versions for <strong className="text-slate-800 dark:text-slate-200">{activeTopicName}</strong> ({activeExamName} • {activeSubjectName}).
             </p>
           </div>
-          <span className="text-xs font-bold text-slate-500 dark:text-slate-400">8 High-Yield Assets Available</span>
+          <div className="flex items-center gap-2">
+            {isOrchestrating && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 animate-pulse">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Live Syncing Database...
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => orchestrateTopic(true)}
+              disabled={isOrchestrating}
+              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+              title="Force regenerate fresh content for all 8 learning tools"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>Regenerate Topic</span>
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-          {/* CARD 1: MCQ PRACTICE */}
-          <div
-            onClick={() => onSelectTab('practice')}
-            className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-indigo-500 dark:hover:border-indigo-500 shadow-xs hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between group"
-          >
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Brain className="w-5 h-5" />
+          {[
+            {
+              featureId: 'mcq',
+              title: 'MCQ Practice',
+              description: 'Topic-specific MCQs with clinical vignettes, explanations, difficulty tags, and progress tracker.',
+              tab: 'practice' as WorkspaceTab,
+              icon: Brain,
+              color: 'indigo',
+              defaultQty: `${mcqCount} MCQs`,
+              tags: ['Timed / Review', 'High Yield'],
+            },
+            {
+              featureId: 'quiz_a',
+              title: 'Quiz A Engine',
+              description: 'First formal evaluation quiz set. Tracks score percentage, pacing, and completion status.',
+              tab: 'quizzes' as WorkspaceTab,
+              icon: Zap,
+              color: 'blue',
+              defaultQty: `${quizACount} Qs • Set A`,
+              tags: ['Formal CBT', 'Diagnostic'],
+            },
+            {
+              featureId: 'quiz_b',
+              title: 'Quiz B Engine',
+              description: 'Parallel diagnostic evaluation set to re-test mastery and eliminate false confidence.',
+              tab: 'quizzes' as WorkspaceTab,
+              icon: Target,
+              color: 'cyan',
+              defaultQty: `${quizBCount} Qs • Set B`,
+              tags: ['Parallel Set', 'Re-Evaluation'],
+            },
+            {
+              featureId: 'flashcards',
+              title: 'Flashcard Decks',
+              description: 'Active recall card decks with 3D flip animation, mastery scoring, and shuffle mode.',
+              tab: 'flashcards' as WorkspaceTab,
+              icon: Layers,
+              color: 'violet',
+              defaultQty: `${flashcardCount} Cards`,
+              tags: ['Spaced Recall', '3D Flip'],
+            },
+            {
+              featureId: 'a4_notes',
+              title: 'A4 Study Notes',
+              description: 'Formatted A4 sheet with pathophysiological pathways, clinical pearls, and high-yield tables.',
+              tab: 'notes' as WorkspaceTab,
+              subTab: 'notes' as StudySubTab,
+              icon: BookOpen,
+              color: 'emerald',
+              defaultQty: 'A4 Document',
+              tags: ['Printable', 'High-Yield'],
+            },
+            {
+              featureId: 'sticky_notes',
+              title: 'Sticky Notes Board',
+              description: 'Interactive note cards with amber, rose, violet, and blue colored tiles for rapid key point scanning.',
+              tab: 'notes' as WorkspaceTab,
+              subTab: 'sticky' as StudySubTab,
+              icon: Flame,
+              color: 'amber',
+              defaultQty: `${stickyCount} Sticky Notes`,
+              tags: ['Visual Board', 'Quick Recall'],
+            },
+            {
+              featureId: 'fill_in_the_blanks',
+              title: 'Fill in the Blanks',
+              description: 'Active recall masked text exercises testing key terms, dosages, and clinical criteria.',
+              tab: 'blanks' as WorkspaceTab,
+              icon: Activity,
+              color: 'rose',
+              defaultQty: `${blanksCount} Blanks`,
+              tags: ['Cloze Deletion', 'Score Tracker'],
+            },
+            {
+              featureId: 'ai_tutor',
+              title: 'AI Tutor Whiteboard',
+              description: 'Synchronized whiteboard lesson with visual diagrams, audio narration, and interactive Q&A.',
+              tab: 'tutor' as WorkspaceTab,
+              icon: GraduationCap,
+              color: 'purple',
+              defaultQty: `${tutorPhasesCount} Whiteboard Scenes`,
+              tags: ['Scene Timeline', 'Audio Synced'],
+            },
+          ].map((cfg) => {
+            const cardState = cards.find((c) => c.featureId === cfg.featureId);
+            const status = cardState?.status || 'READY';
+            const versionLabel = cardState?.versionLabel || 'v1 (Latest)';
+            const quantityLabel = cardState?.quantityLabel || cfg.defaultQty;
+            const createdAtFormatted = cardState?.createdAt
+              ? new Date(cardState.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })
+              : 'Recent';
+
+            const IconComp = cfg.icon;
+
+            return (
+              <div
+                key={cfg.featureId}
+                onClick={() => {
+                  if (status === 'READY') {
+                    onSelectTab(cfg.tab, cfg.subTab);
+                  } else if (status === 'FAILED') {
+                    orchestrateTopic(true);
+                  }
+                }}
+                className={`p-5 rounded-3xl bg-white dark:bg-slate-900 border transition-all flex flex-col justify-between group ${
+                  status === 'READY'
+                    ? 'border-slate-200 dark:border-slate-800 hover:border-indigo-500 dark:hover:border-indigo-500 shadow-xs hover:shadow-xl cursor-pointer'
+                    : status === 'FAILED'
+                    ? 'border-rose-300 dark:border-rose-900/60 bg-rose-50/20 dark:bg-rose-950/10 hover:border-rose-500 cursor-pointer'
+                    : 'border-slate-200 dark:border-slate-800 opacity-90 cursor-wait'
+                }`}
+              >
+                <div className="space-y-3">
+                  {/* Top Bar: Icon + Version + Status Badge */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:scale-110 transition-transform shrink-0">
+                      <IconComp className="w-5 h-5" />
+                    </div>
+
+                    <div className="flex flex-col items-end gap-1">
+                      {/* Version Badge */}
+                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                        {versionLabel}
+                      </span>
+
+                      {/* Status Badge */}
+                      {status === 'READY' && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-500" /> READY
+                        </span>
+                      )}
+
+                      {status === 'GENERATING' && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 flex items-center gap-1 animate-pulse">
+                          <Loader2 className="w-3 h-3 animate-spin text-amber-500" /> GENERATING
+                        </span>
+                      )}
+
+                      {status === 'QUEUED' && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800 flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-blue-500" /> QUEUED
+                        </span>
+                      )}
+
+                      {status === 'FAILED' && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800 flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3 text-rose-500" /> FAILED
+                        </span>
+                      )}
+
+                      {status === 'EXPIRED' && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-950/80 text-orange-700 dark:text-orange-300 border border-orange-300 dark:border-orange-800 flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-orange-500" /> EXPIRED (30d+)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Title & Description */}
+                  <div>
+                    <h3 className="font-extrabold text-sm text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors flex items-center justify-between">
+                      <span>{cfg.title}</span>
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
+                      {cfg.description}
+                    </p>
+                  </div>
+
+                  {/* Quantity & Date */}
+                  <div className="pt-1 flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800/80">
+                    <span className="font-bold text-slate-800 dark:text-slate-200">{quantityLabel}</span>
+                    <span className="text-[10px] text-slate-400">{createdAtFormatted}</span>
+                  </div>
+
+                  {/* High Yield Tags */}
+                  <div className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                    {cfg.tags.map((t, idx) => (
+                      <span key={idx} className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">
+                        {t}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">
-                  {mcqCount} MCQs Ready
-                </span>
-              </div>
 
-              <div>
-                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                  MCQ Practice
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
-                  Topic-specific MCQs with clinical vignettes, explanations, difficulty tags, and progress tracker.
-                </p>
-              </div>
+                {/* Bottom Action Button */}
+                <div className="pt-4 mt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold">
+                  {status === 'READY' && (
+                    <span className="text-indigo-600 dark:text-indigo-400 flex items-center justify-between w-full">
+                      <span>Open {cfg.title}</span>
+                      <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                    </span>
+                  )}
 
-              <div className="pt-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Timed / Review</span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">High Yield</span>
-              </div>
-            </div>
+                  {status === 'FAILED' && (
+                    <span className="text-rose-600 dark:text-rose-400 flex items-center justify-between w-full">
+                      <span>Retry Generation</span>
+                      <Sparkles className="w-3.5 h-3.5 text-rose-500" />
+                    </span>
+                  )}
 
-            <div className="pt-4 mt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-indigo-600 dark:text-indigo-400">
-              <span>Practice MCQs</span>
-              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </div>
+                  {(status === 'GENERATING' || status === 'QUEUED') && (
+                    <span className="text-amber-600 dark:text-amber-400 flex items-center justify-between w-full">
+                      <span className="flex items-center gap-1.5">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating...
+                      </span>
+                      <span className="text-[10px] text-slate-400">Auto-refreshing</span>
+                    </span>
+                  )}
 
-          {/* CARD 2: QUIZ A ENGINE */}
-          <div
-            onClick={() => onSelectTab('quizzes')}
-            className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-500 dark:hover:border-blue-500 shadow-xs hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between group"
-          >
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Zap className="w-5 h-5" />
+                  {status === 'EXPIRED' && (
+                    <span className="text-orange-600 dark:text-orange-400 flex items-center justify-between w-full">
+                      <span>Generating New Version...</span>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-orange-500" />
+                    </span>
+                  )}
                 </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
-                  {quizACount} Qs • Set A
-                </span>
               </div>
-
-              <div>
-                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                  Quiz A Engine
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
-                  First formal evaluation quiz set. Tracks score percentage, pacing, and completion status.
-                </p>
-              </div>
-
-              <div className="pt-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Formal CBT</span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Diagnostic</span>
-              </div>
-            </div>
-
-            <div className="pt-4 mt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-blue-600 dark:text-blue-400">
-              <span>Start Quiz A</span>
-              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </div>
-
-          {/* CARD 3: QUIZ B ENGINE */}
-          <div
-            onClick={() => onSelectTab('quizzes')}
-            className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-cyan-500 dark:hover:border-cyan-500 shadow-xs hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between group"
-          >
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-2xl bg-cyan-50 dark:bg-cyan-950/80 text-cyan-600 dark:text-cyan-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Target className="w-5 h-5" />
-                </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-950 text-cyan-700 dark:text-cyan-300">
-                  {quizBCount} Qs • Set B
-                </span>
-              </div>
-
-              <div>
-                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
-                  Quiz B Engine
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
-                  Parallel diagnostic evaluation set to re-test mastery and eliminate false confidence.
-                </p>
-              </div>
-
-              <div className="pt-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Parallel Set</span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Re-Evaluation</span>
-              </div>
-            </div>
-
-            <div className="pt-4 mt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-cyan-600 dark:text-cyan-400">
-              <span>Start Quiz B</span>
-              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </div>
-
-          {/* CARD 4: FLASHCARDS DECK */}
-          <div
-            onClick={() => onSelectTab('flashcards')}
-            className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-violet-500 dark:hover:border-violet-500 shadow-xs hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between group"
-          >
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-2xl bg-violet-50 dark:bg-violet-950/80 text-violet-600 dark:text-violet-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Layers className="w-5 h-5" />
-                </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300">
-                  {flashcardCount} Cards Ready
-                </span>
-              </div>
-
-              <div>
-                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors">
-                  Flashcard Decks
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
-                  Active recall card decks with 3D flip animation, mastery scoring, and shuffle mode.
-                </p>
-              </div>
-
-              <div className="pt-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Spaced Recall</span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">3D Flip</span>
-              </div>
-            </div>
-
-            <div className="pt-4 mt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-violet-600 dark:text-violet-400">
-              <span>Review Flashcards</span>
-              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </div>
-
-          {/* CARD 5: A4 CLINICAL NOTES */}
-          <div
-            onClick={() => onSelectTab('notes')}
-            className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 dark:hover:border-emerald-500 shadow-xs hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between group"
-          >
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <BookOpen className="w-5 h-5" />
-                </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
-                  A4 View Ready
-                </span>
-              </div>
-
-              <div>
-                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                  A4 Study Notes
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
-                  Formatted A4 sheet with pathophysiological pathways, clinical pearls, and high-yield tables.
-                </p>
-              </div>
-
-              <div className="pt-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Printable</span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">High-Yield</span>
-              </div>
-            </div>
-
-            <div className="pt-4 mt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-emerald-600 dark:text-emerald-400">
-              <span>Study Notes</span>
-              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </div>
-
-          {/* CARD 6: STICKY BOARD */}
-          <div
-            onClick={() => onSelectTab('sticky')}
-            className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500 dark:hover:border-amber-500 shadow-xs hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between group"
-          >
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Flame className="w-5 h-5" />
-                </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300">
-                  {stickyCount} Sticky Notes
-                </span>
-              </div>
-
-              <div>
-                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
-                  Sticky Notes Board
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
-                  Interactive note cards with amber, rose, violet, and blue colored tiles for rapid key point scanning.
-                </p>
-              </div>
-
-              <div className="pt-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Visual Board</span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Quick Recall</span>
-              </div>
-            </div>
-
-            <div className="pt-4 mt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-amber-600 dark:text-amber-400">
-              <span>Open Sticky Board</span>
-              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </div>
-
-          {/* CARD 7: FILL IN THE BLANKS / ACTIVE RECALL */}
-          <div
-            onClick={() => onSelectTab('blanks')}
-            className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-rose-500 dark:hover:border-rose-500 shadow-xs hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between group"
-          >
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-2xl bg-rose-50 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Activity className="w-5 h-5" />
-                </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300">
-                  {blanksCount} Blanks
-                </span>
-              </div>
-
-              <div>
-                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
-                  Fill in the Blanks
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
-                  Active recall masked text exercises testing key terms, dosages, and clinical criteria.
-                </p>
-              </div>
-
-              <div className="pt-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Cloze Deletion</span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Score Tracker</span>
-              </div>
-            </div>
-
-            <div className="pt-4 mt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-rose-600 dark:text-rose-400">
-              <span>Start Recall</span>
-              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </div>
-
-          {/* CARD 8: AI TUTOR VIDEO */}
-          <div
-            onClick={() => onSelectTab('tutor')}
-            className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-purple-500 dark:hover:border-purple-500 shadow-xs hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between group"
-          >
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-2xl bg-purple-50 dark:bg-purple-950/80 text-purple-600 dark:text-purple-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <GraduationCap className="w-5 h-5" />
-                </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300">
-                  {tutorPhasesCount} Whiteboard Scenes
-                </span>
-              </div>
-
-              <div>
-                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
-                  AI Tutor Whiteboard
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
-                  Synchronized whiteboard lesson with visual diagrams, audio narration, and interactive Q&A.
-                </p>
-              </div>
-
-              <div className="pt-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Scene Timeline</span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">Audio Synced</span>
-              </div>
-            </div>
-
-            <div className="pt-4 mt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-purple-600 dark:text-purple-400">
-              <span>Watch Lesson</span>
-              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </div>
+            );
+          })}
         </div>
       </section>
 

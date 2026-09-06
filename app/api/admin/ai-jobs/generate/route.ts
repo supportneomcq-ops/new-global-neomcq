@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { verifyAdminApiSession } from '@/lib/admin-auth';
 import { GoogleGenAI } from '@google/genai';
+import { getExamStyleAndPattern } from '@/lib/server/content-engine/exam-style-helper';
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
@@ -122,24 +123,29 @@ export async function POST(req: NextRequest) {
     }
 
     const ai = new GoogleGenAI({ apiKey });
+    const styleAndPattern = await getExamStyleAndPattern(exam_id, adminClient);
 
-    const prompt = `You are a world-class medical exam author and clinical specialist creating production-grade learning content for ${exam_name}.
+    const prompt = `You are the ${styleAndPattern.role} creating production-grade learning content for ${exam_name}.
 Subject: ${subject_name}
 Topic: ${topic_name}
 Asset Type: ${asset_type.toUpperCase()}
 Quantity: ${batch_size}
 
+Domain/Style Guidelines:
+- Domain: ${styleAndPattern.domain}
+- Style: ${styleAndPattern.styleDescription}
+
 Target JSON Structure:
 For MCQs: Output a JSON array of objects with:
-- "question_text": string (high-yield clinical scenario)
+- "question_text": string (high-yield scenario, question stem, or problem statement aligned with the style guidelines)
 - "options": array of 4 objects: [{"option_id": "A", "option_text": string, "is_correct": boolean, "explanation": string}]
-- "explanation": string (detailed step-by-step clinical rationale)
+- "explanation": string (detailed step-by-step rationale explaining the correct answer and why distractors are incorrect)
 - "difficulty": "Beginner" | "Intermediate" | "Advanced" | "Expert"
 - "high_yield_tag": string
 
 For Notes: Output a JSON object with:
 - "title": string
-- "content_markdown": string (rich markdown with bullet points, clinical pearls, key mnemonics)
+- "content_markdown": string (rich markdown with bullet points, core concepts, revision guidelines, and highlights)
 - "summary": string
 
 For Flashcards: Output a JSON array of objects with:

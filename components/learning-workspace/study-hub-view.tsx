@@ -8,7 +8,7 @@ import {
   XCircle,
   Shuffle,
 } from 'lucide-react';
-import { StudySubTab, FlashcardItem } from './types';
+import { StudySubTab, FlashcardItem, StickyNoteItem } from './types';
 import { useSelection } from '@/lib/context/selection-context';
 import { useTopicContent } from '@/lib/context/topic-content-context';
 import { OnboardingData } from '@/components/onboarding-flow';

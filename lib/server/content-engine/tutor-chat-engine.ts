@@ -15,6 +15,7 @@ import { GoogleGenAI } from '@google/genai';
 import { getSupabaseAdmin } from '../../supabase';
 import { TutorSessionManager } from './tutor-session-manager';
 import { ContentCostAuditor } from './cost-auditor';
+import { getExamStyleAndPattern } from './exam-style-helper';
 
 export interface AskDoubtParams {
   lessonId: string;
@@ -457,22 +458,28 @@ export class TutorChatEngine {
       let outputTokens = 150;
 
       const apiKey = process.env.GEMINI_API_KEY;
+      const styleAndPattern = await getExamStyleAndPattern(session.examId, supabase);
 
       if (apiKey) {
         const ai = new GoogleGenAI({ apiKey });
         const canonicalNotes = session.canonicalNotesGrounding;
         const recentSegments = (session.segments || []).slice(-3);
 
-        const systemPrompt = `You are an expert medical/educational AI Tutor assistant for board exams (USMLE, NEET PG, NCLEX, PLAB, etc.).
+        const systemPrompt = `You are an expert AI Tutor assistant for professional/board exams.
+Your role: ${styleAndPattern.role}
 Your task is to answer the student's doubt clearly, accurately, and concisely.
 
 Context Rules:
-1. Base your answer strictly on verified medical knowledge and canonical topic context provided below.
+1. Base your answer strictly on verified facts and the canonical topic context provided below.
 2. Keep your explanation high-yield, clear, and direct (2-4 paragraphs max).
-3. Point out high-yield board traps or mnemonics if applicable.
+3. Point out high-yield board traps, rules, formulas, or mnemonics if applicable.
+
+Domain and Style Guidelines:
+- Domain: ${styleAndPattern.domain}
+- Style: ${styleAndPattern.styleDescription}
 
 Canonical Topic Notes Context:
-${JSON.stringify(canonicalNotes || 'Grounded in standard medical curriculum', null, 2).slice(0, 3000)}
+${JSON.stringify(canonicalNotes || 'Grounded in standard curriculum', null, 2).slice(0, 3000)}
 
 Recent Tutor Segments:
 ${JSON.stringify(recentSegments, null, 2).slice(0, 1500)}
@@ -490,7 +497,7 @@ ${JSON.stringify(recentSegments, null, 2).slice(0, 1500)}
         inputTokens = usageMeta?.promptTokenCount || 250;
         outputTokens = usageMeta?.candidatesTokenCount || 150;
       } else {
-        answerText = `The pathophysiological mechanism involves specific cellular mechanisms, receptor pathways, and clinical biomarkers relevant to this medical topic. Grounded in canonical notes context for ${cleanQuestion}.`;
+        answerText = `Explanation and key details regarding the topic grounded in the canonical curriculum context for ${cleanQuestion}.`;
       }
 
       const estProviderCost = await ContentCostAuditor.calculateProviderCost('Gemini', 'gemini-3.6-flash', inputTokens, 0, outputTokens, supabase);

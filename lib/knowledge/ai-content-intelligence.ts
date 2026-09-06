@@ -894,11 +894,18 @@ async function executeGenerationWorkflow({
     .map((m: any, idx: number) => `${idx + 1}. ${m.question.slice(0, 90)}...`)
     .join('\n')
 
+  const examCountry = exam.countries?.name || exam.metadata?.exam_intelligence?.country || 'Global'
+  const examCategory = exam.exam_categories?.name || exam.metadata?.exam_intelligence?.exam_category || 'General Academic/Professional'
+  const questionStyle = exam.question_types ? JSON.stringify(exam.question_types) : 'standard_mcq'
+
   const prompt = `You are the Lead Master Academic Professor and Board Author for NeoMCQ.com.
 TASK: ${generationReason === 'FIRST_GENERATION' ? 'GENERATE FIRST-TIME HIGH-YIELD CANONICAL ASSETS' : 'SCHEDULED HIGH-YIELD REFRESH UPDATE'}
 
 CANONICAL TARGET SCOPE:
 - Canonical Exam: ${exam.name}
+- Jurisdiction / Country: ${examCountry}
+- Discipline / Category: ${examCategory}
+- Question Format / Pattern: ${questionStyle}
 - Canonical Subject: ${subject.name}
 - Canonical Topic: ${topic.name}
 - Target Difficulty: ${difficulty}
@@ -906,7 +913,7 @@ CANONICAL TARGET SCOPE:
 
 CRITICAL RULES:
 1. STRICT SCOPE CONSTRAINT: Generate content strictly within the bounds of "${topic.name}" in "${subject.name}" for "${exam.name}". Do NOT drift into unrelated topics.
-2. MEDICAL & BOARD ACCURACY: Adhere to verified standard board examination consensus.
+2. DOMAIN & EXAMINATION ACCURACY: Adhere strictly to verified examination standards for ${exam.name} (${examCategory}). If it is a medical licensing examination (e.g. FMGE, USMLE, NCLEX), use high-yield clinical vignettes and pearls. If it is an engineering, IT, law, business, finance, or general academic examination, use the exact technical, conceptual, numerical, or reasoning styles suitable for that domain. Do NOT hardcode medical clinical vignettes for non-medical exams.
 3. ZERO DUPLICATE QUESTIONS:
 ${existingSummaries ? `Existing questions in database (DO NOT REWRITE OR DUPLICATE):\n${existingSummaries}\n` : 'No prior questions in database.'}
 4. REQUIRED JSON STRUCTURE:
@@ -940,19 +947,19 @@ ${existingSummaries ? `Existing questions in database (DO NOT REWRITE OR DUPLICA
   ],
   "fill_in_the_blanks": [
     {
-      "sentence": "The drug of choice for acute presentation of [Condition] is [Drug Name].",
-      "blank": "Drug Name",
+      "sentence": "The core governing rule or equation for [Key Concept] under standard conditions is [Standard Rule/Formula].",
+      "blank": "Standard Rule/Formula",
       "concept": "${topic.name}",
-      "explanation": "High-yield pharmacology rule."
+      "explanation": "High-yield foundational rule."
     }
   ],
   "whiteboard_phases": [
     {
       "phase": 1,
-      "title": "1. Cellular Pathophysiology & Mechanisms",
-      "diagram": "Step-by-step pathway",
-      "description": "Clear conceptual breakdown",
-      "badge": "Cellular Pathology"
+      "title": "1. Foundational Architecture & Core Mechanisms",
+      "diagram": "Step-by-step pathway or system flow diagram",
+      "description": "Clear conceptual breakdown of the primary mechanism",
+      "badge": "Core Theory"
     }
   ],
   "tutor_explanation": "Friendly, step-by-step master tutor breakdown with analogies...",

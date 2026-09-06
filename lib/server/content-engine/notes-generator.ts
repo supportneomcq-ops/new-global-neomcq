@@ -29,6 +29,7 @@ import { ContentCacheManager } from './content-cache-manager';
 import { ContentCostAuditor } from './cost-auditor';
 import { NotesValidator } from './notes-validator';
 import { EducationalMediaRetriever } from './media-retriever';
+import { getExamStyleAndPattern } from './exam-style-helper';
 
 export class CanonicalNotesGenerator {
   /**
@@ -222,6 +223,7 @@ export class CanonicalNotesGenerator {
 
     try {
       const aiResponse = await this.callAIForCanonicalNotes({
+        examId,
         examName,
         subjectName,
         topicName,
@@ -717,6 +719,7 @@ export class CanonicalNotesGenerator {
    * Calls Google GenAI with structured JSON output schema for canonical educational notes
    */
   private static async callAIForCanonicalNotes(params: {
+    examId: string;
     examName: string;
     subjectName: string;
     topicName: string;
@@ -735,24 +738,25 @@ export class CanonicalNotesGenerator {
     }
 
     try {
+      const styleAndPattern = await getExamStyleAndPattern(params.examId);
       const ai = new GoogleGenAI({ apiKey });
 
-      const systemInstruction = `You are the Lead Medical Curriculum Director and Senior Clinical Content Author for NeoMCQ.
+      const systemInstruction = `You are the ${styleAndPattern.role} for NeoMCQ.
 Your mission is to generate a comprehensive, highly rigorous, and structured Canonical Notes package for the topic "${params.topicName}" in "${params.subjectName}" for the examination "${params.examName}".
 
 MANDATORY REQUIREMENTS:
 1. Ground the notes strictly in the official curriculum for "${params.examName}".
-2. Adapt the structure to the subject:
-   - For clinical/anatomical/medical subjects: include topicOverview, learningObjectives, keyConcepts, importantDefinitions, mechanismsOrPathophysiology, classifications, clinicalFeatures, diagnosisAndInvestigation, management, highYieldFacts, examPearls, and summary.
-   - For basic science or non-medical topics: omit irrelevant clinical fields and focus on mechanisms, formulas, definitions, and high-yield concepts.
+2. Adapt the structure to the subject & exam domain pattern:
+   - Pattern Instructions: ${styleAndPattern.notesInstruction}
+   - For basic science, engineering, law, or non-medical topics: omit irrelevant clinical fields and focus on mechanisms, formulas, definitions, legal principles, structures, or high-yield concepts as applicable.
 3. Every section MUST be substantial, educational, and free of fluff or generic statements.
 4. In the "sections" array, break down the core topic into 4-6 deep educational sub-modules.
 ${params.subtopicNames && params.subtopicNames.length > 0 ? `5. Subtopic Guidance: The official syllabus contains the following subtopics for this topic: ${params.subtopicNames.map(s => `"${s}"`).join(', ')}.
    You MUST organize and partition the generated sections so that every single subtopic is thoroughly covered with its dedicated section, facts, and exam pearls. No subtopic should be ignored or omitted.` : ''}
-6. For each section, evaluate if an educational media resource (Anatomical diagram, histological slide, or video lecture) would materially improve understanding:
+6. For each section, evaluate if an educational media resource (diagram, slide, chart, or video lecture) would materially improve understanding:
    - Set "mediaRecommendation" to "NO_MEDIA_REQUIRED", "IMAGE_REQUIRED", "VIDEO_USEFUL", or "IMAGE_AND_VIDEO_USEFUL".
-   - Provide a precise "mediaSearchQuery" for image/video retrieval (e.g. "Brachial plexus roots trunks divisions cords diagram").
-7. Provide high-yield facts (at least 4) and exam pearls (at least 3) specifically targeting recurrent board examination traps.`;
+   - Provide a precise "mediaSearchQuery" for image/video retrieval (e.g. "Brachial plexus roots trunks divisions cords diagram" or "B-tree insertion steps visualization").
+7. Provide high-yield facts (at least 4) and exam pearls (at least 3) specifically targeting recurrent examination traps.`;
 
       const response = await ai.models.generateContent({
         model: params.model,
@@ -891,6 +895,7 @@ ${params.subtopicNames && params.subtopicNames.length > 0 ? `5. Subtopic Guidanc
     examName: string;
     subjectName: string;
     topicName: string;
+    subtopicNames?: string[];
   }): {
     notes: any;
     inputTokens: number;
@@ -898,6 +903,142 @@ ${params.subtopicNames && params.subtopicNames.length > 0 ? `5. Subtopic Guidanc
     cachedTokens: number;
   } {
     const { examName, subjectName, topicName } = params;
+
+    const nameLower = (examName || '').toLowerCase();
+    const subjectLower = (subjectName || '').toLowerCase();
+    const topicLower = (topicName || '').toLowerCase();
+
+    const isMedical = 
+      nameLower.includes('medical') || 
+      nameLower.includes('medicine') || 
+      nameLower.includes('usmle') || 
+      nameLower.includes('neet') || 
+      nameLower.includes('fmge') || 
+      nameLower.includes('plab') || 
+      nameLower.includes('nclex') || 
+      nameLower.includes('nurse') || 
+      nameLower.includes('clinical') || 
+      subjectLower.includes('medical') || 
+      subjectLower.includes('medicine') || 
+      subjectLower.includes('anatomy') || 
+      subjectLower.includes('clinical') || 
+      topicLower.includes('nerve') || 
+      topicLower.includes('clinical') || 
+      topicLower.includes('medical') || 
+      topicLower.includes('anatomy');
+
+    if (!isMedical) {
+      const notes = {
+        title: `${topicName} — Comprehensive High-Yield Study Guide`,
+        topicOverview: `Comprehensive canonical study guide covering core principles, structural logic, essential definitions, and practical methodologies for ${topicName} in ${subjectName} aligned with the official ${examName} syllabus.`,
+        learningObjectives: [
+          `Master the fundamental architecture, key variables, and foundational definitions of ${topicName}.`,
+          `Analyze and differentiate common methodologies, design trade-offs, and procedural frameworks within this domain.`,
+          `Apply theoretical models to practical problem-solving scenarios, structural computations, or case interpretations.`,
+          `Synthesize high-yield exam principles, core formulas/rules, and standard curriculum benchmarks.`,
+        ],
+        keyConcepts: [
+          'Foundational Principles and Structural Boundaries',
+          'Methodological Frameworks, Core Formulas, and Classifications',
+          'Common Implementation Failures, Critical Risks, and Diagnostic Workups',
+          'Optimization Techniques, Statutory Guidelines, and Best Practices',
+        ],
+        importantDefinitions: [
+          {
+            term: `${topicName} Base Concept`,
+            definition: `The fundamental standard or underlying mechanism that defines the operational boundaries of ${topicName}.`,
+          },
+          {
+            term: 'Structural Invariance',
+            definition: 'A state where the core properties or relationships of a system remain unchanged under specified transformations.',
+          },
+          {
+            term: 'Optimized Throughput',
+            definition: 'The maximum rate of production or processing capacity achievable under ideal structural constraints.',
+          },
+        ],
+        mechanismsOrPathophysiology: `The operational mechanism of ${topicName} involves systemic coordination, adherence to governing laws (e.g., physical, technical, or statutory), and structured inputs producing verified, repeatable outcomes across specified test boundaries.`,
+        classifications: [
+          {
+            name: `Standard Taxonomy of ${topicName}`,
+            criteria: 'Severity of deviation, architectural complexity, or jurisdictional hierarchy from Category I to Category V',
+            items: [
+              'Category I (Basic / Entry-Level): Standard foundational configuration with minimal complexity.',
+              'Category II (Intermediate): Standard structured application with localized dependencies and moderate constraints.',
+              'Category III (Advanced): Complex multi-variable system requiring precise control and optimization.',
+              'Category IV (Expert): High-scale implementation involving deep system integration and strict validation guidelines.',
+              'Category V (Authoritative / Enterprise): Fully optimized, mission-critical framework subject to external statutory auditing.',
+            ],
+          },
+        ],
+        clinicalFeatures: {
+          signs: [
+            `Distal failure patterns or operational performance bottlenecks under heavy load`,
+            `Out-of-bound variables and structural deviation from baseline specifications`,
+            `Localized degradation, resource exhaustion, or compliance audit flags`,
+            `Loss of operational continuity or structural integrity at critical stress points`,
+          ],
+          symptoms: [
+            `Distal performance latency or structural decay over continuous usage`,
+            `Intermittent failures, system instability, or unexpected audit deviations`,
+            `Elevated error rates, structural overhead, or procedural friction`,
+          ],
+          complications: [
+            `Irreversible system crash, structural collapse, or total compliance failure`,
+            `Extended downtime, severe legal liabilities, or structural degradation`,
+            `High remediation costs and failure to meet statutory SLA or professional standards`,
+          ],
+        },
+        diagnosisAndInvestigation: {
+          goldStandard: 'Rigorous Empirical Auditing (System Verification Tests, Statutory Case Reviews, or Double-Blind Peer Evaluations)',
+          firstLine: 'High-Resolution Diagnostic Auditing and Parametric Inspections',
+          findings: [
+            'Measurable structural or operational deviations from standard model behavior',
+            'Sub-optimal throughput and focal bottlenecks across high-stress junctions',
+            'SLA violations and compliance failures verified through empirical log tracing',
+          ],
+        },
+        management: {
+          firstLine: 'Structured baseline tuning, standard operational parameter adjustments, and preventive modular debugging.',
+          definitive: 'System-wide reconstruction, structural re-engineering, or direct tension-free component replacement.',
+          contraindications: [
+            'Uncalibrated adjustments or blind overrides without baseline tracing',
+            'Forceful execution during unstable system states or unverified parameters',
+          ],
+        },
+        sections: (params.subtopicNames && params.subtopicNames.length > 0 ? params.subtopicNames : ['Core Foundations', 'Practical Implementations', 'Advanced Optimizations']).map((sub, idx) => ({
+          sectionTitle: sub,
+          sectionType: idx === 0 ? 'mechanisms' : idx === 1 ? 'diagnosis' : 'management',
+          content: `This section covers the essential details of "${sub}" under the main topic of "${topicName}". It establishes the technical or legal boundaries, reviews the historical or mathematical foundations, and provides step-by-step methodologies to ensure absolute mastery of this syllabus module for ${examName}.`,
+          keyPoints: [
+            `Understand the primary inputs, variables, and governing principles of ${sub}.`,
+            `Avoid common cognitive traps, implementation errors, or misinterpretations of ${sub}.`,
+            `High-yield applications of ${sub} frequently appear on ${examName} to test deep understanding of core theory.`,
+          ],
+          mediaRecommendation: 'IMAGE_AND_VIDEO_USEFUL',
+          mediaSearchQuery: `${topicName} ${sub} diagram overview`,
+        })),
+        highYieldFacts: [
+          `Failing to isolate variables or parameters in ${topicName} is a frequent source of performance degradation or structural failure.`,
+          `Under extreme stress or high-load conditions, the system defaults to conservative, fail-safe parameters to maintain integrity.`,
+          `Mastering the relationship between primary inputs and expected outputs is the highest-yield strategy for solving complex problems on ${examName}.`,
+          `Standard regulatory, physical, or logical laws govern all operations of ${topicName}, making empirical validation essential.`,
+        ],
+        examPearls: [
+          `🎯 "Understand the system bounds first: input specifications dictate performance margins."`,
+          `🎯 "The Exception Rule": Always check for edge cases, statutory exemptions, or boundary limits where standard rules are modified.`,
+          `🎯 "Efficiency vs Reliability Trade-off": Real-world designs always balance throughput against structural margins.`,
+        ],
+        summary: `In summary, mastering ${topicName} requires precise visualization of core principles, structural junctions, functional parameters, and critical performance bottlenecks essential for top scores on the ${examName}.`,
+      };
+
+      return {
+        notes,
+        inputTokens: 300,
+        outputTokens: 750,
+        cachedTokens: 0,
+      };
+    }
 
     const notes = {
       title: `${topicName} — Comprehensive High-Yield Study Guide`,

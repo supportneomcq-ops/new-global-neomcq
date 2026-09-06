@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
       examName,
       examId: inputExamId,
       examDate,
+      learningStyle,
       studyHours,
       studyTime,
       studyGoals,
@@ -138,6 +139,16 @@ export async function POST(req: NextRequest) {
         })
         .eq('id', targetUserId)
 
+      // Ensure clean ISO date string YYYY-MM-DD for target_date
+      let cleanTargetDate: string | null = null
+      if (examDate) {
+        try {
+          cleanTargetDate = new Date(examDate).toISOString().split('T')[0]
+        } catch (_) {
+          cleanTargetDate = examDate
+        }
+      }
+
       // 3. User Exam Link
       if (finalExamId) {
         await (admin as any)
@@ -146,7 +157,7 @@ export async function POST(req: NextRequest) {
             {
               user_id: targetUserId,
               exam_id: finalExamId,
-              target_date: examDate || null,
+              target_date: cleanTargetDate,
               target_score: 85.0,
               status: 'in_progress',
               is_primary: true,
@@ -156,12 +167,15 @@ export async function POST(req: NextRequest) {
           )
       }
 
+      // Map learningStyle selection
+      const mappedLearningMode = (learningStyle === 'Rapid Learning' || learningStyle === 'rapid') ? 'rapid' : 'balanced'
+
       // 4. Update Study Preferences
       await (admin as any).from('study_preferences').upsert({
         user_id: targetUserId,
         daily_hours: studyHours || 2.0,
         preferred_time: (studyTime?.toLowerCase() as any) || 'morning',
-        learning_mode: 'balanced',
+        learning_mode: mappedLearningMode,
         reminders_enabled: true,
         language_id: resolvedLanguageId,
         timezone: resolvedTimezone,

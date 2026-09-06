@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
 
     // 4. Execute Generation via AIGateway
     try {
-      const systemInstruction = `You are NeoMCQ AI Engine. Generate authoritative, high-yield medical and academic content for task: ${taskType}. Always respond in strict, valid JSON format.`;
+      const systemInstruction = `You are NeoMCQ AI Engine. Generate authoritative, high-yield academic, technical, or professional licensing content for task: ${taskType}. Always respond in strict, valid JSON format.`;
       const prompt = `Input details:\n${JSON.stringify(inputParams, null, 2)}`;
 
       const genResult = await AIGateway.generateContent({

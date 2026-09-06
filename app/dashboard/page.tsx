@@ -43,7 +43,14 @@ export default function DashboardPage() {
             .maybeSingle();
 
           const examDateStr = (userExam as any)?.target_date || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-          const daysLeftVal = Math.max(1, Math.ceil((new Date(examDateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+          
+          // Calendar date math with 00:00 midnight normalization
+          const todayDate = new Date();
+          todayDate.setHours(0, 0, 0, 0);
+          const targetDate = new Date(examDateStr);
+          targetDate.setHours(0, 0, 0, 0);
+          const diffTime = targetDate.getTime() - todayDate.getTime();
+          const daysLeftVal = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
 
           const fullUser: OnboardingData = {
             userId: user.id,
@@ -59,7 +66,7 @@ export default function DashboardPage() {
             daysLeft: daysLeftVal,
             weeksLeft: Math.ceil(daysLeftVal / 7),
             monthsLeft: Math.ceil(daysLeftVal / 30),
-            learningStyle: studyPref?.learning_mode === 'mastery' ? 'Balanced Study' : 'Rapid Learning',
+            learningStyle: (studyPref?.learning_mode === 'rapid' || studyPref?.learning_mode === 'Rapid Learning') ? 'Rapid Learning' : 'Balanced Study',
             studyHours: studyPref?.daily_hours || 2,
             studyTime: studyPref?.preferred_time ? (studyPref.preferred_time.charAt(0).toUpperCase() + studyPref.preferred_time.slice(1) as any) : 'Morning',
             studyGoals: ['Pass Exam', 'High Score'],

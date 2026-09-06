@@ -95,9 +95,25 @@ export async function GET(req: NextRequest) {
       const daysInThisWeek = Math.min(7, totalDays - currentDayOffset);
       const days = [];
 
+      const isRapidMode = preferences?.learning_mode === 'rapid' || preferences?.learning_mode === 'Rapid Learning';
+
       for (let d = 1; d <= daysInThisWeek; d++) {
         const dayNumber = currentDayOffset + d;
         const isLockoutPhase = dayNumber > learningDays;
+
+        const activeLearningTasks = isRapidMode
+          ? [
+              `High-Yield Rapid Revision: ${assignedSubject}`,
+              `Solve 45 Accelerated MCQs & Board Traps`,
+              `25 Rapid Recall Flashcards (High-Yield)`,
+              `High-yield error review & Radar weaknesses`,
+            ]
+          : [
+              `Study Core A4 Notes: ${assignedSubject}`,
+              `Solve 30 Subject-specific MCQs with rationales`,
+              `Complete 15 Spaced Repetition Flashcards`,
+              `Review flagged weaknesses in Radar`,
+            ];
 
         days.push({
           day: dayNumber,
@@ -108,12 +124,7 @@ export async function GET(req: NextRequest) {
             'Full-length timed mock CBT section (60 Qs)',
             'High-yield error review & sticky note revision',
             'Flashcard rapid recall (Unseen + Marked)',
-          ] : [
-            `Study Core A4 Notes: ${assignedSubject}`,
-            `Solve 30 Subject-specific MCQs with rationales`,
-            `Complete 15 Spaced Repetition Flashcards`,
-            `Review flagged weaknesses in Radar`,
-          ],
+          ] : activeLearningTasks,
           completed: false,
         });
       }

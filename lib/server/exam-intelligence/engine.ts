@@ -1,6 +1,6 @@
 import { GoogleGenAI } from '@google/genai'
 import { getSupabaseAdmin } from '@/lib/supabase'
-import { normalizeInput } from '@/lib/knowledge/normalizer'
+import { normalizeInput, calculateLevenshteinSimilarity } from '@/lib/knowledge/normalizer'
 import { classifyUserInput } from '@/lib/knowledge/classifier'
 import {
   AIExamIntelligenceOutputSchema,
@@ -492,9 +492,10 @@ CRITICAL ARCHITECTURAL DIRECTIVES:
    - Establish realistic question configuration (option count, negative marking, question types, duration).
    - Classify question types: standard_mcq, clinical_vignette, case_based, calculation, image_based, scenario_architecture.
 2. CURRICULUM HIERARCHY:
-   - Generate between 4 and 10 canonical SUBJECTS based on the official syllabus.
-   - Under each subject, generate 2 to 5 core TOPICS.
-   - Under each topic, provide 2 to 4 high-yield SUBTOPICS.
+   - Create 100% of the relevant canonical SUBJECTS (typically 4 to 15) that belong to the exam based on reliable exam/syllabus research.
+   - For every subject, create 100% of the relevant main TOPICS (typically 3 to 10 per subject).
+   - For every main topic, create approximately 5 to 10 meaningful, deep SUBTOPICS (where the subject/topic structure supports them) to ensure COMPLETE EXAM CURRICULUM COVERAGE instead of abbreviated lists. If a topic has fewer natural subtopics, output that natural complete structure. Do not output meaningless fillers.
+   - IMPORTANT: This stage creates ONLY the curriculum structure (names and descriptions). DO NOT generate MCQs, quizzes, flashcards, notes, or AI lessons in this profile.
    - Ensure subjects, topics, and subtopics are genuinely, domain-accurately relevant to "${cleanName}".
 3. GENERATION RULES:
    - Configure distinct content rules for MCQs, Quizzes, Flashcards, AI Tutor, and Notes.
@@ -845,129 +846,269 @@ export async function resolveOrInitializeExamIntelligence(options: {
   console.log(`[Exam Intelligence] Resolving exam: "${rawInput}" (slug: "${querySlug}")`)
 
   // 2. Search Database for existing canonical exam
-  const { data: existingExams } = await supabase
-    .from('exams')
-    .select(`
+  const selectQuery = `
+    id,
+    name,
+    short_name,
+    slug,
+    description,
+    difficulty,
+    question_count,
+    time_limit_mins,
+    status,
+    marking_scheme,
+    question_types,
+    metadata,
+    syllabus_info,
+    verification_status,
+    countries (
+      id,
+      name,
+      iso2,
+      flag_emoji
+    ),
+    exam_categories (
+      id,
+      name,
+      slug
+    ),
+    exam_subjects (
       id,
       name,
       slug,
       description,
-      difficulty,
-      question_count,
-      time_limit_mins,
-      status,
-      marking_scheme,
-      question_types,
-      metadata,
-      syllabus_info,
-      verification_status,
-      countries (
-        id,
-        name,
-        iso2,
-        flag_emoji
-      ),
-      exam_categories (
-        id,
-        name,
-        slug
-      ),
-      exam_subjects (
+      weight_percentage,
+      order_index,
+      exam_topics (
         id,
         name,
         slug,
         description,
-        weight_percentage,
         order_index,
-        exam_topics (
+        exam_subtopics (
           id,
           name,
           slug,
-          description,
-          order_index,
-          exam_subtopics (
-            id,
-            name,
-            slug,
-            display_order
-          )
+          display_order
         )
       )
-    `)
-    .neq('status', 'archived')
-    .or(`slug.eq.${querySlug},name.ilike.%${cleanQuery}%`)
-    .limit(10)
+    )
+  `
 
   let matchedExam: any = null
 
-  if (existingExams && existingExams.length > 0) {
-    matchedExam =
-      existingExams.find(
-        (e: any) =>
-          e.slug === querySlug ||
-          e.name.toLowerCase() === cleanQuery ||
-          e.name.toLowerCase().includes(cleanQuery)
-      ) || existingExams[0]
+  // 1. Thorough canonical/exact fast matches
+  const rawLower = rawInput.toLowerCase()
+  const rawNoPunct = rawInput.replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim().toLowerCase()
+  const cleanNoPunct = cleanQuery.replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim().toLowerCase()
+
+  // First check if there is an exact direct slug/name match
+  const { data: directSlugMatch } = await supabase
+    .from('exams')
+    .select(selectQuery)
+    .neq('status', 'archived')
+    .or(`slug.eq."${querySlug}",name.ilike."${rawInput}"`)
+    .limit(1)
+    .maybeSingle()
+
+  if (directSlugMatch) {
+    matchedExam = directSlugMatch
   }
 
-  // 3. Search aliases if not found
   if (!matchedExam) {
+    // 2. Query all active exams for rich in-memory matching (exact, short_name, normalized, punctuation-stripped, token overlaps)
+    const { data: allActiveExams } = await supabase
+      .from('exams')
+      .select(`
+        id,
+        name,
+        short_name,
+        slug,
+        description,
+        difficulty,
+        question_count,
+        time_limit_mins,
+        status,
+        countries (
+          id,
+          name,
+          flag_emoji
+        ),
+        exam_categories (
+          id,
+          name,
+          slug
+        )
+      `)
+      .neq('status', 'archived')
+
+    // 3. Query all aliases
+    const { data: allAliases } = await supabase
+      .from('exam_aliases')
+      .select('exam_id, alias')
+
+    if (allActiveExams) {
+      const aliasMap = new Map<string, Set<string>>()
+      if (allAliases) {
+        for (const al of allAliases) {
+          if (!aliasMap.has(al.exam_id)) {
+            aliasMap.set(al.exam_id, new Set())
+          }
+          aliasMap.get(al.exam_id)!.add(al.alias.toLowerCase().trim())
+        }
+      }
+
+      // Check A: Exact name or short name match
+      let bestCandidate = allActiveExams.find((e: any) => {
+        const eName = e.name.toLowerCase()
+        const eShort = e.short_name?.toLowerCase()
+        return (
+          eName === rawLower ||
+          eName === cleanQuery ||
+          eShort === rawLower ||
+          eShort === cleanQuery ||
+          e.slug === querySlug
+        );
+      })
+
+      // Check B: Exact match in aliases
+      if (!bestCandidate) {
+        bestCandidate = allActiveExams.find((e: any) => {
+          const aliases = aliasMap.get(e.id)
+          if (!aliases) return false
+          return aliases.has(rawLower) || aliases.has(cleanQuery)
+        })
+      }
+
+      // Check C: Punctuation & spacing variations stripped matches
+      if (!bestCandidate) {
+        bestCandidate = allActiveExams.find((e: any) => {
+          const eNameNoPunct = e.name.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim()
+          const eShortNoPunct = e.short_name?.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim() || ''
+          
+          if (eNameNoPunct === rawNoPunct || eNameNoPunct === cleanNoPunct) return true
+          if (eShortNoPunct === rawNoPunct || eShortNoPunct === cleanNoPunct) return true
+
+          // Check stripped aliases too
+          const aliases = aliasMap.get(e.id)
+          if (aliases) {
+            for (const al of aliases) {
+              const alNoPunct = al.replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim()
+              if (alNoPunct === rawNoPunct || alNoPunct === cleanNoPunct) return true
+            }
+          }
+          return false
+        })
+      }
+
+      // Check D: Country + Profession + Exam category token matching
+      if (!bestCandidate) {
+        const tokens = rawLower.split(/[^\w]+/).filter(t => t.length >= 3)
+        if (tokens.length >= 2) {
+          let highestTokenScore = 0
+          let topTokenExam: any = null
+
+          for (const e of allActiveExams) {
+            let score = 0
+            const eName = e.name.toLowerCase()
+            const eShort = e.short_name?.toLowerCase() || ''
+            const countryName = (e.countries as any)?.name?.toLowerCase() || ''
+            const categoryName = (e.exam_categories as any)?.name?.toLowerCase() || ''
+            const categorySlug = (e.exam_categories as any)?.slug?.toLowerCase() || ''
+
+            for (const token of tokens) {
+              if (eName.includes(token)) score += 3
+              if (eShort.includes(token)) score += 3
+              if (countryName.includes(token)) score += 5
+              if (categoryName.includes(token) || categorySlug.includes(token)) score += 4
+            }
+
+            // India + Medical + Postgraduate Entrance -> NEET PG explicit match
+            if (rawLower.includes('india') && rawLower.includes('medical') && (rawLower.includes('postgraduate') || rawLower.includes('pg'))) {
+              if (eName.includes('neet pg') || eShort.includes('neet pg')) {
+                score += 50
+              }
+            }
+
+            if (score > highestTokenScore && score >= 10) {
+              highestTokenScore = score
+              topTokenExam = e
+            }
+          }
+
+          if (topTokenExam) {
+            bestCandidate = topTokenExam
+            console.log(`[Exam Intelligence] Matched via Country/Category/Profession tokens: "${topTokenExam.name}" with score ${highestTokenScore}`)
+          }
+        }
+      }
+
+      // Check E: Spelling variations (Levenshtein similarity >= 85%)
+      if (!bestCandidate) {
+        let bestSimilarity = 0
+        let topSimilarityExam: any = null
+
+        for (const e of allActiveExams) {
+          const nameSim = calculateLevenshteinSimilarity(e.name, rawInput)
+          const shortSim = e.short_name ? calculateLevenshteinSimilarity(e.short_name, rawInput) : 0
+          let maxSim = Math.max(nameSim, shortSim)
+
+          const aliases = aliasMap.get(e.id)
+          if (aliases) {
+            for (const al of aliases) {
+              const alSim = calculateLevenshteinSimilarity(al, rawInput)
+              if (alSim > maxSim) maxSim = alSim
+            }
+          }
+
+          if (maxSim > bestSimilarity) {
+            bestSimilarity = maxSim
+            topSimilarityExam = e
+          }
+        }
+
+        if (bestSimilarity >= 85.0 && topSimilarityExam) {
+          bestCandidate = topSimilarityExam
+          console.log(`[Exam Intelligence] Matched via Levenshtein spelling similarity: "${topSimilarityExam.name}" with score ${bestSimilarity}%`)
+        }
+      }
+
+      // If we matched any exam, fetch its full details including subjects & topics
+      if (bestCandidate) {
+        const { data: fullDetails } = await supabase
+          .from('exams')
+          .select(selectQuery)
+          .eq('id', bestCandidate.id)
+          .maybeSingle()
+
+        if (fullDetails) {
+          matchedExam = fullDetails
+        }
+      }
+    }
+  }
+
+  // Save rawInput as a permanent alias for matchedExam if it does not already exist
+  if (matchedExam) {
     try {
-      const { data: aliasMatch } = await supabase
+      const { data: aliasExists } = await supabase
         .from('exam_aliases')
-        .select(`
-          exam_id,
-          exams (
-            id,
-            name,
-            slug,
-            description,
-            difficulty,
-            question_count,
-            time_limit_mins,
-            status,
-            marking_scheme,
-            question_types,
-            metadata,
-            syllabus_info,
-            countries (
-              id,
-              name,
-              iso2,
-              flag_emoji
-            ),
-            exam_subjects (
-              id,
-              name,
-              slug,
-              description,
-              weight_percentage,
-              order_index,
-              exam_topics (
-                id,
-                name,
-                slug,
-                description,
-                order_index,
-                exam_subtopics (
-                  id,
-                  name,
-                  slug,
-                  display_order
-                )
-              )
-            )
-          )
-        `)
-        .ilike('alias', cleanQuery)
-        .limit(1)
+        .select('id')
+        .eq('exam_id', matchedExam.id)
+        .ilike('alias', rawInput.trim())
         .maybeSingle()
 
-      if (aliasMatch && aliasMatch.exams) {
-        matchedExam = aliasMatch.exams
+      if (!aliasExists && rawInput.trim().length > 1) {
+        await supabase
+          .from('exam_aliases')
+          .insert({
+            exam_id: matchedExam.id,
+            alias: rawInput.trim()
+          })
+        console.log(`[Exam Intelligence] Registered new permanent alias "${rawInput.trim()}" for exam "${matchedExam.name}"`)
       }
     } catch (aliasErr) {
-      console.warn('[Exam Intelligence] Alias lookup non-blocking note:', aliasErr)
+      console.warn('[Exam Intelligence] Non-blocking alias registration error:', aliasErr)
     }
   }
 
@@ -978,7 +1119,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
     console.log(`[Exam Intelligence] Reusing existing canonical exam: "${matchedExam.name}" (${matchedExam.id})`)
 
     let subjects = matchedExam.exam_subjects || []
-    let totalTopics = subjects.reduce((acc: number, s: any) => acc + (s.exam_topics?.length || 0), 0)
+    const totalTopics = subjects.reduce((acc: number, s: any) => acc + (s.exam_topics?.length || 0), 0)
 
     let curriculumStatus: CurriculumStatus =
       subjects.length > 0 && totalTopics > 0 ? 'ready' : 'generating'
@@ -1126,41 +1267,83 @@ export async function resolveOrInitializeExamIntelligence(options: {
   }
 
   // 4. Insert new Exam into `exams`
-  const { data: newExam, error: insertErr } = await supabase
+  const examPayload: any = {
+    name: rawInput,
+    slug: querySlug,
+    description: `Official preparation syllabus and curriculum for ${rawInput}.`,
+    difficulty: intelligenceProfile.difficulty_level,
+    question_count: intelligenceProfile.question_config.default_question_count || 100,
+    time_limit_mins: intelligenceProfile.question_config.duration_minutes || 120,
+    country_id: countryId,
+    category_id: categoryId,
+    status: 'active',
+    is_featured: false,
+    created_by_ai: !isVerifiedTemplate,
+    verification_status: isVerifiedTemplate ? 'verified' : 'pending_review',
+    marking_scheme: {
+      positive_mark: intelligenceProfile.question_config.positive_mark,
+      negative_mark: intelligenceProfile.question_config.negative_mark,
+      has_negative_marking: intelligenceProfile.question_config.has_negative_marking,
+      answer_type: intelligenceProfile.question_config.answer_type,
+      option_count: intelligenceProfile.question_config.option_count,
+    },
+    question_types: intelligenceProfile.question_config.question_types,
+    metadata: {
+      exam_intelligence: intelligenceProfile,
+      content_generation_rules: intelligenceProfile.content_generation_rules,
+    },
+    syllabus_info: {
+      source: intelligenceProfile.syllabus_source,
+      confidence: intelligenceProfile.syllabus_confidence,
+      provenance: intelligenceProfile.provenance,
+    },
+  }
+
+  let { data: newExam, error: insertErr } = await supabase
     .from('exams')
-    .insert({
-      name: rawInput,
-      slug: querySlug,
-      description: `Official preparation syllabus and curriculum for ${rawInput}.`,
-      difficulty: intelligenceProfile.difficulty_level,
-      question_count: intelligenceProfile.question_config.default_question_count || 100,
-      time_limit_mins: intelligenceProfile.question_config.duration_minutes || 120,
-      country_id: countryId,
-      category_id: categoryId,
-      status: 'active',
-      is_featured: false,
-      created_by_ai: !isVerifiedTemplate,
-      verification_status: isVerifiedTemplate ? 'verified' : 'needs_review',
-      marking_scheme: {
-        positive_mark: intelligenceProfile.question_config.positive_mark,
-        negative_mark: intelligenceProfile.question_config.negative_mark,
-        has_negative_marking: intelligenceProfile.question_config.has_negative_marking,
-        answer_type: intelligenceProfile.question_config.answer_type,
-        option_count: intelligenceProfile.question_config.option_count,
-      },
-      question_types: intelligenceProfile.question_config.question_types,
-      metadata: {
-        exam_intelligence: intelligenceProfile,
-        content_generation_rules: intelligenceProfile.content_generation_rules,
-      },
-      syllabus_info: {
-        source: intelligenceProfile.syllabus_source,
-        confidence: intelligenceProfile.syllabus_confidence,
-        provenance: intelligenceProfile.provenance,
-      },
-    })
+    .insert(examPayload)
     .select('id, name, slug, description, difficulty, question_count, time_limit_mins')
     .single()
+
+  if (insertErr && (insertErr.message?.includes('metadata') || insertErr.code === 'PGRST204')) {
+    console.warn('[Exam Intelligence] Retrying exam insert without metadata column:', insertErr.message)
+    const { metadata, ...fallbackPayload } = examPayload
+    if (fallbackPayload.syllabus_info) {
+      fallbackPayload.syllabus_info.metadata = metadata
+    }
+    const retry = await supabase
+      .from('exams')
+      .insert(fallbackPayload)
+      .select('id, name, slug, description, difficulty, question_count, time_limit_mins')
+      .single()
+
+    newExam = retry.data
+    insertErr = retry.error
+  }
+
+  if (insertErr && insertErr.message?.includes('exams_slug_key')) {
+    console.warn('[Exam Intelligence] Duplicate slug constraint hit for:', querySlug, 'Attempting resolution...')
+    const { data: slugExisting } = await supabase
+      .from('exams')
+      .select('id, name, slug, description, difficulty, question_count, time_limit_mins')
+      .eq('slug', querySlug)
+      .maybeSingle()
+
+    if (slugExisting) {
+      console.log('[Exam Intelligence] Successfully resolved existing exam via slug fallback:', slugExisting.id)
+      newExam = slugExisting
+      insertErr = null
+    } else {
+      examPayload.slug = `${querySlug}-${Math.random().toString(36).substring(2, 7)}`
+      const retrySlug = await supabase
+        .from('exams')
+        .insert(examPayload)
+        .select('id, name, slug, description, difficulty, question_count, time_limit_mins')
+        .single()
+      newExam = retrySlug.data
+      insertErr = retrySlug.error
+    }
+  }
 
   if (insertErr || !newExam) {
     console.error('[Exam Intelligence] Failed to insert new exam:', insertErr)
@@ -1279,7 +1462,7 @@ async function persistCurriculumHierarchy(
     const subSlug = normalizeInput(sItem.name).slug.toLowerCase()
 
     let subjectId: string | null = null
-    let existingSub = subjectMap.get(normSubName)
+    const existingSub = subjectMap.get(normSubName)
 
     if (existingSub) {
       subjectId = existingSub.id
@@ -1295,12 +1478,22 @@ async function persistCurriculumHierarchy(
           order_index: sItem.order || sIdx + 1,
         })
         .select('id')
-        .single()
+        .maybeSingle()
 
       if (insertedSub) {
         subjectId = insertedSub.id
       } else {
         console.warn(`[Exam Intelligence] Subject insert error:`, subErr)
+        // Fallback DB lookup on constraint hit
+        const { data: dbSub } = await supabase
+          .from('exam_subjects')
+          .select('id')
+          .eq('exam_id', examId)
+          .ilike('name', sItem.name)
+          .maybeSingle()
+        if (dbSub) {
+          subjectId = dbSub.id
+        }
       }
     }
 
@@ -1320,7 +1513,7 @@ async function persistCurriculumHierarchy(
       const topSlug = normalizeInput(tItem.name).slug.toLowerCase()
 
       let topicId: string | null = null
-      let existingTop = topicMap.get(normTopName)
+      const existingTop = topicMap.get(normTopName)
 
       if (existingTop) {
         topicId = existingTop.id
@@ -1335,12 +1528,22 @@ async function persistCurriculumHierarchy(
             order_index: tItem.order || tIdx + 1,
           })
           .select('id')
-          .single()
+          .maybeSingle()
 
         if (insertedTop) {
           topicId = insertedTop.id
         } else {
           console.warn(`[Exam Intelligence] Topic insert error:`, topErr)
+          // Fallback DB lookup on constraint hit
+          const { data: dbTop } = await supabase
+            .from('exam_topics')
+            .select('id')
+            .eq('subject_id', subjectId)
+            .ilike('name', tItem.name)
+            .maybeSingle()
+          if (dbTop) {
+            topicId = dbTop.id
+          }
         }
       }
 

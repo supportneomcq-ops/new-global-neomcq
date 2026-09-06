@@ -27,6 +27,7 @@ import { GenerationJobManager } from './job-manager';
 import { ContentCacheManager } from './content-cache-manager';
 import { ContentCostAuditor } from './cost-auditor';
 import { FlashcardValidator } from './flashcards-validator';
+import { getExamStyleAndPattern } from './exam-style-helper';
 
 export class CanonicalFlashcardsGenerator {
   /**
@@ -232,6 +233,7 @@ export class CanonicalFlashcardsGenerator {
       const batchRequestCount = Math.min(targetCount, Math.max(currentDeficit, 10));
 
       const aiResponse = await this.callAIForFlashcards({
+        examId,
         examName,
         subjectName,
         topicName,
@@ -433,6 +435,7 @@ export class CanonicalFlashcardsGenerator {
    * Calls AI Model or returns deterministic high-yield flashcard set
    */
   private static async callAIForFlashcards(params: {
+    examId: string;
     examName: string;
     subjectName: string;
     topicName: string;
@@ -451,11 +454,13 @@ export class CanonicalFlashcardsGenerator {
     }
 
     try {
+      const styleAndPattern = await getExamStyleAndPattern(params.examId);
       const ai = new GoogleGenAI({ apiKey });
-      const prompt = `You are a world-class educational content author for the official ${params.examName} syllabus.
-Create ${params.targetCount} high-yield, accurate, topic-specific flashcards for:
-Subject: ${params.subjectName}
-Topic: ${params.topicName}
+      const prompt = `You are the ${styleAndPattern.role} for NeoMCQ.
+Create ${params.targetCount} high-yield, accurate, topic-specific flashcards for the official syllabus:
+- Examination: ${params.examName} (Pattern/Domain: ${styleAndPattern.domain})
+- Subject: ${params.subjectName}
+- Topic: ${params.topicName}
 
 REQUIREMENTS:
 1. Every flashcard must have a concise, unambiguous question or prompt on the "front" (< 300 characters).
@@ -464,7 +469,7 @@ REQUIREMENTS:
 4. Set "difficulty" to Easy, Medium, or Hard.
 5. Set "isHighYield" to true for core examination facts.
 6. Do NOT duplicate cards or write vague answers like "it depends" or "N/A".
-7. Focus strictly on key anatomical landmarks, formulas, classifications, pathognomonic signs, diagnostic tests, and clinical rules for ${params.topicName}.
+7. Focus strictly on key formulas, classifications, core definitions, diagnostic rules, or critical principles for ${params.topicName}.
 ${params.subtopicNames && params.subtopicNames.length > 0 ? `8. Subtopic Guidance: The official syllabus specifies these active subtopics: ${params.subtopicNames.map(s => `"${s}"`).join(', ')}.
    You MUST generate flashcards distributed evenly across these subtopics so that every single subtopic is thoroughly covered with dedicated cards.` : ''}`;
 

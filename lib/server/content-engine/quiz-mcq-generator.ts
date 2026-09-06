@@ -30,6 +30,7 @@ import { ContentCacheManager } from './content-cache-manager';
 import { ContentCostAuditor } from './cost-auditor';
 import { MCQDeDuplicator } from './mcq-deduplicator';
 import { MCQValidator } from './mcq-validator';
+import { getExamStyleAndPattern } from './exam-style-helper';
 
 const CANONICAL_TARGET_QUIZ_MCQ_COUNT = 20;
 
@@ -229,6 +230,7 @@ export class QuizMCQGenerator {
 
       try {
         const generationResponse = await this.callAIForQuizMCQs({
+          examId,
           examName,
           subjectName,
           topicName,
@@ -486,6 +488,7 @@ export class QuizMCQGenerator {
    * Calls Google GenAI with structured JSON output schema tailored for QUIZ_1 / QUIZ_2
    */
   private static async callAIForQuizMCQs(params: {
+    examId: string;
     examName: string;
     subjectName: string;
     topicName: string;
@@ -508,26 +511,27 @@ export class QuizMCQGenerator {
     }
 
     try {
+      const styleAndPattern = await getExamStyleAndPattern(params.examId);
       const ai = new GoogleGenAI({ apiKey });
 
       const quizFocusDescription =
         params.quizSlot === 'QUIZ_1'
-          ? 'Diagnostic Pre-Test & Core High-Yield Foundations: Assess fundamental clinical concepts, essential anatomy/pathology, pathognomonic signs, and first-line clinical presentations.'
-          : 'Mastery Post-Test & Complex Differential Management: Assess multi-step clinical reasoning, atypical presentations, treatment complications, contraindications, and advanced emergency decision-making.';
+          ? 'Diagnostic Pre-Test & Core High-Yield Foundations: Assess fundamental concepts, essential core models, key definitions, and first-line applications.'
+          : 'Mastery Post-Test & Complex Logic/Management: Assess multi-step reasoning, atypical scenarios, error handling, system limits, and advanced decision-making.';
 
-      const systemInstruction = `You are the Lead Medical Examination Content Author for NeoMCQ.
-Your objective is to generate exactly ${params.count} high-yield, medically pristine Multiple Choice Questions (MCQs) for the ${params.quizSlot} slot on the topic "${params.topicName}" in "${params.subjectName}" for the examination "${params.examName}".
+      const systemInstruction = `You are the ${styleAndPattern.role} for NeoMCQ.
+Your objective is to generate exactly ${params.count} high-yield, pristine Multiple Choice Questions (MCQs) for the ${params.quizSlot} slot on the topic "${params.topicName}" in "${params.subjectName}" for the examination "${params.examName}".
 
 QUIZ SLOT SPECIFICATION:
 ${quizFocusDescription}
 
 MANDATORY RULES:
-1. Every question MUST have a clear, realistic clinical vignette or rigorous conceptual stem.
-2. Every question MUST have EXACTLY 4 distinct, plausible options (A, B, C, D).
+1. ${styleAndPattern.styleDescription}
+2. ${styleAndPattern.markingSchemeInstruction}
 3. Do NOT use cliché options like "All of the above", "None of the above", or "Both A and B".
 4. Exactly one option must be unambiguously correct.
-5. Provide an exhaustive, educational explanation/rationale detailing why the correct option is right and why the other 3 distractors are incorrect.
-6. Provide an evidence-backed "clinicalPearl" and "highYieldTag" for every item.
+5. Provide an exhaustive, educational explanation/rationale detailing why the correct option is right and why the other distractors are incorrect.
+6. Provide an evidence-backed "clinicalPearl" (which acts as a High-yield memory anchor, formula, core principle, or takeaway) and "highYieldTag" for every item.
 7. Assign a realistic difficulty level ("Easy", "Medium", or "Hard").
 8. Ensure ABSOLUTE UNIQUENESS. Do not duplicate concepts, phrasing, or facts already tested.
 ${params.subtopicNames && params.subtopicNames.length > 0 ? `9. Subtopic Guidance: The official syllabus specifies these active subtopics: ${params.subtopicNames.map(s => `"${s}"`).join(', ')}.
@@ -551,16 +555,17 @@ ${params.existingStems.slice(0, 30).map((s, i) => `${i + 1}. ${s}`).join('\n') |
                 items: {
                   type: Type.OBJECT,
                   properties: {
-                    question: { type: Type.STRING },
+                    question: { type: Type.STRING, description: 'Question stem tailored to exam domain, style, and syllabus pattern guidelines' },
                     options: {
                       type: Type.ARRAY,
                       items: { type: Type.STRING },
+                      description: 'Exactly plausible options matching exam specification',
                     },
                     correctAnswer: { type: Type.STRING },
                     correctIndex: { type: Type.INTEGER },
                     explanation: { type: Type.STRING },
                     difficulty: { type: Type.STRING },
-                    clinicalPearl: { type: Type.STRING },
+                    clinicalPearl: { type: Type.STRING, description: 'High-yield memory anchor, formula, core principle, or takeaway' },
                     highYieldTag: { type: Type.STRING },
                   },
                   required: ['question', 'options', 'correctAnswer', 'correctIndex', 'explanation', 'difficulty'],
