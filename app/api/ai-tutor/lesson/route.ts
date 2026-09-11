@@ -1,42 +1,51 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AITutorGenerator } from '@/lib/server/content-engine/ai-tutor-generator';
+import { AITutorLessonService } from '@/lib/server/content-engine/ai-tutor-lesson-service';
+import { verifyCanonicalHierarchy } from '@/lib/server/content-engine/canonical-identity';
+import { TutorDbService } from '@/lib/server/content-engine/tutor-db-service';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { examId, subjectId, topicId, userId, forceNew } = body;
-
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'userId is required for Tutor lesson operations', errorCode: 'UNAUTHORIZED' },
-        { status: 401 }
-      );
-    }
+    const { examId, subjectId, topicId, subtopicId, userId, version, forceRefresh, forceNew } = body;
 
     if (!examId || !subjectId || !topicId) {
       return NextResponse.json(
-        { success: false, error: 'examId, subjectId, and topicId are required', errorCode: 'HIERARCHY_INVALID' },
+        { success: false, error: 'examId, subjectId, and topicId are required.', errorCode: 'HIERARCHY_INVALID' },
         { status: 400 }
       );
     }
 
-    const result = await AITutorGenerator.createOrResumeLesson({
+    // Server-side hierarchy verification
+    const hierarchy = await verifyCanonicalHierarchy(examId, subjectId, topicId, subtopicId);
+    if (!hierarchy.valid) {
+      return NextResponse.json(
+        { success: false, error: hierarchy.error || 'Invalid curriculum hierarchy scope.', errorCode: 'HIERARCHY_INVALID' },
+        { status: 400 }
+      );
+    }
+
+    const result = await AITutorLessonService.getOrGenerateLesson({
       examId,
       subjectId,
       topicId,
+      subtopicId,
+      contentVersion: Number(version || 1),
       userId,
-      forceNew: Boolean(forceNew),
+      forceRefresh: Boolean(forceRefresh || forceNew),
     });
 
     if (!result.success) {
-      const status = result.errorCode === 'HIERARCHY_INVALID' ? 400 : result.errorCode === 'UNAUTHORIZED' ? 401 : 500;
-      return NextResponse.json(result, { status });
+      const status = result.errorCode === 'HIERARCHY_INVALID' ? 400 : 500;
+      return NextResponse.json(
+        { success: false, error: result.error || "We're preparing this lesson for you.", errorCode: result.errorCode },
+        { status }
+      );
     }
 
     return NextResponse.json(result, { status: 200 });
   } catch (err: any) {
     return NextResponse.json(
-      { success: false, error: err.message || 'Internal server error', errorCode: 'INTERNAL_ERROR' },
+      { success: false, error: "We're preparing this lesson for you.", errorCode: 'INTERNAL_ERROR' },
       { status: 500 }
     );
   }
@@ -45,34 +54,54 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const lessonId = searchParams.get('lessonId');
-    const userId = searchParams.get('userId');
+    const examId = searchParams.get('examId');
+    const subjectId = searchParams.get('subjectId');
+    const topicId = searchParams.get('topicId');
+    const subtopicId = searchParams.get('subtopicId') || undefined;
+    const userId = searchParams.get('userId') || undefined;
+    const version = Number(searchParams.get('version') || 1);
 
-    if (!userId) {
+    if (!examId || !subjectId || !topicId) {
       return NextResponse.json(
-        { success: false, error: 'userId is required', errorCode: 'UNAUTHORIZED' },
-        { status: 401 }
-      );
-    }
-
-    if (!lessonId) {
-      return NextResponse.json(
-        { success: false, error: 'lessonId is required', errorCode: 'INVALID_PARAMS' },
+        { success: false, error: 'examId, subjectId, and topicId are required.', errorCode: 'INVALID_PARAMS' },
         { status: 400 }
       );
     }
 
-    const result = await AITutorGenerator.getLessonState(lessonId, userId);
-
-    if (!result.success) {
-      const status = result.errorCode === 'UNAUTHORIZED' ? 403 : result.errorCode === 'NOT_FOUND' ? 404 : 500;
-      return NextResponse.json(result, { status });
+    const hierarchy = await verifyCanonicalHierarchy(examId, subjectId, topicId, subtopicId);
+    if (!hierarchy.valid) {
+      return NextResponse.json(
+        { success: false, error: hierarchy.error || 'Invalid curriculum hierarchy scope.', errorCode: 'HIERARCHY_INVALID' },
+        { status: 400 }
+      );
     }
 
-    return NextResponse.json(result, { status: 200 });
+    const canonical = await TutorDbService.getCanonicalTutorLesson(examId, subjectId, topicId, subtopicId, version);
+
+    if (!canonical || !canonical.lesson) {
+      return NextResponse.json({
+        success: true,
+        exists: false,
+        message: "We're preparing this lesson for you.",
+      });
+    }
+
+    const userProgress = userId
+      ? await TutorDbService.getUserTutorProgress(userId, canonical.lesson.id)
+      : null;
+
+    return NextResponse.json({
+      success: true,
+      exists: true,
+      lesson: canonical.lesson,
+      scenes: canonical.scenes,
+      assets: canonical.assets,
+      voiceMetadata: canonical.voiceMetadata,
+      userProgress,
+    });
   } catch (err: any) {
     return NextResponse.json(
-      { success: false, error: err.message || 'Internal server error', errorCode: 'INTERNAL_ERROR' },
+      { success: false, error: 'An unexpected server error occurred.', errorCode: 'INTERNAL_ERROR' },
       { status: 500 }
     );
   }

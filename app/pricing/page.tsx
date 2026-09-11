@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { AUTHORITATIVE_PLANS, PlanCode } from '@/lib/plans/plan-config';
+import React, { useState, useEffect } from 'react';
+import { AUTHORITATIVE_PLANS, PlanCode, getFormattedPlanPrice } from '@/lib/plans/plan-config';
 import { usePlanCheckout } from '@/lib/checkout/use-plan-checkout';
 import { Header } from '@/components/header';
 import { Footer } from '@/components/footer';
@@ -31,9 +31,24 @@ export default function PricingPage() {
   const { checkoutPlan, isProcessing, activePlanCode, statusMessage, errorMessage, successMessage } =
     usePlanCheckout();
 
+  useEffect(() => {
+    fetch('/api/geo/country')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.currency === 'INR') {
+          setCurrency('INR');
+        }
+      })
+      .catch(() => null);
+  }, []);
+
   const handleCheckout = (code: PlanCode) => {
     checkoutPlan(code, { preferredCurrency: currency });
   };
+
+  const proPrice = getFormattedPlanPrice('PRO', currency);
+  const maxPrice = getFormattedPlanPrice('MAX', currency);
+  const elitePrice = getFormattedPlanPrice('ELITE', currency);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#070A13] text-slate-900 dark:text-slate-100 selection:bg-[#6D5BFF]/30 transition-colors">
@@ -55,6 +70,32 @@ export default function PricingPage() {
           <p className="text-base sm:text-lg text-slate-600 dark:text-slate-400 font-normal">
             Choose the plan that matches your study pace. From adaptive question banks to unlimited multi-exam mastery.
           </p>
+        </div>
+
+        {/* Currency Switcher Toggle */}
+        <div className="flex items-center justify-center mb-10">
+          <div className="p-1 rounded-2xl bg-slate-200 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700/80 flex items-center gap-1 shadow-inner">
+            <button
+              onClick={() => setCurrency('INR')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                currency === 'INR'
+                  ? 'bg-white dark:bg-[#0E1324] text-[#6D5BFF] dark:text-[#8E7CFF] shadow-md border border-slate-200 dark:border-slate-700'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <span>🇮🇳</span> India (INR ₹)
+            </button>
+            <button
+              onClick={() => setCurrency('USD')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                currency === 'USD'
+                  ? 'bg-white dark:bg-[#0E1324] text-[#6D5BFF] dark:text-[#8E7CFF] shadow-md border border-slate-200 dark:border-slate-700'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <span>🌐</span> International (USD $)
+            </button>
+          </div>
         </div>
 
         {/* Global Status / Alert Banners */}
@@ -94,9 +135,9 @@ export default function PricingPage() {
 
               <div className="flex items-baseline gap-1.5 mb-6">
                 <span className="text-4xl font-extrabold text-slate-900 dark:text-white">
-                  $9.99
+                  {proPrice.displayPrice}
                 </span>
-                <span className="text-sm font-medium text-slate-500 dark:text-slate-400">/ month</span>
+                <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{proPrice.period}</span>
               </div>
 
               <div className="pt-4 border-t border-slate-100 dark:border-slate-800/80 mb-6 space-y-3">
@@ -115,7 +156,7 @@ export default function PricingPage() {
               disabled={isProcessing}
               className="w-full py-3 px-4 rounded-xl border-2 border-[#6D5BFF] text-[#6D5BFF] hover:bg-[#6D5BFF] hover:text-white dark:border-[#8E7CFF] dark:text-[#8E7CFF] dark:hover:bg-[#6D5BFF] dark:hover:text-white text-sm font-bold transition-all disabled:opacity-50 cursor-pointer text-center"
             >
-              {isProcessing && activePlanCode === 'PRO' ? 'Processing...' : 'Subscribe to Pro'}
+              {isProcessing && activePlanCode === 'PRO' ? 'Processing...' : `Subscribe to Pro (${proPrice.displayPrice}${proPrice.periodShort})`}
             </button>
           </div>
 
@@ -140,9 +181,9 @@ export default function PricingPage() {
 
               <div className="flex items-baseline gap-1.5 mb-6">
                 <span className="text-4xl font-extrabold text-slate-900 dark:text-white">
-                  $19.99
+                  {maxPrice.displayPrice}
                 </span>
-                <span className="text-sm font-medium text-slate-500 dark:text-slate-400">/ month</span>
+                <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{maxPrice.period}</span>
               </div>
 
               <div className="pt-4 border-t border-slate-100 dark:border-slate-800/80 mb-6 space-y-3">
@@ -163,7 +204,7 @@ export default function PricingPage() {
               disabled={isProcessing}
               className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-[#6D5BFF] to-[#8E7CFF] hover:opacity-95 text-white text-sm font-bold shadow-lg shadow-[#6D5BFF]/30 transition-all disabled:opacity-50 cursor-pointer text-center"
             >
-              {isProcessing && activePlanCode === 'MAX' ? 'Processing...' : 'Subscribe to Max'}
+              {isProcessing && activePlanCode === 'MAX' ? 'Processing...' : `Subscribe to Max (${maxPrice.displayPrice}${maxPrice.periodShort})`}
             </button>
           </div>
 
@@ -191,9 +232,9 @@ export default function PricingPage() {
 
               <div className="flex items-baseline gap-1.5 mb-2">
                 <span className="text-4xl font-extrabold text-slate-900 dark:text-white">
-                  $499
+                  {elitePrice.displayPrice}
                 </span>
-                <span className="text-sm font-medium text-slate-500 dark:text-slate-400">/ 1 year</span>
+                <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{elitePrice.period}</span>
               </div>
               <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mb-6">
                 Zero exam switch fees • Unlimited AI compute
@@ -230,14 +271,14 @@ export default function PricingPage() {
             Payment & Subscription Terms Disclosures:
           </p>
           <p className="leading-relaxed max-w-3xl mx-auto">
-            All subscriptions are billed in USD ($) via Razorpay 256-bit SSL encrypted payment processing. By completing a transaction, you agree to NeoMCQ’s{' '}
+            All subscriptions are processed via Razorpay 256-bit SSL encrypted payment processing in {currency === 'INR' ? 'Indian Rupees (INR ₹)' : 'US Dollars (USD $)'}. By completing a transaction, you agree to NeoMCQ’s{' '}
             <Link href="/terms-and-conditions" className="text-[#6D5BFF] dark:text-[#00D4FF] underline font-medium">Terms & Conditions</Link>,{' '}
             <Link href="/privacy-policy" className="text-[#6D5BFF] dark:text-[#00D4FF] underline font-medium">Privacy Policy</Link>,{' '}
             <Link href="/refund-and-cancellation-policy" className="text-[#6D5BFF] dark:text-[#00D4FF] underline font-medium">Refund & Cancellation Policy</Link>, and{' '}
             <Link href="/shipping-and-delivery-policy" className="text-[#6D5BFF] dark:text-[#00D4FF] underline font-medium">Digital Delivery Policy</Link>.
           </p>
           <p className="text-[11px] text-slate-400">
-            Pro ($9.99/mo) and Max ($19.99/mo) plans include a $2.00 USD curriculum switching fee per switch. Elite ($499/yr) subscribers enjoy unlimited zero-fee curriculum switches. Subscriptions can be canceled anytime from your Billing Portal.
+            Pro ({proPrice.displayPrice}{proPrice.periodShort}) and Max ({maxPrice.displayPrice}{maxPrice.periodShort}) plans include a nominal curriculum switching fee per switch ({proPrice.switchFee}). Elite ({elitePrice.displayPrice}{elitePrice.periodShort}) subscribers enjoy unlimited zero-fee curriculum switches. Subscriptions can be canceled anytime from your Billing Portal.
           </p>
         </div>
 
@@ -252,16 +293,16 @@ export default function PricingPage() {
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-800">
                   <th className="pb-4 font-bold text-slate-500 dark:text-slate-400">Capability</th>
-                  <th className="pb-4 font-bold text-slate-800 dark:text-slate-200 text-center">Pro ($9.99/mo)</th>
-                  <th className="pb-4 font-bold text-[#6D5BFF] dark:text-[#8E7CFF] text-center">Max ($19.99/mo)</th>
-                  <th className="pb-4 font-bold text-amber-600 dark:text-amber-400 text-center">Elite ($499/yr)</th>
+                  <th className="pb-4 font-bold text-slate-800 dark:text-slate-200 text-center">Pro ({proPrice.displayPrice}{proPrice.periodShort})</th>
+                  <th className="pb-4 font-bold text-[#6D5BFF] dark:text-[#8E7CFF] text-center">Max ({maxPrice.displayPrice}{maxPrice.periodShort})</th>
+                  <th className="pb-4 font-bold text-amber-600 dark:text-amber-400 text-center">Elite ({elitePrice.displayPrice}{elitePrice.periodShort})</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-700 dark:text-slate-300">
                 <tr>
                   <td className="py-3.5 font-medium">Exam Switching Policy</td>
-                  <td className="py-3.5 text-center text-slate-500">$2.00 USD per switch</td>
-                  <td className="py-3.5 text-center text-slate-500">$2.00 USD per switch</td>
+                  <td className="py-3.5 text-center text-slate-500">{proPrice.switchFee} per switch</td>
+                  <td className="py-3.5 text-center text-slate-500">{maxPrice.switchFee} per switch</td>
                   <td className="py-3.5 text-center font-bold text-emerald-600 dark:text-emerald-400">
                     FREE Unlimited (Zero Fees)
                   </td>

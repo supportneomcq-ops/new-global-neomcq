@@ -38,19 +38,22 @@ export interface HierarchyVerificationResult {
   examId: string;
   subjectId: string;
   topicId: string;
+  subtopicId?: string | null;
   examName?: string;
   subjectName?: string;
   topicName?: string;
+  subtopicName?: string;
   error?: string;
 }
 
 /**
- * Verifies that exam owns subject and subject owns topic using server-side database
+ * Verifies that exam owns subject, subject owns topic, and topic owns subtopic (if provided) using server-side database
  */
 export async function verifyCanonicalHierarchy(
   examId: string,
   subjectId: string,
   topicId: string,
+  subtopicId?: string | null,
   supabaseClient?: any
 ): Promise<HierarchyVerificationResult> {
   const supabase = supabaseClient || getSupabaseAdmin();
@@ -61,6 +64,7 @@ export async function verifyCanonicalHierarchy(
       examId,
       subjectId,
       topicId,
+      subtopicId,
       error: 'Missing required hierarchy identifiers.',
     };
   }
@@ -79,6 +83,7 @@ export async function verifyCanonicalHierarchy(
         examId,
         subjectId,
         topicId,
+        subtopicId,
         error: `Subject ${subjectId} not found.`,
       };
     }
@@ -89,6 +94,7 @@ export async function verifyCanonicalHierarchy(
         examId,
         subjectId,
         topicId,
+        subtopicId,
         error: `Subject ${subjectId} does not belong to Exam ${examId}.`,
       };
     }
@@ -106,6 +112,7 @@ export async function verifyCanonicalHierarchy(
         examId,
         subjectId,
         topicId,
+        subtopicId,
         error: `Topic ${topicId} not found.`,
       };
     }
@@ -116,11 +123,45 @@ export async function verifyCanonicalHierarchy(
         examId,
         subjectId,
         topicId,
+        subtopicId,
         error: `Topic ${topicId} does not belong to Subject ${subjectId}.`,
       };
     }
 
-    // 3. Optional lookup exam name
+    // 3. Verify subtopic if provided
+    let subtopicName: string | undefined = undefined;
+    if (subtopicId) {
+      const { data: subtopic, error: subErr } = await supabase
+        .from('exam_subtopics')
+        .select('id, topic_id, name')
+        .eq('id', subtopicId)
+        .maybeSingle();
+
+      if (subErr || !subtopic) {
+        return {
+          valid: false,
+          examId,
+          subjectId,
+          topicId,
+          subtopicId,
+          error: `Subtopic ${subtopicId} not found.`,
+        };
+      }
+
+      if (subtopic.topic_id !== topicId) {
+        return {
+          valid: false,
+          examId,
+          subjectId,
+          topicId,
+          subtopicId,
+          error: `Subtopic ${subtopicId} does not belong to Topic ${topicId}.`,
+        };
+      }
+      subtopicName = subtopic.name;
+    }
+
+    // 4. Optional lookup exam name
     const { data: exam } = await supabase
       .from('exams')
       .select('id, name')
@@ -132,9 +173,11 @@ export async function verifyCanonicalHierarchy(
       examId,
       subjectId,
       topicId,
+      subtopicId,
       examName: exam?.name || 'Canonical Exam',
       subjectName: subject.name,
       topicName: topic.name,
+      subtopicName,
     };
   } catch (err: any) {
     return {
@@ -142,6 +185,7 @@ export async function verifyCanonicalHierarchy(
       examId,
       subjectId,
       topicId,
+      subtopicId,
       error: err.message || 'Database error verifying canonical hierarchy.',
     };
   }

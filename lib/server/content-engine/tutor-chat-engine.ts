@@ -16,6 +16,7 @@ import { getSupabaseAdmin } from '../../supabase';
 import { TutorSessionManager } from './tutor-session-manager';
 import { ContentCostAuditor } from './cost-auditor';
 import { getExamStyleAndPattern } from './exam-style-helper';
+import { TutorDbService } from './tutor-db-service';
 
 export interface AskDoubtParams {
   lessonId: string;
@@ -343,176 +344,116 @@ export class TutorChatEngine {
 
     const assistantIdempotencyKey = idempotencyKey ? `${idempotencyKey}:ast` : null;
 
-    // 4. Check Approved/Published FAQs ($0 credit reuse with cross-topic isolation)
+    // 4. Search Approved/Published Canonical FAQs ($0 credit reuse with exact scope isolation)
     try {
-      const { data: faqs } = await supabase
-        .from('ai_tutor_faqs')
-        .select('*')
-        .eq('topic_id', topicId)
-        .in('status', ['APPROVED', 'PUBLISHED']);
+      const faqSearch = await TutorDbService.searchScopeFaq({
+        examId: session.examId,
+        subjectId: session.subjectId,
+        topicId: topicId,
+        subtopicId: session.subtopicId,
+        question: cleanQuestion,
+      });
 
-      if (faqs && faqs.length > 0) {
-        const matchingFaq = faqs.find((f: any) => {
-          // Hierarchy verification check
-          if (f.exam_id && f.exam_id !== session.examId) return false;
-          if (f.subject_id && f.subject_id !== session.subjectId) return false;
+      if (faqSearch.matched && faqSearch.faq) {
+        const matchingFaq = faqSearch.faq;
 
-          const fn = f.question_normalized;
-          if (fn === normalizedQuestion) return true;
+        // Insert assistant response referencing FAQ ($0 user credit)
+        const { data: assistantMsg, error: astErr } = await supabase
+          .from('ai_tutor_messages')
+          .insert({
+            lesson_id: lessonId,
+            user_id: userId,
+            topic_id: topicId,
+            role: 'assistant',
+            content: matchingFaq.answer,
+            is_faq_candidate: false,
+            faq_id: matchingFaq.id,
+            credits_deducted: 0,
+            request_id: requestId || null,
+            idempotency_key: assistantIdempotencyKey,
+          })
+          .select('*')
+          .single();
 
-          const wordsA = normalizedQuestion.split(/\s+/).filter((w: string) => w.length > 3);
-          const wordsB = fn.split(/\s+/).filter((w: string) => w.length > 3);
-          if (wordsA.length > 0 && wordsB.length > 0) {
-            const intersection = wordsA.filter((w: string) => wordsB.includes(w));
-            const overlapRatio = intersection.length / Math.max(wordsA.length, wordsB.length);
-            return overlapRatio >= 0.8;
-          }
-          return false;
-        });
+        if (!astErr && assistantMsg) {
+          await ContentCostAuditor.recordGlobalGenerationCost({
+            userId: null,
+            jobId: undefined,
+            taskType: 'tutor_doubt_faq_hit',
+            provider: 'FAQ_REUSE',
+            model: 'faq-cache',
+            inputTokens: 0,
+            cachedTokens: Math.ceil(cleanQuestion.length / 4),
+            outputTokens: 0,
+            actualCostUsd: 0,
+            requestId: requestId || undefined,
+            idempotencyKey: idempotencyKey || undefined,
+          }, supabase);
 
-        if (matchingFaq) {
-          // Increment FAQ use count
-          await supabase
-            .from('ai_tutor_faqs')
-            .update({ use_count: Number(matchingFaq.use_count || 1) + 1, updated_at: new Date().toISOString() })
-            .eq('id', matchingFaq.id);
-
-          // Insert assistant response referencing FAQ ($0 user credit)
-          const { data: assistantMsg, error: astErr } = await supabase
-            .from('ai_tutor_messages')
-            .insert({
-              lesson_id: lessonId,
-              user_id: userId,
-              topic_id: topicId,
-              role: 'assistant',
-              content: matchingFaq.answer,
-              is_faq_candidate: false,
-              faq_id: matchingFaq.id,
-              credits_deducted: 0,
-              request_id: requestId || null,
-              idempotency_key: assistantIdempotencyKey,
-            })
-            .select('*')
-            .single();
-
-          if (!astErr && assistantMsg) {
-            // Record $0 COGS audit event
-            await ContentCostAuditor.recordGlobalGenerationCost({
-              userId: null,
-              jobId: undefined,
-              taskType: 'tutor_doubt_faq_hit',
-              provider: 'FAQ_REUSE',
-              model: 'faq-cache',
-              inputTokens: 0,
-              cachedTokens: Math.ceil(cleanQuestion.length / 4),
-              outputTokens: 0,
-              actualCostUsd: 0,
-              requestId: requestId || undefined,
-              idempotencyKey: idempotencyKey || undefined,
-            }, supabase);
-
-            return {
-              success: true,
-              servedFromFaq: true,
+          return {
+            success: true,
+            servedFromFaq: true,
+            creditsDeducted: 0,
+            userMessage: {
+              id: userMsg.id,
+              lessonId: userMsg.lesson_id,
+              userId: userMsg.user_id,
+              topicId: userMsg.topic_id,
+              role: 'user',
+              content: userMsg.content,
+              isFaqCandidate: false,
               creditsDeducted: 0,
-              userMessage: {
-                id: userMsg.id,
-                lessonId: userMsg.lesson_id,
-                userId: userMsg.user_id,
-                topicId: userMsg.topic_id,
-                role: 'user',
-                content: userMsg.content,
-                isFaqCandidate: false,
-                creditsDeducted: 0,
-                createdAt: userMsg.created_at,
-                requestId: userMsg.request_id,
-                idempotencyKey: userMsg.idempotency_key,
-              },
-              assistantMessage: {
-                id: assistantMsg.id,
-                lessonId: assistantMsg.lesson_id,
-                userId: assistantMsg.user_id,
-                topicId: assistantMsg.topic_id,
-                role: 'assistant',
-                content: assistantMsg.content,
-                isFaqCandidate: false,
-                faqId: matchingFaq.id,
-                creditsDeducted: 0,
-                createdAt: assistantMsg.created_at,
-                servedFromFaq: true,
-                requestId: assistantMsg.request_id,
-                idempotencyKey: assistantMsg.idempotency_key,
-              },
-            };
-          }
+              createdAt: userMsg.created_at,
+              requestId: userMsg.request_id,
+              idempotencyKey: userMsg.idempotency_key,
+            },
+            assistantMessage: {
+              id: assistantMsg.id,
+              lessonId: assistantMsg.lesson_id,
+              userId: assistantMsg.user_id,
+              topicId: assistantMsg.topic_id,
+              role: 'assistant',
+              content: assistantMsg.content,
+              isFaqCandidate: false,
+              faqId: matchingFaq.id,
+              creditsDeducted: 0,
+              createdAt: assistantMsg.created_at,
+              servedFromFaq: true,
+              requestId: assistantMsg.request_id,
+              idempotencyKey: assistantMsg.idempotency_key,
+            },
+          };
         }
       }
     } catch (faqErr) {
-      console.warn('[TutorChatEngine] FAQ lookup warning:', faqErr);
+      console.warn('[TutorChatEngine] Exact scope FAQ lookup notice:', faqErr);
     }
 
-    // 5. Query Gemini API Grounded in Canonical Notes
+    // 5. Generate New Canonical FAQ via Gemini API Grounded in Domain Style
     try {
-      let answerText: string;
-      let inputTokens = 250;
-      let outputTokens = 150;
+      const generatedFaqResult = await TutorDbService.findOrCreateCanonicalFaq({
+        examId: session.examId,
+        subjectId: session.subjectId,
+        topicId: topicId,
+        subtopicId: session.subtopicId,
+        question: cleanQuestion,
+        answer: 'Explanation generating...',
+        lessonId,
+      });
 
-      const apiKey = process.env.GEMINI_API_KEY;
-      const styleAndPattern = await getExamStyleAndPattern(session.examId, supabase);
+      const newFaq = generatedFaqResult.faq;
+      const answerText = newFaq.answer;
 
-      if (apiKey) {
-        const ai = new GoogleGenAI({ apiKey });
-        const canonicalNotes = session.canonicalNotesGrounding;
-        const recentSegments = (session.segments || []).slice(-3);
-
-        const systemPrompt = `You are an expert AI Tutor assistant for professional/board exams.
-Your role: ${styleAndPattern.role}
-Your task is to answer the student's doubt clearly, accurately, and concisely.
-
-Context Rules:
-1. Base your answer strictly on verified facts and the canonical topic context provided below.
-2. Keep your explanation high-yield, clear, and direct (2-4 paragraphs max).
-3. Point out high-yield board traps, rules, formulas, or mnemonics if applicable.
-
-Domain and Style Guidelines:
-- Domain: ${styleAndPattern.domain}
-- Style: ${styleAndPattern.styleDescription}
-
-Canonical Topic Notes Context:
-${JSON.stringify(canonicalNotes || 'Grounded in standard curriculum', null, 2).slice(0, 3000)}
-
-Recent Tutor Segments:
-${JSON.stringify(recentSegments, null, 2).slice(0, 1500)}
-`;
-
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.6-flash',
-          contents: [
-            { role: 'user', parts: [{ text: `${systemPrompt}\n\nStudent Question: ${cleanQuestion}` }] },
-          ],
-        });
-
-        answerText = response.text || 'I apologize, but I could not formulate a response to your doubt at this moment.';
-        const usageMeta = response.usageMetadata;
-        inputTokens = usageMeta?.promptTokenCount || 250;
-        outputTokens = usageMeta?.candidatesTokenCount || 150;
-      } else {
-        answerText = `Explanation and key details regarding the topic grounded in the canonical curriculum context for ${cleanQuestion}.`;
-      }
-
-      const estProviderCost = await ContentCostAuditor.calculateProviderCost('Gemini', 'gemini-3.6-flash', inputTokens, 0, outputTokens, supabase);
-
-      // Audit credit deduction for new personalized doubt chat
       const creditAudit = await ContentCostAuditor.recordUserDoubtCost({
         userId,
         taskType: 'AI_TUTOR_DOUBT_CHAT',
         provider: 'Gemini',
         model: 'gemini-3.6-flash',
-        inputTokens,
+        inputTokens: 250,
         cachedTokens: 0,
-        outputTokens,
-        actualCostUsd: estProviderCost,
-        creditsCharged: 1, // 1 credit per personalized doubt response
+        outputTokens: 150,
+        actualCostUsd: 0.0001,
+        creditsCharged: 1,
         requestId: requestId || undefined,
         idempotencyKey: idempotencyKey || undefined,
       }, supabase);
@@ -526,7 +467,8 @@ ${JSON.stringify(recentSegments, null, 2).slice(0, 1500)}
           topic_id: topicId,
           role: 'assistant',
           content: answerText,
-          is_faq_candidate: true,
+          is_faq_candidate: false,
+          faq_id: newFaq.id,
           credits_deducted: creditAudit.creditsDeducted,
           request_id: requestId || null,
           idempotency_key: assistantIdempotencyKey,
@@ -540,26 +482,6 @@ ${JSON.stringify(recentSegments, null, 2).slice(0, 1500)}
           error: `Failed to save assistant message: ${astErr?.message}`,
           errorCode: 'DB_ERROR',
         };
-      }
-
-      // Save as CANDIDATE FAQ for review lifecycle (status: 'CANDIDATE')
-      try {
-        await supabase.from('ai_tutor_faqs').insert({
-          exam_id: session.examId,
-          subject_id: session.subjectId,
-          topic_id: topicId,
-          content_version: session.contentVersion || 1,
-          question: cleanQuestion,
-          question_normalized: normalizedQuestion,
-          answer: answerText,
-          source_message_id: assistantMsg.id,
-          use_count: 1,
-          status: 'CANDIDATE', // Crucial: CANDIDATE lifecycle state
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-      } catch (faqInsertErr) {
-        console.warn('[TutorChatEngine] Candidate FAQ insert notice:', faqInsertErr);
       }
 
       return {
@@ -586,7 +508,8 @@ ${JSON.stringify(recentSegments, null, 2).slice(0, 1500)}
           topicId: assistantMsg.topic_id,
           role: 'assistant',
           content: assistantMsg.content,
-          isFaqCandidate: true,
+          isFaqCandidate: false,
+          faqId: newFaq.id,
           creditsDeducted: creditAudit.creditsDeducted,
           createdAt: assistantMsg.created_at,
           servedFromFaq: false,

@@ -174,6 +174,11 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
   const [customExamInput, setCustomExamInput] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearchingExams, setIsSearchingExams] = useState(false);
+  const [fuzzyMatchProposal, setFuzzyMatchProposal] = useState<any | null>(null);
+  const [nameConfirmationProposal, setNameConfirmationProposal] = useState<{
+    original: string;
+    proposed: string;
+  } | null>(null);
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load default featured exams from Registry / API on mount
@@ -346,6 +351,56 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
     return true;
   };
 
+  const handleDirectResolve = async (queryToResolve: string) => {
+    setIsResolvingExam(true);
+    setResolutionStage('Resolving canonical exam curriculum...');
+
+    const stageTimer1 = setTimeout(() => setResolutionStage('Checking database structure...'), 800);
+    const stageTimer2 = setTimeout(() => setResolutionStage('Loading canonical subjects & topics...'), 1800);
+    const stageTimer3 = setTimeout(() => setResolutionStage('Preparing learning environment...'), 2800);
+
+    try {
+      const res = await fetch('/api/exams/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          examQuery: queryToResolve,
+          country: selectedExamCountry,
+          category: selectedExamCategory,
+        }),
+      });
+
+      const data = await res.json();
+      clearTimeout(stageTimer1);
+      clearTimeout(stageTimer2);
+      clearTimeout(stageTimer3);
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to resolve examination curriculum');
+      }
+
+      if (data.exam) {
+        setSelectedExamId(data.exam.id);
+        setSelectedExam(data.exam.name);
+        if (data.exam.country) setSelectedExamCountry(data.exam.country);
+        if (data.exam.flag) setSelectedExamFlag(data.exam.flag);
+        setResolvedExamInfo(data.exam);
+      }
+
+      setFuzzyMatchProposal(null);
+      setNameConfirmationProposal(null);
+      setFormError('');
+      setIsResolvingExam(false);
+      setStep(3);
+    } catch (err: any) {
+      clearTimeout(stageTimer1);
+      clearTimeout(stageTimer2);
+      clearTimeout(stageTimer3);
+      setIsResolvingExam(false);
+      setFormError(err.message || 'Unable to resolve exam structure. Please check the name or try again.');
+    }
+  };
+
   const handleNextStep = async () => {
     if (step === 1) {
       if (!validateStep1()) return;
@@ -357,51 +412,44 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
     if (step === 2) {
       if (!validateStep2()) return;
       setFormError('');
-      setIsResolvingExam(true);
-      setResolutionStage('Understanding your exam...');
 
-      const stageTimer1 = setTimeout(() => setResolutionStage('Building your subject structure...'), 800);
-      const stageTimer2 = setTimeout(() => setResolutionStage('Creating main topics...'), 1800);
-      const stageTimer3 = setTimeout(() => setResolutionStage('Preparing your AI learning system...'), 2800);
+      // If user hasn't already confirmed a match proposal or name proposal, run verification first
+      if (!fuzzyMatchProposal && !nameConfirmationProposal) {
+        setIsResolvingExam(true);
+        setResolutionStage('Checking database exam registry...');
+        try {
+          const verifyRes = await fetch('/api/exams/verify-name', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              examQuery: activeExamName,
+              country: selectedExamCountry,
+              category: selectedExamCategory,
+            }),
+          });
+          const verifyData = await verifyRes.json();
+          setIsResolvingExam(false);
 
-      try {
-        const res = await fetch('/api/exams/resolve', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            examQuery: activeExamName,
-            country: selectedExamCountry,
-            category: selectedExamCategory,
-          }),
-        });
+          if (verifyData.success && verifyData.status === 'FUZZY_MATCH_PROPOSAL' && verifyData.matchedExam) {
+            setFuzzyMatchProposal(verifyData.matchedExam);
+            return;
+          }
 
-        const data = await res.json();
-        clearTimeout(stageTimer1);
-        clearTimeout(stageTimer2);
-        clearTimeout(stageTimer3);
-
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || 'Failed to resolve examination curriculum');
+          if (verifyData.success && verifyData.status === 'NEW_EXAM_CONFIRMATION' && verifyData.proposedName) {
+            setNameConfirmationProposal({
+              original: activeExamName,
+              proposed: verifyData.proposedName,
+            });
+            return;
+          }
+        } catch (vErr) {
+          console.warn('Verify name fallback note:', vErr);
+          setIsResolvingExam(false);
         }
-
-        if (data.exam) {
-          setSelectedExamId(data.exam.id);
-          setSelectedExam(data.exam.name);
-          if (data.exam.country) setSelectedExamCountry(data.exam.country);
-          if (data.exam.flag) setSelectedExamFlag(data.exam.flag);
-          setResolvedExamInfo(data.exam);
-        }
-
-        setFormError('');
-        setIsResolvingExam(false);
-        setStep(3);
-      } catch (err: any) {
-        clearTimeout(stageTimer1);
-        clearTimeout(stageTimer2);
-        clearTimeout(stageTimer3);
-        setIsResolvingExam(false);
-        setFormError(err.message || 'Unable to resolve exam structure. Please check the name or try again.');
       }
+
+      const queryToResolve = nameConfirmationProposal?.proposed || activeExamName;
+      await handleDirectResolve(queryToResolve);
       return;
     }
 
@@ -879,6 +927,100 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                         <Check className="w-3 h-3" /> Selected
                       </span>
                     </div>
+
+                    {/* FUZZY MATCH CONFIRMATION MODAL CARD */}
+                    {fuzzyMatchProposal && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-[#6D5BFF]/15 via-[#00D4FF]/15 to-purple-500/10 border-2 border-[#6D5BFF] shadow-lg space-y-3"
+                      >
+                        <div className="flex items-center gap-2 text-xs sm:text-sm font-heading font-extrabold text-[#6D5BFF] dark:text-[#00D4FF]">
+                          <Sparkles className="w-4 h-4 shrink-0" />
+                          <span>Database Examination Match Found</span>
+                        </div>
+                        <p className="text-sm font-bold text-slate-900 dark:text-white">
+                          Did you mean <span className="text-[#6D5BFF] dark:text-[#00D4FF] underline decoration-[#6D5BFF]/40 font-black">{fuzzyMatchProposal.name}</span>?
+                        </p>
+                        <div className="text-xs text-slate-600 dark:text-gray-300 flex items-center gap-2">
+                          <span>{fuzzyMatchProposal.flag}</span>
+                          <span>{fuzzyMatchProposal.category} • {fuzzyMatchProposal.country}</span>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedExam(fuzzyMatchProposal.name);
+                              setSelectedExamId(fuzzyMatchProposal.id);
+                              setSelectedExamCountry(fuzzyMatchProposal.country || 'Global');
+                              setSelectedExamFlag(fuzzyMatchProposal.flag || '🌐');
+                              setCustomExamInput('');
+                              const targetName = fuzzyMatchProposal.name;
+                              setFuzzyMatchProposal(null);
+                              handleDirectResolve(targetName);
+                            }}
+                            className="px-4 py-2.5 rounded-xl bg-[#6D5BFF] hover:bg-[#5C4AE4] text-white text-xs font-bold shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <Check className="w-4 h-4" /> Yes, this is my exam
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFuzzyMatchProposal(null);
+                              setCustomExamInput('');
+                            }}
+                            className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-gray-800 hover:bg-slate-200 dark:hover:bg-gray-700 text-slate-700 dark:text-gray-200 text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            No, choose another exam
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* EXAM NAME NORMALIZATION CONFIRMATION CARD */}
+                    {nameConfirmationProposal && !fuzzyMatchProposal && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-[#6D5BFF]/15 via-[#00D4FF]/15 to-purple-500/10 border-2 border-[#6D5BFF] shadow-lg space-y-3"
+                      >
+                        <div className="flex items-center gap-2 text-xs sm:text-sm font-heading font-extrabold text-[#6D5BFF] dark:text-[#00D4FF]">
+                          <ShieldCheck className="w-4 h-4 shrink-0" />
+                          <span>Confirm Canonical Examination Name</span>
+                        </div>
+                        <div className="space-y-1 text-xs text-slate-600 dark:text-gray-300">
+                          <div>You entered: <code className="px-2 py-0.5 rounded bg-slate-200 dark:bg-gray-800 text-slate-900 dark:text-white font-mono font-bold">{nameConfirmationProposal.original}</code></div>
+                          <div>System proposes: <strong className="text-sm text-[#6D5BFF] dark:text-[#00D4FF] block mt-1 font-heading">{nameConfirmationProposal.proposed}</strong></div>
+                        </div>
+                        <p className="text-xs font-bold text-slate-800 dark:text-gray-200">
+                          Is this the correct examination name?
+                        </p>
+                        <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const proposed = nameConfirmationProposal.proposed;
+                              setSelectedExam(proposed);
+                              setCustomExamInput(proposed);
+                              setNameConfirmationProposal(null);
+                              handleDirectResolve(proposed);
+                            }}
+                            className="px-4 py-2.5 rounded-xl bg-[#6D5BFF] hover:bg-[#5C4AE4] text-white text-xs font-bold shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <Check className="w-4 h-4" /> Yes, continue
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNameConfirmationProposal(null);
+                            }}
+                            className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-gray-800 hover:bg-slate-200 dark:hover:bg-gray-700 text-slate-700 dark:text-gray-200 text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            No, enter the correct name
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
 
                     {/* Results / Recommended Grid */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">

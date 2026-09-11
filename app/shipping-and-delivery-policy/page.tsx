@@ -1,5 +1,6 @@
 import React from 'react';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { LegalPageLayout } from '@/components/legal/legal-page-layout';
 import { LEGAL_CONFIG } from '@/lib/legal/config';
 import { Truck, CheckCircle2, Globe, Lock, ShieldCheck, Zap } from 'lucide-react';
@@ -115,7 +116,7 @@ export default function ShippingAndDeliveryPolicyPage() {
           If your account status fails to reflect your paid subscription within 15 minutes of payment:
         </p>
         <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-1 text-xs sm:text-sm">
-          <p>Contact our digital fulfillment team immediately at <a href={`mailto:${LEGAL_CONFIG.supportEmail}`} className="text-[#6D5BFF] font-semibold underline">{LEGAL_CONFIG.supportEmail}</a> or via <a href="/contact-us" className="text-[#6D5BFF] font-semibold underline">Contact Us</a>.</p>
+          <p>Contact our digital fulfillment team immediately at <a href={`mailto:${LEGAL_CONFIG.supportEmail}`} className="text-[#6D5BFF] font-semibold underline">{LEGAL_CONFIG.supportEmail}</a> or via <Link href="/contact-us" className="text-[#6D5BFF] font-semibold underline">Contact Us</Link>.</p>
           <p>Please include your account email and Razorpay payment reference number. Our technical team will manually verify the payment state and restore subscription access immediately.</p>
         </div>
       </section>

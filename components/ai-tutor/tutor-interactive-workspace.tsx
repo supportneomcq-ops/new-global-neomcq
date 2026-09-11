@@ -19,8 +19,11 @@ import {
   Award,
 } from 'lucide-react';
 import { useSelection } from '@/lib/context/selection-context';
+import { getSupabaseClient } from '@/lib/supabase';
+import { trackTutorEvent } from '@/lib/client/tutor-analytics';
 import type { TutorLessonSession, TutorScene } from '@/lib/server/content-engine/tutor-types';
 import { TutorVideoPlayer } from './tutor-video-player';
+import { TutorWhiteboardCanvas } from './whiteboard/tutor-whiteboard-canvas';
 import { TutorChatPanel } from './tutor-chat-panel';
 
 interface TutorInteractiveWorkspaceProps {
@@ -43,6 +46,27 @@ export function TutorInteractiveWorkspace({
   examName: propExamName,
 }: TutorInteractiveWorkspaceProps) {
   const { selection } = useSelection();
+
+  const [resolvedUserId, setResolvedUserId] = useState<string>(userId || '');
+
+  useEffect(() => {
+    if (!resolvedUserId || resolvedUserId === 'system-user') {
+      const fetchAuthUser = async () => {
+        try {
+          const supabase = getSupabaseClient();
+          const { data: { user: authUser } } = await supabase.auth.getUser();
+          if (authUser?.id) {
+            setResolvedUserId(authUser.id);
+          }
+        } catch {
+          // Fallback to system-user
+        }
+      };
+      fetchAuthUser();
+    }
+  }, [userId, resolvedUserId]);
+
+  const activeUserId = resolvedUserId || userId || 'system-user';
 
   const examId = propExamId || selection.exam?.id || 'exam-default';
   const subjectId = propSubjectId || selection.subject?.id || 'subj-default';
@@ -81,18 +105,38 @@ export function TutorInteractiveWorkspace({
             subjectId,
             topicId,
             subtopicId,
-            userId,
+            userId: activeUserId,
           }),
         });
 
         const data = await res.json();
 
         if (isMounted) {
-          if (data.success && data.session) {
-            setSession(data.session);
-            setActiveSceneIndex(0);
+          const lessonData = data.lesson || data.session;
+          if (data.success && lessonData) {
+            const scenesList = data.scenes || lessonData.scenes || [];
+            const assetsList = data.assets || lessonData.assets || [];
+            const voiceList = data.voiceMetadata || lessonData.voiceMetadata || [];
+
+            const combinedSession: TutorLessonSession = {
+              ...lessonData,
+              scenes: scenesList,
+              assets: assetsList,
+              voiceMetadata: voiceList,
+            };
+
+            setSession(combinedSession);
+
+            // Restore progress sequence if present
+            if (data.userProgress?.lastSceneSequence) {
+              const savedSeq = Number(data.userProgress.lastSceneSequence);
+              const restoreIndex = Math.max(0, Math.min(scenesList.length - 1, savedSeq - 1));
+              setActiveSceneIndex(restoreIndex);
+            } else {
+              setActiveSceneIndex(0);
+            }
           } else {
-            setErrorMessage(data.error || 'Failed to initialize AI Tutor video session.');
+            setErrorMessage(data.error || "We're preparing this lesson for you.");
           }
         }
       } catch (err: any) {
@@ -109,7 +153,89 @@ export function TutorInteractiveWorkspace({
     return () => {
       isMounted = false;
     };
-  }, [examId, subjectId, topicId, subtopicId, userId]);
+  }, [examId, subjectId, topicId, subtopicId, activeUserId]);
+
+  // Analytics Tracking Refs
+  const hasOpenedLoggedRef = React.useRef<string | null>(null);
+  const activeSessionIdRef = React.useRef<string | null>(null);
+
+  // Track tutor_opened when session loads
+  useEffect(() => {
+    if (session?.id && activeUserId) {
+      activeSessionIdRef.current = session.id;
+      if (hasOpenedLoggedRef.current !== session.id) {
+        hasOpenedLoggedRef.current = session.id;
+        trackTutorEvent({
+          userId: activeUserId,
+          eventType: 'tutor_opened',
+          examId,
+          subjectId,
+          topicId,
+          subtopicId,
+          lessonId: session.id,
+        });
+      }
+    }
+  }, [session?.id, activeUserId, examId, subjectId, topicId, subtopicId]);
+
+  // Track tutor_exited on component unmount
+  useEffect(() => {
+    return () => {
+      if (activeSessionIdRef.current && activeUserId) {
+        trackTutorEvent({
+          userId: activeUserId,
+          eventType: 'tutor_exited',
+          examId,
+          subjectId,
+          topicId,
+          subtopicId,
+          lessonId: activeSessionIdRef.current,
+        });
+      }
+    };
+  }, [activeUserId, examId, subjectId, topicId, subtopicId]);
+
+  // Handle Tab Selection with Analytics
+  const handleSelectTab = (tab: 'scenes' | 'doubts' | 'pearls') => {
+    setActiveSidebarTab(tab);
+    if (tab === 'doubts' && session?.id && activeUserId) {
+      trackTutorEvent({
+        userId: activeUserId,
+        eventType: 'faq_opened',
+        examId,
+        subjectId,
+        topicId,
+        subtopicId,
+        lessonId: session.id,
+      });
+    }
+  };
+
+  // Persist progress when active scene changes
+  const saveProgress = async (sceneIdx: number) => {
+    if (!session?.id || !activeUserId) return;
+    try {
+      await fetch('/api/ai-tutor/progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: activeUserId,
+          lessonId: session.id,
+          lastSceneSequence: sceneIdx + 1,
+          playbackPositionSeconds: 0,
+          isCompleted: sceneIdx >= (session.scenes?.length || 1) - 1,
+          completedScenes: Array.from(new Set([sceneIdx + 1])),
+        }),
+      });
+    } catch {
+      // Isolated progress error
+    }
+  };
+
+  const handleSceneChange = (newIdx: number) => {
+    setActiveSceneIndex(newIdx);
+    saveProgress(newIdx);
+  };
 
   // Handle Regenerating or Forcing New Video Lesson
   const handleRegenerateLesson = async () => {
@@ -129,15 +255,27 @@ export function TutorInteractiveWorkspace({
           subjectId,
           topicId,
           subtopicId,
-          userId,
+          userId: activeUserId,
           forceNew: true,
         }),
       });
 
       const data = await res.json();
+      const lessonData = data.lesson || data.session;
 
-      if (data.success && data.session) {
-        setSession(data.session);
+      if (data.success && lessonData) {
+        const scenesList = data.scenes || lessonData.scenes || [];
+        const assetsList = data.assets || lessonData.assets || [];
+        const voiceList = data.voiceMetadata || lessonData.voiceMetadata || [];
+
+        const combinedSession: TutorLessonSession = {
+          ...lessonData,
+          scenes: scenesList,
+          assets: assetsList,
+          voiceMetadata: voiceList,
+        };
+
+        setSession(combinedSession);
         setActiveSceneIndex(0);
       }
     } catch (err: any) {
@@ -237,11 +375,15 @@ export function TutorInteractiveWorkspace({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Main Video Canvas Player Column (7-8 cols on desktop) */}
           <div className="lg:col-span-8 space-y-4">
-            <TutorVideoPlayer
-              session={session}
-              activeSceneIndex={activeSceneIndex}
-              onSceneChange={(idx) => setActiveSceneIndex(idx)}
-              onAskDoubtAboutScene={handleAskDoubtAboutScene}
+            <TutorWhiteboardCanvas
+              userId={activeUserId}
+              lesson={session?.lesson || session}
+              scenes={scenes as any}
+              assets={(session as any)?.assets || []}
+              voiceMetadata={(session as any)?.voiceMetadata || []}
+              initialSceneIndex={activeSceneIndex}
+              onSceneChange={handleSceneChange}
+              onAskDoubtAboutScene={handleAskDoubtAboutScene as any}
             />
 
             {/* Current Scene Overview Card */}
@@ -278,7 +420,7 @@ export function TutorInteractiveWorkspace({
             {/* Tab Selector Header */}
             <div className="flex items-center p-1 rounded-2xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
               <button
-                onClick={() => setActiveSidebarTab('scenes')}
+                onClick={() => handleSelectTab('scenes')}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   activeSidebarTab === 'scenes'
                     ? 'bg-white dark:bg-[#0B0F19] text-indigo-600 dark:text-indigo-400 shadow-xs'
@@ -290,7 +432,7 @@ export function TutorInteractiveWorkspace({
               </button>
 
               <button
-                onClick={() => setActiveSidebarTab('doubts')}
+                onClick={() => handleSelectTab('doubts')}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   activeSidebarTab === 'doubts'
                     ? 'bg-white dark:bg-[#0B0F19] text-indigo-600 dark:text-indigo-400 shadow-xs'
@@ -302,7 +444,7 @@ export function TutorInteractiveWorkspace({
               </button>
 
               <button
-                onClick={() => setActiveSidebarTab('pearls')}
+                onClick={() => handleSelectTab('pearls')}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   activeSidebarTab === 'pearls'
                     ? 'bg-white dark:bg-[#0B0F19] text-indigo-600 dark:text-indigo-400 shadow-xs'
@@ -331,7 +473,7 @@ export function TutorInteractiveWorkspace({
                   return (
                     <button
                       key={scene.id || idx}
-                      onClick={() => setActiveSceneIndex(idx)}
+                      onClick={() => handleSceneChange(idx)}
                       className={`w-full p-3 rounded-2xl text-left border transition-all cursor-pointer flex items-start gap-2.5 ${
                         isActive
                           ? 'bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700 shadow-xs'
@@ -381,8 +523,11 @@ export function TutorInteractiveWorkspace({
             {activeSidebarTab === 'doubts' && (
               <TutorChatPanel
                 lessonId={session.id}
+                examId={session.examId}
+                subjectId={session.subjectId}
                 topicId={session.topicId}
-                userId={userId}
+                subtopicId={session.subtopicId}
+                userId={activeUserId}
                 topicName={topicName}
               />
             )}

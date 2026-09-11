@@ -1,5 +1,6 @@
 import React from 'react';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { LegalPageLayout } from '@/components/legal/legal-page-layout';
 import { LEGAL_CONFIG } from '@/lib/legal/config';
 import { ShieldAlert, AlertTriangle, CheckCircle2, DollarSign, Scale, Lock } from 'lucide-react';
@@ -219,7 +220,7 @@ export default function TermsAndConditionsPage() {
           13. Subscription Cancellation & Refunds
         </h2>
         <p>
-          You may cancel your paid subscription at any time via your Billing Portal. Cancellation takes effect at the end of your current paid billing period. Refund requests are subject to our <a href="/refund-and-cancellation-policy" className="text-[#6D5BFF] underline font-semibold">Refund & Cancellation Policy</a>.
+          You may cancel your paid subscription at any time via your Billing Portal. Cancellation takes effect at the end of your current paid billing period. Refund requests are subject to our <Link href="/refund-and-cancellation-policy" className="text-[#6D5BFF] underline font-semibold">Refund & Cancellation Policy</Link>.
         </p>
       </section>
 

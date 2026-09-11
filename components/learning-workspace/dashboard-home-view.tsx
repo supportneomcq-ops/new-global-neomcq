@@ -564,18 +564,17 @@ export function DashboardHomeView({
               <div
                 key={cfg.featureId}
                 onClick={() => {
-                  if (status === 'READY') {
-                    onSelectTab(cfg.tab, cfg.subTab);
-                  } else if (status === 'FAILED') {
+                  if (status === 'FAILED') {
                     orchestrateTopic(true);
                   }
+                  onSelectTab(cfg.tab, cfg.subTab);
                 }}
-                className={`p-5 rounded-3xl bg-white dark:bg-slate-900 border transition-all flex flex-col justify-between group ${
+                className={`p-5 rounded-3xl bg-white dark:bg-slate-900 border transition-all flex flex-col justify-between group cursor-pointer ${
                   status === 'READY'
-                    ? 'border-slate-200 dark:border-slate-800 hover:border-indigo-500 dark:hover:border-indigo-500 shadow-xs hover:shadow-xl cursor-pointer'
+                    ? 'border-slate-200 dark:border-slate-800 hover:border-indigo-500 dark:hover:border-indigo-500 shadow-xs hover:shadow-xl'
                     : status === 'FAILED'
-                    ? 'border-rose-300 dark:border-rose-900/60 bg-rose-50/20 dark:bg-rose-950/10 hover:border-rose-500 cursor-pointer'
-                    : 'border-slate-200 dark:border-slate-800 opacity-90 cursor-wait'
+                    ? 'border-rose-300 dark:border-rose-900/60 bg-rose-50/20 dark:bg-rose-950/10 hover:border-rose-500'
+                    : 'border-slate-200 dark:border-slate-800 opacity-95 hover:border-amber-500'
                 }`}
               >
                 <div className="space-y-3">

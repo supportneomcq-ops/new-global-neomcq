@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Check, Sparkles, HelpCircle, Mail, Shield, BookOpen, Globe2, Cpu, ArrowRight, Database, Loader2, Award, Zap, HeartHandshake, Lock, Eye, EyeOff, Crown, CreditCard, RefreshCw } from 'lucide-react';
 import { loginAction } from '@/app/actions/auth';
-import { AUTHORITATIVE_PLANS, PlanCode } from '@/lib/plans/plan-config';
+import { AUTHORITATIVE_PLANS, PlanCode, getFormattedPlanPrice } from '@/lib/plans/plan-config';
 import { usePlanCheckout } from '@/lib/checkout/use-plan-checkout';
 import Link from 'next/link';
 
@@ -19,6 +19,7 @@ interface ModalProps {
 export function InteractiveModals({ activeModal, onClose }: ModalProps) {
   const [selectedExam, setSelectedExam] = useState<string>('USMLE (Steps 1, 2, 3)');
   const [activeFaq, setActiveFaq] = useState<number | null>(0);
+  const [currency, setCurrency] = useState<'USD' | 'INR'>('USD');
   
   // Contact Form State
   const [contactName, setContactName] = useState('');
@@ -42,6 +43,21 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
 
   // Plan Checkout Hook
   const { checkoutPlan, isProcessing: isCheckoutProcessing, activePlanCode, statusMessage: checkoutStatus, errorMessage: checkoutError } = usePlanCheckout();
+
+  useEffect(() => {
+    if (activeModal === 'pricing') {
+      fetch('/api/geo/country')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.currency === 'INR') setCurrency('INR');
+        })
+        .catch(() => null);
+    }
+  }, [activeModal]);
+
+  const proPrice = getFormattedPlanPrice('PRO', currency);
+  const maxPrice = getFormattedPlanPrice('MAX', currency);
+  const elitePrice = getFormattedPlanPrice('ELITE', currency);
 
   useEffect(() => {
     if (activeModal) {
@@ -176,6 +192,32 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
                 <p className="text-sm text-gray-600 dark:text-[#A6ADC8]">
                   From adaptive clinical practice to truly unlimited multi-exam mastery.
                 </p>
+
+                {/* Regional Currency Toggle */}
+                <div className="flex items-center justify-center pt-2">
+                  <div className="p-0.5 rounded-xl bg-gray-100 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700/80 flex items-center gap-1 text-xs">
+                    <button
+                      onClick={() => setCurrency('INR')}
+                      className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                        currency === 'INR'
+                          ? 'bg-white dark:bg-[#0E1324] text-[#6D5BFF] dark:text-[#8E7CFF] shadow-sm'
+                          : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
+                      }`}
+                    >
+                      <span>🇮🇳</span> INR (₹)
+                    </button>
+                    <button
+                      onClick={() => setCurrency('USD')}
+                      className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                        currency === 'USD'
+                          ? 'bg-white dark:bg-[#0E1324] text-[#6D5BFF] dark:text-[#8E7CFF] shadow-sm'
+                          : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
+                      }`}
+                    >
+                      <span>🌐</span> USD ($)
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {checkoutError && (
@@ -198,20 +240,20 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
                     <h3 className="font-heading text-base font-bold text-slate-900 dark:text-white">Pro</h3>
                     <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Essential clinical practice</p>
                     <div className="mt-3 text-2xl font-heading font-extrabold text-slate-900 dark:text-white">
-                      $9.99 <span className="text-xs font-normal text-gray-500">/ mo</span>
+                      {proPrice.displayPrice} <span className="text-xs font-normal text-gray-500">{proPrice.period}</span>
                     </div>
                     <ul className="mt-4 space-y-2 text-xs text-gray-600 dark:text-gray-300">
                       <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> 180+ Country Syllabus & Blueprints</li>
                       <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> Adaptive MCQ Practice & Notes</li>
-                      <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> $2.00 USD Exam Switch Fee</li>
+                      <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> {proPrice.switchFee} Exam Switch Fee</li>
                     </ul>
                   </div>
                   <button
-                    onClick={() => checkoutPlan('PRO')}
+                    onClick={() => checkoutPlan('PRO', { preferredCurrency: currency })}
                     disabled={isCheckoutProcessing}
                     className="mt-6 w-full py-2 px-3 rounded-xl border-2 border-[#6D5BFF] text-[#6D5BFF] hover:bg-[#6D5BFF] hover:text-white dark:border-[#8E7CFF] dark:text-[#8E7CFF] text-xs font-bold transition-colors cursor-pointer text-center"
                   >
-                    {isCheckoutProcessing && activePlanCode === 'PRO' ? 'Processing...' : 'Get Pro ($9.99/mo)'}
+                    {isCheckoutProcessing && activePlanCode === 'PRO' ? 'Processing...' : `Get Pro (${proPrice.displayPrice}${proPrice.periodShort})`}
                   </button>
                 </div>
 
@@ -226,21 +268,21 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
                     </h3>
                     <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Clinical reasoning & TTS</p>
                     <div className="mt-3 text-2xl font-heading font-extrabold text-slate-900 dark:text-white">
-                      $19.99 <span className="text-xs font-normal text-gray-500">/ mo</span>
+                      {maxPrice.displayPrice} <span className="text-xs font-normal text-gray-500">{maxPrice.period}</span>
                     </div>
                     <ul className="mt-4 space-y-2 text-xs text-gray-600 dark:text-gray-200">
                       <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-[#6D5BFF] shrink-0" /> Everything in Pro included</li>
                       <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-[#6D5BFF] shrink-0" /> Interactive AI Tutor Whiteboard</li>
                       <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-[#6D5BFF] shrink-0" /> High-Speed Neural Audio TTS</li>
-                      <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-[#6D5BFF] shrink-0" /> $2.00 USD Exam Switch Fee</li>
+                      <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-[#6D5BFF] shrink-0" /> {maxPrice.switchFee} Exam Switch Fee</li>
                     </ul>
                   </div>
                   <button
-                    onClick={() => checkoutPlan('MAX')}
+                    onClick={() => checkoutPlan('MAX', { preferredCurrency: currency })}
                     disabled={isCheckoutProcessing}
                     className="mt-6 w-full py-2 px-3 rounded-xl bg-gradient-to-r from-[#6D5BFF] to-[#8E7CFF] text-white text-xs font-bold shadow-md hover:opacity-95 transition-opacity cursor-pointer text-center"
                   >
-                    {isCheckoutProcessing && activePlanCode === 'MAX' ? 'Processing...' : 'Get Max ($19.99/mo)'}
+                    {isCheckoutProcessing && activePlanCode === 'MAX' ? 'Processing...' : `Get Max (${maxPrice.displayPrice}${maxPrice.periodShort})`}
                   </button>
                 </div>
 
@@ -255,7 +297,7 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
                     </h3>
                     <p className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold mt-0.5">Zero Exam Switch Fees</p>
                     <div className="mt-3 text-2xl font-heading font-extrabold text-slate-900 dark:text-white">
-                      $499 <span className="text-xs font-normal text-gray-500">/ 1 yr</span>
+                      {elitePrice.displayPrice} <span className="text-xs font-normal text-gray-500">{elitePrice.period}</span>
                     </div>
                     <ul className="mt-4 space-y-2 text-xs text-gray-600 dark:text-gray-300">
                       <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-amber-500 shrink-0 font-bold" /> <strong>FREE Unlimited Exam Switching</strong></li>
@@ -265,11 +307,11 @@ export function InteractiveModals({ activeModal, onClose }: ModalProps) {
                     </ul>
                   </div>
                   <button
-                    onClick={() => checkoutPlan('ELITE')}
+                    onClick={() => checkoutPlan('ELITE', { preferredCurrency: currency })}
                     disabled={isCheckoutProcessing}
                     className="mt-6 w-full py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-white text-xs font-bold shadow-md hover:opacity-95 transition-opacity cursor-pointer text-center"
                   >
-                    {isCheckoutProcessing && activePlanCode === 'ELITE' ? 'Processing...' : 'Get Elite ($499/yr)'}
+                    {isCheckoutProcessing && activePlanCode === 'ELITE' ? 'Processing...' : `Get Elite (${elitePrice.displayPrice}${elitePrice.periodShort})`}
                   </button>
                 </div>
               </div>

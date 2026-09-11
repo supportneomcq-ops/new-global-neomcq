@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Sparkles, Send, CheckCircle2, Bot, User, HelpCircle, Loader2 } from 'lucide-react';
+import { Sparkles, Send, CheckCircle2, Bot, User, HelpCircle, Loader2, ThumbsUp, ChevronDown, ChevronUp, ShieldCheck } from 'lucide-react';
+import { trackTutorEvent } from '@/lib/client/tutor-analytics';
 
 interface ChatMessage {
   id: string;
@@ -10,26 +11,35 @@ interface ChatMessage {
   servedFromFaq?: boolean;
   creditsDeducted?: number;
   createdAt?: string;
+  answerJson?: any;
 }
 
 interface TutorChatPanelProps {
   lessonId: string;
+  examId?: string;
+  subjectId?: string;
   topicId: string;
+  subtopicId?: string | null;
   userId?: string;
   topicName?: string;
 }
 
 export function TutorChatPanel({
   lessonId,
+  examId,
+  subjectId,
   topicId,
+  subtopicId,
   userId = 'system-user',
   topicName = 'Canonical Topic',
 }: TutorChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [faqs, setFaqs] = useState<Array<{ id: string; question: string; answer: string }>>([]);
+  const [faqs, setFaqs] = useState<Array<{ id: string; question: string; answer: string; answerJson?: any; helpfulCount?: number }>>([]);
+  const [expandedFaqId, setExpandedFaqId] = useState<string | null>(null);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingHistory, setIsFetchingHistory] = useState(true);
+  const [votedFaqs, setVotedFaqs] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   // Load chat history & FAQs on mount or lesson change
@@ -56,8 +66,13 @@ export function TutorChatPanel({
           );
         }
 
-        // Fetch top FAQs for this topic ($0 credit)
-        const faqRes = await fetch(`/api/ai-tutor/faqs?topicId=${topicId}`);
+        // Fetch top FAQs for this exact scope ($0 credit)
+        const params = new URLSearchParams({ topicId });
+        if (examId) params.set('examId', examId);
+        if (subjectId) params.set('subjectId', subjectId);
+        if (subtopicId) params.set('subtopicId', subtopicId);
+
+        const faqRes = await fetch(`/api/ai-tutor/faqs?${params.toString()}`);
         const faqData = await faqRes.json();
 
         if (isMounted && faqData.success && Array.isArray(faqData.faqs)) {
@@ -75,7 +90,7 @@ export function TutorChatPanel({
     return () => {
       isMounted = false;
     };
-  }, [lessonId, topicId, userId]);
+  }, [lessonId, examId, subjectId, topicId, subtopicId, userId]);
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -89,6 +104,18 @@ export function TutorChatPanel({
     const cleanPrompt = questionText.trim();
     setInputText('');
     setIsLoading(true);
+
+    if (userId) {
+      trackTutorEvent({
+        userId,
+        eventType: 'doubt_asked',
+        examId: examId || 'exam-default',
+        subjectId: subjectId || 'subj-default',
+        topicId,
+        subtopicId,
+        lessonId,
+      });
+    }
 
     // Optimistic user message
     const tempUserMsg: ChatMessage = {
@@ -115,6 +142,31 @@ export function TutorChatPanel({
       const data = await res.json();
 
       if (data.success && data.assistantMessage) {
+        if (userId) {
+          if (data.servedFromFaq) {
+            trackTutorEvent({
+              userId,
+              eventType: 'canonical_faq_reused',
+              examId: examId || 'exam-default',
+              subjectId: subjectId || 'subj-default',
+              topicId,
+              subtopicId,
+              lessonId,
+              faqId: data.faqId || data.assistantMessage?.faqId || null,
+            });
+          } else {
+            trackTutorEvent({
+              userId,
+              eventType: 'new_doubt_answer_generated',
+              examId: examId || 'exam-default',
+              subjectId: subjectId || 'subj-default',
+              topicId,
+              subtopicId,
+              lessonId,
+            });
+          }
+        }
+
         setMessages((prev) => [
           ...prev.filter((m) => m.id !== tempUserMsg.id),
           {
@@ -132,7 +184,6 @@ export function TutorChatPanel({
           },
         ]);
       } else {
-        // Error response fallback
         setMessages((prev) => [
           ...prev,
           {
@@ -156,8 +207,75 @@ export function TutorChatPanel({
     }
   };
 
+  const handleToggleFaq = (faqId: string) => {
+    const isExpanding = expandedFaqId !== faqId;
+    setExpandedFaqId(isExpanding ? faqId : null);
+
+    if (isExpanding && userId) {
+      trackTutorEvent({
+        userId,
+        eventType: 'faq_viewed',
+        examId: examId || 'exam-default',
+        subjectId: subjectId || 'subj-default',
+        topicId,
+        subtopicId,
+        lessonId,
+        faqId,
+      });
+    }
+  };
+
+  const handleVoteHelpful = (faqId: string) => {
+    if (votedFaqs[faqId]) return;
+    setVotedFaqs((prev) => ({ ...prev, [faqId]: true }));
+    setFaqs((prev) =>
+      prev.map((f) => (f.id === faqId ? { ...f, helpfulCount: (f.helpfulCount || 0) + 1 } : f))
+    );
+  };
+
+  // Helper to safely render structured JSON answer or string
+  const renderMessageContent = (contentStr: string) => {
+    try {
+      if (contentStr.trim().startsWith('{') && contentStr.trim().endsWith('}')) {
+        const parsed = JSON.parse(contentStr);
+        if (parsed.directAnswer) {
+          return (
+            <div className="space-y-2.5">
+              <div className="p-2.5 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-950 font-medium">
+                <span className="font-bold text-indigo-700 block text-[11px] mb-0.5">DIRECT ANSWER:</span>
+                {parsed.directAnswer}
+              </div>
+              {parsed.explanation && (
+                <p className="text-slate-700 leading-relaxed">{parsed.explanation}</p>
+              )}
+              {Array.isArray(parsed.keyPoints) && parsed.keyPoints.length > 0 && (
+                <div className="space-y-1 pt-1">
+                  <span className="font-bold text-[11px] text-slate-800">KEY POINTS:</span>
+                  <ul className="list-disc list-inside space-y-0.5 text-slate-700 pl-1">
+                    {parsed.keyPoints.map((kp: string, idx: number) => (
+                      <li key={idx}>{kp}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {parsed.commonTrap && (
+                <div className="p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-medium">
+                  <span className="font-bold text-amber-700 mr-1">⚠️ BOARD TRAP:</span>
+                  {parsed.commonTrap}
+                </div>
+              )}
+            </div>
+          );
+        }
+      }
+    } catch {
+      // Fallthrough to standard text rendering
+    }
+    return <p className="whitespace-pre-wrap leading-relaxed">{contentStr}</p>;
+  };
+
   return (
-    <div className="flex flex-col h-full min-h-[500px] max-h-[640px] rounded-3xl bg-white text-slate-900 border border-slate-200 shadow-xs p-4 sm:p-5 space-y-4">
+    <div className="flex flex-col h-full min-h-[520px] max-h-[660px] rounded-3xl bg-white text-slate-900 border border-slate-200 shadow-xs p-4 sm:p-5 space-y-4">
       {/* Panel Header */}
       <div className="flex items-center justify-between pb-3 border-b border-slate-200">
         <div className="flex items-center gap-2.5">
@@ -166,18 +284,67 @@ export function TutorChatPanel({
           </div>
           <div>
             <h4 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
-              <span>AI Doubt Mentor</span>
+              <span>AI Doubt Mentor & FAQs</span>
             </h4>
             <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
-              <CheckCircle2 className="w-3 h-3" /> Grounded in Canonical Notes
+              <ShieldCheck className="w-3 h-3" /> Scope Isolated ({topicName})
             </p>
           </div>
         </div>
 
         <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-          $0 FAQ Reuse
+          $0 Canonical Reuse
         </span>
       </div>
+
+      {/* Existing Canonical FAQs Section */}
+      {faqs.length > 0 && (
+        <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3 space-y-2">
+          <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
+            <span className="flex items-center gap-1.5">
+              <HelpCircle className="w-3.5 h-3.5 text-indigo-600" />
+              Canonical Doubts for {topicName} ({faqs.length})
+            </span>
+            <span className="text-[10px] text-slate-400 font-normal">Reused globally</span>
+          </div>
+
+          <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1 text-xs">
+            {faqs.map((faq) => {
+              const isExpanded = expandedFaqId === faq.id;
+              return (
+                <div key={faq.id} className="rounded-xl border border-slate-200 bg-white overflow-hidden transition-all">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleFaq(faq.id)}
+                    className="w-full px-3 py-2 text-left font-medium text-slate-800 hover:text-indigo-600 flex items-center justify-between gap-2 cursor-pointer text-xs"
+                  >
+                    <span className="line-clamp-1">❓ {faq.question}</span>
+                    {isExpanded ? <ChevronUp className="w-3.5 h-3.5 shrink-0 text-slate-400" /> : <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400" />}
+                  </button>
+
+                  {isExpanded && (
+                    <div className="p-3 bg-slate-50 border-t border-slate-100 text-xs text-slate-700 space-y-2">
+                      {renderMessageContent(faq.answer)}
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-[10px] text-slate-500">
+                        <button
+                          type="button"
+                          onClick={() => handleVoteHelpful(faq.id)}
+                          disabled={votedFaqs[faq.id]}
+                          className="flex items-center gap-1 font-semibold text-indigo-600 hover:text-indigo-700 cursor-pointer disabled:opacity-50"
+                        >
+                          <ThumbsUp className="w-3 h-3" />
+                          {votedFaqs[faq.id] ? 'Helpful!' : 'Was this helpful?'}
+                        </button>
+                        <span>Verified Canonical Answer</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Messages Scroll Area */}
       <div className="flex-1 overflow-y-auto space-y-3.5 pr-1 text-xs">
@@ -190,9 +357,9 @@ export function TutorChatPanel({
           <div className="text-center py-8 px-4 space-y-3 bg-slate-50 rounded-2xl border border-slate-100">
             <HelpCircle className="w-8 h-8 text-indigo-500 mx-auto" />
             <div className="space-y-1">
-              <p className="font-bold text-slate-800 text-xs">Have a question about {topicName}?</p>
+              <p className="font-bold text-slate-800 text-xs">Have a doubt about {topicName}?</p>
               <p className="text-[11px] text-slate-500">
-                Ask any conceptual doubt, request visual analogies, or query board traps.
+                Ask any question! We search canonical doubts first before generating a high-yield AI explanation.
               </p>
             </div>
           </div>
@@ -203,7 +370,7 @@ export function TutorChatPanel({
               className={`p-3.5 rounded-2xl space-y-1 ${
                 msg.role === 'user'
                   ? 'bg-indigo-600 text-white ml-6 rounded-tr-none font-medium'
-                  : 'bg-slate-100 text-slate-800 mr-6 rounded-tl-none border border-slate-200 leading-relaxed'
+                  : 'bg-slate-100 text-slate-800 mr-6 rounded-tl-none border border-slate-200'
               }`}
             >
               <div className="flex items-center justify-between text-[10px] opacity-75 font-semibold">
@@ -213,11 +380,11 @@ export function TutorChatPanel({
                 </span>
                 {msg.role === 'assistant' && (
                   <span>
-                    {msg.servedFromFaq ? 'FAQ Answer ($0)' : 'AI Personalized'}
+                    {msg.servedFromFaq ? 'FAQ Answer ($0)' : 'AI Canonical Generated'}
                   </span>
                 )}
               </div>
-              <p className="whitespace-pre-wrap">{msg.content}</p>
+              {renderMessageContent(msg.content)}
             </div>
           ))
         )}
@@ -225,33 +392,12 @@ export function TutorChatPanel({
         {isLoading && (
           <div className="p-3.5 rounded-2xl bg-slate-100 text-slate-600 text-xs flex items-center gap-2 w-fit">
             <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
-            <span>Formulating answer grounded in canonical notes...</span>
+            <span>Searching canonical doubts, then generating explanation...</span>
           </div>
         )}
 
         <div ref={messagesEndRef} />
       </div>
-
-      {/* Quick FAQ Pills ($0 credits) */}
-      {faqs.length > 0 && (
-        <div className="space-y-1.5 pt-1">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-            Suggested Topic FAQs ($0 Credits):
-          </p>
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px] no-scrollbar">
-            {faqs.slice(0, 3).map((faq) => (
-              <button
-                key={faq.id}
-                type="button"
-                onClick={() => handleSubmitQuestion(faq.question)}
-                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 text-indigo-600 font-semibold whitespace-nowrap transition-colors cursor-pointer border border-slate-200 shrink-0"
-              >
-                💡 {faq.question}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Chat Input Form */}
       <form
@@ -265,7 +411,7 @@ export function TutorChatPanel({
           type="text"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          placeholder="Ask a doubt about this lesson..."
+          placeholder="Ask another doubt about this lesson..."
           disabled={isLoading}
           className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-900 placeholder:text-slate-400 text-xs focus:outline-none focus:border-indigo-600 disabled:opacity-50"
         />
@@ -280,3 +426,4 @@ export function TutorChatPanel({
     </div>
   );
 }
+

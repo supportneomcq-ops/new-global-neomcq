@@ -23,6 +23,7 @@ import {
   TrendingUp,
   Clock,
   BookOpen,
+  Timer,
 } from 'lucide-react';
 import { useSelection } from '@/lib/context/selection-context';
 import { useTopicContent } from '@/lib/context/topic-content-context';

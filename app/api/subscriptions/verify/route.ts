@@ -76,14 +76,25 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 3. Compute subscription billing period
+    // 3. Compute subscription billing period & resolve currency
     const startDate = new Date();
     const endDate = new Date(startDate);
     if (plan.annual) {
-      endDate.setFullYear(endDate.getFullYear() + 1); // 1 full year for ELITE ($499)
+      endDate.setFullYear(endDate.getFullYear() + 1); // 1 full year for ELITE
     } else {
       endDate.setMonth(endDate.getMonth() + 1); // 1 month for PRO / MAX
     }
+
+    // Look up existing pending subscription to preserve order currency & amount
+    const { data: pendingSub } = await admin
+      .from('subscriptions')
+      .select('currency, amount')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    const paymentCurrency = body.currency || pendingSub?.currency || 'USD';
+    const paymentAmount =
+      pendingSub?.amount || (paymentCurrency === 'INR' ? plan.price_inr : plan.price_usd);
 
     // 4. Update / Upsert Subscription record
     const { error: subError } = await admin.from('subscriptions').upsert(
@@ -93,8 +104,8 @@ export async function POST(req: NextRequest) {
         status: 'active',
         razorpay_subscription_id: razorpay_subscription_id || razorpay_order_id,
         razorpay_payment_id: razorpay_payment_id,
-        currency: 'USD',
-        amount: plan.price_usd,
+        currency: paymentCurrency,
+        amount: paymentAmount,
         started_at: startDate.toISOString(),
         current_period_start: startDate.toISOString(),
         current_period_end: endDate.toISOString(),
@@ -116,8 +127,8 @@ export async function POST(req: NextRequest) {
         user_id: user.id,
         razorpay_payment_id: razorpay_payment_id,
         razorpay_order_id: razorpay_order_id || null,
-        amount: plan.price_usd,
-        currency: 'USD',
+        amount: paymentAmount,
+        currency: paymentCurrency,
         status: 'captured',
         webhook_payload: {
           verified_via: 'client_checkout_verification',

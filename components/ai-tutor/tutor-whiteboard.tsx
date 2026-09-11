@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import {
   Play,
   Pause,
@@ -441,12 +442,12 @@ export function TutorWhiteboard({
         {ttsQuotaNotice && (
           <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs flex flex-wrap items-center justify-between gap-3">
             <span className="font-medium">{ttsQuotaNotice}</span>
-            <a
+            <Link
               href="/pricing"
               className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs whitespace-nowrap transition-colors shadow-xs"
             >
               Upgrade Plan
-            </a>
+            </Link>
           </div>
         )}
 

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { createSubscriptionRazorpayOrder } from '@/lib/razorpay';
-import { isValidPlanCode, getPlanByCode, PlanCode } from '@/lib/plans/plan-config';
+import { isValidPlanCode, getPlanByCode, PlanCode, getFormattedPlanPrice } from '@/lib/plans/plan-config';
+import { detectServerCountryAndCurrency } from '@/lib/geo';
 
 export async function POST(req: NextRequest) {
   try {
@@ -28,6 +29,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Plan configuration not found' }, { status: 404 });
     }
 
+    // Server-side independent country detection
+    const geo = await detectServerCountryAndCurrency(req, user.id);
+    
+    // Determine authoritative currency: if server detects India OR client requested INR & user/req is India
+    const authoritativeCurrency: 'INR' | 'USD' =
+      geo.isIndia || preferredCurrency === 'INR' && geo.countryCode === 'IN' ? 'INR' : (preferredCurrency === 'INR' && !geo.isIndia ? (geo.countryCode === 'IN' ? 'INR' : 'USD') : (geo.isIndia ? 'INR' : 'USD'));
+
     const admin = getSupabaseAdmin();
 
     // Fetch user profile
@@ -45,8 +53,11 @@ export async function POST(req: NextRequest) {
       planCode: plan.code,
       userEmail: user.email || profile?.email || '',
       userName,
-      preferredCurrency: preferredCurrency === 'INR' ? 'INR' : 'USD',
+      preferredCurrency: authoritativeCurrency,
     });
+
+    const planAmount = rzpResult.currency === 'INR' ? plan.price_inr : plan.price_usd;
+    const formattedPriceObj = getFormattedPlanPrice(plan.code, rzpResult.currency as 'USD' | 'INR');
 
     // Record pending subscription attempt
     await admin.from('subscriptions').upsert(
@@ -55,7 +66,7 @@ export async function POST(req: NextRequest) {
         plan_code: plan.code,
         status: 'pending',
         razorpay_subscription_id: rzpResult.subscriptionId || null,
-        amount: plan.price_usd,
+        amount: planAmount,
         currency: rzpResult.currency,
         cancel_at_period_end: false,
         updated_at: new Date().toISOString(),
@@ -73,7 +84,7 @@ export async function POST(req: NextRequest) {
       planCode: plan.code,
       planName: plan.name,
       billingInterval: plan.billing_interval,
-      displayPrice: `$${plan.price_usd.toFixed(2)} USD`,
+      displayPrice: formattedPriceObj.displayPrice,
       prefill: {
         name: userName,
         email: user.email || profile?.email || '',

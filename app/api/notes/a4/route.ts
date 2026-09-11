@@ -1,280 +1,348 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
-import { getSupabaseAdmin } from '@/lib/supabase';
 import { createClient } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase';
 import { checkFeatureQuota } from '@/lib/entitlements/quota-checker';
-import { paginateHandwrittenA4Note } from '@/lib/notes-a4/pagination';
-import { HandwrittenNoteItem, MnemonicCard, ComparisonMiniTable } from '@/types/notes-a4.types';
+import { ContentScope } from '@/lib/types/a4-notes';
+import {
+  validateCurriculumHierarchy,
+  getCanonicalA4NoteRecord,
+  generateA4NotesManuscript,
+  saveCanonicalA4Note,
+  getUserA4NotesData,
+} from '@/lib/notes-a4/a4-notes-service';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * GET /api/notes/a4
+ * Fetches canonical A4 notes metadata, freshness, document content, and user-specific annotations.
+ */
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const examId = searchParams.get('examId');
+    const subjectId = searchParams.get('subjectId');
+    const topicId = searchParams.get('topicId');
+    const subtopicId = searchParams.get('subtopicId') || null;
+    const contentScope = (searchParams.get('contentScope') as ContentScope) || (subtopicId ? 'SUBTOPIC' : 'TOPIC');
+
+    if (!examId || !subjectId || !topicId) {
+      return NextResponse.json(
+        { error: 'Missing required hierarchy identifiers (examId, subjectId, topicId)' },
+        { status: 400 }
+      );
+    }
+
+    // 1. Authenticate user (optional for GET, but used for user-specific highlights)
+    let activeUserId: string | null = null;
+    try {
+      const userClient = await createClient();
+      const { data: { user } } = await userClient.auth.getUser();
+      if (user) activeUserId = user.id;
+    } catch (_) {}
+
+    // 2. Validate Curriculum Hierarchy Security
+    const hierarchy = await validateCurriculumHierarchy({
+      examId,
+      subjectId,
+      topicId,
+      subtopicId,
+    });
+
+    if (!hierarchy.valid) {
+      return NextResponse.json({ error: hierarchy.error }, { status: 400 });
+    }
+
+    // 3. Query Canonical Document Record & Freshness
+    const recordResult = await getCanonicalA4NoteRecord({
+      examId,
+      subjectId,
+      topicId,
+      subtopicId,
+      contentScope,
+    });
+
+    if (!recordResult.note) {
+      return NextResponse.json({
+        status: 'NOT_FOUND',
+        isFresh: false,
+        message: 'No canonical A4 Notes document found for this scope.',
+        document: null,
+        userData: null,
+      });
+    }
+
+    // Populate context names
+    recordResult.note.examName = hierarchy.examName || '';
+    recordResult.note.subjectName = hierarchy.subjectName || '';
+    recordResult.note.topicName = hierarchy.topicName || '';
+    recordResult.note.subtopicName = hierarchy.subtopicName || null;
+    recordResult.note.availableSubtopics = hierarchy.availableSubtopics || [];
+
+    // 4. Fetch User-Specific Annotations & Highlights if authenticated
+    let userData = null;
+    if (activeUserId && recordResult.note.id) {
+      try {
+        userData = await getUserA4NotesData(activeUserId, recordResult.note.id);
+      } catch (userErr) {
+        console.warn('[A4 Notes GET] Non-fatal user annotations fetch error:', userErr);
+      }
+    }
+
+    const documentStatus = recordResult.isFresh ? 'READY' : 'EXPIRED';
+
+    return NextResponse.json({
+      status: documentStatus,
+      isFresh: recordResult.isFresh,
+      expired: recordResult.expired,
+      version: recordResult.version,
+      createdAt: recordResult.note.createdAt,
+      expiresAt: recordResult.note.expiresAt,
+      totalPages: recordResult.note.totalPages,
+      tableOfContents: recordResult.note.tableOfContents,
+      document: recordResult.note,
+      userData,
+    });
+  } catch (error: any) {
+    console.error('[API GET /api/notes/a4] Internal Error:', error);
+    return NextResponse.json(
+      { error: 'An unexpected internal error occurred while retrieving A4 notes.' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * POST /api/notes/a4
+ * Retrieves or generates canonical A4 Notes using single-job concurrency via ai_jobs.
+ */
 export async function POST(req: NextRequest) {
   try {
+    const userClient = await createClient();
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required to generate or access A4 notes.' },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
     const {
       examId,
       subjectId,
       topicId,
-      subtopicId,
-      examName = 'Medical Exam',
-      subjectName = 'Medicine',
-      topicName = 'High-Yield Topic',
-      subtopicName = null,
-      version = 1,
-      regenerate = false,
-      userId,
+      subtopicId = null,
+      contentScope = subtopicId ? 'SUBTOPIC' : 'TOPIC',
+      forceRefresh = false,
     } = body;
 
-    if (!topicId) {
+    if (!examId || !subjectId || !topicId) {
       return NextResponse.json(
-        { error: 'topicId is required' },
+        { error: 'Missing required curriculum identifiers (examId, subjectId, topicId)' },
         { status: 400 }
       );
     }
 
-    let activeUserId = userId || null;
-    if (!activeUserId) {
-      try {
-        const userClient = await createClient();
-        const { data: { user } } = await userClient.auth.getUser();
-        if (user) activeUserId = user.id;
-      } catch (_) {}
-    }
-
-    if (activeUserId) {
-      const quotaResult = await checkFeatureQuota({
-        userId: activeUserId,
-        feature: 'notes',
-        topicId,
-        examId,
-        subjectId,
-      });
-
-      if (!quotaResult.allowed) {
-        return NextResponse.json(
-          {
-            error: quotaResult.upgradeMessage || quotaResult.reason,
-            limitReached: true,
-            limitType: quotaResult.limitType,
-            upgradeRequired: true,
-            planCode: quotaResult.planCode,
-          },
-          { status: 403 }
-        );
-      }
-    }
-
-    const supabase = getSupabaseAdmin();
-
-    // 1. Check if a note already exists in the database for this topic
-    if (!regenerate) {
-      const { data: existingNote } = await supabase
-        .from('study_notes')
-        .select('*')
-        .eq('topic_id', topicId)
-        .order('version', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (existingNote && existingNote.content) {
-        const lastUpdated = new Date(existingNote.updated_at || existingNote.created_at || Date.now()).getTime();
-        const ageInDays = (Date.now() - lastUpdated) / (1000 * 60 * 60 * 24);
-
-        // Content remains valid for 30 days
-        if (ageInDays < 30) {
-          let parsedContent = null;
-          try {
-            if (typeof existingNote.content === 'string') {
-              parsedContent = JSON.parse(existingNote.content);
-            } else {
-              parsedContent = existingNote.content;
-            }
-          } catch {
-            parsedContent = null;
-          }
-
-          if (parsedContent && (parsedContent.rawItems || parsedContent.items || parsedContent.pages)) {
-            const rawItems: HandwrittenNoteItem[] = parsedContent.rawItems || parsedContent.items || [];
-            const keyPoints: string[] = parsedContent.keyPoints || (parsedContent.keyPointsSticky ? parsedContent.keyPointsSticky.points : []);
-            const mnemonics: MnemonicCard[] = parsedContent.mnemonics || [];
-            const comparisonTables: ComparisonMiniTable[] = parsedContent.comparisonTables || [];
-
-            const paginated = paginateHandwrittenA4Note({
-              id: existingNote.id,
-              examId: existingNote.exam_id || examId,
-              subjectId: existingNote.subject_id || subjectId,
-              topicId: existingNote.topic_id || topicId,
-              subtopicId: existingNote.subtopic_id || subtopicId,
-              examName,
-              subjectName,
-              topicName,
-              subtopicName,
-              title: existingNote.title || topicName,
-              version: existingNote.version || 1,
-              items: rawItems,
-              keyPoints,
-              mnemonics,
-              comparisonTables,
-              createdAt: existingNote.created_at,
-              updatedAt: existingNote.updated_at,
-            });
-
-            return NextResponse.json({
-              note: paginated,
-              source: 'database',
-              ageInDays: Math.floor(ageInDays),
-            });
-          }
-        } else {
-          // Content is older than 30 days -> generate new version on open
-          console.log(`[A4 Notes] Note for topic ${topicId} is ${Math.floor(ageInDays)} days old (>= 30 days). Regenerating new version...`);
-        }
-      }
-    }
-
-    // 2. Generate structured note items using Gemini API
-    let generatedItems: HandwrittenNoteItem[] = [];
-    let keyPoints: string[] = [];
-    let mnemonics: MnemonicCard[] = [];
-    let comparisonTables: ComparisonMiniTable[] = [];
-
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (apiKey) {
-      try {
-        const ai = new GoogleGenAI({ apiKey });
-        const systemPrompt = `You are a world-class medical board examination educator. 
-Generate a high-yield, handwritten study notebook note for the topic: "${topicName}" (${subjectName}, ${examName}).
-
-Structure your response strictly as JSON with this exact schema:
-{
-  "title": "${topicName.toUpperCase()}",
-  "subtitle": "(High-Yield Core Review & Examination Pearls)",
-  "keyPoints": [
-    "Most high-yield diagnostic criteria",
-    "First-line drug of choice and dosing rationale",
-    "Pathognomonic investigation of choice (IOC)",
-    "Critical board exam trap / distractor difference"
-  ],
-  "items": [
-    {
-      "id": "item_1",
-      "bulletIcon": "heart",
-      "bulletColor": "red",
-      "label": "Screening / Initial Test -",
-      "boxedHighlight": "Name of Test",
-      "highlightColor": "emerald",
-      "explanationBullets": [
-        "Concise bullet explaining the mechanism or diagnostic threshold.",
-        "Clinical implication for board exams."
-      ],
-      "diagramType": "speech_bubble",
-      "diagramCaption": "Optional short label",
-      "sideAnnotation": "High-yield margin note",
-      "isHighYield": true
-    }
-  ],
-  "mnemonics": [
-    {
-      "mnemonic": "MNEMONIC_CODE",
-      "clinicalContext": "Clinical purpose of this mnemonic",
-      "expansion": [
-        {"letter": "M", "phrase": "Mechanism"}
-      ]
-    }
-  ],
-  "comparisonTables": [
-    {
-      "title": "Differential Diagnosis Distinction",
-      "headers": ["Feature", "${topicName}", "Key Differential"],
-      "rows": [
-        ["Onset", "Gradual with fatigability", "Sudden / Fixed"],
-        ["Reflexes", "Normal / Intact", "Depressed / Absent"],
-        ["Treatment", "Pyridostigmine / IVIG", "Plasma Exchange / Steroids"]
-      ]
-    }
-  ]
-}
-
-Available bulletIcons: "heart", "star", "lightning", "check", "target", "lightbulb", "pill", "warning", "microscope", "dna".
-Available highlightColors: "emerald", "sky", "amber", "purple", "rose", "indigo", "teal".
-Available diagramTypes: "ice_pack", "antibody", "emg_wave", "chest_lungs", "iv_drip", "diurnal_sun_moon", "speech_bubble", "synapse_nmj", "heart_ecg", "pill_capsule", "microscope_slide", "algorithm_flow".
-
-Generate 6 to 10 high-yield items with distinct highlighted boxed answers, bullet explanations, diagrams, and high-yield badges.`;
-
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: [{ text: systemPrompt }],
-          config: {
-            responseMimeType: 'application/json',
-            temperature: 0.2,
-          },
-        });
-
-        if (response.text) {
-          const parsed = JSON.parse(response.text);
-          if (parsed.items && Array.isArray(parsed.items)) {
-            generatedItems = parsed.items;
-          }
-          if (parsed.keyPoints && Array.isArray(parsed.keyPoints)) {
-            keyPoints = parsed.keyPoints;
-          }
-          if (parsed.mnemonics && Array.isArray(parsed.mnemonics)) {
-            mnemonics = parsed.mnemonics;
-          }
-          if (parsed.comparisonTables && Array.isArray(parsed.comparisonTables)) {
-            comparisonTables = parsed.comparisonTables;
-          }
-        }
-      } catch (aiErr) {
-        console.warn('[A4 Note Generator] AI Generation fallback triggered:', aiErr);
-      }
-    }
-
-    // 3. Paginate the result into A4 pages
-    const paginated = paginateHandwrittenA4Note({
+    // 1. Validate Curriculum Hierarchy Security
+    const hierarchy = await validateCurriculumHierarchy({
       examId,
       subjectId,
       topicId,
       subtopicId,
-      examName,
-      subjectName,
-      topicName,
-      subtopicName,
-      version,
-      items: generatedItems,
-      keyPoints,
-      mnemonics,
-      comparisonTables,
     });
 
-    // 4. Save/upsert the generated note into the Supabase database
-    try {
-      await supabase.from('study_notes').upsert({
-        topic_id: topicId,
-        subject_id: subjectId,
-        exam_id: examId,
-        title: paginated.title,
-        content: JSON.stringify({
-          rawItems: paginated.rawItems,
-          keyPoints: paginated.keyPointsSticky?.points || [],
-          mnemonics: paginated.mnemonics || [],
-          comparisonTables: paginated.comparisonTables || [],
-        }),
-        version,
-        updated_at: new Date().toISOString(),
-      });
-    } catch (dbErr) {
-      console.warn('[A4 Note Database] Non-fatal save error:', dbErr);
+    if (!hierarchy.valid) {
+      return NextResponse.json({ error: hierarchy.error }, { status: 400 });
     }
 
-    return NextResponse.json({
-      note: paginated,
-      source: 'generated',
+    // 2. Check Feature Entitlements & Quotas
+    const quotaResult = await checkFeatureQuota({
+      userId: user.id,
+      feature: 'notes',
+      topicId,
+      examId,
+      subjectId,
     });
-  } catch (error) {
-    console.error('[API Notes A4] Fatal error:', error);
+
+    if (!quotaResult.allowed) {
+      return NextResponse.json(
+        {
+          error: quotaResult.upgradeMessage || quotaResult.reason,
+          limitReached: true,
+          limitType: quotaResult.limitType,
+          upgradeRequired: true,
+          planCode: quotaResult.planCode,
+        },
+        { status: 403 }
+      );
+    }
+
+    // 3. Query existing canonical record
+    const existing = await getCanonicalA4NoteRecord({
+      examId,
+      subjectId,
+      topicId,
+      subtopicId,
+      contentScope: contentScope as ContentScope,
+    });
+
+    // Re-use fresh canonical document unless forceRefresh is true
+    if (existing.note && existing.isFresh && !forceRefresh) {
+      existing.note.examName = hierarchy.examName || '';
+      existing.note.subjectName = hierarchy.subjectName || '';
+      existing.note.topicName = hierarchy.topicName || '';
+      existing.note.subtopicName = hierarchy.subtopicName || null;
+      existing.note.availableSubtopics = hierarchy.availableSubtopics || [];
+
+      const userData = await getUserA4NotesData(user.id, existing.note.id);
+
+      return NextResponse.json({
+        status: 'READY',
+        source: 'cache',
+        isFresh: true,
+        version: existing.version,
+        document: existing.note,
+        userData,
+      });
+    }
+
+    // 4. Job Concurrency Locking via ai_jobs
+    const adminClient = getSupabaseAdmin();
+    const jobScopeKey = `a4_notes_${examId}_${subjectId}_${topicId}_${subtopicId || 'main'}_${contentScope}`;
+
+    // Check for existing active job
+    const { data: existingJobs } = await adminClient
+      .from('ai_jobs')
+      .select('id, status, created_at')
+      .eq('task', 'a4_notes_generation')
+      .eq('exam_id', examId)
+      .eq('subject_id', subjectId)
+      .eq('topic_id', topicId)
+      .in('status', ['queued', 'running', 'processing'])
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (existingJobs && existingJobs.length > 0) {
+      const job = existingJobs[0];
+      const jobAgeMs = Date.now() - new Date(job.created_at).getTime();
+
+      // If job is actively running (< 3 mins old), request client wait/poll
+      if (jobAgeMs < 180000) {
+        return NextResponse.json({
+          status: 'PREPARING',
+          message: 'A canonical A4 Notes document generation is currently in progress.',
+          jobId: job.id,
+        });
+      }
+    }
+
+    // 5. Create new AI Generation Job with database-enforced idempotency lock
+    const targetVersion = existing.note ? existing.version + 1 : 1;
+    const { data: jobRecord, error: jobInsertError } = await adminClient
+      .from('ai_jobs')
+      .insert({
+        user_id: user.id,
+        exam_id: examId,
+        subject_id: subjectId,
+        topic_id: topicId,
+        task: 'a4_notes_generation',
+        idempotency_key: jobScopeKey,
+        status: 'running',
+        provider: 'Google Gemini AI',
+        model: 'gemini-3.5-flash',
+        priority: 5,
+        input_payload: {
+          jobScopeKey,
+          contentScope,
+          examName: hierarchy.examName,
+          subjectName: hierarchy.subjectName,
+          topicName: hierarchy.topicName,
+          subtopicName: hierarchy.subtopicName,
+          availableSubtopics: hierarchy.availableSubtopics,
+          targetVersion,
+        },
+      })
+      .select('id')
+      .single();
+
+    if (jobInsertError && jobInsertError.code === '23505') {
+      // Idempotency constraint violation: another active generation job was created concurrently
+      return NextResponse.json({
+        status: 'PREPARING',
+        message: 'A canonical A4 Notes document generation is currently in progress.',
+      });
+    }
+
+    // 6. Execute AI Generation
+    try {
+      const generatedDocument = await generateA4NotesManuscript({
+        userId: user.id,
+        examId,
+        examName: hierarchy.examName || '',
+        subjectId,
+        subjectName: hierarchy.subjectName || '',
+        topicId,
+        topicName: hierarchy.topicName || '',
+        subtopicId,
+        subtopicName: hierarchy.subtopicName || null,
+        availableSubtopics: hierarchy.availableSubtopics || [],
+        contentScope: contentScope as ContentScope,
+        targetVersion,
+      });
+
+      // 7. Store canonical document in Supabase
+      const newDocId = await saveCanonicalA4Note(generatedDocument);
+      generatedDocument.id = newDocId;
+
+      // Update ai_job to completed
+      if (jobRecord?.id) {
+        await adminClient
+          .from('ai_jobs')
+          .update({
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+          })
+          .eq('id', jobRecord.id);
+      }
+
+      // Fetch user annotations/highlights (preserves user data even on version update)
+      const userData = await getUserA4NotesData(user.id, newDocId);
+
+      return NextResponse.json({
+        status: 'READY',
+        source: 'generated',
+        isFresh: true,
+        version: targetVersion,
+        document: generatedDocument,
+        userData,
+      });
+    } catch (genError: any) {
+      console.error('[A4 Notes Generator Error]:', genError);
+
+      if (jobRecord?.id) {
+        await adminClient
+          .from('ai_jobs')
+          .update({
+            status: 'failed',
+            error_message: genError.message || 'Generation failed',
+          })
+          .eq('id', jobRecord.id);
+      }
+
+      return NextResponse.json(
+        {
+          status: 'FAILED',
+          error: 'Failed to generate A4 Notes manuscript. Please try again.',
+        },
+        { status: 500 }
+      );
+    }
+  } catch (error: any) {
+    console.error('[API POST /api/notes/a4] Fatal Error:', error);
     return NextResponse.json(
-      { error: 'Failed to retrieve or generate A4 notes' },
+      { error: 'An unexpected error occurred during A4 notes processing.' },
       { status: 500 }
     );
   }

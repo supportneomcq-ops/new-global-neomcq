@@ -12,9 +12,13 @@ import {
   Eye,
   RefreshCw,
   Brain,
+  BarChart3,
+  Layers,
 } from 'lucide-react';
+import { AdminAITutorAnalyticsDashboard } from '@/components/admin/ai-tutor-analytics-dashboard';
 
 export default function AdminAITutorManager() {
+  const [activeTab, setActiveTab] = useState<'lessons' | 'analytics'>('lessons');
   const [lessons, setLessons] = useState<any[]>([]);
   const [stats, setStats] = useState<any>({ total: 0, pendingReview: 0, approved: 0 });
   const [loading, setLoading] = useState(true);
@@ -97,14 +101,45 @@ export default function AdminAITutorManager() {
 
         <button
           onClick={() => setShowModal(true)}
-          className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-[#6D5BFF] to-[#A855F7] text-white font-extrabold text-xs shadow-md flex items-center gap-2 hover:opacity-95"
+          className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-[#6D5BFF] to-[#A855F7] text-white font-extrabold text-xs shadow-md flex items-center gap-2 hover:opacity-95 cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>Create AI Tutor Module</span>
         </button>
       </div>
 
-      <div className="p-4 rounded-3xl bg-white dark:bg-[#090D1E] border border-slate-200 dark:border-gray-800 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+      {/* Admin Tab Navigation */}
+      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-gray-800 pb-2">
+        <button
+          onClick={() => setActiveTab('lessons')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'lessons'
+              ? 'bg-[#6D5BFF] text-white shadow-sm'
+              : 'bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-gray-700'
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          <span>Structured Modules ({stats.total || lessons.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('analytics')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'analytics'
+              ? 'bg-[#6D5BFF] text-white shadow-sm'
+              : 'bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-gray-700'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4" />
+          <span>Analytics Intelligence</span>
+        </button>
+      </div>
+
+      {activeTab === 'analytics' ? (
+        <AdminAITutorAnalyticsDashboard />
+      ) : (
+        <>
+          <div className="p-4 rounded-3xl bg-white dark:bg-[#090D1E] border border-slate-200 dark:border-gray-800 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
           <input
@@ -183,6 +218,8 @@ export default function AdminAITutorManager() {
           </div>
         )}
       </div>
+      </>
+      )}
 
       {showModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">

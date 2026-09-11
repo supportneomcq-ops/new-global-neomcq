@@ -96,6 +96,7 @@ export function usePlanCheckout() {
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     planCode,
+                    currency: orderData.currency,
                     razorpay_payment_id: response.razorpay_payment_id,
                     razorpay_order_id: response.razorpay_order_id || orderData.orderId,
                     razorpay_subscription_id: response.razorpay_subscription_id || orderData.subscriptionId,
@@ -153,6 +154,7 @@ export function usePlanCheckout() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   planCode,
+                  currency: orderData.currency,
                   razorpay_payment_id: `pay_test_${Date.now()}`,
                   razorpay_order_id: orderData.orderId,
                   razorpay_subscription_id: orderData.subscriptionId || undefined,

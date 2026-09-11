@@ -46,7 +46,7 @@ export function A4PageSheet({
   return (
     <div
       id="a4-active-page-render"
-      className="a4-notebook-paper relative w-full aspect-[1/1.414] max-w-[860px] mx-auto p-5 sm:p-8 md:p-10 text-slate-900 bg-[#fcfaf4] rounded-2xl sm:rounded-3xl border-2 border-slate-300 transition-all duration-300 flex flex-col justify-between overflow-hidden shadow-2xl select-text"
+      className="a4-notebook-paper relative w-full min-h-[820px] max-w-[860px] mx-auto p-5 sm:p-8 md:p-10 text-slate-900 bg-[#fcfaf4] rounded-2xl sm:rounded-3xl border-2 border-slate-300 transition-all duration-300 flex flex-col justify-between shadow-2xl select-text"
       style={{
         minHeight: '820px',
       }}
@@ -279,9 +279,9 @@ export function A4PageSheet({
             </span>
           </div>
 
-          {/* Center Discount / Code banner */}
+          {/* Center banner */}
           <div className="font-kalam font-black text-xs sm:text-base text-sky-900 tracking-wide text-center">
-            NeoMCQ High-Yield Notes • Code-NEXT24
+            NeoMCQ High-Yield Notes
           </div>
 
           {/* Right Star & Page indicator */}

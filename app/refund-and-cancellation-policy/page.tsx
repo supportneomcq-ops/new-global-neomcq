@@ -1,5 +1,6 @@
 import React from 'react';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { LegalPageLayout } from '@/components/legal/legal-page-layout';
 import { LEGAL_CONFIG } from '@/lib/legal/config';
 import { RefreshCw, CheckCircle2, XCircle, AlertTriangle, HelpCircle, DollarSign, ShieldCheck } from 'lucide-react';
@@ -144,7 +145,7 @@ export default function RefundAndCancellationPolicyPage() {
           To request a refund review:
         </p>
         <ol className="list-decimal pl-6 space-y-2 text-xs sm:text-sm">
-          <li>Send an email to <a href={`mailto:${LEGAL_CONFIG.supportEmail}`} className="text-[#6D5BFF] font-semibold underline">{LEGAL_CONFIG.supportEmail}</a> or use our <a href="/contact-us" className="text-[#6D5BFF] font-semibold underline">Contact Us portal</a> selecting category &quot;Refund Request&quot;.</li>
+          <li>Send an email to <a href={`mailto:${LEGAL_CONFIG.supportEmail}`} className="text-[#6D5BFF] font-semibold underline">{LEGAL_CONFIG.supportEmail}</a> or use our <Link href="/contact-us" className="text-[#6D5BFF] font-semibold underline">Contact Us portal</Link> selecting category &quot;Refund Request&quot;.</li>
           <li>Include your account email address, Razorpay Payment ID (e.g. <code className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">pay_XXXXX</code>), purchase date, and reason for the request.</li>
           <li>Our billing team will review your request and respond within 24 to 48 business hours.</li>
         </ol>

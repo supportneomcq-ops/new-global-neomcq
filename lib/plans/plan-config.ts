@@ -59,9 +59,9 @@ export const AUTHORITATIVE_PLANS: Record<PlanCode, PlanDefinition> = {
     name: 'Pro',
     slug: 'pro',
     price_usd: 9.99,
-    price_inr: 849.0,
+    price_inr: 499.0,
     amount_cents: 999,
-    amount_paise: 84900,
+    amount_paise: 49900,
     billing_interval: 'monthly',
     annual: false,
     duration_days: 30,
@@ -79,7 +79,7 @@ export const AUTHORITATIVE_PLANS: Record<PlanCode, PlanDefinition> = {
       'Spaced Repetition Knowledge Radar & Topic Analytics',
       'Active Recall Flashcards & Fill-in-the-Blank Drills',
       'High-Speed Neural Audio (TTS) in AI Tutor (15 audio/day)',
-      '$2.00 USD Exam Curriculum Switching Fee',
+      'Exam Curriculum Switching Fee applicable',
     ],
     limits: {
       daily_ai_questions: 100,
@@ -97,9 +97,9 @@ export const AUTHORITATIVE_PLANS: Record<PlanCode, PlanDefinition> = {
     name: 'Max',
     slug: 'max',
     price_usd: 19.99,
-    price_inr: 1699.0,
+    price_inr: 1499.0,
     amount_cents: 1999,
-    amount_paise: 169900,
+    amount_paise: 149900,
     billing_interval: 'monthly',
     annual: false,
     duration_days: 30,
@@ -117,7 +117,7 @@ export const AUTHORITATIVE_PLANS: Record<PlanCode, PlanDefinition> = {
       'High-Speed Neural Audio (TTS) in AI Tutor (50 audio/day)',
       'Misconception Diagnostics & In-Depth Error Pattern Analytics',
       'Priority Fast-Track AI Content Generation Queue',
-      '$2.00 USD Exam Curriculum Switching Fee',
+      'Exam Curriculum Switching Fee applicable',
     ],
     limits: {
       daily_ai_questions: 350,
@@ -135,9 +135,9 @@ export const AUTHORITATIVE_PLANS: Record<PlanCode, PlanDefinition> = {
     name: 'Elite',
     slug: 'elite',
     price_usd: 499.0,
-    price_inr: 41999.0,
+    price_inr: 39000.0,
     amount_cents: 49900,
-    amount_paise: 4199900,
+    amount_paise: 3900000,
     billing_interval: 'yearly',
     annual: true,
     duration_days: 365,
@@ -150,7 +150,7 @@ export const AUTHORITATIVE_PLANS: Record<PlanCode, PlanDefinition> = {
     is_unlimited: true,
     features: [
       'Truly Unlimited Access for 1 Full Year (365 Days)',
-      'FREE Unlimited Exam Curriculum Switching (Zero $2 Fees)',
+      'FREE Unlimited Exam Curriculum Switching (Zero Fees)',
       'Unlimited MCQ, Quiz, Flashcard & A4 Revision Note Generation',
       'Unlimited AI Tutor Interactive Lessons & Live Whiteboards',
       'Unlimited Neural Audio TTS Explanations in AI Tutor',
@@ -170,6 +170,32 @@ export const AUTHORITATIVE_PLANS: Record<PlanCode, PlanDefinition> = {
     },
   },
 };
+
+export function getFormattedPlanPrice(planCode: PlanCode, currency: 'USD' | 'INR' = 'USD') {
+  const plan = AUTHORITATIVE_PLANS[planCode];
+  if (!plan) return { symbol: '$', displayPrice: '$0', rawPrice: 0, period: '/mo', switchFee: '$2.00 USD' };
+
+  if (currency === 'INR') {
+    const formatted = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(plan.price_inr);
+    return {
+      symbol: '₹',
+      displayPrice: `₹${formatted}`,
+      rawPrice: plan.price_inr,
+      period: plan.annual ? '/ year' : '/ month',
+      periodShort: plan.annual ? '/ yr' : '/ mo',
+      switchFee: '₹175',
+    };
+  }
+
+  return {
+    symbol: '$',
+    displayPrice: `$${plan.price_usd}`,
+    rawPrice: plan.price_usd,
+    period: plan.annual ? '/ year' : '/ month',
+    periodShort: plan.annual ? '/ yr' : '/ mo',
+    switchFee: '$2.00 USD',
+  };
+}
 
 /**
  * Returns plan definition by code
