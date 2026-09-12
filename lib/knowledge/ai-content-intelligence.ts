@@ -1143,13 +1143,6 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
         is_current: true,
         generation_reason: generationReason,
         requested_by: userId || null,
-        provider: providerUsed,
-        model: modelUsed,
-        input_tokens: inputTokens,
-        output_tokens: outputTokens,
-        actual_cost_usd: costUsd,
-        quality_score: finalPayload.quality_score,
-        content_count: finalPayload.mcqs.length,
         snapshot: {
           exam_id: exam.id,
           exam_name: exam.name,

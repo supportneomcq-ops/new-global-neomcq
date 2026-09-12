@@ -530,7 +530,7 @@ export class TutorDbService {
           last_studied_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
-        { onConflict: 'user_id, lesson_id' }
+        { onConflict: 'user_id,lesson_id' }
       );
 
       return !error;

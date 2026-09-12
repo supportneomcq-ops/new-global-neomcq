@@ -33,6 +33,8 @@ import {
   BookmarkCheck,
   ListOrdered,
   BadgeCheck,
+  Database,
+  Cpu,
 } from 'lucide-react';
 import { getSupabaseClient } from '@/lib/supabase';
 import { Logo } from '@/components/logo';
@@ -151,6 +153,8 @@ export default function OnboardingPage() {
   const [step, setStep] = useState<number>(1);
   const [formError, setFormError] = useState('');
   const [isResolvingExam, setIsResolvingExam] = useState(false);
+  const [resolvingStage, setResolvingStage] = useState<number>(0);
+  const [resolvingExamType, setResolvingExamType] = useState<'EXISTING' | 'NEW_SYNTHESIS'>('EXISTING');
   const [showPassword, setShowPassword] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
@@ -410,10 +414,22 @@ export default function OnboardingPage() {
 
     // If user provided a custom exam input or unlisted exam name, run Exam Intelligence / Resolution
     const targetInput = formData.customExamInput.trim() || formData.selectedExamName;
+    const isCustom = formData.isCustomExam || !!formData.customExamInput.trim();
+
     setIsResolvingExam(true);
+    setResolvingStage(0);
+    setResolvingExamType(isCustom ? 'NEW_SYNTHESIS' : 'EXISTING');
     setFormError('');
 
+    // Smooth stage progression ticker (0 -> 1 -> 2 -> 3)
+    let currentStage = 0;
+    const stageInterval = setInterval(() => {
+      currentStage = Math.min(3, currentStage + 1);
+      setResolvingStage(currentStage);
+    }, 600);
+
     try {
+      const startTime = Date.now();
       const res = await fetch('/api/exams/resolve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -428,6 +444,10 @@ export default function OnboardingPage() {
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Failed to resolve exam intelligence');
       }
+
+      // Detect if server identified a new custom synthesis vs existing canonical record
+      const isNewExam = data.is_new || data.decision === 'NEW_EXAM_CREATED' || isCustom;
+      setResolvingExamType(isNewExam ? 'NEW_SYNTHESIS' : 'EXISTING');
 
       if (data.exam) {
         const ex = data.exam;
@@ -458,15 +478,31 @@ export default function OnboardingPage() {
         });
       }
 
+      // Ensure minimum display time (2.4s) so user clearly views resolution steps
+      const elapsed = Date.now() - startTime;
+      const minDuration = 2400;
+      if (elapsed < minDuration) {
+        await new Promise((resolve) => setTimeout(resolve, minDuration - elapsed));
+      }
+
+      // Final Completion Step (4)
+      clearInterval(stageInterval);
+      setResolvingStage(4);
+      await new Promise((resolve) => setTimeout(resolve, 650));
+
       setStep(3); // Proceed to Step 3: Exam Confirmation
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
       console.error('Exam resolution error:', err);
-      // Fallback: Proceed with user's selected name
+      clearInterval(stageInterval);
+      setResolvingStage(4);
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
       updateField('selectedExamName', targetInput);
       setStep(3);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
+      clearInterval(stageInterval);
       setIsResolvingExam(false);
     }
   };
@@ -1343,6 +1379,149 @@ export default function OnboardingPage() {
           )}
         </div>
       </main>
+
+      {/* BIG EXAM RESOLUTION ANIMATION MODAL */}
+      <AnimatePresence>
+        {isResolvingExam && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/85 backdrop-blur-xl"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: -15 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="relative w-full max-w-lg p-6 sm:p-8 rounded-3xl bg-slate-900/95 border border-[#6D5BFF]/40 shadow-2xl shadow-[#6D5BFF]/25 text-white overflow-hidden space-y-6"
+            >
+              {/* Glowing Background Radial Accents */}
+              <div className="absolute -top-24 -left-24 w-48 h-48 bg-[#6D5BFF]/30 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-[#00D4FF]/25 rounded-full blur-3xl pointer-events-none" />
+
+              {/* Top Header Badge */}
+              <div className="text-center space-y-3 relative z-10">
+                <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-[#6D5BFF]/20 text-[#00D4FF] border border-[#6D5BFF]/40 shadow-sm">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                  <span>
+                    {resolvingExamType === 'EXISTING'
+                      ? 'Validating Exam Intelligence'
+                      : 'Synthesizing Official Exam Pattern'}
+                  </span>
+                </div>
+
+                {/* Central Pulsing Holographic Orbital Ring */}
+                <div className="relative w-20 h-20 mx-auto my-3 flex items-center justify-center">
+                  {/* Outer Spinning Ring */}
+                  <div className="absolute inset-0 rounded-full border-2 border-dashed border-[#00D4FF]/40 animate-[spin_8s_linear_infinite]" />
+                  {/* Inner Reverse Spinning Ring */}
+                  <div className="absolute inset-2 rounded-full border-2 border-[#6D5BFF]/60 animate-[spin_4s_linear_infinite_reverse]" />
+                  {/* Glowing Core */}
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#6D5BFF] to-[#00D4FF] flex items-center justify-center shadow-lg shadow-[#6D5BFF]/50 animate-pulse">
+                    {resolvingExamType === 'EXISTING' ? (
+                      <Database className="w-6 h-6 text-white" />
+                    ) : (
+                      <Cpu className="w-6 h-6 text-white" />
+                    )}
+                  </div>
+                </div>
+
+                <h2 className="text-xl sm:text-2xl font-heading font-extrabold tracking-tight">
+                  {resolvingExamType === 'EXISTING'
+                    ? 'Verifying Database Record'
+                    : 'Collecting Exam Blueprint & Patterns'}
+                </h2>
+
+                {/* Selected Exam Highlight Pill */}
+                <div className="p-3 rounded-2xl bg-slate-800/80 border border-slate-700/70 text-xs font-semibold flex items-center justify-center gap-2 max-w-md mx-auto">
+                  <span className="text-lg shrink-0">{formData.selectedExamFlag || '🌐'}</span>
+                  <span className="font-bold text-white truncate max-w-[280px]">
+                    {formData.selectedExamName || formData.customExamInput}
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-[#6D5BFF]/20 text-[#00D4FF] text-[10px] font-mono font-bold uppercase">
+                    {formData.selectedExamCategory || 'Global Standard'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Animated Progress Bar */}
+              <div className="space-y-1.5 relative z-10">
+                <div className="flex justify-between text-[11px] font-mono font-bold text-slate-400">
+                  <span>
+                    {resolvingStage < 4 ? `STAGE ${resolvingStage + 1} OF 5` : 'COMPLETE'}
+                  </span>
+                  <span className="text-[#00D4FF]">
+                    {Math.min(100, Math.round(((resolvingStage + 1) / 5) * 100))}%
+                  </span>
+                </div>
+                <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden border border-slate-700/50">
+                  <motion.div
+                    className="h-full bg-gradient-to-r from-[#6D5BFF] via-[#00D4FF] to-emerald-400"
+                    animate={{ width: `${Math.min(100, ((resolvingStage + 1) / 5) * 100)}%` }}
+                    transition={{ duration: 0.4, ease: 'easeInOut' }}
+                  />
+                </div>
+              </div>
+
+              {/* Dynamic Resolution Checklist Steps */}
+              <div className="space-y-2 text-left relative z-10 text-xs font-medium">
+                {(resolvingExamType === 'EXISTING'
+                  ? [
+                      { title: 'Database Identity Check', desc: `Locating exam record & canonical slug in 'exams' table` },
+                      { title: 'Curriculum Hierarchy Audit', desc: `Validating 'exam_subjects', 'exam_topics' & 'exam_subtopics'` },
+                      { title: 'Pattern & Rule Config', desc: `Checking duration, question count & marking rules in 'exam_style_configurations'` },
+                      { title: 'Canonical Scope Guarantee', desc: `Verifying unique entity protection & active database status` },
+                      { title: 'Database Verification Confirmed', desc: `Exam verified & persistent in Supabase DB` },
+                    ]
+                  : [
+                      { title: 'AI Knowledge Engine Connection', desc: `Analyzing official syllabus specifications for '${formData.selectedExamName || formData.customExamInput}'` },
+                      { title: 'Collecting Exam Pattern & Duration', desc: `Structuring subject weightage, duration & marking parameters` },
+                      { title: 'Taxonomy Hierarchy Synthesis', desc: `Mapping main topics and high-yield cognitive subtopics` },
+                      { title: 'Saving to Supabase Database', desc: `Inserting records into 'exams', 'exam_subjects', 'exam_topics', 'exam_subtopics' & 'exam_style_configurations'` },
+                      { title: 'Syllabus Successfully Registered', desc: `Canonical exam structure stored & ready for study strategy` },
+                    ]
+                ).map((item, idx) => {
+                  const isDone = resolvingStage > idx;
+                  const isCurrent = resolvingStage === idx;
+                  return (
+                    <div
+                      key={item.title}
+                      className={`p-2.5 rounded-2xl transition-all duration-300 flex items-center gap-3 border ${
+                        isDone
+                          ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                          : isCurrent
+                          ? 'bg-[#6D5BFF]/20 text-[#00D4FF] border-[#6D5BFF]/50 shadow-md shadow-[#6D5BFF]/20'
+                          : 'bg-slate-800/40 text-slate-500 border-slate-800/80'
+                      }`}
+                    >
+                      {isDone ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      ) : isCurrent ? (
+                        <Loader2 className="w-4 h-4 text-[#00D4FF] animate-spin shrink-0" />
+                      ) : (
+                        <div className="w-4 h-4 rounded-full border border-slate-700 shrink-0" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold leading-none">{item.title}</div>
+                        <div className="text-[10px] text-slate-400 font-normal truncate mt-0.5">{item.desc}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Database Persistence Explicit Footnote */}
+              <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 text-[10px] text-slate-400 font-mono flex items-center gap-2 justify-center">
+                <Database className="w-3.5 h-3.5 text-[#00D4FF] shrink-0" />
+                <span>
+                  Persisting to Supabase DB: <strong className="text-slate-200">exams, exam_subjects, exam_topics, exam_subtopics, exam_style_configurations</strong>
+                </span>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -41,7 +41,7 @@ export function TopicPreparationModal() {
               Preparing Your Learning Library
             </h3>
             <p className="text-sm text-emerald-100 mt-1 line-clamp-1">
-              {selection.topic?.name || 'Topic Knowledge Pack'} • {selection.exam?.name || 'Medical Exam'}
+              {selection.topic?.name || 'Topic Knowledge Pack'} • {selection.exam?.name || 'Selected Exam'}
             </p>
 
             {/* Top Progress Bar */}

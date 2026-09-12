@@ -35,10 +35,38 @@ export async function POST(req: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
+    let actualExamInput = examSearch;
+    let actualSubjectInput = subjectSearch;
+
+    // Look up topic parent hierarchy in DB if exam or subject input is missing
+    if ((!actualExamInput || !actualSubjectInput) && topicSearch) {
+      try {
+        let topicQuery = supabase
+          .from('exam_topics')
+          .select('id, name, subject_id, exam_subjects(id, name, exam_id, exams(id, name))');
+
+        if (topicId) {
+          topicQuery = topicQuery.eq('id', topicId);
+        } else if (topicName) {
+          topicQuery = topicQuery.ilike('name', topicName);
+        }
+
+        const { data: dbTopic } = await topicQuery.limit(1).maybeSingle();
+        if (dbTopic) {
+          const dbSub = (dbTopic as any).exam_subjects;
+          const dbEx = dbSub?.exams;
+          if (dbEx?.id) actualExamInput = actualExamInput || dbEx.id;
+          if (dbSub?.id) actualSubjectInput = actualSubjectInput || dbSub.id;
+        }
+      } catch (lookupErr) {
+        console.warn('[Orchestrate] Topic parent lookup notice:', lookupErr);
+      }
+    }
+
     // 1. Resolve canonical hierarchy
     const hierarchy = await resolveCanonicalHierarchy({
-      examInput: examSearch || 'USMLE Step 1 & 2 CK',
-      subjectInput: subjectSearch || 'Clinical Medicine',
+      examInput: actualExamInput || 'default_exam',
+      subjectInput: actualSubjectInput || 'default_subject',
       topicInput: topicSearch,
       autoCreate: true,
     });
@@ -141,7 +169,7 @@ export async function POST(req: NextRequest) {
         quantity: rawMcqs.length || 40,
         quantityLabel: rawMcqs.length > 0 ? `${rawMcqs.length} MCQs Ready` : '40 MCQs Expected',
         contentVersionId: versionId,
-        description: 'Adaptive vignette questions with clinical pearls and instant explanations.',
+        description: 'Adaptive vignette and conceptual questions with high-yield rationale and instant explanations.',
       },
       {
         featureId: 'quiz_a',
@@ -180,7 +208,7 @@ export async function POST(req: NextRequest) {
         quantity: rawFlashcards.length || 20,
         quantityLabel: rawFlashcards.length > 0 ? `${rawFlashcards.length} Cards Ready` : '20 Cards Expected',
         contentVersionId: versionId,
-        description: '3D animated spaced-repetition card deck for rapid clinical recall.',
+        description: '3D animated spaced-repetition card deck for rapid concept recall.',
       },
       {
         featureId: 'a4_notes',
@@ -193,7 +221,7 @@ export async function POST(req: NextRequest) {
         quantity: rawNotes ? Math.max(1, Math.ceil(rawNotes.length / 1500)) : 1,
         quantityLabel: rawNotes ? `${Math.max(1, Math.ceil(rawNotes.length / 1500))} Pages Document` : 'Complete Notes Expected',
         contentVersionId: versionId,
-        description: 'Formatted high-yield printable notes with triads, tables, and algorithms.',
+        description: 'Formatted high-yield printable notes with key concepts, tables, and rules.',
       },
       {
         featureId: 'sticky_notes',
@@ -206,7 +234,7 @@ export async function POST(req: NextRequest) {
         quantity: rawSticky.length || 20,
         quantityLabel: rawSticky.length > 0 ? `${rawSticky.length} Notes Board` : '20 Notes Expected',
         contentVersionId: versionId,
-        description: 'Color-coded tiles highlighting key board traps, buzzwords, and pearls.',
+        description: 'Color-coded tiles highlighting key exam traps, rules, and pearls.',
       },
       {
         featureId: 'fill_in_the_blanks',
@@ -219,7 +247,7 @@ export async function POST(req: NextRequest) {
         quantity: rawBlanks.length || 30,
         quantityLabel: rawBlanks.length > 0 ? `${rawBlanks.length} Exercises` : '30 Exercises Expected',
         contentVersionId: versionId,
-        description: 'Active recall cloze-deletion exercises testing high-yield medical terms.',
+        description: 'Active recall cloze-deletion exercises testing high-yield key terms.',
       },
       {
         featureId: 'ai_tutor',

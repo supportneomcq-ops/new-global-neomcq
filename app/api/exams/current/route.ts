@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ success: false, authenticated: false, currentExam: null }, { status: 200 });
     }
 
     const admin = getSupabaseAdmin();

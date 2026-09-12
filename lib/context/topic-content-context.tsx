@@ -76,18 +76,18 @@ export interface PreparationStep {
 
 export const PREPARATION_STEPS: PreparationStep[] = [
   { id: 'identifying_exam', label: 'Exam Identified', detail: 'Verifying official syllabus & exam blueprint...' },
-  { id: 'identifying_subject', label: 'Subject Resolved', detail: 'Mapping clinical domain & subject taxonomy...' },
+  { id: 'identifying_subject', label: 'Subject Resolved', detail: 'Mapping exam domain & subject taxonomy...' },
   { id: 'identifying_topic', label: 'Topic Scoped', detail: 'Strict canonical entity resolution...' },
   { id: 'checking_knowledge', label: 'Checking Knowledge Repository', detail: '30-day freshness verification...' },
   { id: 'creating_structure', label: 'Structuring Learning Hierarchy', detail: 'Constructing high-yield syllabus modules...' },
-  { id: 'creating_mcqs', label: 'Synthesizing 40 High-Yield MCQs', detail: 'Deduplicated clinical vignettes with rationales...' },
+  { id: 'creating_mcqs', label: 'Synthesizing 40 High-Yield MCQs', detail: 'Deduplicated exam questions with rationales...' },
   { id: 'creating_quizzes', label: 'Assembling Quiz A & Quiz B', detail: 'Partitioning non-overlapping 20-question sprints...' },
-  { id: 'creating_flashcards', label: 'Building Spaced Flashcards', detail: 'Extracting key clinical associations...' },
-  { id: 'creating_notes', label: 'Generating Structured A4 Notes', detail: 'Formatting pathophysiology, triads & drug tables...' },
-  { id: 'creating_sticky', label: 'Curating High-Yield Sticky Board', detail: 'Extracting board traps & clinical pearls...' },
+  { id: 'creating_flashcards', label: 'Building Spaced Flashcards', detail: 'Extracting key concepts & associations...' },
+  { id: 'creating_notes', label: 'Generating Structured A4 Notes', detail: 'Formatting core concepts, formulas & comparative tables...' },
+  { id: 'creating_sticky', label: 'Curating High-Yield Sticky Board', detail: 'Extracting key exam points & traps...' },
   { id: 'creating_recall', label: 'Preparing 60s Active Recall', detail: 'Generating cloze-deletion revision sheets...' },
   { id: 'preparing_tutor', label: 'Calibrating Synaptic AI Tutor', detail: 'Generating multi-phase visual whiteboard lesson...' },
-  { id: 'validating', label: 'Validating Quality Standards', detail: 'Running schema & medical consensus check...' },
+  { id: 'validating', label: 'Validating Quality Standards', detail: 'Running schema & accuracy consensus check...' },
   { id: 'saving', label: 'Saving to Learning Library', detail: 'Ready for instant practice...' },
 ];
 
@@ -133,28 +133,28 @@ const TopicContentContext = createContext<TopicContentContextType | undefined>(u
 
 // Contextual Content Fallback Generator
 function generateContextualContent(
-  topicName = 'High-Yield Clinical Concepts',
-  subjectName = 'Clinical Medicine',
-  examName = 'Board Examination'
+  topicName = 'Core High-Yield Concepts',
+  subjectName = 'Core Syllabus',
+  examName = 'Competitive Examination'
 ): TopicContentData {
-  const cleanTopic = topicName || 'Clinical Medicine';
-  const cleanSubject = subjectName || 'General Practice';
-  const cleanExam = examName || 'Board Examination';
+  const cleanTopic = topicName || 'Core Syllabus';
+  const cleanSubject = subjectName || 'General Studies';
+  const cleanExam = examName || 'Competitive Examination';
 
   return {
     mcqs: [
       {
         id: `mcq_${cleanTopic.toLowerCase().replace(/[^a-z0-9]/g, '_')}_1`,
-        question: `In the clinical evaluation and pathophysiology of ${cleanTopic} (${cleanSubject}), which of the following mechanisms represents the primary high-yield board presentation?`,
+        question: `In the comprehensive evaluation and application of ${cleanTopic} (${cleanSubject}), which of the following mechanisms represents the primary core concept?`,
         options: [
-          `Primary characteristic pathophysiological dysfunction associated with ${cleanTopic}`,
-          `Secondary compensatory autonomic reflex response`,
-          `Unrelated benign incidental variation`,
-          `End-stage irreversible tissue fibrosis and necrosis`,
+          `Primary characteristic principle associated with ${cleanTopic}`,
+          `Secondary compensatory framework response`,
+          `Unrelated background variation`,
+          `Secondary irreversible outcome`,
         ],
         correct_index: 0,
-        explanation: `${cleanTopic} is a core high-yield topic tested in ${cleanExam}. The primary presentation revolves around understanding the underlying mechanism, diagnostic criteria, and first-line clinical management.`,
-        clinical_pearl: `When evaluating ${cleanTopic}, always distinguish acute decompensation from chronic stable states before choosing invasive vs pharmacologic therapy.`,
+        explanation: `${cleanTopic} is a core high-yield topic tested in ${cleanExam}. The primary presentation revolves around understanding the underlying mechanism, core principles, and practical application.`,
+        clinical_pearl: `When evaluating ${cleanTopic}, always distinguish core principles from peripheral distractors before selecting your answer.`,
         high_yield_tag: `${cleanSubject} • ${cleanTopic}`,
         difficulty: 'High Yield',
       },

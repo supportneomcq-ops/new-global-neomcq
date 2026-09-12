@@ -489,7 +489,16 @@ CRITICAL RULES:
     preferredModel: 'gemini-3.5-flash',
   });
 
-  const parsed = genResult.parsedJson || JSON.parse(genResult.text);
+  let parsed: any;
+  if (genResult.parsedJson) {
+    parsed = genResult.parsedJson;
+  } else {
+    let cleanText = (genResult.text || '').trim();
+    if (cleanText.startsWith('```')) {
+      cleanText = cleanText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+    }
+    parsed = JSON.parse(cleanText);
+  }
 
   // Validate output against schema
   const validated = a4NotesDocumentSchema.safeParse({

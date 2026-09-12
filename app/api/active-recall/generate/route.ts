@@ -198,10 +198,6 @@ Respond strictly in valid JSON format with NO markdown wrapping:
         is_current: true,
         generation_reason: nextVersion === 1 ? 'FIRST_GENERATION' : 'FORCE_REFRESH',
         requested_by: userId || null,
-        provider: 'gemini',
-        model: 'gemini-2.5-flash',
-        quality_score: 98.0,
-        content_count: items.length,
         snapshot: updatedSnapshot,
       })
       .select('id, version, created_at')

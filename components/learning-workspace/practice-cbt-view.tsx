@@ -123,18 +123,18 @@ export function PracticeCbtView({
       // 1. Fetch content versions associated with topic
       const { data: vData, error: vErr } = await supabase
         .from('content_versions')
-        .select('id, version, created_at, quality_score, content_count, snapshot, change_summary, generation_reason')
+        .select('id, version, created_at, snapshot, change_summary, generation_reason')
         .eq('asset_id', activeTopicId)
         .eq('asset_type', 'topic')
         .order('version', { ascending: false });
 
       if (vErr) throw vErr;
-      const parsedVersions: ContentVersionRecord[] = (vData || []).map((v) => ({
+      const parsedVersions: ContentVersionRecord[] = (vData || []).map((v: any) => ({
         id: v.id,
         version: v.version,
         created_at: v.created_at,
-        quality_score: Number(v.quality_score || 95),
-        content_count: Number(v.content_count || 40),
+        quality_score: Number(v.snapshot?.quality_score || 95),
+        content_count: Number(v.snapshot?.mcqs?.length || 40),
         change_summary: v.change_summary,
         generation_reason: v.generation_reason,
         snapshot: v.snapshot || {},

@@ -152,9 +152,12 @@ export async function getExamStyleAndPattern(
       nameLower.includes('pte') ||
       nameLower.includes('celpip') ||
       nameLower.includes('oet') ||
+      nameLower.includes('jlpt') ||
+      nameLower.includes('japanese') ||
       nameLower.includes('english') ||
       nameLower.includes('language') ||
       descLower.includes('language proficiency') ||
+      descLower.includes('japanese') ||
       descLower.includes('linguistics');
 
     const isEducation =
