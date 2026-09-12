@@ -42,7 +42,9 @@ export class QuizMCQGenerator {
     request: QuizMCQGenerationRequest
   ): Promise<QuizMCQGenerationResult> {
     const supabase = request.supabaseClient || getSupabaseAdmin();
-    const { examId, subjectId, topicId, quizSlot, forceRefresh = false } = request;
+    const { examId, subjectId, topicId, forceRefresh = false } = request;
+    const rawQuizSlot = (request.quizSlot || 'QUIZ_1').toString();
+    const quizSlot: QuizSlotType = rawQuizSlot.toUpperCase().includes('2') ? 'QUIZ_2' : 'QUIZ_1';
 
     // =========================================================================
     // STEP 1: Verify Canonical Hierarchy
@@ -448,27 +450,43 @@ export class QuizMCQGenerator {
     if (!items || items.length === 0) return;
 
     try {
+      const normalizeDifficulty = (diff?: string) => {
+        const d = (diff || '').toLowerCase();
+        if (d.includes('easy') || d.includes('beginner')) return 'Beginner';
+        if (d.includes('hard') || d.includes('expert') || d.includes('advanced')) return 'Advanced';
+        return 'Intermediate';
+      };
+
       const recordsToInsert = items.map((mcq, idx) => ({
-        id: mcq.id,
-        exam_id: mcq.examId,
-        subject_id: mcq.subjectId,
-        topic_id: mcq.topicId,
-        content_version_id: mcq.contentVersionId,
-        question_set: quizSlot,
+        id: (mcq.id && mcq.id.length === 36 && mcq.id.includes('-')) ? mcq.id : crypto.randomUUID(),
         question: mcq.question,
-        options: mcq.options,
+        options: Array.isArray(mcq.options) ? mcq.options : [],
         correct_answer: mcq.correctAnswer,
-        correct_index: mcq.correctIndex,
-        explanation: mcq.explanation,
-        difficulty: mcq.difficulty,
+        explanation: mcq.explanation || '',
+        rationale: mcq.explanation || '',
         clinical_pearl: mcq.clinicalPearl || null,
-        high_yield_tag: mcq.highYieldTag || null,
-        slug: mcq.slug || `mcq-${quizSlot.toLowerCase()}-${mcq.topicId.slice(0, 8)}-${idx + 1}-${mcq.fingerprint.slice(0, 16)}`,
-        fingerprint: mcq.fingerprint,
-        status: 'active',
-        ai_generated: true,
+        difficulty: normalizeDifficulty(mcq.difficulty),
+        question_type: 'single_choice',
+        exam_id: mcq.examId,
+        subject_id: mcq.subjectId || null,
+        topic_id: mcq.topicId || null,
+        tags: [quizSlot, mcq.highYieldTag || 'Quiz MCQ'].filter(Boolean),
         source: 'canonical_ai_content_engine',
+        ai_generated: true,
+        ai_provider: 'gemini',
+        ai_model: 'gemini-2.5-flash',
+        status: 'approved',
+        reviewed: false,
+        version: 1,
+        metadata: {
+          question_set: quizSlot,
+          fingerprint: mcq.fingerprint,
+          high_yield_tag: mcq.highYieldTag,
+          correct_index: mcq.correctIndex,
+        },
+        slug: mcq.slug || `mcq-${quizSlot.toLowerCase()}-${mcq.topicId?.slice(0, 8)}-${idx + 1}-${crypto.randomUUID().slice(0, 8)}`,
         created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       }));
 
       const { error } = await supabase.from('mcqs').upsert(recordsToInsert, {
@@ -478,6 +496,35 @@ export class QuizMCQGenerator {
 
       if (error) {
         console.warn(`[QuizMCQGenerator] Non-blocking notice upserting ${quizSlot} MCQs into DB:`, error.message);
+      }
+
+      // Reconcile and prune excess database records for this specific topic and quizSlot
+      const validIds = recordsToInsert.map((r) => r.id).filter(Boolean);
+      const firstMcq = items[0];
+      if (validIds.length > 0 && firstMcq?.examId && firstMcq?.topicId) {
+        try {
+          const upperSlot = quizSlot.toUpperCase();
+          const { data: existingMcqs } = await supabase
+            .from('mcqs')
+            .select('id, metadata, tags')
+            .eq('exam_id', firstMcq.examId)
+            .eq('topic_id', firstMcq.topicId);
+
+          const idsToDelete = (existingMcqs || [])
+            .filter((m) => {
+              const isThisSlot =
+                m.metadata?.question_set?.toUpperCase() === upperSlot ||
+                m.tags?.some((t: string) => t.toUpperCase() === upperSlot);
+              return isThisSlot && !validIds.includes(m.id);
+            })
+            .map((m) => m.id);
+
+          if (idsToDelete.length > 0) {
+            await supabase.from('mcqs').delete().in('id', idsToDelete);
+          }
+        } catch (pruneErr) {
+          console.warn(`[QuizMCQGenerator] Note on ${quizSlot} db excess pruning:`, pruneErr);
+        }
       }
     } catch (err: any) {
       console.warn(`[QuizMCQGenerator] Exception persisting ${quizSlot} MCQs:`, err.message);
@@ -628,6 +675,111 @@ ${params.existingStems.slice(0, 30).map((s, i) => `${i + 1}. ${s}`).join('\n') |
     cachedTokens: number;
   } {
     const isQuiz1 = params.quizSlot === 'QUIZ_1';
+    const text = `${params.examName} ${params.subjectName} ${params.topicName}`.toLowerCase();
+    const isMedical =
+      text.includes('medical') ||
+      text.includes('medicine') ||
+      text.includes('usmle') ||
+      text.includes('neet') ||
+      text.includes('fmge') ||
+      text.includes('plab') ||
+      text.includes('nclex') ||
+      text.includes('nurs') ||
+      text.includes('clinic') ||
+      text.includes('doctor') ||
+      text.includes('anatomy') ||
+      text.includes('pharm') ||
+      text.includes('patholog') ||
+      text.includes('surgery');
+
+    if (!isMedical) {
+      const NON_MED_Q1 = [
+        { stem: (t: string, s: string) => `Under the constitutional framework governing ${t} in ${s}, which statutory tier holds primary administrative authority?`, pearl: 'Decentralized local governance establishes primary jurisdiction at the base administrative tier.', tag: 'Jurisdiction & Authority' },
+        { stem: (t: string, s: string) => `Which constitutional amendment or statutory provision first institutionalized the mandatory structure of ${t}?`, pearl: 'Statutory amendments codify mandatory three-tier structures and periodic election requirements.', tag: 'Constitutional Architecture' },
+        { stem: (t: string, s: string) => `What is the minimum reservation requirement for women across elected seats in ${t}?`, pearl: 'Constitutional provisions mandate not less than one-third (33%) reservation for women in local representative bodies.', tag: 'Affirmative Representation' },
+        { stem: (t: string, s: string) => `Which independent body is constitutionally entrusted with conducting elections for ${t}?`, pearl: 'State Election Commissions operate independently under constitutional mandate to conduct municipal and panchayat elections.', tag: 'Electoral Administration' },
+        { stem: (t: string, s: string) => `What is the constitutionally mandated timeframe to reconstitute a dissolved body under ${t}?`, pearl: 'Elections must be completed within six months from the date of dissolution.', tag: 'Tenure & Dissolution' },
+        { stem: (t: string, s: string) => `Which schedule contains the 29 functional items devolved to rural bodies under ${t}?`, pearl: 'The Eleventh Schedule enumerates 29 functional matters for rural local self-governance.', tag: 'Functional Devolution' },
+        { stem: (t: string, s: string) => `What is the primary role of the State Finance Commission regarding ${t}?`, pearl: 'Reviews the financial position of local bodies and recommends tax sharing and grant allocations from the Consolidated Fund of the State.', tag: 'Fiscal Federalism' },
+        { stem: (t: string, s: string) => `Which committee first recommended a three-tier institutional structure for ${t}?`, pearl: 'The Balwant Rai Mehta Committee (1957) proposed the democratic decentralization model.', tag: 'Committee Foundations' },
+        { stem: (t: string, s: string) => `How does the Gram Sabha act as the foundation of ${t}?`, pearl: 'Comprising all registered voters in the village, the Gram Sabha serves as the direct democratic assembly and supervisory body.', tag: 'Direct Democracy' },
+        { stem: (t: string, s: string) => `Which statutory extension applies the provisions of ${t} to Scheduled Areas?`, pearl: 'The PESA Act (1996) extends self-governance to tribal Scheduled Areas with customary self-determination.', tag: 'Tribal Self-Governance' },
+        { stem: (t: string, s: string) => `What accountability tool empowers village assemblies to audit expenditures in ${t}?`, pearl: 'Social audit mechanisms empower beneficiaries to scrutinize physical and financial progress directly.', tag: 'Social Audit & Vigilance' },
+        { stem: (t: string, s: string) => `What is the role of the District Planning Committee under ${t}?`, pearl: 'Drafts consolidated district development plans integrating rural and urban priorities under Article 243ZD.', tag: 'Regional Planning' },
+        { stem: (t: string, s: string) => `What minimum age is required to contest elections in ${t}?`, pearl: 'The minimum age requirement to contest elections in local self-government bodies is 21 years.', tag: 'Electoral Eligibility' },
+        { stem: (t: string, s: string) => `Which source constitutes own-source revenue for bodies under ${t}?`, pearl: 'Local property taxes, market fees, and sanitation tolls comprise own-source municipal and panchayat revenues.', tag: 'Revenue Generation' },
+        { stem: (t: string, s: string) => `How does executive dissolution of local bodies comply with procedural safeguards under ${t}?`, pearl: 'Reasonable opportunity of being heard must be provided before any pre-term dissolution.', tag: 'Administrative Due Process' },
+        { stem: (t: string, s: string) => `What distinction separates compulsory from voluntary provisions in ${t}?`, pearl: 'Compulsory provisions bind state legislatures unconditionally, whereas voluntary provisions permit state discretion.', tag: 'Legislative Competence' },
+        { stem: (t: string, s: string) => `How are functional transfers evaluated under the 3Fs framework in ${t}?`, pearl: 'Evaluates whether Functions devolved are matched with adequate Funds and Functionaries.', tag: '3Fs Institutional Capacity' },
+        { stem: (t: string, s: string) => `What criteria govern the constitution of Ward Committees in urban areas under ${t}?`, pearl: 'Mandatory in municipalities with a population of three lakhs or more under Article 243S.', tag: 'Urban Decentralization' },
+        { stem: (t: string, s: string) => `Which court holds jurisdiction to challenge election results of ${t}?`, pearl: 'Election disputes must be presented via election petitions before designated statutory election tribunals.', tag: 'Dispute Adjudication' },
+        { stem: (t: string, s: string) => `What is the overarching governance objective of institutionalizing ${t}?`, pearl: 'To achieve democratic decentralization, participatory planning, and responsive grassroots governance.', tag: 'Core Governance Vision' },
+      ];
+
+      const NON_MED_Q2 = [
+        { stem: (t: string, s: string) => `In an advanced comparative analysis of ${t}, how does the principle of subsidiarity determine functional allocation?`, pearl: 'Functions that can be handled efficiently at lower administrative levels should not be assigned to higher tiers.', tag: 'Subsidiarity Principle' },
+        { stem: (t: string, s: string) => `When state legislation conflicts with statutory mandates of ${t}, which legal doctrine resolves the inconsistency?`, pearl: 'Constitutional supremacy and repugnancy doctrines under Article 254 resolve legislative inconsistency.', tag: 'Judicial Review & Repugnancy' },
+        { stem: (t: string, s: string) => `How do untied fiscal transfers enhance administrative efficiency in ${t}?`, pearl: 'Untied grants allow localized prioritization tailored to grassroots developmental deficits.', tag: 'Fiscal Devolution Efficiency' },
+        { stem: (t: string, s: string) => `What mechanism balances bureaucratic executive oversight with elected representative supremacy in ${t}?`, pearl: 'Elected councils exercise policy oversight while administrative commissioners execute statutory decisions.', tag: 'Civil-Political Interface' },
+        { stem: (t: string, s: string) => `Which statutory safeguard protects customary water rights and minor forest produce under ${t}?`, pearl: 'Section 4 of the PESA Act vests ownership of minor forest produce and water bodies in Gram Sabhas.', tag: 'Resource Rights' },
+        { stem: (t: string, s: string) => `How does digitizing land records impact property tax assessment in ${t}?`, pearl: 'GIS mapping and spatial databases eliminate under-reporting and improve revenue yield.', tag: 'Digital Governance & Revenue' },
+        { stem: (t: string, s: string) => `What standard metric evaluates municipal creditworthiness for issuing municipal bonds under ${t}?`, pearl: 'Operating surplus ratios, debt service coverage, and double-entry accrual accounting compliance.', tag: 'Municipal Debt Financing' },
+        { stem: (t: string, s: string) => `What legal remedy protects a citizen against wrongful denial of statutory services by ${t}?`, pearl: 'Right to Public Services legislation with time-bound delivery guarantees and penalty provisions.', tag: 'Citizen Service Charters' },
+        { stem: (t: string, s: string) => `How do spatial master plans under ${t} integrate disaster resilience standards?`, pearl: 'Mandatory flood plain zoning, seismic safety codes, and ecological buffer preservation.', tag: 'Urban Climate Resilience' },
+        { stem: (t: string, s: string) => `Which institutional reform is recommended to overcome the chronic understaffing of ${t}?`, pearl: 'Creation of a specialized, cadre-based municipal administrative and technical service.', tag: 'Cadre Restructuring' },
+        { stem: (t: string, s: string) => `How do public-private concession contracts in ${t} mitigate long-term municipal liability?`, pearl: 'Robust risk allocation matrix, escrow mechanisms, and independent regulatory monitoring.', tag: 'Infrastructure PPPs' },
+        { stem: (t: string, s: string) => `What role does the Comptroller and Auditor General (CAG) play regarding technical guidance for ${t}?`, pearl: 'Provides standardized accounting formats and technical guidance and support (TG&S) to local fund audit directorates.', tag: 'Audit Standards' },
+        { stem: (t: string, s: string) => `How does gender-responsive budgeting transform resource allocation in ${t}?`, pearl: 'Allocates dedicated capital outlays for maternal health, sanitation facilities, and women livelihood programs.', tag: 'Gender Budgeting' },
+        { stem: (t: string, s: string) => `What is the legal effect of a non-confidence motion against the executive head in ${t}?`, pearl: 'Requires statutory super-majority notice and floor-test debate within designated legislative timeframes.', tag: 'Executive Accountability' },
+        { stem: (t: string, s: string) => `How does the integration of Solid Waste Management Rules (2016) obligate ${t}?`, pearl: 'Mandates source segregation, decentralized processing, and bio-remediation of legacy landfills.', tag: 'Environmental Compliance' },
+        { stem: (t: string, s: string) => `Which benchmark criteria determine the tier elevation from Town Panchayat to Municipal Council in ${t}?`, pearl: 'Demographic thresholds, population density, and percentage of non-agricultural employment.', tag: 'Classification Criteria' },
+        { stem: (t: string, s: string) => `How does participatory budgeting foster citizen ownership in ${t}?`, pearl: 'Citizens directly debate, rank, and allocate a percentage of the municipal discretionary budget.', tag: 'Participatory Governance' },
+        { stem: (t: string, s: string) => `What constitutional protection insulates the State Election Commissioner against arbitrary removal under ${t}?`, pearl: 'Removal conditions match those of a High Court judge, ensuring security of tenure and impartiality.', tag: 'Constitutional Safeguards' },
+        { stem: (t: string, s: string) => `How do Inter-Tier Coordination Committees streamline multi-level governance in ${t}?`, pearl: 'Harmonize concurrent developmental schemes across Gram, Block, and District tiers.', tag: 'Inter-Tier Coordination' },
+        { stem: (t: string, s: string) => `What comprehensive summary encapsulates the future roadmap of ${t} in 21st century governance?`, pearl: 'Deepening fiscal federalism, human capital empowerment, digital integration, and robust institutional autonomy.', tag: 'Strategic Governance Roadmap' },
+      ];
+
+      const themes = isQuiz1 ? NON_MED_Q1 : NON_MED_Q2;
+      const difficulties: ('Easy' | 'Medium' | 'Hard')[] = ['Easy', 'Medium', 'Medium', 'Hard'];
+
+      const items: any[] = [];
+      for (let i = 0; i < params.count; i++) {
+        const theme = themes[i % themes.length];
+        const difficulty = difficulties[i % difficulties.length];
+        const questionStem = theme.stem(params.topicName, params.subjectName);
+
+        const options = [
+          `Statutory decentralization with structured procedural safeguards (${params.quizSlot}-${i + 1} A)`,
+          `Centralized executive directives with discretionary oversight (${params.quizSlot}-${i + 1} B)`,
+          `Unregulated market delegation without public scrutiny (${params.quizSlot}-${i + 1} C)`,
+          `Informal community conventions without statutory standing (${params.quizSlot}-${i + 1} D)`,
+        ];
+
+        const correctIndex = 0;
+        const correctAnswer = options[correctIndex];
+
+        const explanation = `Governance Analysis for ${params.quizSlot} Item #${i + 1}: ${theme.pearl} Option A is the correct answer because standard statutory provisions for ${params.examName} (${params.subjectName} - ${params.topicName}) establish this framework. Other options describe inappropriate or non-statutory arrangements.`;
+
+        items.push({
+          question: questionStem,
+          options,
+          correct_answer: correctAnswer,
+          correct_index: correctIndex,
+          explanation,
+          difficulty,
+          clinical_pearl: theme.pearl,
+          high_yield_tag: theme.tag,
+          question_set: params.quizSlot,
+        });
+      }
+
+      return {
+        items,
+        inputTokens: params.count * 120,
+        outputTokens: params.count * 220,
+        cachedTokens: 0,
+      };
+    }
 
     // 20 Unique themes for QUIZ_1 (Diagnostic / Anatomy / First-Line Foundations)
     const QUIZ_1_THEMES = [

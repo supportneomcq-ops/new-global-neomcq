@@ -172,13 +172,13 @@ Provide 5 to 10 canonical subjects based strictly on the official syllabus.`
         name: 'General Core Foundations',
         description: `Foundational syllabus content for ${examName}`,
         weight: 30,
-        topics: ['Core Principles & Definitions', 'Standard Methodologies', 'Clinical & Practical Applications'],
+        topics: ['Core Principles & Definitions', 'Standard Methodologies', 'Applied & Practical Applications'],
       },
       {
         name: 'Advanced Practice & Problem Solving',
         description: `Advanced domain questions and problem sets for ${examName}`,
         weight: 35,
-        topics: ['Complex Case Scenarios', 'Diagnostic & Decision Frameworks', 'High-Frequency Exam Traps'],
+        topics: ['Complex Case Scenarios', 'Analytical & Decision Frameworks', 'High-Frequency Exam Traps'],
       },
       {
         name: 'Ethics, Regulations & Standards',

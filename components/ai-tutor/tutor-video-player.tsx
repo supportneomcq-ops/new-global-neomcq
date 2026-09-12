@@ -508,12 +508,12 @@ export function TutorVideoPlayer({
                       ))}
                     </div>
 
-                    {/* Clinical Pearls or Exam Relevance Footer */}
+                    {/* High-Yield Pearls or Exam Relevance Footer */}
                     {currentScene?.clinicalPearls && currentScene.clinicalPearls.length > 0 && (
                       <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-800/60 text-xs text-amber-200 font-medium space-y-1">
                         <div className="font-bold flex items-center gap-1.5 text-amber-300">
                           <Lightbulb className="w-3.5 h-3.5" />
-                          <span>Clinical Pearl</span>
+                          <span>High-Yield Exam Pearl</span>
                         </div>
                         <p>{currentScene.clinicalPearls[0]}</p>
                       </div>

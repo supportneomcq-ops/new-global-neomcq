@@ -40,6 +40,9 @@ export default async function PublicTopicPage({ params }: PageProps) {
   }
 
   const { exam, subject, topic } = result;
+  const isMedical = Boolean(
+    (exam.name || exam.category || subject.name || topic.name || '').toLowerCase().match(/medical|medicine|usmle|neet|fmge|plab|nclex|nurs|clinic|doctor/)
+  );
   const { mcqs: sampleMcqs, total: mcqsTotal } = await getPublicTopicMcqs({
     topicId: topic.id,
     examId: exam.id,
@@ -75,7 +78,9 @@ export default async function PublicTopicPage({ params }: PageProps) {
             </h1>
             <p className="text-base text-slate-300 leading-relaxed">
               {topic.description ||
-                `Master high-yield concepts, clinical vignettes, and diagnostic pearls for ${topic.name} under ${subject.name}.`}
+                (isMedical
+                  ? `Master high-yield concepts, clinical vignettes, and diagnostic pearls for ${topic.name} under ${subject.name}.`
+                  : `Master high-yield concepts, authentic practice questions, and key insights for ${topic.name} under ${subject.name}.`)}
             </p>
           </div>
 
@@ -138,28 +143,53 @@ export default async function PublicTopicPage({ params }: PageProps) {
             <section className="p-6 sm:p-8 rounded-3xl bg-[#0D1326] border border-slate-800 space-y-4">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-indigo-400" />
-                Key Diagnostic & Board Concepts
+                {isMedical ? 'Key Diagnostic & Board Concepts' : 'Key Exam & Mastery Concepts'}
               </h2>
 
               <ul className="space-y-3 text-xs sm:text-sm text-slate-300">
-                <li className="flex items-start gap-2.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-2 shrink-0" />
-                  <span>
-                    <strong>First-line Diagnostic Criteria:</strong> Always correlate clinical presentation with specific pathognomonic biomarkers before initiating therapy.
-                  </span>
-                </li>
-                <li className="flex items-start gap-2.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-2 shrink-0" />
-                  <span>
-                    <strong>Common Board Traps:</strong> Be mindful of distractor options describing contraindicated monotherapies or outdated empirical protocols.
-                  </span>
-                </li>
-                <li className="flex items-start gap-2.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-2 shrink-0" />
-                  <span>
-                    <strong>Multi-tier Rationale:</strong> Review each distractor to master the differential diagnosis and mechanisms of action.
-                  </span>
-                </li>
+                {isMedical ? (
+                  <>
+                    <li className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-2 shrink-0" />
+                      <span>
+                        <strong>First-line Diagnostic Criteria:</strong> Always correlate clinical presentation with specific pathognomonic biomarkers before initiating therapy.
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-2 shrink-0" />
+                      <span>
+                        <strong>Common Board Traps:</strong> Be mindful of distractor options describing contraindicated monotherapies or outdated empirical protocols.
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-2 shrink-0" />
+                      <span>
+                        <strong>Multi-tier Rationale:</strong> Review each distractor to master the differential diagnosis and mechanisms of action.
+                      </span>
+                    </li>
+                  </>
+                ) : (
+                  <>
+                    <li className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-2 shrink-0" />
+                      <span>
+                        <strong>Core Analytical Framework:</strong> Correlate factual fundamentals with conceptual patterns before arriving at the conclusion.
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-2 shrink-0" />
+                      <span>
+                        <strong>Common Exam Traps:</strong> Be mindful of plausible distractor options containing subtle inaccuracies or extreme qualifying statements.
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-2 shrink-0" />
+                      <span>
+                        <strong>Comprehensive Rationale:</strong> Review each option's explanation to solidify conceptual mastery and syllabus linkages.
+                      </span>
+                    </li>
+                  </>
+                )}
               </ul>
             </section>
           </div>

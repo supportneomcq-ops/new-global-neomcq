@@ -790,33 +790,79 @@ Return JSON matching the schema.
     if (!mcqs || mcqs.length === 0) return;
 
     try {
-      const rows = mcqs.map((m) => ({
-        id: m.id,
-        exam_id: m.examId,
-        subject_id: m.subjectId,
-        topic_id: m.topicId,
-        content_version_id: m.contentVersionId,
-        question_set: m.questionSet || 'MAIN',
+      const normalizeDifficulty = (diff?: string) => {
+        const d = (diff || '').toLowerCase();
+        if (d.includes('easy') || d.includes('beginner')) return 'Beginner';
+        if (d.includes('hard') || d.includes('expert') || d.includes('advanced')) return 'Advanced';
+        return 'Intermediate';
+      };
+
+      const rows = mcqs.map((m, idx) => ({
+        id: (m.id && m.id.length === 36 && m.id.includes('-')) ? m.id : crypto.randomUUID(),
         question: m.question,
-        options: m.options,
+        options: Array.isArray(m.options) ? m.options : [],
         correct_answer: m.correctAnswer,
-        correct_index: m.correctIndex,
-        explanation: m.explanation,
-        difficulty: m.difficulty,
+        explanation: m.explanation || '',
+        rationale: m.explanation || '',
         clinical_pearl: m.clinicalPearl || null,
-        high_yield_tag: m.highYieldTag || null,
-        fingerprint: m.fingerprint,
-        ai_generated: true,
+        difficulty: normalizeDifficulty(m.difficulty),
+        question_type: 'single_choice',
+        exam_id: m.examId,
+        subject_id: m.subjectId || null,
+        topic_id: m.topicId || null,
+        tags: [m.highYieldTag || 'Main MCQ'].filter(Boolean),
         source: 'canonical_ai_content_engine',
-        slug: m.slug,
-        status: 'active',
+        ai_generated: true,
+        ai_provider: 'gemini',
+        ai_model: 'gemini-2.5-flash',
+        status: 'approved',
+        reviewed: false,
+        version: 1,
+        metadata: {
+          question_set: 'MAIN',
+          fingerprint: m.fingerprint,
+          high_yield_tag: m.highYieldTag,
+          correct_index: m.correctIndex,
+        },
+        slug: m.slug || `mcq-main-${m.topicId?.slice(0, 8)}-${idx + 1}-${crypto.randomUUID().slice(0, 8)}`,
         created_at: m.createdAt || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       }));
 
       // Insert or upsert into mcqs table
-      await supabase.from('mcqs').upsert(rows, { onConflict: 'slug' });
-    } catch (err) {
-      console.warn('[MainMCQGenerator] Non-blocking notice during MCQs database upsert:', err);
+      const { error } = await supabase.from('mcqs').upsert(rows, { onConflict: 'id' });
+      if (error) {
+        console.warn('[MainMCQGenerator] Non-blocking notice during MCQs database upsert:', error.message);
+      }
+
+      // Reconcile and prune excess database records for this specific topic and MAIN set
+      const validIds = rows.map((r) => r.id).filter(Boolean);
+      const firstMcq = mcqs[0];
+      if (validIds.length > 0 && firstMcq?.examId && firstMcq?.topicId) {
+        try {
+          const { data: existingMcqs } = await supabase
+            .from('mcqs')
+            .select('id, metadata, tags')
+            .eq('exam_id', firstMcq.examId)
+            .eq('topic_id', firstMcq.topicId);
+
+          const idsToDelete = (existingMcqs || [])
+            .filter((m) => {
+              const qSet = m.metadata?.question_set;
+              const isMain = !qSet || qSet === 'MAIN' || m.tags?.includes('MAIN') || m.tags?.includes('Main MCQ');
+              return isMain && !validIds.includes(m.id);
+            })
+            .map((m) => m.id);
+
+          if (idsToDelete.length > 0) {
+            await supabase.from('mcqs').delete().in('id', idsToDelete);
+          }
+        } catch (pruneErr) {
+          console.warn('[MainMCQGenerator] Note on MAIN mcqs db excess pruning:', pruneErr);
+        }
+      }
+    } catch (err: any) {
+      console.warn('[MainMCQGenerator] Non-blocking notice during MCQs database upsert:', err.message);
     }
   }
 }

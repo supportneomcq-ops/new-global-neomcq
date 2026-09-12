@@ -199,43 +199,75 @@ export class TutorDbService {
     const contentVersion = params.contentVersion || 1;
 
     try {
-      // 1. Upsert lesson row
-      const { data: dbLesson, error: lessonError } = await supabase
+      // 1. Check if existing lesson exists
+      let query = supabase
         .from('tutor_lessons')
-        .upsert(
-          {
-            exam_id: params.examId,
-            subject_id: params.subjectId,
-            topic_id: params.topicId,
-            subtopic_id: params.subtopicId || null,
-            content_version: contentVersion,
-            title: params.title,
-            subtitle: params.subtitle || null,
-            duration_seconds: params.durationSeconds,
-            total_scenes: params.scenes.length,
-            difficulty_level: params.difficultyLevel || 'Intermediate',
-            thumbnail_url: params.thumbnailUrl || null,
-            lesson_state: 'READY',
-            canonical_data: params.canonicalData || {},
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'exam_id, subject_id, topic_id, subtopic_id, content_version' }
-        )
-        .select('*')
-        .single();
+        .select('id')
+        .eq('exam_id', params.examId)
+        .eq('subject_id', params.subjectId)
+        .eq('topic_id', params.topicId)
+        .eq('content_version', contentVersion);
 
-      if (lessonError || !dbLesson) {
-        return { success: false, error: lessonError?.message || 'Failed to save tutor lesson record' };
+      if (params.subtopicId) {
+        query = query.eq('subtopic_id', params.subtopicId);
+      } else {
+        query = query.is('subtopic_id', null);
       }
 
-      const lessonId = dbLesson.id;
+      const { data: existingLesson } = await query.maybeSingle();
 
-      // Delete existing scenes and assets for clean replacement if re-generating
+      let lessonId: string;
+
+      const lessonPayload = {
+        exam_id: params.examId,
+        subject_id: params.subjectId,
+        topic_id: params.topicId,
+        subtopic_id: params.subtopicId || null,
+        content_version: contentVersion,
+        title: params.title,
+        subtitle: params.subtitle || null,
+        duration_seconds: params.durationSeconds,
+        total_scenes: params.scenes.length,
+        difficulty_level: params.difficultyLevel || 'Intermediate',
+        thumbnail_url: params.thumbnailUrl || null,
+        lesson_state: 'READY',
+        canonical_data: params.canonicalData || {},
+        updated_at: new Date().toISOString(),
+      };
+
+      if (existingLesson?.id) {
+        lessonId = existingLesson.id;
+        const { error: updateError } = await supabase
+          .from('tutor_lessons')
+          .update(lessonPayload)
+          .eq('id', lessonId);
+
+        if (updateError) {
+          return { success: false, error: updateError.message };
+        }
+      } else {
+        lessonId = crypto.randomUUID();
+        const { error: insertError } = await supabase
+          .from('tutor_lessons')
+          .insert({
+            id: lessonId,
+            created_at: new Date().toISOString(),
+            ...lessonPayload,
+          });
+
+        if (insertError) {
+          return { success: false, error: insertError.message };
+        }
+      }
+
+      // Delete existing scenes, assets, and voice metadata for clean replacement if re-generating
       await supabase.from('tutor_scenes').delete().eq('lesson_id', lessonId);
       await supabase.from('tutor_assets').delete().eq('lesson_id', lessonId);
+      await supabase.from('tutor_voice_metadata').delete().eq('lesson_id', lessonId);
 
       // 2. Insert scenes
       const sceneRows = params.scenes.map((scene) => ({
+        id: crypto.randomUUID(),
         lesson_id: lessonId,
         sequence_number: scene.sequenceNumber,
         title: scene.title,
@@ -250,6 +282,7 @@ export class TutorDbService {
         exam_relevance: scene.examRelevance || 'High Yield',
         clinical_pearls: scene.clinicalPearls || [],
         media_asset_ids: scene.mediaAssetIds || [],
+        created_at: new Date().toISOString(),
       }));
 
       const { error: sceneError } = await supabase.from('tutor_scenes').insert(sceneRows);
@@ -259,18 +292,36 @@ export class TutorDbService {
 
       // 3. Insert assets
       if (params.assets && params.assets.length > 0) {
-        const assetRows = params.assets.map((asset) => ({
+        const assetRows = params.assets.map((asset, idx) => ({
+          id: crypto.randomUUID(),
           lesson_id: lessonId,
-          scene_id: asset.sceneId || null,
+          scene_id: (sceneRows[idx] ? sceneRows[idx].id : sceneRows[0]?.id) || null,
           asset_type: asset.assetType,
           source_url: asset.sourceUrl,
           alt_text: asset.altText,
           caption: asset.caption || null,
           position_metadata: asset.positionMetadata || { x: 0, y: 0, margin: 16 },
           is_safe_rendering: true,
+          status: 'ready',
+          created_at: new Date().toISOString(),
         }));
         await supabase.from('tutor_assets').insert(assetRows);
       }
+
+      // 4. Insert default voice metadata for each scene
+      const voiceRows = sceneRows.map((sc) => ({
+        id: crypto.randomUUID(),
+        lesson_id: lessonId,
+        scene_id: sc.id,
+        voice_id: 'en-US-Neural2-F',
+        language_code: 'en-US',
+        speaking_rate: 1.0,
+        audio_url: null,
+        duration_ms: Math.round(sc.duration_seconds * 1000),
+        word_level_timestamps: [],
+        created_at: new Date().toISOString(),
+      }));
+      await supabase.from('tutor_voice_metadata').insert(voiceRows);
 
       return { success: true, lessonId };
     } catch (err: any) {

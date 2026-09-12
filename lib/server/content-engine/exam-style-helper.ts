@@ -144,6 +144,41 @@ export async function getExamStyleAndPattern(
       descLower.includes('defence') ||
       descLower.includes('general knowledge');
 
+    const isLanguage =
+      catSlug.includes('language') ||
+      catSlug.includes('linguistics') ||
+      nameLower.includes('ielts') ||
+      nameLower.includes('toefl') ||
+      nameLower.includes('pte') ||
+      nameLower.includes('celpip') ||
+      nameLower.includes('oet') ||
+      nameLower.includes('english') ||
+      nameLower.includes('language') ||
+      descLower.includes('language proficiency') ||
+      descLower.includes('linguistics');
+
+    const isEducation =
+      catSlug.includes('education') ||
+      catSlug.includes('teaching') ||
+      nameLower.includes('tet') ||
+      nameLower.includes('ctet') ||
+      nameLower.includes('lantite') ||
+      nameLower.includes('teacher') ||
+      descLower.includes('teacher education') ||
+      descLower.includes('pedagogy');
+
+    const isArchitecture =
+      catSlug.includes('architecture') ||
+      catSlug.includes('planning') ||
+      nameLower.includes('architecture') ||
+      nameLower.includes('nata');
+
+    const isAgriculture =
+      catSlug.includes('agriculture') ||
+      catSlug.includes('agri') ||
+      nameLower.includes('agriculture') ||
+      nameLower.includes('icar');
+
     const isIQ = 
       nameLower.includes('iq') || 
       nameLower.includes('gre') || 
@@ -158,6 +193,16 @@ export async function getExamStyleAndPattern(
       role = 'Lead Medical Content Director and Chief Board Exam Author';
       styleDescription = 'Every question must be a realistic clinical scenario, case-based vignette, or high-yield medical reasoning stem (25-80 words). Incorporate clinical findings, labs, and diagnostic pathways where relevant.';
       notesInstruction = 'clinical/anatomical/medical format: include topicOverview, learningObjectives, keyConcepts, importantDefinitions, mechanismsOrPathophysiology, classifications, clinicalFeatures, diagnosisAndInvestigation, management, highYieldFacts, examPearls, and summary.';
+    } else if (isLanguage) {
+      domain = 'language';
+      role = 'Senior Linguist and International Language Examination Board Director';
+      styleDescription = 'Every question must evaluate grammar, syntax, lexical resource, reading comprehension, discourse analysis, context interpretation, or language proficiency benchmarks.';
+      notesInstruction = 'language and linguistics format: focus on grammatical rules, vocabulary matrices, syntax structures, phonology, idioms/collocations, reading strategies, error identification rules, and exam revision pearls.';
+    } else if (isEducation) {
+      domain = 'education';
+      role = 'Distinguished Professor of Pedagogy and Teacher Examination Board Examiner';
+      styleDescription = 'Every question must evaluate educational psychology, curriculum design, classroom pedagogy, child development, assessment methods, or teaching competency standards.';
+      notesInstruction = 'education and pedagogy format: focus on learning theories, developmental stages, instructional design, pedagogical strategies, classroom management principles, diagnostic assessment models, and high-yield exam pearls.';
     } else if (isEngineering) {
       domain = 'engineering';
       role = 'Senior Engineering Professor and Technical Certification Author';
@@ -178,6 +223,16 @@ export async function getExamStyleAndPattern(
       role = 'Chief Academic Curriculum Designer for Civil Services and Government Exams';
       styleDescription = 'Every question must represent highly rigorous general awareness, history, polity, geography, socio-economic context, or public administration. Stems must be precise, authoritative, factual, and deeply reasoned, testing profound civil/general awareness.';
       notesInstruction = 'civil services and general knowledge format: focus on historical timelines, constitutional frameworks, administrative structures, geographic variables, socio-economic trends, international affairs, core facts, and exam revision highlights.';
+    } else if (isArchitecture) {
+      domain = 'architecture';
+      role = 'Professor of Architecture and Urban Planning Examination Director';
+      styleDescription = 'Every question must evaluate architectural history, building construction materials, structural mechanics, urban planning principles, zoning laws, environmental design, or visual-spatial reasoning.';
+      notesInstruction = 'architecture and planning format: focus on structural principles, building materials, historical movements, zoning/building codes, sustainable design metrics, drafting conventions, and key exam pearls.';
+    } else if (isAgriculture) {
+      domain = 'agriculture';
+      role = 'Senior Agricultural Scientist and National Examination Specialist';
+      styleDescription = 'Every question must evaluate agronomy, soil science, crop genetics, plant pathology, agricultural economics, or farming technology with precise scientific grounding.';
+      notesInstruction = 'agricultural sciences format: focus on crop physiology, soil nutrient dynamics, pest management strategies, genetic breeding principles, agribusiness economics, and exam pearls.';
     } else if (isIQ) {
       domain = 'iq';
       role = 'Senior Psychometrician and Cognitive Assessment Designer';

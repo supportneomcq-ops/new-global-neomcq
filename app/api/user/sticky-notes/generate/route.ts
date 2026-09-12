@@ -121,7 +121,7 @@ Each sticky note MUST focus on a distinct category from this list, adapted to th
 Return strictly a JSON array of objects with the following schema:
 [
   {
-    "title": "Short punchy title (max 5 words, e.g., 'DIAGNOSTIC TRIAD', 'FIRST-LINE RX', 'BOARD TRAP')",
+    "title": "Short punchy title (max 5 words, e.g., 'KEY PRINCIPLE', 'EXAM TRAP', 'CORE RULE', 'CRITICAL TIMELINE')",
     "text": "Clear, concise 1 to 3 sentence high-yield summary or mnemonic.",
     "category": "one of the category keys above",
     "color": "one of: 'yellow', 'amber', 'pink', 'violet', 'green', 'blue', 'orange'",

@@ -144,12 +144,12 @@ export function PracticeCbtView({
       // 2. Fetch specific questions associated with topic from real `mcqs` table
       const { data: qData, error: qErr } = await supabase
         .from('mcqs')
-        .select('id, question, options, correct_answer, explanation, clinical_pearl, difficulty, high_yield_tag, version')
+        .select('id, question, options, correct_answer, explanation, clinical_pearl, difficulty, tags, metadata, version')
         .eq('topic_id', activeTopicId)
         .order('id', { ascending: true });
 
       if (qErr) throw qErr;
-      const parsedMcqs: DBMCQ[] = (qData || []).map((q) => ({
+      const parsedMcqs: DBMCQ[] = (qData || []).map((q: any) => ({
         id: q.id,
         question: q.question,
         options: Array.isArray(q.options) ? q.options : [],
@@ -157,7 +157,7 @@ export function PracticeCbtView({
         explanation: q.explanation,
         clinical_pearl: q.clinical_pearl || undefined,
         difficulty: q.difficulty || undefined,
-        high_yield_tag: q.high_yield_tag || undefined,
+        high_yield_tag: q.metadata?.high_yield_tag || (Array.isArray(q.tags) ? q.tags[0] : undefined),
         version: q.version || 1,
       }));
       setDbMcqs(parsedMcqs);
@@ -508,8 +508,8 @@ export function PracticeCbtView({
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-xl">
               {isQuizMode
-                ? 'Practice non-overlapping clinical assessment challenges designed to identify knowledge gaps.'
-                : 'Master guideline-directed clinical diagnosis and medical decision tree rationale step-by-step.'}
+                ? 'Practice focused assessment challenges designed to identify and bridge knowledge gaps.'
+                : 'Master curriculum-aligned questions and step-by-step problem-solving rationale.'}
             </p>
           </div>
 
@@ -618,7 +618,7 @@ export function PracticeCbtView({
                             </p>
                             <div className="flex items-center gap-1.5 mt-0.5">
                               <span className="text-[10px] font-semibold text-slate-400">
-                                40 Clinical Vignettes
+                                40 Master Practice MCQs
                               </span>
                               <span className="text-slate-300 dark:text-slate-700">•</span>
                               <span
@@ -922,12 +922,12 @@ export function PracticeCbtView({
                     </div>
                   </div>
 
-                  {/* Clinical Pearl Box */}
+                  {/* Key Insight / Pearl Box */}
                   {currentQ.clinical_pearl && (
                     <div className="p-4 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 space-y-1.5">
                       <div className="flex items-center gap-1.5 text-xs font-black text-amber-800 dark:text-amber-300">
                         <Sparkles className="w-4 h-4 text-amber-500 fill-amber-500" />
-                        <span>Clinical Pearl & Board Exam Concept</span>
+                        <span>High-Yield Insight & Core Concept</span>
                       </div>
                       <p className="text-xs text-amber-900 dark:text-amber-200 leading-relaxed font-semibold">
                         {currentQ.clinical_pearl}

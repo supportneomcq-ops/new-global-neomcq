@@ -442,39 +442,39 @@ Return ONLY a valid JSON array of objects with the following structure:
       }
 
       if (!parsed || !Array.isArray(parsed) || parsed.length === 0) {
-        // High-quality grounded fallback curriculum structure matching standard medical/general tests
+        // High-quality grounded fallback curriculum structure matching universal academic and professional tests
         parsed = [
           {
-            name: "Clinical Foundations & Principles",
+            name: "Core Foundations & Principles",
             description: "Essential foundational principles and methodologies.",
-            weight: 35,
+            weight: 40,
             topics: [
               {
-                name: "Cellular & Tissue Pathologies",
-                description: "Analysis of cell necrosis, infarction, and physiological adaptation.",
-                subtopics: ["Infarction Pathophysiology", "Myocardial Necrosis Markers", "ECG Lead Changes"]
+                name: "Fundamental Concepts & Frameworks",
+                description: "Analysis of foundational standards, definitions, and core methodologies.",
+                subtopics: ["Core Theoretical Principles", "Analytical Frameworks", "Standard Domain Formulations"]
               },
               {
-                name: "Standard Diagnostic Frameworks",
-                description: "Standard diagnostic criteria and guidelines.",
-                subtopics: ["Standard Diagnostic Criteria", "Initial Management Protocol"]
+                name: "Standard Methodologies & Guidelines",
+                description: "Standard procedural criteria, regulatory baselines, and assessment rules.",
+                subtopics: ["Standard Assessment Criteria", "Core Implementation Protocols"]
               }
             ]
           },
           {
-            name: "Specialized Applied Practice",
-            description: "Practical clinical and scientific application workflows.",
-            weight: 65,
+            name: "Advanced Applied Practice & Analysis",
+            description: "Practical scenarios, complex problem solving, and professional execution workflows.",
+            weight: 60,
             topics: [
               {
-                name: "Advanced Patient Diagnosis",
-                description: "Comprehensive case analysis and diagnostic pathways.",
-                subtopics: ["Complex Case Interpretations", "Risk Stratification Scales"]
+                name: "Applied Analysis & Problem Solving",
+                description: "Comprehensive case analysis, practical problem-solving, and decision criteria.",
+                subtopics: ["Complex Problem Analysis", "Decision Trees & Risk Evaluation"]
               },
               {
-                name: "Integrated Patient Management",
-                description: "Full therapeutic workflows and follow-up standards.",
-                subtopics: ["Complication Management", "Long-term Follow-up Guidelines"]
+                name: "Integrated Applied Execution",
+                description: "Full operational workflows, quality assurance, and execution standards.",
+                subtopics: ["Critical Scenario Execution", "Long-term Performance Standards"]
               }
             ]
           }
@@ -625,9 +625,9 @@ Return ONLY a valid JSON object matching this schema:
             gaps: targetGaps.map((g, idx) => ({
               id: idx.toString(),
               subtopics: [
-                `${g.topicName} Pathogenesis`,
-                `Clinical Features of ${g.topicName}`,
-                `Diagnosis & Management of ${g.topicName}`,
+                `Core Principles of ${g.topicName}`,
+                `Key Concepts & Frameworks of ${g.topicName}`,
+                `Applied Problem Solving in ${g.topicName}`,
               ]
             }))
           }

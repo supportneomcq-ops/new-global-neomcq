@@ -39,6 +39,10 @@ export default async function PublicSubjectPage({ params }: PageProps) {
 
   const { exam, subject, topics } = result;
 
+  const isMedical = Boolean(
+    (exam.name || exam.category || subject.name || '').toLowerCase().match(/medical|medicine|usmle|neet|fmge|plab|nclex|nurs|clinic|doctor/)
+  );
+
   const breadcrumbs = [
     { name: exam.name, url: `/${exam.slug}` },
     { name: subject.name, url: `/${exam.slug}/${subject.slug}` },
@@ -69,7 +73,9 @@ export default async function PublicSubjectPage({ params }: PageProps) {
             </h1>
             <p className="text-base text-slate-300 leading-relaxed">
               {subject.description ||
-                `Master ${subject.name} with curated clinical question banks, diagnostic algorithms, and topic-wise revision summaries for ${exam.name}.`}
+                (isMedical
+                  ? `Master ${subject.name} with curated clinical question banks, diagnostic algorithms, and topic-wise revision summaries for ${exam.name}.`
+                  : `Master ${subject.name} with curated question banks, structured practice topics, and revision summaries for ${exam.name}.`)}
             </p>
           </div>
         </div>
@@ -107,7 +113,10 @@ export default async function PublicSubjectPage({ params }: PageProps) {
                       {top.name}
                     </h3>
                     <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
-                      {top.description || `High-yield questions and clinical pearls for ${top.name}.`}
+                      {top.description ||
+                        (isMedical
+                          ? `High-yield questions and clinical pearls for ${top.name}.`
+                          : `High-yield questions and key concepts for ${top.name}.`)}
                     </p>
                   </div>
 

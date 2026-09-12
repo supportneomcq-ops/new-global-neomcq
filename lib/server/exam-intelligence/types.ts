@@ -220,12 +220,14 @@ export interface ExamResolutionResponse {
       slug: string
       description: string | null
       weight_percentage?: number | null
+      display_order?: number | null
       order_index?: number | null
       exam_topics: Array<{
         id: string
         name: string
         slug: string
         description?: string | null
+        display_order?: number | null
         order_index?: number | null
         exam_subtopics?: Array<{
           id: string

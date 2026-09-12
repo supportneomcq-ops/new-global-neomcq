@@ -410,11 +410,11 @@ export function ActiveRecallCard({
               </div>
             </div>
 
-            {/* Pathophysiology & Clinical Rationale */}
+            {/* Pathophysiology & Core Rationale */}
             {item.explanation && (
               <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 space-y-1.5">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
-                  <BookOpen className="w-3.5 h-3.5" /> Clinical Rationale &amp; Mechanism
+                  <BookOpen className="w-3.5 h-3.5" /> Conceptual Rationale &amp; Key Mechanism
                 </h4>
                 <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
                   {item.explanation}

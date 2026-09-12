@@ -143,6 +143,23 @@ export class CanonicalFlashcardsGenerator {
     // Cache hit: If we already have the full valid target count and not forceRefresh -> Serve directly with $0 cost
     if (existingFlashcards.length >= targetCount && !forceRefresh) {
       const validSlice = existingFlashcards.slice(0, targetCount);
+      // Reconcile and prune excess database records if more than targetCount exist
+      if (existingFlashcards.length > targetCount) {
+        const keepIds = validSlice.map((c) => c.id).filter(Boolean);
+        if (keepIds.length > 0) {
+          try {
+            await supabase
+              .from('flashcards')
+              .delete()
+              .eq('exam_id', examId)
+              .eq('subject_id', subjectId)
+              .eq('topic_id', topicId)
+              .not('id', 'in', `(${keepIds.map((id) => `'${id}'`).join(',')})`);
+          } catch (pruneErr) {
+            console.warn('[CanonicalFlashcardsGenerator] Note on cache excess pruning:', pruneErr);
+          }
+        }
+      }
       return {
         success: true,
         servedFromCache: true,
@@ -401,6 +418,12 @@ export class CanonicalFlashcardsGenerator {
     supabase: any
   ): Promise<void> {
     try {
+      if (!cards || cards.length === 0) return;
+
+      const examId = cards[0].examId;
+      const subjectId = cards[0].subjectId;
+      const topicId = cards[0].topicId;
+
       // Map to database schema
       const dbRows = cards.map((c) => ({
         id: c.id,
@@ -425,6 +448,22 @@ export class CanonicalFlashcardsGenerator {
 
       if (error) {
         console.warn('[CanonicalFlashcardsGenerator] Warning persisting flashcards to DB:', error.message);
+      }
+
+      // Reconcile and prune excess database records if more than target cards exist
+      const validIds = cards.map((c) => c.id).filter(Boolean);
+      if (validIds.length > 0 && examId && subjectId && topicId) {
+        try {
+          await supabase
+            .from('flashcards')
+            .delete()
+            .eq('exam_id', examId)
+            .eq('subject_id', subjectId)
+            .eq('topic_id', topicId)
+            .not('id', 'in', `(${validIds.map((id) => `'${id}'`).join(',')})`);
+        } catch (pruneErr) {
+          console.warn('[CanonicalFlashcardsGenerator] Note on db excess pruning:', pruneErr);
+        }
       }
     } catch (err) {
       console.warn('[CanonicalFlashcardsGenerator] Error during flashcard db persistence:', err);
@@ -536,389 +575,245 @@ ${params.subtopicNames && params.subtopicNames.length > 0 ? `8. Subtopic Guidanc
     outputTokens: number;
     cachedTokens: number;
   } {
-    const { topicName, targetCount } = params;
+    const { examName, subjectName, topicName, targetCount } = params;
     const cards: any[] = [];
 
-    const coreConcepts = [
-      {
-        front: `What spinal nerve ventral rami form the anatomical roots of the ${topicName}?`,
-        back: `Ventral rami of cervical spinal nerves C5, C6, C7, C8, and T1.`,
-        explanation: `Emerges in the posterior triangle of the neck between the anterior and middle scalene muscles.`,
-        difficulty: 'Easy',
-        isHighYield: true,
-      },
-      {
-        front: `Which spinal roots merge to form the Upper Trunk of the Brachial Plexus?`,
-        back: `C5 and C6 roots.`,
-        explanation: `Upper trunk lesions cause Erb-Duchenne palsy (waiter's tip deformity).`,
-        difficulty: 'Easy',
-        isHighYield: true,
-      },
-      {
-        front: `Which spinal roots merge to form the Lower Trunk of the Brachial Plexus?`,
-        back: `C8 and T1 roots.`,
-        explanation: `Lower trunk lesions cause Klumpke palsy and associated Horner syndrome.`,
-        difficulty: 'Easy',
-        isHighYield: true,
-      },
-      {
-        front: `Which anatomical structures combine to form the Posterior Cord of the Brachial Plexus?`,
-        back: `The posterior divisions of all three trunks (Upper, Middle, and Lower).`,
-        explanation: `Gives rise to the axillary nerve, radial nerve, and subscapular nerves.`,
-        difficulty: 'Medium',
-        isHighYield: true,
-      },
-      {
-        front: `What is the pathognomonic clinical deformity seen in Erb-Duchenne Palsy (C5-C6)?`,
-        back: `Waiter's tip deformity (adducted shoulder, internally rotated arm, extended elbow, pronated forearm).`,
-        explanation: `Due to paralysis of abductors, lateral rotators, elbow flexors, and supinators.`,
-        difficulty: 'Medium',
-        isHighYield: true,
-      },
-      {
-        front: `What is the classic clinical deformity associated with Klumpke Palsy (C8-T1)?`,
-        back: `Total claw hand deformity (paralysis of all intrinsic hand muscles) and Horner syndrome.`,
-        explanation: `Often caused by upward traction on the upper limb during difficult delivery or grabbing a branch while falling.`,
-        difficulty: 'Medium',
-        isHighYield: true,
-      },
-      {
-        front: `Which major terminal branch arises from the Lateral Cord and supplies biceps brachii?`,
-        back: `Musculocutaneous nerve (C5-C7).`,
-        explanation: `Pierces coracobrachialis and supplies the anterior arm compartment muscles.`,
-        difficulty: 'Easy',
-        isHighYield: true,
-      },
-      {
-        front: `What nerve is injured in mid-shaft humeral shaft fractures (spiral groove)?`,
-        back: `Radial nerve (causing Wrist Drop and finger extensor paralysis with triceps sparing).`,
-        explanation: `The radial nerve travels in the spiral groove with the profunda brachii artery.`,
-        difficulty: 'Medium',
-        isHighYield: true,
-      },
-      {
-        front: `What is the classic motor deficit in Anterior Interosseous Nerve (AIN) syndrome?`,
-        back: `Inability to make the "OK" sign (Kiloh-Nevin sign) due to paralysis of FPL and index FDP.`,
-        explanation: `AIN is a pure motor branch of the median nerve in the proximal forearm.`,
-        difficulty: 'Hard',
-        isHighYield: true,
-      },
-      {
-        front: `Why is palmar cutaneous sensation over the thenar eminence preserved in Carpal Tunnel Syndrome?`,
-        back: `The palmar cutaneous branch of the median nerve passes superficial to the flexor retinaculum.`,
-        explanation: `Crucial distinguishing feature between carpal tunnel and proximal median entrapment (Pronator syndrome).`,
-        difficulty: 'Hard',
-        isHighYield: true,
-      },
-      {
-        front: `What is the "Ulnar Paradox" regarding claw hand severity in ulnar neuropathy?`,
-        back: `Higher lesions (at elbow) cause LESS apparent clawing than lower lesions (at wrist) due to loss of FDP flexor force.`,
-        explanation: `Loss of the medial half of FDP removes the strong IP flexion tone that produces clawing in distal lesions.`,
-        difficulty: 'Hard',
-        isHighYield: true,
-      },
-      {
-        front: `What muscle weakness is demonstrated by a positive Froment Sign in ulnar neuropathy?`,
-        back: `Adductor pollicis weakness, compensated by hyperflexion of the thumb IP joint via FPL (median nerve).`,
-        explanation: `Tests adductor pollicis function when holding a piece of paper between thumb and index finger.`,
-        difficulty: 'Hard',
-        isHighYield: true,
-      },
-      {
-        front: `What are the five terminal nerve branches of the Brachial Plexus?`,
-        back: `Musculocutaneous, Axillary, Radial, Median, and Ulnar nerves.`,
-        explanation: `Formed from the lateral, posterior, and medial cords surrounding the axillary artery.`,
-        difficulty: 'Easy',
-        isHighYield: true,
-      },
-      {
-        front: `Which nerve courses through Guyon canal adjacent to the pisiform bone?`,
-        back: `Ulnar nerve and ulnar artery.`,
-        explanation: `Compression at Guyon canal produces hypothenar/interossei weakness with sensory loss in digits 4 & 5.`,
-        difficulty: 'Medium',
-        isHighYield: true,
-      },
-      {
-        front: `What muscle is pierced by the Posterior Interosseous Nerve (PIN) at the Arcade of Frohse?`,
-        back: `Supinator muscle.`,
-        explanation: `PIN entrapment causes finger extensor weakness without cutaneous sensory loss.`,
-        difficulty: 'Hard',
-        isHighYield: true,
-      },
-      {
-        front: `What dermatomal area provides pure sensory testing for the Axillary Nerve?`,
-        back: `The "regimental badge" area over the lateral shoulder / deltoid muscle.`,
-        explanation: `Carried by the superior lateral cutaneous nerve of the arm.`,
-        difficulty: 'Medium',
-        isHighYield: true,
-      },
-      {
-        front: `Which nerve innervates the Serratus Anterior muscle and prevents winging of the scapula?`,
-        back: `Long Thoracic Nerve of Bell (roots C5, C6, C7).`,
-        explanation: `Runs along the lateral chest wall; vulnerable during axillary lymph node dissection or radical mastectomy.`,
-        difficulty: 'Medium',
-        isHighYield: true,
-      },
-      {
-        front: `Which nerve innervates the Latissimus Dorsi muscle for shoulder extension and adduction?`,
-        back: `Thoracodorsal nerve (Middle subscapular nerve, C6-C8) from the posterior cord.`,
-        explanation: `Tested clinically during coughing or forceful shoulder depression and backward extension.`,
-        difficulty: 'Medium',
-        isHighYield: true,
-      },
-      {
-        front: `What sensory deficit occurs in High Radial Nerve Palsy?`,
-        back: `Sensory loss over the first dorsal interosseous web space (anatomical snuffbox).`,
-        explanation: `Supplied by the superficial sensory branch of the radial nerve.`,
-        difficulty: 'Medium',
-        isHighYield: true,
-      },
-      {
-        front: `Which intrinsic hand muscles are innervated by the Median Nerve (mnemonic: "1/2 LOAF")?`,
-        back: `1st & 2nd Lumbricals, Opponens pollicis, Abductor pollicis brevis, and Flexor pollicis brevis (superficial head).`,
-        explanation: `All remaining intrinsic muscles of the hand are innervated by the deep branch of the ulnar nerve.`,
-        difficulty: 'Hard',
-        isHighYield: true,
-      },
-      {
-        front: `What anatomical landmark defines the border between the Axillary Artery and Brachial Artery?`,
-        back: `The lower border of the Teres Major muscle.`,
-        explanation: `At this landmark, the brachial plexus cords have completed division into terminal branches.`,
-        difficulty: 'Medium',
-        isHighYield: true,
-      },
-      {
-        front: `What condition presents with nocturnal hand paresthesias and positive Phalen maneuver?`,
-        back: `Carpal Tunnel Syndrome (median nerve compression beneath the transverse carpal ligament).`,
-        explanation: `Phalen test involves sustained wrist flexion for 60 seconds provoking numbness in digits 1-3.`,
-        difficulty: 'Easy',
-        isHighYield: true,
-      },
-      {
-        front: `Which muscle initiates shoulder abduction from 0 to 15 degrees before Deltoid takes over?`,
-        back: `Supraspinatus muscle (innervated by Suprascapular nerve, C5-C6).`,
-        explanation: `Deltoid (axillary nerve) continues abduction from 15 to 90 degrees; serratus anterior/trapezius > 90 degrees.`,
-        difficulty: 'Medium',
-        isHighYield: true,
-      },
-      {
-        front: `What is Wartenberg sign in ulnar nerve neuropathy?`,
-        back: `Involuntary abduction of the fifth digit due to unopposed action of the extensor digiti minimi.`,
-        explanation: `Result of weakness of the 3rd palmar interosseous muscle (PAD: palmar adducts).`,
-        difficulty: 'Hard',
-        isHighYield: true,
-      },
-      {
-        front: `What are the boundaries of the Cubital Tunnel at the elbow?`,
-        back: `Medial epicondyle anteriorly, olecranon laterally, and Osborne ligament (arcuate ligament) bridging the two heads of FCU.`,
-        explanation: `Site of ulnar nerve compression, aggravated by elbow flexion which narrows the tunnel volume.`,
-        difficulty: 'Hard',
-        isHighYield: true,
-      },
-      {
-        front: `What is a "Prefixed Brachial Plexus"?`,
-        back: `Anatomical variant where C4 root provides a major contribution and T1 contribution is reduced or absent.`,
-        explanation: `Occurs in approximately 15-20% of anatomical specimens.`,
-        difficulty: 'Hard',
-        isHighYield: false,
-      },
-      {
-        front: `What is a "Postfixed Brachial Plexus"?`,
-        back: `Anatomical variant where T2 root provides a major contribution and C4 is absent.`,
-        explanation: `Can increase susceptibility to thoracic outlet syndrome due to lower trunk angulation over the first rib.`,
-        difficulty: 'Hard',
-        isHighYield: false,
-      },
-      {
-        front: `Which nerve is tested by assessing sensation over the medial aspect of the forearm?`,
-        back: `Medial Cutaneous Nerve of the Forearm (C8-T1, branch of medial cord).`,
-        explanation: `Pierces deep fascia alongside the basilic vein in the mid-arm.`,
-        difficulty: 'Medium',
-        isHighYield: true,
-      },
-      {
-        front: `Which nerve supplies the Coracobrachialis muscle?`,
-        back: `Musculocutaneous nerve (C5-C7).`,
-        explanation: `The nerve actually pierces directly through the belly of coracobrachialis.`,
-        difficulty: 'Medium',
-        isHighYield: true,
-      },
-      {
-        front: `What is the primary action of the Dorsal Interossei muscles of the hand (mnemonic: "DAB")?`,
-        back: `Abduction of digits 2, 3, and 4 away from the midline of the middle finger.`,
-        explanation: `Four dorsal interossei muscles, all innervated by the deep branch of the ulnar nerve (C8-T1).`,
-        difficulty: 'Medium',
-        isHighYield: true,
-      },
-      {
-        front: `What is the primary action of the Palmar Interossei muscles of the hand (mnemonic: "PAD")?`,
-        back: `Adduction of digits 2, 4, and 5 toward the midline of the middle finger.`,
-        explanation: `Three (or four) palmar interossei, all supplied by the ulnar nerve.`,
-        difficulty: 'Medium',
-        isHighYield: true,
-      },
-      {
-        front: `What neurological finding confirms Saturday Night Palsy?`,
-        back: `Wrist drop and finger drop with preserved triceps reflex (compression occurs distal to radial branches to triceps).`,
-        explanation: `Compressive neuropraxia at the spiral groove after sleeping with the arm draped over a hard chair back.`,
-        difficulty: 'Medium',
-        isHighYield: true,
-      },
-      {
-        front: `Which ligament forms the roof of the Carpal Tunnel?`,
-        back: `Transverse Carpal Ligament (Flexor Retinaculum of the hand).`,
-        explanation: `Surgical division (carpal tunnel release) provides immediate decompression of the median nerve.`,
-        difficulty: 'Easy',
-        isHighYield: true,
-      },
-      {
-        front: `What are the contents of the Quadrangular Space in the posterior shoulder?`,
-        back: `Axillary nerve and Posterior Circumflex Humeral Artery.`,
-        explanation: `Bounded by teres minor (superior), teres major (inferior), long head of triceps (medial), and humerus (lateral).`,
-        difficulty: 'Hard',
-        isHighYield: true,
-      },
-      {
-        front: `What are the contents of the Triangular Interval in the posterior arm?`,
-        back: `Radial nerve and Profunda Brachii Artery.`,
-        explanation: `Bounded by teres major (superior), long head of triceps (medial), and lateral head of triceps/humerus (lateral).`,
-        difficulty: 'Hard',
-        isHighYield: true,
-      },
-      {
-        front: `What sensory nerve branch provides sensation to the lateral half of the dorsum of the hand?`,
-        back: `Superficial branch of the Radial Nerve.`,
-        explanation: `Travels under the brachioradialis before emerging in the distal third of the forearm.`,
-        difficulty: 'Medium',
-        isHighYield: true,
-      },
-      {
-        front: `Which muscle is innervated by the Dorsal Scapular Nerve (C5 root)?`,
-        back: `Rhomboid major, Rhomboid minor, and Levator scapulae.`,
-        explanation: `Branches directly from the C5 root before the formation of the upper trunk.`,
-        difficulty: 'Medium',
-        isHighYield: true,
-      },
-      {
-        front: `Which nerve innervates the Subclavius muscle?`,
-        back: `Nerve to Subclavius (C5-C6) from the upper trunk of the brachial plexus.`,
-        explanation: `An accessory phrenic nerve often arises as a branch from the nerve to subclavius.`,
-        difficulty: 'Hard',
-        isHighYield: false,
-      },
-      {
-        front: `What nerve root mediates the Biceps reflex arc?`,
-        back: `C5 and C6 nerve roots (musculocutaneous nerve).`,
-        explanation: `Percussion on the biceps tendon evokes elbow flexion in normal individuals.`,
-        difficulty: 'Easy',
-        isHighYield: true,
-      },
-      {
-        front: `What nerve root mediates the Triceps reflex arc?`,
-        back: `C7 nerve root (radial nerve).`,
-        explanation: `Tested by tapping the triceps tendon proximal to the olecranon fossa.`,
-        difficulty: 'Easy',
-        isHighYield: true,
-      },
-      {
-        front: `What nerve root mediates the Brachioradialis reflex arc?`,
-        back: `C6 nerve root (radial nerve).`,
-        explanation: `Tested by striking the radial styloid process 2-3 inches proximal to the wrist.`,
-        difficulty: 'Easy',
-        isHighYield: true,
-      },
-      {
-        front: `Which muscle abducts the thumb perpendicularly away from the palm?`,
-        back: `Abductor Pollicis Brevis (innervated by the recurrent motor branch of the median nerve).`,
-        explanation: `Most sensitive clinical muscle to test for early median nerve motor involvement in carpal tunnel syndrome.`,
-        difficulty: 'Hard',
-        isHighYield: true,
-      },
-      {
-        front: `What nerve is vulnerable during surgical dissection in the quadrangular space?`,
-        back: `Axillary nerve (along with the posterior circumflex humeral artery).`,
-        explanation: `Bounded superiorly by teres minor, inferiorly by teres major, medially by long head of triceps, laterally by surgical neck of humerus.`,
-        difficulty: 'Medium',
-        isHighYield: true,
-      },
-      {
-        front: `What clinical sign is demonstrated when the patient cannot pinch a piece of paper between thumb and index finger without flexing the thumb IP joint?`,
-        back: `Froment's Sign (indicates ulnar nerve palsy with adductor pollicis weakness, compensatory FPL flexion via median nerve).`,
-        explanation: `Flexor pollicis longus is innervated by the anterior interosseous nerve (median) and substitutes for the paralyzed adductor pollicis.`,
-        difficulty: 'Hard',
-        isHighYield: true,
-      },
-      {
-        front: `Which root of the brachial plexus is compressed in superior thoracic outlet syndrome caused by a cervical rib?`,
-        back: `C8-T1 lower trunk roots (accompanied by the subclavian artery).`,
-        explanation: `Presents with medial hand paresthesia, intrinsic hand muscle atrophy, and diminished radial pulse with arm abduction (Adson's test).`,
-        difficulty: 'Medium',
-        isHighYield: true,
-      },
-      {
-        front: `What nerve innervates the rhomboid major and minor muscles?`,
-        back: `Dorsal scapular nerve (originates directly from C5 ventral ramus).`,
-        explanation: `Pierces middle scalene muscle; retracts and elevates the medial border of the scapula.`,
-        difficulty: 'Easy',
-        isHighYield: false,
-      },
-      {
-        front: `Which cords of the brachial plexus combine to give off branches supplying the pectoralis major muscle?`,
-        back: `Lateral cord (Lateral Pectoral Nerve) and Medial cord (Medial Pectoral Nerve).`,
-        explanation: `Lateral pectoral nerve pierces the clavipectoral fascia; medial pectoral nerve pierces pectoralis minor.`,
-        difficulty: 'Medium',
-        isHighYield: true,
-      },
-      {
-        front: `What clinical deformity results from isolated paralysis of the extensor digitorum communis and extensor carpi radialis longus/brevis?`,
-        back: `Wrist drop with inability to extend MCP joints and wrist.`,
-        explanation: `Classic presentation of high radial nerve injury in the spiral groove.`,
-        difficulty: 'Easy',
-        isHighYield: true,
-      },
-      {
-        front: `Which muscle is innervated by the anterior interosseous nerve to pronate the distal forearm?`,
-        back: `Pronator Quadratus muscle.`,
-        explanation: `Deepest muscle in anterior forearm compartment, tested by resisting active pronation with elbow fully flexed.`,
-        difficulty: 'Medium',
-        isHighYield: true,
-      },
-      {
-        front: `What sensory distribution is supplied by the palmar cutaneous branch of the median nerve that is spared in carpal tunnel syndrome?`,
-        back: `Proximal thenar eminence and lateral central palm.`,
-        explanation: `Arises proximal to the flexor retinaculum and travels superficial to the transverse carpal ligament.`,
-        difficulty: 'Hard',
-        isHighYield: true,
-      },
-      {
-        front: `What is the landmark structure separating the axillary artery into its first, second, and third parts?`,
-        back: `Pectoralis Minor muscle.`,
-        explanation: `Part 1 is proximal (1 branch), Part 2 is deep/posterior (2 branches), Part 3 is distal (3 branches) to pectoralis minor.`,
-        difficulty: 'Medium',
-        isHighYield: true,
-      },
-      {
-        front: `What nerve supplies autonomic sympathetic fibers to the head and neck that can be interrupted in Klumpke's palsy?`,
-        back: `T1 ventral ramus (leading to ipsilateral Horner's syndrome: ptosis, miosis, anhidrosis).`,
-        explanation: `T1 white rami communicantes carry preganglionic sympathetic fibers destined for the superior cervical ganglion.`,
-        difficulty: 'Hard',
-        isHighYield: true,
-      },
-      {
-        front: `What specific fascial space does the deep branch of the ulnar nerve traverse with the deep palmar arterial arch?`,
-        back: `Deep palmar space, passing through the muscles of the hypothenar eminence and across the interossei.`,
-        explanation: `Terminates by supplying adductor pollicis and deep head of flexor pollicis brevis.`,
-        difficulty: 'Hard',
-        isHighYield: true,
-      },
-    ];
+    const text = `${examName} ${subjectName} ${topicName}`.toLowerCase();
+    const isMedical =
+      text.includes("medical") ||
+      text.includes("medicine") ||
+      text.includes("usmle") ||
+      text.includes("neet") ||
+      text.includes("fmge") ||
+      text.includes("plab") ||
+      text.includes("nclex") ||
+      text.includes("nurs") ||
+      text.includes("clinic") ||
+      text.includes("doctor") ||
+      text.includes("anatomy") ||
+      text.includes("pharm") ||
+      text.includes("patholog") ||
+      text.includes("biochem") ||
+      text.includes("physiol") ||
+      text.includes("surgery");
 
-    for (let i = 0; i < coreConcepts.length; i++) {
-      cards.push(coreConcepts[i]);
+    const difficulties: Array<"Easy" | "Medium" | "Hard"> = ["Easy", "Medium", "Hard", "Medium", "Easy"];
+
+    if (!isMedical) {
+      // High-yield domain templates for non-medical exams (UPSC, Civil Services, Law, Engineering, Business, Humanities)
+      const NON_MEDICAL_THEMES = [
+        {
+          front: (t: string, s: string) => `What is the core constitutional or statutory foundation governing ${t} in ${s}?`,
+          back: (t: string, s: string) => `It establishes the fundamental legal and institutional architecture directing ${t}.`,
+          explanation: (t: string) => `Foundational benchmark tested regularly in syllabus assessments.`,
+        },
+        {
+          front: (t: string, s: string) => `Which key administrative tier or jurisdictional division oversees the execution of ${t}?`,
+          back: (t: string, s: string) => `Execution is decentralized across designated governance tiers with clear procedural accountability.`,
+          explanation: (t: string) => `Understanding organizational hierarchy is vital for administrative analysis.`,
+        },
+        {
+          front: (t: string, s: string) => `What financial devolution mechanism or budgetary resource funds ${t}?`,
+          back: (t: string, s: string) => `Funded through statutory allocations, assigned revenue streams, and tied development grants.`,
+          explanation: (t: string) => `Fiscal autonomy is a frequent focus in competitive examination questions.`,
+        },
+        {
+          front: (t: string, s: string) => `What role do grassroots participatory bodies play in the decision-making of ${t}?`,
+          back: (t: string, s: string) => `They ensure democratic decentralization, community scrutiny, and social audit compliance.`,
+          explanation: (t: string) => `Grassroots empowerment is a central tenet of modern governance.`,
+        },
+        {
+          front: (t: string, s: string) => `Which landmark committee or expert commission originally recommended the framework for ${t}?`,
+          back: (t: string, s: string) => `Key policy committees formulated the foundational model to promote efficiency and transparency.`,
+          explanation: (t: string) => `Historical evolution and committee reports are high-yield question targets.`,
+        },
+        {
+          front: (t: string, s: string) => `How are dispute resolution and grievance redressal handled within ${t}?`,
+          back: (t: string, s: string) => `Managed through appellate administrative authorities, tribunals, and statutory ombudsmen.`,
+          explanation: (t: string) => `Essential for institutional balance and public service delivery.`,
+        },
+        {
+          front: (t: string, s: string) => `What affirmative representation quotas or reservation provisions apply to ${t}?`,
+          back: (t: string, s: string) => `Statutory quotas guarantee proportional representation for marginalized communities and women.`,
+          explanation: (t: string) => `Social justice and inclusion mandates are frequently tested.`,
+        },
+        {
+          front: (t: string, s: string) => `What is the standard tenure and dissolution protocol governing bodies under ${t}?`,
+          back: (t: string, s: string) => `Fixed multi-year terms with mandatory reconstitution within six months upon early dissolution.`,
+          explanation: (t: string) => `Procedural timelines and continuity rules are critical test items.`,
+        },
+        {
+          front: (t: string, s: string) => `How does state oversight balance with local autonomy in ${t}?`,
+          back: (t: string, s: string) => `State authorities provide supervisory guidance without infringing upon devolved functional powers.`,
+          explanation: (t: string) => `Federalism and separation of powers are key evaluation metrics.`,
+        },
+        {
+          front: (t: string, s: string) => `Which specific schedule or functional list enumerates the subjects entrusted to ${t}?`,
+          back: (t: string, s: string) => `Enumerated in designated constitutional and statutory schedules covering localized public goods.`,
+          explanation: (t: string) => `Functional classification lists are core syllabus knowledge.`,
+        },
+        {
+          front: (t: string, s: string) => `What metrics measure the socio-economic impact and developmental efficacy of ${t}?`,
+          back: (t: string, s: string) => `Assessed via human development indicators, service delivery indexes, and citizen satisfaction audits.`,
+          explanation: (t: string) => `Impact assessment questions evaluate analytical reasoning.`,
+        },
+        {
+          front: (t: string, s: string) => `What major institutional challenges or operational bottlenecks impede ${t}?`,
+          back: (t: string, s: string) => `Key challenges include inadequate financial devolution, bureaucratic inertia, and infrastructural deficits.`,
+          explanation: (t: string) => `Critical for evaluating policy reforms and constructive critique.`,
+        },
+        {
+          front: (t: string, s: string) => `How has digital governance and e-service delivery transformed the workflow of ${t}?`,
+          back: (t: string, s: string) => `Digital portals facilitate direct benefit transfers, transparent tracking, and automated record-keeping.`,
+          explanation: (t: string) => `E-governance initiatives are prominent in current examination trends.`,
+        },
+        {
+          front: (t: string, s: string) => `What role does the State Election Commission play in relation to ${t}?`,
+          back: (t: string, s: string) => `It is an independent constitutional authority responsible for conducting free and fair local elections.`,
+          explanation: (t: string) => `Constitutional bodies and their distinct mandates are standard test topics.`,
+        },
+        {
+          front: (t: string, s: string) => `What constitutes the primary accountability mechanism against financial corruption in ${t}?`,
+          back: (t: string, s: string) => `Mandatory statutory audits by state audit directorates and periodic legislative committee review.`,
+          explanation: (t: string) => `Financial propriety and vigilance frameworks are high-priority test areas.`,
+        },
+        {
+          front: (t: string, s: string) => `What is the significance of the District Planning Committee in coordinating ${t}?`,
+          back: (t: string, s: string) => `It consolidates urban and rural developmental plans into a unified draft development plan for the district.`,
+          explanation: (t: string) => `Integrated regional planning frameworks appear regularly in governance papers.`,
+        },
+        {
+          front: (t: string, s: string) => `How do voluntary and non-governmental organizations collaborate with ${t}?`,
+          back: (t: string, s: string) => `Through community mobilization, capacity building, technical assistance, and third-party monitoring.`,
+          explanation: (t: string) => `Civil society partnerships are crucial for effective implementation.`,
+        },
+        {
+          front: (t: string, s: string) => `What legal remedies exist when executive orders infringe upon the powers of ${t}?`,
+          back: (t: string, s: string) => `Judicial review via constitutional writ petitions under relevant high court jurisdictions.`,
+          explanation: (t: string) => `Judicial enforcement of institutional rights is essential legal knowledge.`,
+        },
+        {
+          front: (t: string, s: string) => `Which international development conventions or best practices align with ${t}?`,
+          back: (t: string, s: string) => `UN Sustainable Development Goals (SDG 11 & 16) emphasizing inclusive and responsive institutions.`,
+          explanation: (t: string) => `Global benchmarks enrich analytical answers in competitive exams.`,
+        },
+        {
+          front: (t: string, s: string) => `What capacity-building initiatives are standard for personnel managing ${t}?`,
+          back: (t: string, s: string) => `Structured institutional orientation, financial management modules, and leadership immersion workshops.`,
+          explanation: (t: string) => `Human resource development is key to administrative modernization.`,
+        },
+        {
+          front: (t: string, s: string) => `What distinguishes discretionary functional powers from mandatory duties in ${t}?`,
+          back: (t: string, s: string) => `Mandatory duties are legally enforceable obligations, while discretionary powers depend on available fiscal surplus.`,
+          explanation: (t: string) => `Legal distinctions between obligation and discretion are tested frequently.`,
+        },
+        {
+          front: (t: string, s: string) => `How does emergency or exceptional legislation affect the functioning of ${t}?`,
+          back: (t: string, s: string) => `Executive control may temporarily supersede local discretion to coordinate crisis containment.`,
+          explanation: (t: string) => `Crisis governance dynamics are critical for scenario-based questions.`,
+        },
+        {
+          front: (t: string, s: string) => `What is the function of the State Finance Commission concerning ${t}?`,
+          back: (t: string, s: string) => `It reviews the financial position of local bodies and recommends tax devolution and grants-in-aid.`,
+          explanation: (t: string) => `Institutional financial mechanisms are fundamental to polity questions.`,
+        },
+        {
+          front: (t: string, s: string) => `How does social audit reinforce transparency within ${t}?`,
+          back: (t: string, s: string) => `By empowering program beneficiaries to scrutinize expenditure records and project quality publicly.`,
+          explanation: (t: string) => `Social audits bridge administrative records and citizen verification.`,
+        },
+        {
+          front: (t: string, s: string) => `What criteria govern the functional devolution of the 3Fs (Functions, Funds, Functionaries) in ${t}?`,
+          back: (t: string, s: string) => `Subsidiarity principle: tasks that can be performed efficiently at lower tiers must be devolved accordingly.`,
+          explanation: (t: string) => `The principle of subsidiarity is the core theoretical pillar of decentralization.`,
+        },
+        {
+          front: (t: string, s: string) => `What role do traditional or customary tribal institutions have in relation to ${t}?`,
+          back: (t: string, s: string) => `Special statutory extensions safeguard tribal autonomy and self-rule over natural resources.`,
+          explanation: (t: string) => `Tribal governance and PESA-style frameworks are top exam focus areas.`,
+        },
+        {
+          front: (t: string, s: string) => `How do public-private partnerships (PPP) intersect with infrastructure development in ${t}?`,
+          back: (t: string, s: string) => `They mobilize private capital and management expertise for large-scale utility and urban asset creation.`,
+          explanation: (t: string) => `Modern public financing instruments are frequent test topics.`,
+        },
+        {
+          front: (t: string, s: string) => `What mechanism ensures environmental and ecological sustainability in local plans under ${t}?`,
+          back: (t: string, s: string) => `Mandatory environmental impact screening, water conservation zoning, and disaster risk resilience planning.`,
+          explanation: (t: string) => `Climate resilience integration in governance is heavily emphasized.`,
+        },
+        {
+          front: (t: string, s: string) => `What is the significance of the citizen charter adopted by departments in ${t}?`,
+          back: (t: string, s: string) => `It codifies service standards, delivery timeframes, and designated contact officers for public accountability.`,
+          explanation: (t: string) => `Citizen charters define the benchmark for quality public service delivery.`,
+        },
+        {
+          front: (t: string, s: string) => `What comprehensive summary captures the strategic exam significance of ${t}?`,
+          back: (t: string, s: string) => `It represents the operational cornerstone for democratic decentralization, equitable development, and public administration.`,
+          explanation: (t: string) => `Essential closing synthesis for mains and prelims revision.`,
+        },
+      ];
+
+      for (let i = 0; i < targetCount; i++) {
+        const theme = NON_MEDICAL_THEMES[i % NON_MEDICAL_THEMES.length];
+        const cardIndex = i + 1;
+        const difficulty = difficulties[i % difficulties.length];
+
+        cards.push({
+          front: `${theme.front(topicName, subjectName)}`,
+          back: `${theme.back(topicName, subjectName)} [${examName} Key Insight ${cardIndex}]`,
+          explanation: theme.explanation(topicName),
+          difficulty,
+          isHighYield: i % 2 === 0,
+        });
+      }
+    } else {
+      // Clinical / Medical high-yield flashcard generator
+      const MEDICAL_THEMES = [
+        {
+          front: (t: string) => `What are the primary anatomical boundaries and structural landmarks of ${t}?`,
+          back: (t: string) => `Formed by the regional fascial compartments, adjacent bony prominences, and key neurovascular bundles of ${t}.`,
+          explanation: (t: string) => `Critical surgical and radiographic landmark.`,
+        },
+        {
+          front: (t: string) => `What is the first-line diagnostic investigation for suspected pathology involving ${t}?`,
+          back: (t: string) => `Targeted high-resolution ultrasound or contrast-enhanced MRI depending on acute versus chronic clinical presentation.`,
+          explanation: (t: string) => `Guideline-directed diagnostic workup.`,
+        },
+        {
+          front: (t: string) => `What classic clinical sign or maneuver confirms acute dysfunction of ${t}?`,
+          back: (t: string) => `Provocative stress testing eliciting characteristic focal pain, paresthesias, or motor deficit along the specific innervation axis.`,
+          explanation: (t: string) => `High sensitivity bedside physical examination technique.`,
+        },
+        {
+          front: (t: string) => `What is the definitive therapeutic or surgical intervention when conservative measures fail in ${t}?`,
+          back: (t: string) => `Targeted operative decompression, structural repair, or anatomical reconstruction adhering to neurovascular preservation.`,
+          explanation: (t: string) => `Standard of care for refractory or progressive symptoms.`,
+        },
+        {
+          front: (t: string) => `Which characteristic complication must be monitored following acute injury or intervention in ${t}?`,
+          back: (t: string) => `Compartment syndrome, secondary contractures, or persistent neuropathic deficit due to ischemic/traction injury.`,
+          explanation: (t: string) => `Early identification prevents permanent functional impairment.`,
+        },
+      ];
+
+      for (let i = 0; i < targetCount; i++) {
+        const theme = MEDICAL_THEMES[i % MEDICAL_THEMES.length];
+        const cardIndex = i + 1;
+        const difficulty = difficulties[i % difficulties.length];
+
+        cards.push({
+          front: `${theme.front(topicName)} (Point ${cardIndex})`,
+          back: `${theme.back(topicName)} High-yield key point ${cardIndex} for ${examName}.`,
+          explanation: theme.explanation(topicName),
+          difficulty,
+          isHighYield: i % 2 === 0,
+        });
+      }
     }
 
     return {
-      cards,
+      cards: cards.slice(0, targetCount),
       inputTokens: 350,
       outputTokens: 750,
       cachedTokens: 0,

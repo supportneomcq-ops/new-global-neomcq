@@ -287,9 +287,9 @@ export function ActiveRecallWorkspaceView({ user }: ActiveRecallWorkspaceViewPro
     setGenerationStage('Analyzing topic curriculum & exam blueprint...');
 
     try {
-      setTimeout(() => setGenerationStage('Selecting high-yield clinical entities & formulas...'), 1200);
+      setTimeout(() => setGenerationStage('Selecting high-yield key entities & core concepts...'), 1200);
       setTimeout(() => setGenerationStage('Synthesizing active recall prompts & blanks...'), 2400);
-      setTimeout(() => setGenerationStage('Validating accepted synonyms and board tips...'), 3800);
+      setTimeout(() => setGenerationStage('Validating accepted synonyms and exam tips...'), 3800);
 
       const res = await fetch('/api/active-recall/generate', {
         method: 'POST',

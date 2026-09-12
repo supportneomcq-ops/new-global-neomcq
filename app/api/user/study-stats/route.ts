@@ -62,7 +62,8 @@ export async function GET(req: NextRequest) {
           topic_id,
           subject_id,
           exam_id,
-          high_yield_tag
+          tags,
+          metadata
         )
       `)
       .eq('user_id', userId)
@@ -238,7 +239,7 @@ export async function GET(req: NextRequest) {
       const latestAttempt = filteredAttempts[0];
       recentActivities.push({
         id: latestAttempt.id,
-        title: `MCQ Drill: ${latestAttempt.mcqs?.high_yield_tag || 'Clinical Vignette'}`,
+        title: `MCQ Drill: ${latestAttempt.mcqs?.metadata?.high_yield_tag || (Array.isArray(latestAttempt.mcqs?.tags) ? latestAttempt.mcqs.tags[0] : null) || 'Core Practice Set'}`,
         type: 'Active Practice',
         score: latestAttempt.is_correct ? 'Correct' : 'Needs Review',
         time: formatRelativeTime(latestAttempt.created_at),

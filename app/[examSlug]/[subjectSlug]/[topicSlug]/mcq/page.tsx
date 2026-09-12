@@ -48,6 +48,10 @@ export default async function TopicMcqListingPage({ params, searchParams }: Page
     isAuthenticated: false,
   });
 
+  const isMedical = Boolean(
+    (exam.name || exam.category || subject.name || topic.name || '').toLowerCase().match(/medical|medicine|usmle|neet|fmge|plab|nclex|nurs|clinic|doctor/)
+  );
+
   const breadcrumbs = [
     { name: exam.name, url: `/${exam.slug}` },
     { name: subject.name, url: `/${exam.slug}/${subject.slug}` },
@@ -75,7 +79,9 @@ export default async function TopicMcqListingPage({ params, searchParams }: Page
             {topic.name} Multiple Choice Questions
           </h1>
           <p className="text-sm text-slate-300">
-            Practice high-yield clinical MCQs and board revision scenarios with instant interactive option testing.
+            {isMedical
+              ? 'Practice high-yield clinical MCQs and board revision scenarios with instant interactive option testing.'
+              : 'Practice high-yield examination MCQs and syllabus-aligned scenarios with instant interactive testing.'}
           </p>
         </div>
 

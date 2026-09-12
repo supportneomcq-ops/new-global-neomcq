@@ -169,9 +169,9 @@ export function DashboardHomeView({
   const progressPercentage = Math.min(100, Math.round((effectiveCompletedHours / effectiveTargetHours) * 100));
 
   // Current focus labels
-  const activeExamName = selection.exam?.name || user.examName || 'USMLE Step 1';
+  const activeExamName = selection.exam?.name || user.examName || 'Curriculum Exam';
   const activeSubjectName = selection.subject?.name || (availableSubjects[0]?.name ?? 'Core Foundations');
-  const activeTopicName = selection.topic?.name || (availableTopics[0]?.name ?? 'High-Yield Clinical Concepts');
+  const activeTopicName = selection.topic?.name || (availableTopics[0]?.name ?? 'High-Yield Core Concepts');
   const activeSubtopicName = selection.subtopic?.name;
 
   // Exact target date & days left computation
@@ -386,10 +386,10 @@ export function DashboardHomeView({
               </div>
               <div>
                 <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                  Review {flashcardCount} Clinical Flashcards
+                  Review {flashcardCount} Spaced Flashcards
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                  Drill high-yield diagnostic criteria, triad associations, and first-line pharmacotherapy cards.
+                  Drill high-yield definitions, core criteria, key formulas, and testable concepts.
                 </p>
               </div>
             </div>

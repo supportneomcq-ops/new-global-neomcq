@@ -514,10 +514,10 @@ export default function OnboardingPage() {
     try {
       const supabase = getSupabaseClient();
 
-      // Step 5 Animation: Progress Step 1 - Exam recognized
-      await new Promise((r) => setTimeout(r, 600));
+      // Progress Step 0: Exam recognized and validated
+      await new Promise((r) => setTimeout(r, 400));
       setActivePrepIndex(1);
-      setPrepProgress(32);
+      setPrepProgress(30);
 
       // 1. SignUp via Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -532,16 +532,26 @@ export default function OnboardingPage() {
             language: formData.language,
             exam: formData.selectedExamName,
           },
+          emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback?next=/dashboard` : undefined,
         },
       });
 
       if (authError) {
-        // If user already exists or error, handle gracefully
-        console.warn('Auth note:', authError.message);
+        console.warn('Auth notice:', authError.message);
+        const lowerMsg = authError.message.toLowerCase();
+        if (lowerMsg.includes('already registered') || lowerMsg.includes('already in use') || lowerMsg.includes('user already exists')) {
+          setFormError('An account with this email already exists. Please sign in or use a different email.');
+          setStep(1);
+          return;
+        }
+        if (lowerMsg.includes('password')) {
+          setFormError('Password must be at least 8 characters long.');
+          setStep(1);
+          return;
+        }
       }
 
-      // Step 5 Animation: Progress Step 2 - Curriculum checked
-      await new Promise((r) => setTimeout(r, 600));
+      // Progress Step 2: Curriculum framework resolved in database
       setActivePrepIndex(2);
       setPrepProgress(50);
 
@@ -552,8 +562,7 @@ export default function OnboardingPage() {
         dbPreferredTime = uiTimeLower as any;
       }
 
-      // Step 5 Animation: Progress Step 3 - Subjects & Topics
-      await new Promise((r) => setTimeout(r, 600));
+      // Progress Step 3: Synchronizing subjects and syllabus
       setActivePrepIndex(3);
       setPrepProgress(70);
 
@@ -580,8 +589,12 @@ export default function OnboardingPage() {
         }),
       });
 
-      // Step 5 Animation: Progress Step 4 & 5 - Subtopics & Study Plan
-      await new Promise((r) => setTimeout(r, 600));
+      const onboardData = await onboardResponse.json().catch(() => ({}));
+      if (!onboardResponse.ok || onboardData.success === false) {
+        throw new Error(onboardData.error || 'Failed to finalize curriculum setup.');
+      }
+
+      // Progress Step 4: Subtopics & modules verified
       setActivePrepIndex(4);
       setPrepProgress(85);
 
@@ -605,16 +618,15 @@ export default function OnboardingPage() {
         console.warn('Study plan auto-sync note:', planErr);
       }
 
-      // Step 5 Animation: Finish
-      await new Promise((r) => setTimeout(r, 600));
+      // Progress Step 5: Finished
       setActivePrepIndex(5);
       setPrepProgress(100);
 
-      // 5. Store active selection directly in localStorage so Dashboard renders the exact chosen exam (e.g. FMGE)
+      // 5. Store active selection directly in localStorage so Dashboard renders the exact chosen exam
       try {
         const initialSelection = {
           exam: {
-            id: formData.selectedExamId || 'selected-exam',
+            id: formData.selectedExamId || onboardData.exam?.id || 'selected-exam',
             name: formData.selectedExamName,
             slug: formData.selectedExamName.toLowerCase().replace(/[^a-z0-9]/g, '-'),
           },
@@ -630,14 +642,30 @@ export default function OnboardingPage() {
         // Safe to ignore
       }
 
-      await new Promise((r) => setTimeout(r, 800));
+      await new Promise((r) => setTimeout(r, 600));
 
-      // Step 6: Redirect to dashboard or verify-email
-      router.push('/dashboard');
+      // Check if email confirmation is required:
+      // If user session is null (or user has no email_confirmed_at), email verification is required.
+      const requiresConfirmation = !authData?.session || !authData?.user?.email_confirmed_at;
+      if (requiresConfirmation && authData?.user?.id) {
+        router.push(`/auth/verify-email?email=${encodeURIComponent(formData.email)}`);
+      } else {
+        router.push('/dashboard');
+      }
     } catch (err: any) {
       console.error('Onboarding preparation error:', err);
-      setFormError(err.message || 'Onboarding failed. Please try again.');
-      setStep(4);
+      const rawMsg = (err.message || '').toLowerCase();
+      let safeMsg = 'Setup could not be completed at this time. Please verify your details and try again.';
+      if (rawMsg.includes('already registered') || rawMsg.includes('already in use')) {
+        safeMsg = 'An account with this email already exists. Please sign in or use a different email.';
+        setStep(1);
+      } else if (rawMsg.includes('network') || rawMsg.includes('fetch') || rawMsg.includes('failed to fetch')) {
+        safeMsg = 'Network connection issue. Please check your internet connection and retry.';
+        setStep(4);
+      } else {
+        setStep(4);
+      }
+      setFormError(safeMsg);
     }
   };
 
@@ -1236,11 +1264,11 @@ export default function OnboardingPage() {
                 <div className="space-y-2.5 text-left max-w-md mx-auto pt-2">
                   {[
                     'Exam recognized & canonical validity verified',
-                    'Existing curriculum checked in database',
-                    'Subjects prepared & synchronized',
-                    'Topics prepared to clinical blueprints',
-                    'Subtopics checked where applicable',
-                    'Study plan prepared & scheduled',
+                    'Curriculum framework resolved in database',
+                    'Core subjects prepared & synchronized',
+                    'Topics mapped to syllabus specifications',
+                    'Subtopics & modules verified',
+                    'Personalized study plan scheduled',
                   ].map((label, idx) => {
                     const isDone = activePrepIndex > idx;
                     const isCurrent = activePrepIndex === idx;

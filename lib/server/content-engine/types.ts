@@ -83,9 +83,9 @@ export const TOTAL_CANONICAL_MCQ_COUNT = 80;
 
 /**
  * Phase 4E: Canonical Flashcards Target Specification
- * Central configurable target: Default 40 Flashcards per canonical topic
+ * Central configurable target: Default 30 Flashcards per canonical topic
  */
-export const CANONICAL_FLASHCARD_TARGET_COUNT = 40;
+export const CANONICAL_FLASHCARD_TARGET_COUNT = 30;
 
 export interface ValidationMetadata {
   structuralValid: boolean;

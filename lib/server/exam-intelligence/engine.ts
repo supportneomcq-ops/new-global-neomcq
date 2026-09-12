@@ -641,7 +641,7 @@ Output schema:
                     order: tIdx + 1,
                     subtopics: Array.isArray(t.subtopics) ? t.subtopics : [],
                   }))
-                : [{ name: 'Foundations & Clinical Practice', description: '', order: 1, subtopics: [] }],
+                : [{ name: 'Core Foundations & Principles', description: '', order: 1, subtopics: [] }],
             })),
             content_generation_rules: parsed.content_generation_rules || {},
             confidence: parsed.confidence || { overall: 0.85, curriculum: 0.85, exam_rules: 0.8 },
@@ -878,13 +878,13 @@ export async function resolveOrInitializeExamIntelligence(options: {
       slug,
       description,
       weight_percentage,
-      order_index,
+      display_order,
       exam_topics (
         id,
         name,
         slug,
         description,
-        order_index,
+        display_order,
         exam_subtopics (
           id,
           name,
@@ -902,14 +902,30 @@ export async function resolveOrInitializeExamIntelligence(options: {
   const rawNoPunct = rawInput.replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim().toLowerCase()
   const cleanNoPunct = cleanQuery.replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim().toLowerCase()
 
-  // First check if there is an exact direct slug/name match
-  const { data: directSlugMatch } = await supabase
+  // First check if there is an exact direct slug match or exact name match
+  let directSlugMatch: any = null
+  const { data: slugMatch } = await supabase
     .from('exams')
     .select(selectQuery)
     .neq('status', 'archived')
-    .or(`slug.eq."${querySlug}",name.ilike."${rawInput}"`)
+    .eq('slug', querySlug)
     .limit(1)
     .maybeSingle()
+
+  if (slugMatch) {
+    directSlugMatch = slugMatch
+  } else {
+    const { data: nameMatch } = await supabase
+      .from('exams')
+      .select(selectQuery)
+      .neq('status', 'archived')
+      .ilike('name', rawInput)
+      .limit(1)
+      .maybeSingle()
+    if (nameMatch) {
+      directSlugMatch = nameMatch
+    }
+  }
 
   if (directSlugMatch) {
     matchedExam = directSlugMatch
@@ -1142,13 +1158,13 @@ export async function resolveOrInitializeExamIntelligence(options: {
           slug,
           description,
           weight_percentage,
-          order_index,
+          display_order,
           exam_topics (
             id,
             name,
             slug,
             description,
-            order_index,
+            display_order,
             exam_subtopics (
               id,
               name,
@@ -1158,7 +1174,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
           )
         `)
         .eq('exam_id', matchedExam.id)
-        .order('order_index', { ascending: true })
+        .order('display_order', { ascending: true })
 
       subjects = refreshedSubjects || []
       curriculumStatus = subjects.length > 0 ? 'ready' : 'partial'
@@ -1377,13 +1393,13 @@ export async function resolveOrInitializeExamIntelligence(options: {
       slug,
       description,
       weight_percentage,
-      order_index,
+      display_order,
       exam_topics (
         id,
         name,
         slug,
         description,
-        order_index,
+        display_order,
         exam_subtopics (
           id,
           name,
@@ -1393,7 +1409,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
       )
     `)
     .eq('exam_id', newExam.id)
-    .order('order_index', { ascending: true })
+    .order('display_order', { ascending: true })
 
   // 8. Link to authenticated user if provided
   if (userId) {
@@ -1475,7 +1491,7 @@ async function persistCurriculumHierarchy(
           slug: subSlug,
           description: sItem.description || `Syllabus focus for ${sItem.name}`,
           weight_percentage: sItem.weightage || 10,
-          order_index: sItem.order || sIdx + 1,
+          display_order: sItem.order || sIdx + 1,
         })
         .select('id')
         .maybeSingle()
@@ -1525,7 +1541,7 @@ async function persistCurriculumHierarchy(
             name: tItem.name,
             slug: topSlug,
             description: tItem.description || `Topic focus for ${tItem.name}`,
-            order_index: tItem.order || tIdx + 1,
+            display_order: tItem.order || tIdx + 1,
           })
           .select('id')
           .maybeSingle()

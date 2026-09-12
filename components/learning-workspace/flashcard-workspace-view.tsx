@@ -498,7 +498,7 @@ export function FlashcardWorkspaceView() {
                           <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                           <div className="space-y-0.5">
                             <strong className="block font-black text-amber-400 text-[10px] uppercase tracking-wider">
-                              Board Exam Clinical Pearl
+                              High-Yield Exam Pearl & Key Concept
                             </strong>
                             <p className="font-semibold text-amber-200 leading-normal">
                               {currentCard.clinical_pearl}

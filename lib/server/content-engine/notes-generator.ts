@@ -474,16 +474,21 @@ export class CanonicalNotesGenerator {
     try {
       const markdownContent = this.formatNotesToMarkdown(notes, media);
 
+      // Ensure valid UUID for PostgreSQL uuid column
+      const noteUuid = (notes.id && notes.id.length === 36 && notes.id.includes('-') && !notes.id.startsWith('notes-'))
+        ? notes.id
+        : crypto.randomUUID();
+
       const noteRecord = {
-        id: notes.id,
+        id: noteUuid,
         exam_id: notes.examId,
-        subject_id: notes.subjectId,
-        topic_id: notes.topicId,
+        subject_id: notes.subjectId || null,
+        topic_id: notes.topicId || null,
         title: notes.title,
         content: markdownContent,
         note_type: 'high_yield',
         status: 'approved',
-        version: notes.contentVersionId,
+        version: notes.contentVersionId || 1,
         ai_generated: true,
         ai_provider: 'gemini',
         ai_model: 'gemini-3.7-flash',
@@ -494,8 +499,8 @@ export class CanonicalNotesGenerator {
           highlighter: true,
           importantBoxes: true,
         },
-        created_at: notes.createdAt,
-        updated_at: notes.updatedAt,
+        created_at: notes.createdAt || new Date().toISOString(),
+        updated_at: notes.updatedAt || new Date().toISOString(),
       };
 
       const { error } = await supabase.from('notes').upsert(noteRecord, {

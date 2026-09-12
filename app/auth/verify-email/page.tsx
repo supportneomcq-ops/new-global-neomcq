@@ -143,19 +143,19 @@ function VerifyEmailInner() {
 
           <div className="space-y-1">
             <h1 className="text-2xl font-heading font-extrabold tracking-tight">
-              {isVerified ? 'Verification Complete!' : 'Verify Your Email'}
+              {isVerified ? 'Account Confirmed!' : 'Check your email'}
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-gray-400">
               {isVerified 
-                ? 'Your premium study account is fully activated.'
-                : 'We sent a verification link to configure your study profile.'
+                ? 'Your account has been confirmed. Redirecting to your workspace...'
+                : "We've sent a confirmation link to your email address. Please confirm your account before continuing."
               }
             </p>
           </div>
 
           {email && (
             <div className="p-3 rounded-2xl bg-slate-50 dark:bg-[#050816]/60 border border-slate-100 dark:border-gray-800 text-xs text-center font-semibold">
-              <span className="text-slate-400">Recipient:</span>{' '}
+              <span className="text-slate-400">Confirmation sent to:</span>{' '}
               <strong className="text-slate-900 dark:text-white break-all">{email}</strong>
             </div>
           )}
@@ -228,6 +228,22 @@ function VerifyEmailInner() {
                     {resending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
                     <span>Resend Email</span>
                   </button>
+                </div>
+
+                <div className="pt-2 flex flex-wrap items-center justify-center gap-3 text-xs font-semibold text-slate-500 dark:text-gray-400">
+                  <Link
+                    href="/onboarding"
+                    className="hover:text-[#6D5BFF] dark:hover:text-[#00D4FF] underline decoration-slate-300 dark:decoration-gray-700 underline-offset-4 transition-colors"
+                  >
+                    Change email address
+                  </Link>
+                  <span>•</span>
+                  <Link
+                    href="/auth/sign-in"
+                    className="hover:text-[#6D5BFF] dark:hover:text-[#00D4FF] underline decoration-slate-300 dark:decoration-gray-700 underline-offset-4 transition-colors"
+                  >
+                    Return to Sign in
+                  </Link>
                 </div>
               </div>
 

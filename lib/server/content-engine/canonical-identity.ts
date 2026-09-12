@@ -53,10 +53,19 @@ export async function verifyCanonicalHierarchy(
   examId: string,
   subjectId: string,
   topicId: string,
-  subtopicId?: string | null,
+  subtopicIdOrClient?: string | null | any,
   supabaseClient?: any
 ): Promise<HierarchyVerificationResult> {
-  const supabase = supabaseClient || getSupabaseAdmin();
+  let subtopicId: string | null = null;
+  let supabase = supabaseClient;
+
+  if (typeof subtopicIdOrClient === 'string') {
+    subtopicId = subtopicIdOrClient;
+  } else if (subtopicIdOrClient && typeof subtopicIdOrClient === 'object' && ('from' in subtopicIdOrClient || 'auth' in subtopicIdOrClient)) {
+    supabase = subtopicIdOrClient;
+  }
+
+  supabase = supabase || getSupabaseAdmin();
 
   if (!examId || !subjectId || !topicId) {
     return {

@@ -429,7 +429,7 @@ export function TutorWhiteboard({
           {segment.clinicalCorrelation && (
             <div className="flex items-center gap-2 text-emerald-200">
               <span className="px-2 py-0.5 rounded bg-emerald-950/80 font-bold text-[10px] uppercase tracking-wider text-emerald-300">
-                Clinical Correlation
+                Core Principle & Correlation
               </span>
               <span>{segment.clinicalCorrelation}</span>
             </div>

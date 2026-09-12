@@ -68,9 +68,9 @@ export function ActiveRecallSetsView({
         <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 text-left space-y-2.5">
           {[
             { label: 'Analyzing exam syllabus & high-yield blueprints', active: true },
-            { label: 'Selecting high-yield recall targets & clinical concepts', active: true },
+            { label: 'Selecting high-yield recall targets & core concepts', active: true },
             { label: 'Synthesizing cloze sentences & integrated blanks', active: true },
-            { label: 'Validating accepted medical synonyms & abbreviations', active: true },
+            { label: 'Validating accepted synonyms & standard abbreviations', active: true },
             { label: 'Finalizing active recall workspace', active: true },
           ].map((stage, idx) => (
             <div key={idx} className="flex items-center gap-2.5 text-xs">
@@ -107,7 +107,7 @@ export function ActiveRecallSetsView({
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
             Generate an exam-aligned active recall batch for{' '}
             <strong className="text-slate-800 dark:text-slate-200">{topicName}</strong>
-            {subtopicName ? ` (${subtopicName})` : ''} with integrated blank slots and medical-grade answer evaluation.
+            {subtopicName ? ` (${subtopicName})` : ''} with integrated blank slots and high-precision evaluation.
           </p>
         </div>
 
@@ -118,7 +118,7 @@ export function ActiveRecallSetsView({
           </div>
           <div className="flex items-center gap-2 text-xs text-indigo-900 dark:text-indigo-200 font-medium">
             <FileCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-            <span>Accepted clinical synonyms &amp; board exam traps</span>
+            <span>Accepted domain synonyms &amp; exam distractor patterns</span>
           </div>
         </div>
 

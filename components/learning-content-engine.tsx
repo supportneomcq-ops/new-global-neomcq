@@ -1058,7 +1058,7 @@ export function LearningContentEngine({
                         What would you like to master today?
                       </h2>
                       <p className="text-xs text-white/90">
-                        Select topics from the sidebar or click any learning card below to initiate rapid clinical mastery.
+                        Select topics from the sidebar or click any learning card below to initiate rapid exam mastery.
                       </p>
                     </div>
 
@@ -1081,7 +1081,7 @@ export function LearningContentEngine({
                       {
                         id: 'notes',
                         title: '📖 Handwritten Notes',
-                        desc: 'Ivory paper notebook styling with clinical pearls & margins.',
+                        desc: 'Ivory paper notebook styling with high-yield exam insights & margins.',
                         time: '15 mins',
                         pct: 85,
                         status: 'Ready to Read',
@@ -1375,18 +1375,18 @@ export function LearningContentEngine({
                                 <div className="mt-4 p-5 rounded-2xl bg-[#FFFDF7] dark:bg-[#0D111E] border border-amber-200 dark:border-gray-800 text-xs text-slate-800 dark:text-gray-300 space-y-3.5">
                                   <div className="font-extrabold text-[#6D5BFF] flex items-center gap-1.5 uppercase tracking-wide text-[10px]">
                                     <Brain className="w-4 h-4 text-purple-500" />
-                                    <span>High-Yield Clinical Pearls Explanation</span>
+                                    <span>High-Yield Concept & Explanation</span>
                                   </div>
                                   <p className="leading-relaxed font-sans">{mcq.explanation}</p>
 
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2 border-t border-amber-200/60 dark:border-gray-800/60">
                                     <div className="p-2.5 rounded-xl bg-amber-500/5 text-[11px] space-y-1">
-                                      <span className="font-black text-amber-700 dark:text-amber-300">💡 Diagnostic Hook:</span>
+                                      <span className="font-black text-amber-700 dark:text-amber-300">💡 Exam Hook:</span>
                                       <p className="opacity-90">{mcq.high_yield_tag || 'High-yield differential'}</p>
                                     </div>
                                     <div className="p-2.5 rounded-xl bg-purple-500/5 text-[11px] space-y-1">
-                                      <span className="font-black text-purple-700 dark:text-purple-300">🧠 Clinical Recall Rule:</span>
-                                      <p className="opacity-90">Avoid early cardio-inotropes in inferior heart blocks!</p>
+                                      <span className="font-black text-purple-700 dark:text-purple-300">🧠 Core Recall Rule:</span>
+                                      <p className="opacity-90">Focus on fundamental principles and syllabus linkages!</p>
                                     </div>
                                   </div>
                                 </div>
@@ -1563,7 +1563,7 @@ export function LearningContentEngine({
                         >
                           <div className="flex items-center justify-between text-[10px] font-bold text-slate-400">
                             <span className="uppercase text-[#00D4FF]">
-                              {card.category || 'Clinical Medicine'}
+                              {card.category || 'High-Yield Concept'}
                             </span>
                             <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                               <button
@@ -1633,7 +1633,7 @@ export function LearningContentEngine({
                           Printable Rapid Review & Fill-in-Blanks Sheet
                         </h3>
                         <p className="text-[10px] text-slate-500">
-                          Rapid factual high-yield prompts designed to drill medical pathways.
+                          Rapid factual high-yield prompts designed to drill syllabus concepts.
                         </p>
                       </div>
                     </div>
@@ -1650,7 +1650,7 @@ export function LearningContentEngine({
                     <div className="p-5 rounded-2xl bg-slate-50 dark:bg-[#111827] border border-slate-200/80 dark:border-[#1E293B] space-y-3">
                       <label className="font-bold text-slate-900 dark:text-white flex items-center gap-1 text-[11px]">
                         <CheckSquare className="w-4 h-4 text-[#6D5BFF]" />
-                        <span>1. Remember (Rapid differential rule for inferior lead infarction):</span>
+                        <span>1. Remember (Key takeaway principle or formula):</span>
                       </label>
                       <input
                         type="text"
@@ -1666,7 +1666,7 @@ export function LearningContentEngine({
                     <div className="p-5 rounded-2xl bg-slate-50 dark:bg-[#111827] border border-slate-200/80 dark:border-[#1E293B] space-y-3">
                       <label className="font-bold text-slate-900 dark:text-white flex items-center gap-1 text-[11px]">
                         <CheckSquare className="w-4 h-4 text-[#6D5BFF]" />
-                        <span>2. Clinical Correlation (Symptoms of RCA occlusion):</span>
+                        <span>2. Concept Application &amp; Key Linkages:</span>
                       </label>
                       <input
                         type="text"
@@ -1674,7 +1674,7 @@ export function LearningContentEngine({
                         onChange={(e) =>
                           setRevisionInputs((prev) => ({ ...prev, clinical: e.target.value }))
                         }
-                        placeholder="Type classic clinical presentation indicators here..."
+                        placeholder="Type key application concepts here..."
                         className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-[#1E293B] text-xs focus:outline-none focus:border-[#6D5BFF] text-slate-900 dark:text-white"
                       />
                     </div>

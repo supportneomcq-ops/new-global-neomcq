@@ -150,9 +150,9 @@ export async function getPublicExamSubjects(examId: string, examSlug: string): P
   try {
     const { data: dbSubjects } = await (supabase as any)
       .from('exam_subjects')
-      .select('id, name, slug, description, weight_percentage, order_index')
+      .select('id, name, slug, description, weight_percentage, display_order')
       .eq('exam_id', examId)
-      .order('order_index', { ascending: true });
+      .order('display_order', { ascending: true });
 
     if (dbSubjects && dbSubjects.length > 0) {
       return dbSubjects.map((s: any) => ({

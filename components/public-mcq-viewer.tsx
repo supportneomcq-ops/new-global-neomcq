@@ -216,7 +216,7 @@ export function PublicMcqViewer({ mcq }: { mcq: PublicMcqProps }) {
             <div className="p-4 rounded-xl bg-indigo-950/40 border border-indigo-500/20 space-y-1">
               <h5 className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4" />
-                Key High-Yield Clinical Pearl
+                {(mcq.exam_name || mcq.subject_name || '').toLowerCase().match(/medical|medicine|usmle|neet|fmge|plab|nclex|nurs|clinic|doctor/) ? 'Key High-Yield Clinical Pearl' : 'High-Yield Exam Insight'}
               </h5>
               <p className="text-xs text-slate-300">
                 {result.clinical_pearl || mcq.clinical_pearl}

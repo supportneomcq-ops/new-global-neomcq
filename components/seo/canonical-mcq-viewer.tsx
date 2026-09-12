@@ -63,6 +63,10 @@ export function CanonicalMcqViewer({
     }
   };
 
+  const isMedical = Boolean(
+    (mcq.exam_name || '').toLowerCase().match(/medical|medicine|usmle|neet|fmge|plab|nclex|nurs|clinic|doctor/)
+  );
+
   const isCorrect =
     isAuthenticated && mcq.correct_answer && selectedOption === mcq.correct_answer;
 
@@ -77,7 +81,7 @@ export function CanonicalMcqViewer({
               {mcq.difficulty || 'High-Yield'}
             </span>
             <span className="px-3 py-1 text-xs font-medium rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-              {mcq.question_type === 'clinical_scenario' ? 'Clinical Vignette' : 'Single Best Answer'}
+              {mcq.question_type === 'clinical_scenario' ? (isMedical ? 'Clinical Vignette' : 'Case Scenario') : 'Single Best Answer'}
             </span>
           </div>
 
@@ -204,7 +208,7 @@ export function CanonicalMcqViewer({
               <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-2">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
                   <BrainCircuit className="w-4 h-4" />
-                  Detailed Clinical Rationale
+                  {isMedical ? 'Detailed Clinical Rationale' : 'Detailed Explanation & Rationale'}
                 </h4>
                 <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-line">
                   {mcq.explanation}
@@ -215,7 +219,7 @@ export function CanonicalMcqViewer({
             {mcq.clinical_pearl && (
               <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200 text-xs space-y-1">
                 <span className="font-bold flex items-center gap-1.5 text-amber-400">
-                  <Sparkles className="w-4 h-4" /> High-Yield Board Pearl
+                  <Sparkles className="w-4 h-4" /> {isMedical ? 'High-Yield Board Pearl' : 'High-Yield Exam Insight'}
                 </span>
                 <p>{mcq.clinical_pearl}</p>
               </div>
@@ -232,7 +236,7 @@ export function CanonicalMcqViewer({
             <div className="flex items-center justify-between gap-3 pb-3 border-b border-indigo-500/20">
               <div className="flex items-center gap-2 text-indigo-300 text-xs font-semibold uppercase tracking-wider">
                 <Lock className="w-4 h-4 text-indigo-400" />
-                <span>Answer Validation & Diagnostic Rationale</span>
+                <span>{isMedical ? 'Answer Validation & Diagnostic Rationale' : 'Answer Validation & Detailed Rationale'}</span>
               </div>
               <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-medium">
                 Free Student Access
@@ -242,17 +246,17 @@ export function CanonicalMcqViewer({
             <div className="space-y-2">
               <h3 className="text-lg sm:text-xl font-extrabold text-white flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-indigo-400" />
-                Unlock Complete Explanation & Clinical Pearls
+                {isMedical ? 'Unlock Complete Explanation & Clinical Pearls' : 'Unlock Complete Explanation & Key Insights'}
               </h3>
               <p className="text-sm text-slate-300 leading-relaxed">
-                You selected an answer for this {mcq.exam_name || 'medical'} practice question. Create a free NeoMCQ account to immediately view:
+                You selected an answer for this {mcq.exam_name || 'practice'} question. Create a free NeoMCQ account to immediately view:
               </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-200">
               <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-950/40 border border-slate-800">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Step-by-step diagnostic reasoning</span>
+                <span>{isMedical ? 'Step-by-step diagnostic reasoning' : 'Step-by-step analytical reasoning'}</span>
               </div>
               <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-950/40 border border-slate-800">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -260,7 +264,7 @@ export function CanonicalMcqViewer({
               </div>
               <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-950/40 border border-slate-800">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Board high-yield clinical pearls</span>
+                <span>{isMedical ? 'Board high-yield clinical pearls' : 'High-yield exam insights & key facts'}</span>
               </div>
               <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-950/40 border border-slate-800">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />

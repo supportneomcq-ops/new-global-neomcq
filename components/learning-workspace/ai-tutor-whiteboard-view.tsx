@@ -41,9 +41,9 @@ export function AiTutorWhiteboardView({ user }: AiTutorWhiteboardViewProps) {
       subjectId={subjectId}
       topicId={topicId}
       userId={resolvedUserId || user.userId || ''}
-      topicName={selection.topic?.name || 'High-Yield Clinical Concepts'}
-      subjectName={selection.subject?.name || 'General Clinical Medicine'}
-      examName={selection.exam?.name || user.examName || 'USMLE Step 1'}
+      topicName={selection.topic?.name || 'High-Yield Exam Concepts'}
+      subjectName={selection.subject?.name || 'Core Curriculum Subject'}
+      examName={selection.exam?.name || user.examName || 'Examination'}
     />
   );
 }

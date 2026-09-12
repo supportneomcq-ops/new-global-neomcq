@@ -556,7 +556,7 @@ export async function getOrGenerateCanonicalTopicContent({
         .maybeSingle(),
       supabase
         .from('mcqs')
-        .select('id, question, options, correct_answer, explanation, clinical_pearl, high_yield_tag, difficulty, created_at')
+        .select('id, question, options, correct_answer, explanation, clinical_pearl, tags, metadata, difficulty, created_at')
         .eq('topic_id', topic.id)
         .order('created_at', { ascending: true }),
       supabase
@@ -613,7 +613,7 @@ export async function getOrGenerateCanonicalTopicContent({
             correct_index: correctIdx,
             explanation: m.explanation || 'High-yield board explanation.',
             clinical_pearl: m.clinical_pearl || `${topic.name} - Pearl`,
-            high_yield_tag: m.high_yield_tag || `${subject.name} - ${topic.name}`,
+            high_yield_tag: m.metadata?.high_yield_tag || (Array.isArray(m.tags) ? m.tags[0] : null) || `${subject.name} - ${topic.name}`,
             difficulty: m.difficulty || difficulty,
           }
         })

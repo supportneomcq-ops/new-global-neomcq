@@ -44,6 +44,10 @@ export default async function PublicExamPage({ params }: PageProps) {
   const subjects = await getPublicExamSubjects(exam.id, exam.slug);
   const siteUrl = getSiteUrl();
 
+  const isMedical = Boolean(
+    (exam.name || exam.category || '').toLowerCase().match(/medical|medicine|usmle|neet|fmge|plab|nclex|nurs|clinic|doctor/)
+  );
+
   const breadcrumbs = [
     { name: 'All Exams', url: '/exams' },
     { name: exam.name, url: `/${exam.slug}` },
@@ -99,7 +103,7 @@ export default async function PublicExamPage({ params }: PageProps) {
             </h1>
             <p className="text-base sm:text-lg text-slate-300 leading-relaxed">
               {exam.description ||
-                `Prepare for ${exam.name} with AI-powered spaced repetition, clinical vignette question banks, and structured high-yield revision summaries.`}
+                `Prepare for ${exam.name} with AI-powered spaced repetition, authentic exam-aligned question banks, and structured high-yield revision summaries.`}
             </p>
           </div>
 
@@ -133,7 +137,9 @@ export default async function PublicExamPage({ params }: PageProps) {
                 {exam.name} Syllabus & Subject Breakdown
               </h2>
               <p className="text-xs sm:text-sm text-slate-400">
-                Explore topic-wise MCQs, clinical case discussions, and high-yield notes by subject.
+                {isMedical
+                  ? 'Explore topic-wise MCQs, clinical case discussions, and high-yield notes by subject.'
+                  : 'Explore topic-wise MCQs, high-yield practice scenarios, and structured notes by subject.'}
               </p>
             </div>
             <span className="text-xs font-semibold px-3 py-1 rounded-full bg-slate-800 text-slate-300">
@@ -189,9 +195,13 @@ export default async function PublicExamPage({ params }: PageProps) {
               <div className="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold text-sm">
                 1
               </div>
-              <h3 className="text-sm font-bold text-white">Clinical Vignette Focus</h3>
+              <h3 className="text-sm font-bold text-white">
+                {isMedical ? 'Clinical Vignette Focus' : 'Authentic Exam Question Stems'}
+              </h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Multi-step patient scenarios mirroring modern board examination blueprints.
+                {isMedical
+                  ? 'Multi-step patient scenarios mirroring modern board examination blueprints.'
+                  : 'Syllabus-aligned reasoning questions mirroring modern examination blueprints.'}
               </p>
             </div>
 
@@ -201,7 +211,7 @@ export default async function PublicExamPage({ params }: PageProps) {
               </div>
               <h3 className="text-sm font-bold text-white">Spaced Repetition Algorithm</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Automated memory retention scheduling to lock in high-yield medical facts permanently.
+                Automated memory retention scheduling to lock in high-yield facts and concepts permanently.
               </p>
             </div>
 

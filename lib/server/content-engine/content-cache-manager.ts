@@ -211,9 +211,6 @@ export class ContentCacheManager {
       const { error } = await supabase.from('content_versions').insert({
         asset_id: topicId,
         asset_type: 'topic',
-        exam_id: examId,
-        subject_id: subjectId,
-        topic_id: topicId,
         version: versionNumber,
         snapshot: pkg,
         change_summary: changeSummary,
