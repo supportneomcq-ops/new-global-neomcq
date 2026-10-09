@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from '../../supabase/admin'
-import { normalizeInput, calculateLevenshteinSimilarity } from '../../knowledge/normalizer'
+import { normalizeInput } from '../../knowledge/normalizer'
 import { classifyUserInput } from '../../knowledge/classifier'
 import { AIGateway } from '../../ai/ai-gateway'
 import {
@@ -17,6 +17,7 @@ import type {
 
 export * from './types'
 export * from './engine'
+export * from './curriculum-comparator'
 
 /**
  * Server-only assertion

@@ -167,6 +167,9 @@ export type AIExamIntelligenceOutput = z.infer<typeof AIExamIntelligenceOutputSc
 
 export type CurriculumStatus = 'pending' | 'generating' | 'ready' | 'partial' | 'needs_enrichment' | 'failed'
 
+export type VerificationStatus = 'verified' | 'partially_verified' | 'AI_inferred' | 'needs_review'
+export type RulesStatus = 'ready' | 'partial' | 'needs_review'
+
 export interface ExamIntelligenceProfile {
   exam_id: string
   exam_code: string | null
@@ -206,13 +209,24 @@ export interface ExamResolutionResponse {
     id: string
     name: string
     slug: string
+    short_name?: string
     description: string
     difficulty: string
-    question_count: number
-    time_limit_mins: number
+    question_count: number | null
+    time_limit_mins: number | null
     country: string
     flag: string
     curriculum_status: CurriculumStatus
+    rules_status?: RulesStatus
+    verification_status?: VerificationStatus
+    coverage_percentage?: number
+    evidence_scope?: string
+    authority_name?: string | null
+    subjectCount?: number
+    topicCount?: number
+    subtopicCount?: number
+    marking_scheme?: any
+    question_types?: any[]
     profile?: ExamIntelligenceProfile
     exam_subjects: Array<{
       id: string
@@ -240,3 +254,4 @@ export interface ExamResolutionResponse {
   }
   message: string
 }
+

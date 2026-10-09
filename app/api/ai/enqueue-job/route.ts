@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
+import { GenerationJobManager } from '@/lib/server/content-engine/job-manager'
 
 const enqueueJobSchema = z.object({
   jobType: z.enum([
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
 
     const { jobType, inputParams } = validation.data
 
-    // Check AI Content Cache first
+    // 1. Check AI Content Cache first
     const cacheKey = `${jobType}:${JSON.stringify(inputParams)}`
     const { data: cached } = await (supabase as any)
       .from('ai_content_cache')
@@ -53,45 +54,49 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Insert new AI Generation Job in queue
-    const { data: job, error: jobError } = await (supabase as any)
-      .from('ai_jobs')
-      .insert({
-        user_id: user.id,
-        exam_id: inputParams.examId || null,
-        subject_id: inputParams.subjectId || null,
-        topic_id: inputParams.topicId || null,
+    // 2. Atomically Create or Attach to AI Generation Job in database
+    const { job, isNew, resolutionType } = await GenerationJobManager.createOrAttachJob(
+      {
+        examId: inputParams.examId || '',
+        subjectId: inputParams.subjectId,
+        topicId: inputParams.topicId,
+        examVersionId: inputParams.examVersionId,
+        packageType: jobType,
+        version: inputParams.version || 1,
         task: `${jobType}_generation`,
-        status: 'queued',
-        provider: 'Google Gemini AI',
-        model: 'gemini-3.5-flash',
-        priority: 5,
-        input_payload: {
+        userId: user.id,
+        inputPayload: {
           job_type: jobType,
           ...inputParams,
         },
-      })
-      .select('id, status, created_at')
-      .single()
+      },
+      supabase
+    )
 
-    if (jobError || !job) {
-      return NextResponse.json({ error: jobError?.message || 'Failed to enqueue AI job' }, { status: 500 })
+    if (!job) {
+      return NextResponse.json({ error: 'Failed to enqueue AI job' }, { status: 500 })
     }
 
-    // Trigger asynchronous worker processing in background
-    fetch(`${req.nextUrl.origin}/api/ai/process-job`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ jobId: job.id }),
-    }).catch((err) => console.error('Background AI job trigger error:', err))
+    // 3. Trigger asynchronous worker processing only if this is a newly created job
+    if (isNew && job.status === 'QUEUED') {
+      fetch(`${req.nextUrl.origin}/api/ai/process-job`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ jobId: job.id }),
+      }).catch((err) => console.error('Background AI job trigger error:', err))
+    }
 
     return NextResponse.json({
       success: true,
       jobId: job.id,
-      status: job.status,
-      message: 'AI generation job enqueued asynchronously',
+      status: job.status.toLowerCase(),
+      isNew,
+      resolutionType,
+      message: isNew
+        ? 'AI generation job enqueued asynchronously'
+        : 'Reusing existing active or completed generation job',
     })
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 })

@@ -16,6 +16,28 @@ const ACTIVE_JOB_STATUSES = ['queued', 'running', 'validating', 'processing', 'p
 
 export class GenerationJobManager {
   /**
+   * Fetches a job by ID from ai_jobs
+   */
+  public static async getJobById(
+    jobId: string,
+    supabaseClient?: any
+  ): Promise<GenerationJobRecord | null> {
+    const supabase = supabaseClient || getSupabaseAdmin();
+    try {
+      const { data: job, error } = await supabase
+        .from('ai_jobs')
+        .select('*')
+        .eq('id', jobId)
+        .maybeSingle();
+
+      if (error || !job) return null;
+      return this.mapDbJobToRecord(job);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Finds an existing in-flight job for the given idempotency key
    */
   public static async findActiveJob(
@@ -25,10 +47,11 @@ export class GenerationJobManager {
     const supabase = supabaseClient || getSupabaseAdmin();
 
     try {
+      // Check column first, then input_payload
       const { data: job, error } = await supabase
         .from('ai_jobs')
         .select('*')
-        .contains('input_payload', { idempotency_key: idempotencyKey })
+        .or(`idempotency_key.eq.${idempotencyKey},input_payload->>idempotency_key.eq.${idempotencyKey}`)
         .in('status', ACTIVE_JOB_STATUSES)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -69,55 +92,107 @@ export class GenerationJobManager {
 
   /**
    * Idempotently creates a new generation job or attaches to an existing active one.
-   * Guaranteed: Never creates duplicate concurrent jobs.
+   * Guaranteed: Database-enforced atomic concurrency prevents duplicate generation jobs.
    */
   public static async createOrAttachJob(
     params: {
       examId: string;
-      subjectId: string;
-      topicId: string;
-      packageType?: ContentPackageType;
+      subjectId?: string;
+      topicId?: string;
+      examVersionId?: string | null;
+      packageType?: ContentPackageType | string;
       version?: number;
       priority?: number;
       task?: string;
+      userId?: string | null;
+      inputPayload?: Record<string, any>;
+      provider?: string;
+      model?: string;
+      maxAttempts?: number;
     },
     supabaseClient?: any
-  ): Promise<{ job: GenerationJobRecord; isNew: boolean }> {
+  ): Promise<{ job: GenerationJobRecord; isNew: boolean; resolutionType?: string }> {
     const supabase = supabaseClient || getSupabaseAdmin();
     const version = params.version || 1;
     const packageType = params.packageType || 'full_pack';
-    const idempotencyKey = buildIdempotencyKey(params.examId, params.subjectId, params.topicId, packageType, version);
+    const task = params.task || `generate_content_package_${packageType}`;
+    const idempotencyKey = buildIdempotencyKey(
+      params.examId,
+      params.subjectId || '',
+      params.topicId || '',
+      packageType,
+      version,
+      params.examVersionId
+    );
 
-    // 1. Check for an already active in-flight job
-    const active = await this.findActiveJob(idempotencyKey, supabase);
-    if (active) {
-      return { job: active, isNew: false };
-    }
-
-    // 2. Create a new QUEUED job with deterministic input_payload
     const inputPayload = {
       idempotency_key: idempotencyKey,
       exam_id: params.examId,
-      subject_id: params.subjectId,
-      topic_id: params.topicId,
+      exam_version_id: params.examVersionId || null,
+      subject_id: params.subjectId || null,
+      topic_id: params.topicId || null,
       package_type: packageType,
       version,
       is_global_generation: true,
       created_timestamp: new Date().toISOString(),
+      ...(params.inputPayload || {}),
     };
 
+    // 1. Attempt Atomic Database RPC Call (Batch 2 Idempotency Boundary)
+    try {
+      const { data, error } = await supabase.rpc('get_or_create_ai_generation_job', {
+        p_idempotency_key: idempotencyKey,
+        p_task: task,
+        p_exam_id: params.examId || null,
+        p_exam_version_id: params.examVersionId || null,
+        p_subject_id: params.subjectId || null,
+        p_topic_id: params.topicId || null,
+        p_user_id: params.userId || null,
+        p_input_payload: inputPayload,
+        p_priority: params.priority || 5,
+        p_provider: params.provider || 'Google Gemini AI',
+        p_model: params.model || 'gemini-3.5-flash',
+        p_max_attempts: params.maxAttempts || 3,
+      });
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const result = data[0];
+        const job = await this.getJobById(result.job_id, supabase);
+        if (job) {
+          return {
+            job,
+            isNew: Boolean(result.is_new),
+            resolutionType: result.resolution_type,
+          };
+        }
+      }
+    } catch {
+      // Fall through to standard fallback logic if RPC is unavailable in isolated mock environments
+    }
+
+    // 2. Direct Fallback Check for active job
+    const active = await this.findActiveJob(idempotencyKey, supabase);
+    if (active) {
+      return { job: active, isNew: false, resolutionType: 'FALLBACK_ACTIVE' };
+    }
+
+    // 3. Fallback Insert
     try {
       const { data: created, error } = await supabase
         .from('ai_jobs')
         .insert({
+          idempotency_key: idempotencyKey,
           exam_id: params.examId,
-          subject_id: params.subjectId,
-          topic_id: params.topicId,
-          task: params.task || `generate_content_package_${packageType}`,
+          exam_version_id: params.examVersionId || null,
+          subject_id: params.subjectId || null,
+          topic_id: params.topicId || null,
+          task,
           status: 'queued',
           priority: params.priority || 5,
+          provider: params.provider || 'Google Gemini AI',
+          model: params.model || 'gemini-3.5-flash',
           attempts: 0,
-          max_attempts: 3,
+          max_attempts: params.maxAttempts || 3,
           credits_reserved: 0,
           credits_consumed: 0,
           input_payload: inputPayload,
@@ -127,20 +202,18 @@ export class GenerationJobManager {
         .single();
 
       if (error) {
-        // Race condition: if another request inserted between our check and insert, retrieve it
         const retryActive = await this.findActiveJob(idempotencyKey, supabase);
         if (retryActive) {
-          return { job: retryActive, isNew: false };
+          return { job: retryActive, isNew: false, resolutionType: 'FALLBACK_CONFLICT_ACTIVE' };
         }
         throw error;
       }
 
-      return { job: this.mapDbJobToRecord(created), isNew: true };
+      return { job: this.mapDbJobToRecord(created), isNew: true, resolutionType: 'FALLBACK_CREATED' };
     } catch (err: any) {
-      // Fallback check
       const fallbackActive = await this.findActiveJob(idempotencyKey, supabase);
       if (fallbackActive) {
-        return { job: fallbackActive, isNew: false };
+        return { job: fallbackActive, isNew: false, resolutionType: 'FALLBACK_ERROR_ATTACHED' };
       }
       throw new Error(`Failed to create generation job: ${err.message}`);
     }
@@ -321,6 +394,7 @@ export class GenerationJobManager {
       examId: dbRow.exam_id,
       subjectId: dbRow.subject_id,
       topicId: dbRow.topic_id,
+      examVersionId: dbRow.exam_version_id || dbRow.input_payload?.exam_version_id || null,
       task: dbRow.task || 'content_generation',
       status,
       priority: dbRow.priority || 5,
@@ -329,7 +403,7 @@ export class GenerationJobManager {
       attempts: dbRow.attempts || 0,
       maxAttempts: dbRow.max_attempts || 3,
       error: dbRow.error,
-      idempotencyKey: dbRow.input_payload?.idempotency_key || '',
+      idempotencyKey: dbRow.idempotency_key || dbRow.input_payload?.idempotency_key || '',
       createdAt: dbRow.created_at,
       startedAt: dbRow.started_at,
       completedAt: dbRow.completed_at,

@@ -429,6 +429,7 @@ export interface GenerationJobRecord {
   examId: string;
   subjectId: string;
   topicId: string;
+  examVersionId?: string | null;
   task: string;
   status: JobState;
   priority: number;

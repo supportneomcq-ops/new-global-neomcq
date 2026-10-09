@@ -377,7 +377,7 @@ export function TutorInteractiveWorkspace({
           <div className="lg:col-span-8 space-y-4">
             <TutorWhiteboardCanvas
               userId={activeUserId}
-              lesson={session?.lesson || session}
+              lesson={(session as any)?.lesson || session}
               scenes={scenes as any}
               assets={(session as any)?.assets || []}
               voiceMetadata={(session as any)?.voiceMetadata || []}

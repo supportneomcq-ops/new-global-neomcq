@@ -41,6 +41,7 @@ export interface ExamSeoData {
   id: string;
   name: string;
   slug: string;
+  category?: string | null;
   description?: string | null;
   difficulty?: string;
   question_count?: number;

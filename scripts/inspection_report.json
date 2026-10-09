@@ -1,0 +1,3924 @@
+{
+  "counts": {
+    "exams": 189,
+    "exam_versions": 149,
+    "exam_subjects": 9,
+    "exam_topics": 15,
+    "exam_subtopics": 36,
+    "exam_evidence": 19,
+    "exam_authorities": 139,
+    "exam_aliases": 811,
+    "ai_jobs": 171,
+    "subjects": 0,
+    "topics": 0,
+    "topic_content_state": 0,
+    "topic_refresh_runs": 0
+  },
+  "total_tables": 83,
+  "rls_disabled": [
+    "active_recall_batches",
+    "ai_discovered_exams",
+    "ai_tutor_tts_cache",
+    "user_exam_selections",
+    "user_study_topics"
+  ],
+  "rls_enabled": [
+    "ai_cost_alerts",
+    "ai_cost_events",
+    "ai_jobs",
+    "ai_margin_rules",
+    "ai_model_pricing",
+    "ai_task_routing",
+    "ai_tutor_faqs",
+    "ai_tutor_lessons",
+    "ai_tutor_messages",
+    "audit_logs",
+    "bookmarks",
+    "canonical_a4_notes",
+    "content_versions",
+    "countries",
+    "coupon_redemptions",
+    "coupons",
+    "credit_accounts",
+    "credit_ledger",
+    "credit_packs",
+    "currencies",
+    "exam_aliases",
+    "exam_authorities",
+    "exam_categories",
+    "exam_evidence",
+    "exam_subjects",
+    "exam_subtopics",
+    "exam_switch_history",
+    "exam_switch_requests",
+    "exam_topics",
+    "exam_versions",
+    "exams",
+    "flashcard_decks",
+    "flashcards",
+    "languages",
+    "mcq_attempts",
+    "mcqs",
+    "notes",
+    "notification_preferences",
+    "notifications",
+    "payment_events",
+    "payments",
+    "permissions",
+    "plan_ai_limits",
+    "profiles",
+    "quiz_attempts",
+    "quiz_responses",
+    "revision_sheets",
+    "role_permissions",
+    "roles",
+    "study_plans",
+    "study_preferences",
+    "study_sessions",
+    "subject_aliases",
+    "subjects",
+    "subscription_plans",
+    "subscriptions",
+    "system_settings",
+    "timezones",
+    "topic_aliases",
+    "topic_content_state",
+    "topic_refresh_runs",
+    "topic_requests",
+    "topics",
+    "tutor_assets",
+    "tutor_events",
+    "tutor_faq_references",
+    "tutor_faqs",
+    "tutor_lessons",
+    "tutor_scenes",
+    "tutor_voice_metadata",
+    "user_a4_annotations",
+    "user_a4_highlights",
+    "user_exams",
+    "user_flashcard_progress",
+    "user_roles",
+    "user_sticky_notes",
+    "user_topic_access",
+    "user_tutor_progress"
+  ],
+  "total_policies": 128,
+  "policies_by_table": {
+    "ai_cost_alerts": [
+      {
+        "schemaname": "public",
+        "tablename": "ai_cost_alerts",
+        "policyname": "Admin view ai_cost_alerts",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "is_admin(auth.uid())",
+        "with_check": null
+      }
+    ],
+    "ai_cost_events": [
+      {
+        "schemaname": "public",
+        "tablename": "ai_cost_events",
+        "policyname": "Admin write ai_cost_events",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "is_admin(auth.uid())",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "ai_cost_events",
+        "policyname": "Users read own ai_cost_events",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "((auth.uid() = user_id) OR is_admin(auth.uid()))",
+        "with_check": null
+      }
+    ],
+    "ai_jobs": [
+      {
+        "schemaname": "public",
+        "tablename": "ai_jobs",
+        "policyname": "Admins can view all ai_jobs",
+        "permissive": "PERMISSIVE",
+        "roles": "{authenticated}",
+        "cmd": "SELECT",
+        "qual": "is_admin(auth.uid())",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "ai_jobs",
+        "policyname": "Service role manages ai_jobs",
+        "permissive": "PERMISSIVE",
+        "roles": "{service_role}",
+        "cmd": "ALL",
+        "qual": "true",
+        "with_check": "true"
+      },
+      {
+        "schemaname": "public",
+        "tablename": "ai_jobs",
+        "policyname": "Users can insert own ai_jobs",
+        "permissive": "PERMISSIVE",
+        "roles": "{authenticated}",
+        "cmd": "INSERT",
+        "qual": null,
+        "with_check": "(auth.uid() = user_id)"
+      },
+      {
+        "schemaname": "public",
+        "tablename": "ai_jobs",
+        "policyname": "Users can view own ai_jobs",
+        "permissive": "PERMISSIVE",
+        "roles": "{authenticated}",
+        "cmd": "SELECT",
+        "qual": "(auth.uid() = user_id)",
+        "with_check": null
+      }
+    ],
+    "ai_margin_rules": [
+      {
+        "schemaname": "public",
+        "tablename": "ai_margin_rules",
+        "policyname": "Admin view margin_rules",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "is_admin(auth.uid())",
+        "with_check": null
+      }
+    ],
+    "ai_model_pricing": [
+      {
+        "schemaname": "public",
+        "tablename": "ai_model_pricing",
+        "policyname": "Admin write ai_model_pricing",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "is_admin(auth.uid())",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "ai_model_pricing",
+        "policyname": "Public read ai_model_pricing",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "ai_task_routing": [
+      {
+        "schemaname": "public",
+        "tablename": "ai_task_routing",
+        "policyname": "Admin write ai_task_routing",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "is_admin(auth.uid())",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "ai_task_routing",
+        "policyname": "Public read ai_task_routing",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "ai_tutor_faqs": [
+      {
+        "schemaname": "public",
+        "tablename": "ai_tutor_faqs",
+        "policyname": "Anyone read FAQs",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "ai_tutor_faqs",
+        "policyname": "Authenticated write FAQs",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "((auth.role() = 'authenticated'::text) OR (auth.role() = 'service_role'::text))",
+        "with_check": null
+      }
+    ],
+    "ai_tutor_lessons": [
+      {
+        "schemaname": "public",
+        "tablename": "ai_tutor_lessons",
+        "policyname": "Admins write ai_tutor_lessons",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "is_admin(auth.uid())",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "ai_tutor_lessons",
+        "policyname": "Public read approved ai_tutor_lessons",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "((status = 'approved'::text) OR is_admin(auth.uid()))",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "ai_tutor_lessons",
+        "policyname": "Users insert own tutor lessons",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "INSERT",
+        "qual": null,
+        "with_check": "((auth.uid() = user_id) OR is_admin(auth.uid()))"
+      },
+      {
+        "schemaname": "public",
+        "tablename": "ai_tutor_lessons",
+        "policyname": "Users read own tutor lessons",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "((auth.uid() = user_id) OR (user_id IS NULL) OR is_admin(auth.uid()))",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "ai_tutor_lessons",
+        "policyname": "Users update own tutor lessons",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "UPDATE",
+        "qual": "((auth.uid() = user_id) OR is_admin(auth.uid()))",
+        "with_check": null
+      }
+    ],
+    "ai_tutor_messages": [
+      {
+        "schemaname": "public",
+        "tablename": "ai_tutor_messages",
+        "policyname": "Users insert own tutor messages",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "INSERT",
+        "qual": null,
+        "with_check": "((auth.uid() = user_id) OR (user_id = auth.uid()))"
+      },
+      {
+        "schemaname": "public",
+        "tablename": "ai_tutor_messages",
+        "policyname": "Users view own tutor messages",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "((auth.uid() = user_id) OR (user_id = auth.uid()))",
+        "with_check": null
+      }
+    ],
+    "audit_logs": [
+      {
+        "schemaname": "public",
+        "tablename": "audit_logs",
+        "policyname": "Admins can view audit_logs",
+        "permissive": "PERMISSIVE",
+        "roles": "{authenticated}",
+        "cmd": "SELECT",
+        "qual": "is_admin(auth.uid())",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "audit_logs",
+        "policyname": "Service role manages audit_logs",
+        "permissive": "PERMISSIVE",
+        "roles": "{service_role}",
+        "cmd": "ALL",
+        "qual": "true",
+        "with_check": "true"
+      }
+    ],
+    "bookmarks": [
+      {
+        "schemaname": "public",
+        "tablename": "bookmarks",
+        "policyname": "Users manage own bookmarks",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "(auth.uid() = user_id)",
+        "with_check": null
+      }
+    ],
+    "canonical_a4_notes": [
+      {
+        "schemaname": "public",
+        "tablename": "canonical_a4_notes",
+        "policyname": "Public read canonical_a4_notes",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "canonical_a4_notes",
+        "policyname": "Service role manage canonical_a4_notes",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "content_versions": [
+      {
+        "schemaname": "public",
+        "tablename": "content_versions",
+        "policyname": "Admins read content_versions",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "is_admin(auth.uid())",
+        "with_check": null
+      }
+    ],
+    "countries": [
+      {
+        "schemaname": "public",
+        "tablename": "countries",
+        "policyname": "Public read countries",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "credit_accounts": [
+      {
+        "schemaname": "public",
+        "tablename": "credit_accounts",
+        "policyname": "Admin write credit_accounts",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "is_admin(auth.uid())",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "credit_accounts",
+        "policyname": "Users read own credit_account",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "((auth.uid() = user_id) OR is_admin(auth.uid()))",
+        "with_check": null
+      }
+    ],
+    "credit_ledger": [
+      {
+        "schemaname": "public",
+        "tablename": "credit_ledger",
+        "policyname": "Admin write credit_ledger",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "is_admin(auth.uid())",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "credit_ledger",
+        "policyname": "Users read own ledger",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "((auth.uid() = user_id) OR is_admin(auth.uid()))",
+        "with_check": null
+      }
+    ],
+    "credit_packs": [
+      {
+        "schemaname": "public",
+        "tablename": "credit_packs",
+        "policyname": "Admin write credit_packs",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "is_admin(auth.uid())",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "credit_packs",
+        "policyname": "Public read credit_packs",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "((active = true) OR is_admin(auth.uid()))",
+        "with_check": null
+      }
+    ],
+    "currencies": [
+      {
+        "schemaname": "public",
+        "tablename": "currencies",
+        "policyname": "Public read currencies",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "exam_aliases": [
+      {
+        "schemaname": "public",
+        "tablename": "exam_aliases",
+        "policyname": "Public read exam_aliases",
+        "permissive": "PERMISSIVE",
+        "roles": "{anon,authenticated}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "exam_authorities": [
+      {
+        "schemaname": "public",
+        "tablename": "exam_authorities",
+        "policyname": "Admin write access to exam_authorities",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "true",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "exam_authorities",
+        "policyname": "Public read access to exam_authorities",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "exam_categories": [
+      {
+        "schemaname": "public",
+        "tablename": "exam_categories",
+        "policyname": "Public read active categories",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "exam_evidence": [
+      {
+        "schemaname": "public",
+        "tablename": "exam_evidence",
+        "policyname": "Public can read verified evidence",
+        "permissive": "PERMISSIVE",
+        "roles": "{anon,authenticated}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "exam_evidence",
+        "policyname": "Service role manages evidence",
+        "permissive": "PERMISSIVE",
+        "roles": "{service_role}",
+        "cmd": "ALL",
+        "qual": "true",
+        "with_check": "true"
+      }
+    ],
+    "exam_subjects": [
+      {
+        "schemaname": "public",
+        "tablename": "exam_subjects",
+        "policyname": "Public read subjects",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "exam_subtopics": [
+      {
+        "schemaname": "public",
+        "tablename": "exam_subtopics",
+        "policyname": "Public can read verified subtopics",
+        "permissive": "PERMISSIVE",
+        "roles": "{anon,authenticated}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "exam_subtopics",
+        "policyname": "Service role manages subtopics",
+        "permissive": "PERMISSIVE",
+        "roles": "{service_role}",
+        "cmd": "ALL",
+        "qual": "true",
+        "with_check": "true"
+      }
+    ],
+    "exam_switch_history": [
+      {
+        "schemaname": "public",
+        "tablename": "exam_switch_history",
+        "policyname": "Admins manage all switch history",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "is_admin(auth.uid())",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "exam_switch_history",
+        "policyname": "Users can view own switch history",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "((auth.uid() = user_id) OR is_admin(auth.uid()))",
+        "with_check": null
+      }
+    ],
+    "exam_switch_requests": [
+      {
+        "schemaname": "public",
+        "tablename": "exam_switch_requests",
+        "policyname": "Admins manage all switch requests",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "is_admin(auth.uid())",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "exam_switch_requests",
+        "policyname": "Users can view own switch requests",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "((auth.uid() = user_id) OR is_admin(auth.uid()))",
+        "with_check": null
+      }
+    ],
+    "exam_topics": [
+      {
+        "schemaname": "public",
+        "tablename": "exam_topics",
+        "policyname": "Public read topics",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "exam_versions": [
+      {
+        "schemaname": "public",
+        "tablename": "exam_versions",
+        "policyname": "Admin write access to exam_versions",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "true",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "exam_versions",
+        "policyname": "Public read access to exam_versions",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "exams": [
+      {
+        "schemaname": "public",
+        "tablename": "exams",
+        "policyname": "Public read active exams",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "((status = 'active'::text) OR is_admin(auth.uid()))",
+        "with_check": null
+      }
+    ],
+    "flashcard_decks": [
+      {
+        "schemaname": "public",
+        "tablename": "flashcard_decks",
+        "policyname": "Admins write decks",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "is_admin(auth.uid())",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "flashcard_decks",
+        "policyname": "Public and authenticated read approved decks",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "((status = 'approved'::text) OR is_admin(auth.uid()))",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "flashcard_decks",
+        "policyname": "Public read approved decks",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "((status = 'approved'::text) OR is_admin(auth.uid()))",
+        "with_check": null
+      }
+    ],
+    "flashcards": [
+      {
+        "schemaname": "public",
+        "tablename": "flashcards",
+        "policyname": "Admins write flashcards",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "is_admin(auth.uid())",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "flashcards",
+        "policyname": "Public and authenticated read approved flashcards",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "((status = 'approved'::text) OR is_admin(auth.uid()))",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "flashcards",
+        "policyname": "Public read approved flashcards",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "((status = 'approved'::text) OR is_admin(auth.uid()))",
+        "with_check": null
+      }
+    ],
+    "languages": [
+      {
+        "schemaname": "public",
+        "tablename": "languages",
+        "policyname": "Public read languages",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "mcq_attempts": [
+      {
+        "schemaname": "public",
+        "tablename": "mcq_attempts",
+        "policyname": "Users insert own mcq attempts",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "INSERT",
+        "qual": null,
+        "with_check": "((auth.uid() = user_id) OR (user_id IS NULL))"
+      },
+      {
+        "schemaname": "public",
+        "tablename": "mcq_attempts",
+        "policyname": "Users view own mcq attempts",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "((auth.uid() = user_id) OR is_admin(auth.uid()))",
+        "with_check": null
+      }
+    ],
+    "mcqs": [
+      {
+        "schemaname": "public",
+        "tablename": "mcqs",
+        "policyname": "Admins write mcqs",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "is_admin(auth.uid())",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "mcqs",
+        "policyname": "Public read approved mcqs",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "((status = 'approved'::text) OR is_admin(auth.uid()))",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "mcqs",
+        "policyname": "Public view active canonical mcqs",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "(((status = 'approved'::text) AND (visibility = ANY (ARRAY['PUBLIC_CANONICAL'::text, 'PUBLIC_DISCOVERABLE'::text]))) OR (auth.uid() = user_id) OR is_admin(auth.uid()))",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "mcqs",
+        "policyname": "Users insert own mcqs",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "INSERT",
+        "qual": null,
+        "with_check": "((auth.uid() = user_id) OR is_admin(auth.uid()))"
+      },
+      {
+        "schemaname": "public",
+        "tablename": "mcqs",
+        "policyname": "Users update own mcqs",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "UPDATE",
+        "qual": "((auth.uid() = user_id) OR is_admin(auth.uid()))",
+        "with_check": null
+      }
+    ],
+    "notes": [
+      {
+        "schemaname": "public",
+        "tablename": "notes",
+        "policyname": "Admins write notes",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "is_admin(auth.uid())",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "notes",
+        "policyname": "Public read approved notes",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "((status = 'approved'::text) OR is_admin(auth.uid()))",
+        "with_check": null
+      }
+    ],
+    "notification_preferences": [
+      {
+        "schemaname": "public",
+        "tablename": "notification_preferences",
+        "policyname": "Users manage own notification preferences",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "(auth.uid() = user_id)",
+        "with_check": null
+      }
+    ],
+    "notifications": [
+      {
+        "schemaname": "public",
+        "tablename": "notifications",
+        "policyname": "Users manage own notifications",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "(auth.uid() = user_id)",
+        "with_check": null
+      }
+    ],
+    "payment_events": [
+      {
+        "schemaname": "public",
+        "tablename": "payment_events",
+        "policyname": "Admins can view payment_events",
+        "permissive": "PERMISSIVE",
+        "roles": "{authenticated}",
+        "cmd": "SELECT",
+        "qual": "is_admin(auth.uid())",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "payment_events",
+        "policyname": "Service role manages payment_events",
+        "permissive": "PERMISSIVE",
+        "roles": "{service_role}",
+        "cmd": "ALL",
+        "qual": "true",
+        "with_check": "true"
+      }
+    ],
+    "payments": [
+      {
+        "schemaname": "public",
+        "tablename": "payments",
+        "policyname": "Users view own payments",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "((auth.uid() = user_id) OR is_admin(auth.uid()))",
+        "with_check": null
+      }
+    ],
+    "plan_ai_limits": [
+      {
+        "schemaname": "public",
+        "tablename": "plan_ai_limits",
+        "policyname": "Admin write plan_ai_limits",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "is_admin(auth.uid())",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "plan_ai_limits",
+        "policyname": "Public read plan_ai_limits",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "profiles": [
+      {
+        "schemaname": "public",
+        "tablename": "profiles",
+        "policyname": "Public read profiles",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "profiles",
+        "policyname": "Users update own profile",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "UPDATE",
+        "qual": "(auth.uid() = id)",
+        "with_check": null
+      }
+    ],
+    "quiz_attempts": [
+      {
+        "schemaname": "public",
+        "tablename": "quiz_attempts",
+        "policyname": "Users can insert own quiz attempts",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "INSERT",
+        "qual": null,
+        "with_check": "((auth.uid() = user_id) OR (user_id IS NULL))"
+      },
+      {
+        "schemaname": "public",
+        "tablename": "quiz_attempts",
+        "policyname": "Users can update own quiz attempts",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "UPDATE",
+        "qual": "((auth.uid() = user_id) OR is_admin(auth.uid()))",
+        "with_check": "((auth.uid() = user_id) OR is_admin(auth.uid()))"
+      },
+      {
+        "schemaname": "public",
+        "tablename": "quiz_attempts",
+        "policyname": "Users can view own quiz attempts",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "((auth.uid() = user_id) OR is_admin(auth.uid()))",
+        "with_check": null
+      }
+    ],
+    "quiz_responses": [
+      {
+        "schemaname": "public",
+        "tablename": "quiz_responses",
+        "policyname": "Users can insert own quiz responses",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "INSERT",
+        "qual": null,
+        "with_check": "(EXISTS ( SELECT 1\n   FROM quiz_attempts a\n  WHERE ((a.id = quiz_responses.attempt_id) AND ((a.user_id = auth.uid()) OR (a.user_id IS NULL)))))"
+      },
+      {
+        "schemaname": "public",
+        "tablename": "quiz_responses",
+        "policyname": "Users can update own quiz responses",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "UPDATE",
+        "qual": "(EXISTS ( SELECT 1\n   FROM quiz_attempts a\n  WHERE ((a.id = quiz_responses.attempt_id) AND ((a.user_id = auth.uid()) OR is_admin(auth.uid())))))",
+        "with_check": "(EXISTS ( SELECT 1\n   FROM quiz_attempts a\n  WHERE ((a.id = quiz_responses.attempt_id) AND ((a.user_id = auth.uid()) OR is_admin(auth.uid())))))"
+      },
+      {
+        "schemaname": "public",
+        "tablename": "quiz_responses",
+        "policyname": "Users can view own quiz responses",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "(EXISTS ( SELECT 1\n   FROM quiz_attempts a\n  WHERE ((a.id = quiz_responses.attempt_id) AND ((a.user_id = auth.uid()) OR is_admin(auth.uid())))))",
+        "with_check": null
+      }
+    ],
+    "revision_sheets": [
+      {
+        "schemaname": "public",
+        "tablename": "revision_sheets",
+        "policyname": "Admins write revision_sheets",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "is_admin(auth.uid())",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "revision_sheets",
+        "policyname": "Public read approved revision_sheets",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "((status = ANY (ARRAY['approved'::text, 'published'::text])) OR is_admin(auth.uid()))",
+        "with_check": null
+      }
+    ],
+    "roles": [
+      {
+        "schemaname": "public",
+        "tablename": "roles",
+        "policyname": "Anyone can view roles",
+        "permissive": "PERMISSIVE",
+        "roles": "{anon,authenticated}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "study_plans": [
+      {
+        "schemaname": "public",
+        "tablename": "study_plans",
+        "policyname": "Users manage own study plans",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "(auth.uid() = user_id)",
+        "with_check": null
+      }
+    ],
+    "study_preferences": [
+      {
+        "schemaname": "public",
+        "tablename": "study_preferences",
+        "policyname": "Users manage own study preferences",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "(auth.uid() = user_id)",
+        "with_check": null
+      }
+    ],
+    "study_sessions": [
+      {
+        "schemaname": "public",
+        "tablename": "study_sessions",
+        "policyname": "Users manage own study sessions",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "(auth.uid() = user_id)",
+        "with_check": null
+      }
+    ],
+    "subject_aliases": [
+      {
+        "schemaname": "public",
+        "tablename": "subject_aliases",
+        "policyname": "Public read subject_aliases",
+        "permissive": "PERMISSIVE",
+        "roles": "{anon,authenticated}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "subjects": [
+      {
+        "schemaname": "public",
+        "tablename": "subjects",
+        "policyname": "Admin write access to subjects",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "true",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "subjects",
+        "policyname": "Public read access to subjects",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "subscription_plans": [
+      {
+        "schemaname": "public",
+        "tablename": "subscription_plans",
+        "policyname": "Public read subscription plans",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "((is_active = true) OR is_admin(auth.uid()))",
+        "with_check": null
+      }
+    ],
+    "subscriptions": [
+      {
+        "schemaname": "public",
+        "tablename": "subscriptions",
+        "policyname": "Users view own subscriptions",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "((auth.uid() = user_id) OR is_admin(auth.uid()))",
+        "with_check": null
+      }
+    ],
+    "system_settings": [
+      {
+        "schemaname": "public",
+        "tablename": "system_settings",
+        "policyname": "Admin write system_settings",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "is_admin(auth.uid())",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "system_settings",
+        "policyname": "Public read system_settings",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "timezones": [
+      {
+        "schemaname": "public",
+        "tablename": "timezones",
+        "policyname": "Public read timezones",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "topic_aliases": [
+      {
+        "schemaname": "public",
+        "tablename": "topic_aliases",
+        "policyname": "Public read topic_aliases",
+        "permissive": "PERMISSIVE",
+        "roles": "{anon,authenticated}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "topic_content_state": [
+      {
+        "schemaname": "public",
+        "tablename": "topic_content_state",
+        "policyname": "Public can read topic content state",
+        "permissive": "PERMISSIVE",
+        "roles": "{anon,authenticated}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "topic_content_state",
+        "policyname": "Service role manages topic content state",
+        "permissive": "PERMISSIVE",
+        "roles": "{service_role}",
+        "cmd": "ALL",
+        "qual": "true",
+        "with_check": "true"
+      }
+    ],
+    "topic_refresh_runs": [
+      {
+        "schemaname": "public",
+        "tablename": "topic_refresh_runs",
+        "policyname": "Public can read topic refresh runs",
+        "permissive": "PERMISSIVE",
+        "roles": "{anon,authenticated}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "topic_requests": [
+      {
+        "schemaname": "public",
+        "tablename": "topic_requests",
+        "policyname": "Admins manage topic requests",
+        "permissive": "PERMISSIVE",
+        "roles": "{authenticated}",
+        "cmd": "ALL",
+        "qual": "is_admin(auth.uid())",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "topic_requests",
+        "policyname": "Users can manage own topic requests",
+        "permissive": "PERMISSIVE",
+        "roles": "{authenticated}",
+        "cmd": "ALL",
+        "qual": "(auth.uid() = user_id)",
+        "with_check": "(auth.uid() = user_id)"
+      }
+    ],
+    "topics": [
+      {
+        "schemaname": "public",
+        "tablename": "topics",
+        "policyname": "Admin write access to topics",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "true",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "topics",
+        "policyname": "Public read access to topics",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "tutor_assets": [
+      {
+        "schemaname": "public",
+        "tablename": "tutor_assets",
+        "policyname": "Public read canonical tutor_assets",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "tutor_events": [
+      {
+        "schemaname": "public",
+        "tablename": "tutor_events",
+        "policyname": "Users insert own tutor events",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "INSERT",
+        "qual": null,
+        "with_check": "(auth.uid() = user_id)"
+      },
+      {
+        "schemaname": "public",
+        "tablename": "tutor_events",
+        "policyname": "Users read own tutor events",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "(auth.uid() = user_id)",
+        "with_check": null
+      }
+    ],
+    "tutor_faq_references": [
+      {
+        "schemaname": "public",
+        "tablename": "tutor_faq_references",
+        "policyname": "Public read canonical tutor_faq_references",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "tutor_faqs": [
+      {
+        "schemaname": "public",
+        "tablename": "tutor_faqs",
+        "policyname": "Public read canonical tutor_faqs",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "tutor_lessons": [
+      {
+        "schemaname": "public",
+        "tablename": "tutor_lessons",
+        "policyname": "Public read canonical tutor_lessons",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "tutor_scenes": [
+      {
+        "schemaname": "public",
+        "tablename": "tutor_scenes",
+        "policyname": "Public read canonical tutor_scenes",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "tutor_voice_metadata": [
+      {
+        "schemaname": "public",
+        "tablename": "tutor_voice_metadata",
+        "policyname": "Public read canonical tutor_voice_metadata",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "user_a4_annotations": [
+      {
+        "schemaname": "public",
+        "tablename": "user_a4_annotations",
+        "policyname": "User manage annotations",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "user_a4_highlights": [
+      {
+        "schemaname": "public",
+        "tablename": "user_a4_highlights",
+        "policyname": "User manage highlights",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "user_exams": [
+      {
+        "schemaname": "public",
+        "tablename": "user_exams",
+        "policyname": "Users delete own exam enrollments",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "DELETE",
+        "qual": "(auth.uid() = user_id)",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "user_exams",
+        "policyname": "Users insert own exam enrollments",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "INSERT",
+        "qual": null,
+        "with_check": "(auth.uid() = user_id)"
+      },
+      {
+        "schemaname": "public",
+        "tablename": "user_exams",
+        "policyname": "Users read own exam enrollments",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "((auth.uid() = user_id) OR is_admin(auth.uid()))",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "user_exams",
+        "policyname": "Users update own exam enrollments",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "UPDATE",
+        "qual": "(auth.uid() = user_id)",
+        "with_check": null
+      }
+    ],
+    "user_flashcard_progress": [
+      {
+        "schemaname": "public",
+        "tablename": "user_flashcard_progress",
+        "policyname": "Users read write their own flashcard progress",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "ALL",
+        "qual": "(auth.uid() = user_id)",
+        "with_check": "(auth.uid() = user_id)"
+      }
+    ],
+    "user_roles": [
+      {
+        "schemaname": "public",
+        "tablename": "user_roles",
+        "policyname": "Admins can manage user_roles",
+        "permissive": "PERMISSIVE",
+        "roles": "{authenticated}",
+        "cmd": "ALL",
+        "qual": "true",
+        "with_check": "true"
+      },
+      {
+        "schemaname": "public",
+        "tablename": "user_roles",
+        "policyname": "Users can view own user_roles",
+        "permissive": "PERMISSIVE",
+        "roles": "{authenticated}",
+        "cmd": "SELECT",
+        "qual": "true",
+        "with_check": null
+      }
+    ],
+    "user_sticky_notes": [
+      {
+        "schemaname": "public",
+        "tablename": "user_sticky_notes",
+        "policyname": "Users can manage own sticky notes",
+        "permissive": "PERMISSIVE",
+        "roles": "{authenticated}",
+        "cmd": "ALL",
+        "qual": "(auth.uid() = user_id)",
+        "with_check": "(auth.uid() = user_id)"
+      }
+    ],
+    "user_topic_access": [
+      {
+        "schemaname": "public",
+        "tablename": "user_topic_access",
+        "policyname": "Users can insert own topic access",
+        "permissive": "PERMISSIVE",
+        "roles": "{authenticated}",
+        "cmd": "ALL",
+        "qual": "(auth.uid() = user_id)",
+        "with_check": "(auth.uid() = user_id)"
+      },
+      {
+        "schemaname": "public",
+        "tablename": "user_topic_access",
+        "policyname": "Users can read own topic access",
+        "permissive": "PERMISSIVE",
+        "roles": "{authenticated}",
+        "cmd": "SELECT",
+        "qual": "((auth.uid() = user_id) OR is_admin(auth.uid()))",
+        "with_check": null
+      }
+    ],
+    "user_tutor_progress": [
+      {
+        "schemaname": "public",
+        "tablename": "user_tutor_progress",
+        "policyname": "Users insert own tutor progress",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "INSERT",
+        "qual": null,
+        "with_check": "(auth.uid() = user_id)"
+      },
+      {
+        "schemaname": "public",
+        "tablename": "user_tutor_progress",
+        "policyname": "Users read own tutor progress",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "SELECT",
+        "qual": "(auth.uid() = user_id)",
+        "with_check": null
+      },
+      {
+        "schemaname": "public",
+        "tablename": "user_tutor_progress",
+        "policyname": "Users update own tutor progress",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "UPDATE",
+        "qual": "(auth.uid() = user_id)",
+        "with_check": null
+      }
+    ]
+  },
+  "target_tables": {
+    "ai_discovered_exams": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "column_name": "id",
+          "data_type": "uuid",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()"
+        },
+        {
+          "column_name": "country_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "column_name": "raw_exam_name",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "column_name": "canonical_exam_name",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "column_name": "short_name",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "column_name": "slug",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "column_name": "authority_name",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "column_name": "official_website",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "column_name": "exam_type",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "column_name": "level",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "column_name": "mode",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "column_name": "duration",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "column_name": "question_count",
+          "data_type": "integer",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "column_name": "syllabus_structure",
+          "data_type": "jsonb",
+          "is_nullable": "YES",
+          "column_default": "'[]'::jsonb"
+        },
+        {
+          "column_name": "verification_status",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": "'pending_review'::text"
+        },
+        {
+          "column_name": "confidence_score",
+          "data_type": "numeric",
+          "is_nullable": "YES",
+          "column_default": "0.95"
+        },
+        {
+          "column_name": "discovered_by_user_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "column_name": "promoted_to_exam_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES",
+          "column_default": "now()"
+        },
+        {
+          "column_name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES",
+          "column_default": "now()"
+        }
+      ],
+      "existing_policies": []
+    },
+    "user_exam_selections": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "column_name": "id",
+          "data_type": "uuid",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()"
+        },
+        {
+          "column_name": "user_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "column_name": "exam_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "column_name": "ai_discovered_exam_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "column_name": "selected_subjects",
+          "data_type": "jsonb",
+          "is_nullable": "YES",
+          "column_default": "'[]'::jsonb"
+        },
+        {
+          "column_name": "selected_topics",
+          "data_type": "jsonb",
+          "is_nullable": "YES",
+          "column_default": "'[]'::jsonb"
+        },
+        {
+          "column_name": "study_plan_mode",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": "'standard'::text"
+        },
+        {
+          "column_name": "target_date",
+          "data_type": "date",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "column_name": "status",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": "'active'::text"
+        },
+        {
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES",
+          "column_default": "now()"
+        },
+        {
+          "column_name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES",
+          "column_default": "now()"
+        }
+      ],
+      "existing_policies": []
+    },
+    "user_study_topics": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "column_name": "id",
+          "data_type": "uuid",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()"
+        },
+        {
+          "column_name": "user_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "column_name": "exam_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "column_name": "exam_topic_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "column_name": "topic_name",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "column_name": "last_accessed_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES",
+          "column_default": "now()"
+        },
+        {
+          "column_name": "first_accessed_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES",
+          "column_default": "now()"
+        },
+        {
+          "column_name": "content_version",
+          "data_type": "integer",
+          "is_nullable": "YES",
+          "column_default": "1"
+        },
+        {
+          "column_name": "needs_update_check",
+          "data_type": "boolean",
+          "is_nullable": "YES",
+          "column_default": "false"
+        },
+        {
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES",
+          "column_default": "now()"
+        },
+        {
+          "column_name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES",
+          "column_default": "now()"
+        }
+      ],
+      "existing_policies": []
+    },
+    "ai_tutor_tts_cache": {
+      "rowCount": 7,
+      "columns": [
+        {
+          "column_name": "id",
+          "data_type": "uuid",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()"
+        },
+        {
+          "column_name": "text_hash",
+          "data_type": "character varying",
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "column_name": "text_content",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "column_name": "voice",
+          "data_type": "character varying",
+          "is_nullable": "YES",
+          "column_default": "'alloy'::character varying"
+        },
+        {
+          "column_name": "speed",
+          "data_type": "numeric",
+          "is_nullable": "YES",
+          "column_default": "1.0"
+        },
+        {
+          "column_name": "audio_base64",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "column_name": "content_type",
+          "data_type": "character varying",
+          "is_nullable": "YES",
+          "column_default": "'audio/mpeg'::character varying"
+        },
+        {
+          "column_name": "provider",
+          "data_type": "character varying",
+          "is_nullable": "YES",
+          "column_default": "'openai'::character varying"
+        },
+        {
+          "column_name": "hit_count",
+          "data_type": "integer",
+          "is_nullable": "YES",
+          "column_default": "1"
+        },
+        {
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES",
+          "column_default": "now()"
+        },
+        {
+          "column_name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES",
+          "column_default": "now()"
+        }
+      ],
+      "existing_policies": []
+    },
+    "active_recall_batches": {
+      "rowCount": 0,
+      "columns": [
+        {
+          "column_name": "id",
+          "data_type": "uuid",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()"
+        },
+        {
+          "column_name": "user_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "column_name": "exam_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "column_name": "subject_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "column_name": "topic_id",
+          "data_type": "uuid",
+          "is_nullable": "NO",
+          "column_default": null
+        },
+        {
+          "column_name": "subtopic_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null
+        },
+        {
+          "column_name": "title",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": "'Active Recall Practice Set'::text"
+        },
+        {
+          "column_name": "version",
+          "data_type": "integer",
+          "is_nullable": "NO",
+          "column_default": "1"
+        },
+        {
+          "column_name": "difficulty",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": "'High Yield'::text"
+        },
+        {
+          "column_name": "completion_percentage",
+          "data_type": "numeric",
+          "is_nullable": "YES",
+          "column_default": "0.0"
+        },
+        {
+          "column_name": "items",
+          "data_type": "jsonb",
+          "is_nullable": "NO",
+          "column_default": "'[]'::jsonb"
+        },
+        {
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO",
+          "column_default": "now()"
+        },
+        {
+          "column_name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO",
+          "column_default": "now()"
+        }
+      ],
+      "existing_policies": []
+    }
+  },
+  "total_functions": 55,
+  "security_definer_functions": [
+    {
+      "function_name": "acquire_topic_refresh_lock",
+      "arguments": "p_exam_id uuid, p_subject_id uuid, p_topic_id uuid, p_job_id text",
+      "is_security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "definition": "CREATE OR REPLACE FUNCTION public.acquire_topic_refresh_lock(p_exam_id uuid, p_subject_id uuid, p_topic_id uuid, p_job_id text)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  v_state RECORD;\n  v_is_eligible BOOLEAN := FALSE;\nBEGIN\n  -- Check existing state or insert initial state\n  SELECT * INTO v_state\n  FROM public.topic_content_state\n  WHERE topic_id = p_topic_id\n  FOR UPDATE;\n\n  IF v_state.id IS NULL THEN\n    -- First time tracked: insert and grant lock\n    INSERT INTO public.topic_content_state (\n      exam_id, subject_id, topic_id, last_accessed_at, last_refreshed_at,\n      next_refresh_at, refresh_status, refresh_job_id\n    ) VALUES (\n      p_exam_id, p_subject_id, p_topic_id, NOW(), NOW() - INTERVAL '16 days',\n      NOW(), 'in_progress', p_job_id\n    );\n    RETURN TRUE;\n  END IF;\n\n  -- Check if 15 days have elapsed and no active job is running\n  IF (v_state.refresh_status != 'in_progress' OR v_state.updated_at < NOW() - INTERVAL '15 minutes')\n     AND (v_state.last_refreshed_at IS NULL OR NOW() >= v_state.last_refreshed_at + INTERVAL '15 days' OR NOW() >= v_state.next_refresh_at) THEN\n    \n    UPDATE public.topic_content_state\n    SET refresh_status = 'in_progress',\n        refresh_job_id = p_job_id,\n        last_accessed_at = NOW(),\n        updated_at = NOW()\n    WHERE topic_id = p_topic_id;\n    \n    RETURN TRUE;\n  END IF;\n\n  -- Just update last_accessed_at\n  UPDATE public.topic_content_state\n  SET last_accessed_at = NOW(),\n      updated_at = NOW()\n  WHERE topic_id = p_topic_id;\n\n  RETURN FALSE;\nEND;\n$function$\n"
+    },
+    {
+      "function_name": "credit_adjust",
+      "arguments": "p_user_id uuid, p_amount integer, p_type text, p_reason text, p_admin_id uuid",
+      "is_security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "definition": "CREATE OR REPLACE FUNCTION public.credit_adjust(p_user_id uuid, p_amount integer, p_type text, p_reason text, p_admin_id uuid DEFAULT NULL::uuid)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n    v_account_id UUID;\n    v_new_balance INT;\n    v_ledger_id UUID;\nBEGIN\n    SELECT id INTO v_account_id\n    FROM public.credit_accounts\n    WHERE user_id = p_user_id\n    FOR UPDATE;\n\n    IF v_account_id IS NULL THEN\n        INSERT INTO public.credit_accounts (user_id, balance, reserved_balance, total_earned)\n        VALUES (p_user_id, GREATEST(0, p_amount), 0, GREATEST(0, p_amount))\n        RETURNING id, balance INTO v_account_id, v_new_balance;\n    ELSE\n        UPDATE public.credit_accounts\n        SET balance = GREATEST(0, balance + p_amount),\n            total_earned = CASE WHEN p_amount > 0 THEN total_earned + p_amount ELSE total_earned END,\n            updated_at = now()\n        WHERE id = v_account_id\n        RETURNING balance INTO v_new_balance;\n    END IF;\n\n    INSERT INTO public.credit_ledger (\n        account_id,\n        user_id,\n        amount,\n        balance_after,\n        transaction_type,\n        reason,\n        admin_id\n    ) VALUES (\n        v_account_id,\n        p_user_id,\n        p_amount,\n        v_new_balance,\n        p_type,\n        p_reason,\n        p_admin_id\n    ) RETURNING id INTO v_ledger_id;\n\n    RETURN v_ledger_id;\nEND;\n$function$\n"
+    },
+    {
+      "function_name": "credit_consume",
+      "arguments": "p_user_id uuid, p_amount integer, p_task text, p_job_id uuid, p_metadata jsonb",
+      "is_security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "definition": "CREATE OR REPLACE FUNCTION public.credit_consume(p_user_id uuid, p_amount integer, p_task text, p_job_id uuid DEFAULT NULL::uuid, p_metadata jsonb DEFAULT '{}'::jsonb)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n    v_account_id UUID;\n    v_balance INT;\n    v_reserved INT;\n    v_ledger_id UUID;\nBEGIN\n    SELECT id, balance, reserved_balance INTO v_account_id, v_balance, v_reserved\n    FROM public.credit_accounts\n    WHERE user_id = p_user_id\n    FOR UPDATE;\n\n    IF v_account_id IS NULL THEN\n        RAISE EXCEPTION 'Credit account not found for user %', p_user_id;\n    END IF;\n\n    IF p_amount > 0 THEN\n        IF v_reserved >= p_amount THEN\n            -- Consume from reservation\n            UPDATE public.credit_accounts\n            SET reserved_balance = reserved_balance - p_amount,\n                total_used = total_used + p_amount,\n                updated_at = now()\n            WHERE id = v_account_id;\n        ELSE\n            -- Consume directly from balance if not reserved\n            IF (v_balance + v_reserved) < p_amount THEN\n                RAISE EXCEPTION 'INSUFFICIENT_CREDITS for consumption';\n            END IF;\n\n            UPDATE public.credit_accounts\n            SET balance = balance - (p_amount - v_reserved),\n                reserved_balance = 0,\n                total_used = total_used + p_amount,\n                updated_at = now()\n            WHERE id = v_account_id;\n        END IF;\n\n        INSERT INTO public.credit_ledger (\n            account_id,\n            user_id,\n            amount,\n            balance_after,\n            transaction_type,\n            task,\n            job_id,\n            metadata\n        ) VALUES (\n            v_account_id,\n            p_user_id,\n            -p_amount,\n            v_balance,\n            'AI_USAGE',\n            p_task,\n            p_job_id,\n            p_metadata\n        ) RETURNING id INTO v_ledger_id;\n    END IF;\n\n    RETURN v_ledger_id;\nEND;\n$function$\n"
+    },
+    {
+      "function_name": "credit_release",
+      "arguments": "p_user_id uuid, p_amount integer, p_task text, p_metadata jsonb",
+      "is_security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "definition": "CREATE OR REPLACE FUNCTION public.credit_release(p_user_id uuid, p_amount integer, p_task text, p_metadata jsonb DEFAULT '{}'::jsonb)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n    v_account_id UUID;\n    v_balance INT;\n    v_reserved INT;\n    v_ledger_id UUID;\nBEGIN\n    SELECT id, balance, reserved_balance INTO v_account_id, v_balance, v_reserved\n    FROM public.credit_accounts\n    WHERE user_id = p_user_id\n    FOR UPDATE;\n\n    IF v_account_id IS NULL THEN\n        RETURN NULL;\n    END IF;\n\n    IF p_amount > 0 AND v_reserved >= p_amount THEN\n        UPDATE public.credit_accounts\n        SET balance = balance + p_amount,\n            reserved_balance = reserved_balance - p_amount,\n            updated_at = now()\n        WHERE id = v_account_id;\n\n        INSERT INTO public.credit_ledger (\n            account_id,\n            user_id,\n            amount,\n            balance_after,\n            transaction_type,\n            task,\n            metadata\n        ) VALUES (\n            v_account_id,\n            p_user_id,\n            p_amount,\n            v_balance + p_amount,\n            'RELEASE',\n            p_task,\n            p_metadata\n        ) RETURNING id INTO v_ledger_id;\n    END IF;\n\n    RETURN v_ledger_id;\nEND;\n$function$\n"
+    },
+    {
+      "function_name": "credit_reserve",
+      "arguments": "p_user_id uuid, p_amount integer, p_task text, p_metadata jsonb",
+      "is_security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "definition": "CREATE OR REPLACE FUNCTION public.credit_reserve(p_user_id uuid, p_amount integer, p_task text, p_metadata jsonb DEFAULT '{}'::jsonb)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n    v_balance INT;\n    v_account_id UUID;\n    v_ledger_id UUID;\nBEGIN\n    IF p_amount <= 0 THEN\n        RAISE EXCEPTION 'Reserve amount must be greater than zero';\n    END IF;\n\n    -- Lock credit account for update\n    SELECT id, balance INTO v_account_id, v_balance\n    FROM public.credit_accounts\n    WHERE user_id = p_user_id\n    FOR UPDATE;\n\n    IF v_account_id IS NULL THEN\n        -- Auto-create account if missing\n        INSERT INTO public.credit_accounts (user_id, balance, reserved_balance, total_earned)\n        VALUES (p_user_id, 100, 0, 100)\n        RETURNING id, balance INTO v_account_id, v_balance;\n    END IF;\n\n    IF v_balance < p_amount THEN\n        RAISE EXCEPTION 'INSUFFICIENT_CREDITS: Required %, Available %', p_amount, v_balance;\n    END IF;\n\n    -- Update balances\n    UPDATE public.credit_accounts\n    SET balance = balance - p_amount,\n        reserved_balance = reserved_balance + p_amount,\n        updated_at = now()\n    WHERE id = v_account_id;\n\n    -- Append to ledger\n    INSERT INTO public.credit_ledger (\n        account_id,\n        user_id,\n        amount,\n        balance_after,\n        transaction_type,\n        task,\n        metadata\n    ) VALUES (\n        v_account_id,\n        p_user_id,\n        -p_amount,\n        v_balance - p_amount,\n        'RESERVATION',\n        p_task,\n        p_metadata\n    ) RETURNING id INTO v_ledger_id;\n\n    RETURN v_ledger_id;\nEND;\n$function$\n"
+    },
+    {
+      "function_name": "execute_exam_switch_atomic",
+      "arguments": "p_user_id uuid, p_switch_request_id uuid, p_razorpay_payment_id text, p_razorpay_order_id text, p_razorpay_signature text, p_amount numeric, p_currency text",
+      "is_security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "definition": "CREATE OR REPLACE FUNCTION public.execute_exam_switch_atomic(p_user_id uuid, p_switch_request_id uuid, p_razorpay_payment_id text, p_razorpay_order_id text, p_razorpay_signature text DEFAULT NULL::text, p_amount numeric DEFAULT 2.00, p_currency text DEFAULT 'USD'::text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  v_req public.exam_switch_requests%ROWTYPE;\n  v_profile public.profiles%ROWTYPE;\n  v_from_name TEXT;\n  v_to_name TEXT;\n  v_history_id UUID;\n  v_existing_payment_switch UUID;\nBEGIN\n  -- 1. Lock switch request row for update\n  SELECT * INTO v_req\n  FROM public.exam_switch_requests\n  WHERE id = p_switch_request_id AND user_id = p_user_id\n  FOR UPDATE;\n\n  IF v_req.id IS NULL THEN\n    -- Try resolving by razorpay_order_id if switch request id not passed\n    IF p_razorpay_order_id IS NOT NULL THEN\n      SELECT * INTO v_req\n      FROM public.exam_switch_requests\n      WHERE razorpay_order_id = p_razorpay_order_id AND user_id = p_user_id\n      FOR UPDATE;\n    END IF;\n  END IF;\n\n  IF v_req.id IS NULL THEN\n    RETURN jsonb_build_object(\n      'success', false,\n      'error', 'Exam switch request not found for this user.'\n    );\n  END IF;\n\n  -- 2. Idempotency check: If already completed, return existing success state\n  IF v_req.status = 'switch_completed' THEN\n    RETURN jsonb_build_object(\n      'success', true,\n      'is_duplicate', true,\n      'message', 'Exam switch already finalized.',\n      'from_exam_id', v_req.from_exam_id,\n      'to_exam_id', v_req.to_exam_id,\n      'completed_at', v_req.completed_at\n    );\n  END IF;\n\n  -- 3. Prevent Replay Attack: Verify payment ID hasn't been used in another completed switch\n  IF p_razorpay_payment_id IS NOT NULL THEN\n    SELECT id INTO v_existing_payment_switch\n    FROM public.exam_switch_history\n    WHERE payment_reference = p_razorpay_payment_id;\n\n    IF v_existing_payment_switch IS NOT NULL THEN\n      RETURN jsonb_build_object(\n        'success', false,\n        'error', 'Payment reference has already been redeemed for an exam switch.'\n      );\n    END IF;\n  END IF;\n\n  -- 4. Lock Profile\n  SELECT * INTO v_profile\n  FROM public.profiles\n  WHERE id = p_user_id\n  FOR UPDATE;\n\n  IF v_profile.id IS NULL THEN\n    RETURN jsonb_build_object(\n      'success', false,\n      'error', 'User profile not found.'\n    );\n  END IF;\n\n  -- 5. Validate exams\n  IF v_req.from_exam_id = v_req.to_exam_id THEN\n    RETURN jsonb_build_object(\n      'success', false,\n      'error', 'Source and target exams cannot be identical.'\n    );\n  END IF;\n\n  SELECT name INTO v_from_name FROM public.exams WHERE id = v_req.from_exam_id;\n  SELECT name INTO v_to_name FROM public.exams WHERE id = v_req.to_exam_id;\n\n  IF v_to_name IS NULL THEN\n    RETURN jsonb_build_object(\n      'success', false,\n      'error', 'Target exam does not exist in registry.'\n    );\n  END IF;\n\n  -- 6. Perform the atomic update on public.profiles\n  UPDATE public.profiles\n  SET current_exam_id = v_req.to_exam_id,\n      exam_locked = TRUE,\n      exam_selected_at = NOW(),\n      exam_switch_count = COALESCE(exam_switch_count, 0) + 1,\n      updated_at = NOW()\n  WHERE id = p_user_id;\n\n  -- 7. Upsert user_exams for the new target exam (WITHOUT deleting previous exam data!)\n  INSERT INTO public.user_exams (user_id, exam_id, status, target_score, created_at)\n  VALUES (p_user_id, v_req.to_exam_id, 'in_progress', 85.0, NOW())\n  ON CONFLICT (user_id, exam_id) DO UPDATE\n  SET status = 'in_progress';\n\n  -- 8. Record in exam_switch_history\n  INSERT INTO public.exam_switch_history (\n    user_id,\n    from_exam_id,\n    to_exam_id,\n    amount,\n    currency,\n    payment_reference,\n    switch_request_id,\n    switched_at\n  ) VALUES (\n    p_user_id,\n    v_req.from_exam_id,\n    v_req.to_exam_id,\n    COALESCE(p_amount, v_req.amount),\n    COALESCE(p_currency, v_req.currency),\n    COALESCE(p_razorpay_payment_id, p_razorpay_order_id, 'manual_admin'),\n    v_req.id,\n    NOW()\n  ) RETURNING id INTO v_history_id;\n\n  -- 9. Update the switch request\n  UPDATE public.exam_switch_requests\n  SET status = 'switch_completed',\n      razorpay_payment_id = COALESCE(p_razorpay_payment_id, razorpay_payment_id),\n      razorpay_signature = COALESCE(p_razorpay_signature, razorpay_signature),\n      completed_at = NOW(),\n      metadata = jsonb_build_object(\n        'history_id', v_history_id,\n        'from_exam_name', v_from_name,\n        'to_exam_name', v_to_name\n      )\n  WHERE id = v_req.id;\n\n  -- 10. Record in general payments table if razorpay_payment_id exists\n  IF p_razorpay_payment_id IS NOT NULL THEN\n    INSERT INTO public.payments (\n      user_id,\n      amount,\n      currency,\n      razorpay_payment_id,\n      razorpay_order_id,\n      razorpay_signature,\n      status,\n      webhook_payload,\n      created_at\n    ) VALUES (\n      p_user_id,\n      COALESCE(p_amount, 2.00),\n      COALESCE(p_currency, 'USD'),\n      p_razorpay_payment_id,\n      p_razorpay_order_id,\n      p_razorpay_signature,\n      'captured',\n      jsonb_build_object('type', 'exam_switch', 'from', v_from_name, 'to', v_to_name),\n      NOW()\n    ) ON CONFLICT (razorpay_payment_id) DO NOTHING;\n  END IF;\n\n  RETURN jsonb_build_object(\n    'success', true,\n    'message', 'Exam switched successfully to ' || v_to_name,\n    'from_exam_id', v_req.from_exam_id,\n    'from_exam_name', v_from_name,\n    'to_exam_id', v_req.to_exam_id,\n    'to_exam_name', v_to_name,\n    'switch_count', COALESCE(v_profile.exam_switch_count, 0) + 1,\n    'history_id', v_history_id\n  );\nEND;\n$function$\n"
+    },
+    {
+      "function_name": "get_admin_analytics_summary",
+      "arguments": "",
+      "is_security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "definition": "CREATE OR REPLACE FUNCTION public.get_admin_analytics_summary()\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n    v_total_users INT;\n    v_active_users INT;\n    v_signups_today INT;\n    v_mcq_attempts INT;\n    v_ai_requests INT;\n    v_ai_cost NUMERIC;\n    v_total_revenue NUMERIC;\n    v_total_subscriptions INT;\n    v_active_subscriptions INT;\n    v_failed_jobs INT;\nBEGIN\n    SELECT count(*) INTO v_total_users FROM public.profiles;\n    \n    SELECT count(DISTINCT user_id) INTO v_active_users \n    FROM public.study_sessions \n    WHERE completed_at >= (now() - interval '30 days');\n\n    SELECT count(*) INTO v_signups_today \n    FROM public.profiles \n    WHERE created_at >= date_trunc('day', now());\n\n    SELECT count(*) INTO v_mcq_attempts FROM public.study_sessions;\n    SELECT count(*) INTO v_ai_requests FROM public.ai_jobs;\n    \n    SELECT COALESCE(sum(actual_provider_cost), 0) INTO v_ai_cost FROM public.ai_cost_events;\n    SELECT COALESCE(sum(amount), 0) INTO v_total_revenue FROM public.payments WHERE status = 'completed';\n    \n    SELECT count(*) INTO v_total_subscriptions FROM public.subscriptions;\n    SELECT count(*) INTO v_active_subscriptions FROM public.subscriptions WHERE status = 'active';\n    SELECT count(*) INTO v_failed_jobs FROM public.ai_jobs WHERE status = 'failed';\n\n    RETURN jsonb_build_object(\n        'total_users', COALESCE(v_total_users, 0),\n        'active_users_30d', COALESCE(v_active_users, 0),\n        'signups_today', COALESCE(v_signups_today, 0),\n        'mcq_attempts', COALESCE(v_mcq_attempts, 0),\n        'ai_requests', COALESCE(v_ai_requests, 0),\n        'ai_cost_usd', COALESCE(v_ai_cost, 0),\n        'total_revenue', COALESCE(v_total_revenue, 0),\n        'total_subscriptions', COALESCE(v_total_subscriptions, 0),\n        'active_subscriptions', COALESCE(v_active_subscriptions, 0),\n        'failed_ai_jobs', COALESCE(v_failed_jobs, 0)\n    );\nEND;\n$function$\n"
+    },
+    {
+      "function_name": "get_public_mcq_by_slug",
+      "arguments": "p_slug text",
+      "is_security_definer": true,
+      "volatility": "v",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.get_public_mcq_by_slug(p_slug text)\n RETURNS TABLE(id uuid, slug text, question text, options jsonb, difficulty text, explanation text, clinical_pearl text, exam_id uuid, exam_name text, exam_slug text, subject_id uuid, subject_name text, topic_id uuid, topic_name text, created_at timestamp with time zone)\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\nBEGIN\n  RETURN QUERY\n  SELECT \n    m.id,\n    m.slug,\n    m.question,\n    m.options,\n    m.difficulty,\n    m.explanation,\n    m.clinical_pearl,\n    m.exam_id,\n    e.name AS exam_name,\n    e.slug AS exam_slug,\n    m.subject_id,\n    es.name AS subject_name,\n    m.topic_id,\n    et.name AS topic_name,\n    m.created_at\n  FROM public.mcqs m\n  LEFT JOIN public.exams e ON m.exam_id = e.id\n  LEFT JOIN public.exam_subjects es ON m.subject_id = es.id\n  LEFT JOIN public.exam_topics et ON m.topic_id = et.id\n  WHERE m.slug = p_slug\n    AND m.status = 'approved'\n    AND m.visibility IN ('PUBLIC_CANONICAL', 'PUBLIC_DISCOVERABLE');\nEND;\n$function$\n"
+    },
+    {
+      "function_name": "handle_new_profile_wallet",
+      "arguments": "",
+      "is_security_definer": true,
+      "volatility": "v",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.handle_new_profile_wallet()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\n    BEGIN\n      INSERT INTO public.credit_accounts (user_id, credit_balance)\n      VALUES (NEW.id, 50.00) -- give 50 free promotional credits initially\n      ON CONFLICT (user_id) DO NOTHING;\n\n      INSERT INTO public.credit_ledger (user_id, transaction_type, credits, balance_before, balance_after, reference_type, reference_id, description)\n      VALUES (\n        NEW.id,\n        'PROMOTIONAL_GRANT',\n        50.00,\n        0.00,\n        50.00,\n        'registration',\n        NEW.id::text,\n        'Initial free registration credit bonus'\n      );\n\n      RETURN NEW;\n    END;\n    $function$\n"
+    },
+    {
+      "function_name": "handle_new_user",
+      "arguments": "",
+      "is_security_definer": true,
+      "volatility": "v",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.handle_new_user()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\nDECLARE\n  v_role_id UUID;\nBEGIN\n  -- Insert profile\n  INSERT INTO public.profiles (id, auth_user_id, email, first_name, last_name, avatar_url)\n  VALUES (\n    NEW.id,\n    NEW.id,\n    NEW.email,\n    COALESCE(NEW.raw_user_meta_data->>'first_name', split_part(NEW.email, '@', 1)),\n    COALESCE(NEW.raw_user_meta_data->>'last_name', ''),\n    NEW.raw_user_meta_data->>'avatar_url'\n  )\n  ON CONFLICT (id) DO UPDATE SET\n    email = EXCLUDED.email,\n    updated_at = NOW();\n\n  -- Get canonical 'user' role ID\n  SELECT id INTO v_role_id FROM public.roles WHERE name = 'user';\n\n  -- Explicitly assign default user role\n  IF v_role_id IS NOT NULL THEN\n    INSERT INTO public.user_roles (user_id, role_id)\n    VALUES (NEW.id, v_role_id)\n    ON CONFLICT (user_id, role_id) DO NOTHING;\n  END IF;\n\n  RETURN NEW;\nEND;\n$function$\n"
+    },
+    {
+      "function_name": "handle_updated_at",
+      "arguments": "",
+      "is_security_definer": true,
+      "volatility": "v",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.handle_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\nBEGIN\n  NEW.updated_at = NOW();\n  RETURN NEW;\nEND;\n$function$\n"
+    },
+    {
+      "function_name": "has_permission",
+      "arguments": "p_user_id uuid, p_permission_name text",
+      "is_security_definer": true,
+      "volatility": "v",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.has_permission(p_user_id uuid, p_permission_name text)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\nDECLARE\n  v_has_perm BOOLEAN := FALSE;\nBEGIN\n  SELECT EXISTS (\n    SELECT 1 \n    FROM public.user_roles ur\n    JOIN public.role_permissions rp ON ur.role_id = rp.role_id\n    JOIN public.permissions p ON rp.permission_id = p.id\n    WHERE ur.user_id = p_user_id AND p.name = p_permission_name\n  ) INTO v_has_perm;\n  \n  RETURN v_has_perm;\nEND;\n$function$\n"
+    },
+    {
+      "function_name": "is_admin",
+      "arguments": "p_user_id uuid",
+      "is_security_definer": true,
+      "volatility": "v",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.is_admin(p_user_id uuid)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\nDECLARE\n  v_is_admin BOOLEAN := FALSE;\nBEGIN\n  SELECT EXISTS (\n    SELECT 1 \n    FROM public.user_roles ur\n    JOIN public.roles r ON ur.role_id = r.id\n    WHERE ur.user_id = p_user_id AND r.name IN ('super_admin', 'admin')\n  ) INTO v_is_admin;\n  \n  RETURN v_is_admin;\nEND;\n$function$\n"
+    },
+    {
+      "function_name": "promote_ugc_to_canonical",
+      "arguments": "p_mcq_id uuid, p_admin_id uuid",
+      "is_security_definer": true,
+      "volatility": "v",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.promote_ugc_to_canonical(p_mcq_id uuid, p_admin_id uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\nBEGIN\n  IF NOT public.is_admin(p_admin_id) THEN\n    RETURN jsonb_build_object('success', false, 'error', 'Unauthorized: Admin authorization required');\n  END IF;\n\n  UPDATE public.mcqs\n  SET visibility = 'PUBLIC_CANONICAL',\n      status = 'approved',\n      reviewed = true,\n      reviewed_by = p_admin_id,\n      reviewed_at = NOW()\n  WHERE id = p_mcq_id;\n\n  RETURN jsonb_build_object('success', true, 'message', 'Content promoted to PUBLIC_CANONICAL');\nEND;\n$function$\n"
+    },
+    {
+      "function_name": "protect_locked_exam_update",
+      "arguments": "",
+      "is_security_definer": true,
+      "volatility": "v",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.protect_locked_exam_update()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\nDECLARE\n  v_is_admin BOOLEAN := FALSE;\nBEGIN\n  -- Service role always allowed\n  IF current_setting('role', true) = 'service_role' THEN\n    RETURN NEW;\n  END IF;\n\n  -- Check if caller is admin\n  IF auth.uid() IS NOT NULL THEN\n    v_is_admin := public.is_admin(auth.uid());\n    IF v_is_admin THEN\n      RETURN NEW;\n    END IF;\n  END IF;\n\n  -- Block direct modifications to current_exam_id if exam is locked and not empty\n  IF OLD.current_exam_id IS NOT NULL AND NEW.current_exam_id IS DISTINCT FROM OLD.current_exam_id THEN\n    -- Check if user has an active pro/unlimited subscription\n    IF NOT EXISTS (\n      SELECT 1 FROM public.subscriptions s\n      JOIN public.subscription_plans p ON s.plan_id = p.id\n      WHERE s.user_id = NEW.id \n        AND s.status = 'active'\n        AND (p.slug ILIKE '%unlimited%' OR p.slug ILIKE '%pro%' OR p.slug ILIKE '%all-access%')\n    ) THEN\n      RAISE EXCEPTION 'Security Policy Violation: Free plan accounts cannot modify current_exam_id directly. Please use the official $2 USD exam switch flow.';\n    END IF;\n  END IF;\n\n  -- Block unauthorized unlocking of exam_locked flag\n  IF OLD.exam_locked = TRUE AND NEW.exam_locked = FALSE THEN\n    IF NOT EXISTS (\n      SELECT 1 FROM public.subscriptions s\n      JOIN public.subscription_plans p ON s.plan_id = p.id\n      WHERE s.user_id = NEW.id AND s.status = 'active'\n    ) THEN\n      RAISE EXCEPTION 'Security Policy Violation: Free plan accounts cannot unlock exam_locked.';\n    END IF;\n  END IF;\n\n  RETURN NEW;\nEND;\n$function$\n"
+    },
+    {
+      "function_name": "record_payment_event",
+      "arguments": "p_provider text, p_event_id text, p_event_type text, p_payload_hash text, p_payload jsonb",
+      "is_security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "definition": "CREATE OR REPLACE FUNCTION public.record_payment_event(p_provider text, p_event_id text, p_event_type text, p_payload_hash text, p_payload jsonb DEFAULT '{}'::jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n    v_existing public.payment_events%ROWTYPE;\nBEGIN\n    SELECT * INTO v_existing\n    FROM public.payment_events\n    WHERE provider = p_provider AND provider_event_id = p_event_id;\n\n    IF v_existing.id IS NOT NULL THEN\n        RETURN jsonb_build_object(\n            'is_duplicate', true,\n            'event_id', v_existing.id,\n            'status', v_existing.status,\n            'processed_at', v_existing.processed_at\n        );\n    END IF;\n\n    INSERT INTO public.payment_events (\n        provider,\n        provider_event_id,\n        event_type,\n        payload_hash,\n        payload,\n        status\n    ) VALUES (\n        p_provider,\n        p_event_id,\n        p_event_type,\n        p_payload_hash,\n        p_payload,\n        'processing'\n    ) RETURNING id INTO v_existing.id;\n\n    RETURN jsonb_build_object(\n        'is_duplicate', false,\n        'event_id', v_existing.id,\n        'status', 'processing'\n    );\nEND;\n$function$\n"
+    },
+    {
+      "function_name": "resolve_exam_alias",
+      "arguments": "p_query text",
+      "is_security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "definition": "CREATE OR REPLACE FUNCTION public.resolve_exam_alias(p_query text)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n    v_clean TEXT := lower(trim(p_query));\n    v_exam_id UUID;\nBEGIN\n    -- 1. Exact match on code, slug, or name\n    SELECT id INTO v_exam_id\n    FROM public.exams\n    WHERE lower(code) = v_clean OR lower(slug) = v_clean OR lower(name) = v_clean\n    LIMIT 1;\n\n    IF v_exam_id IS NOT NULL THEN\n        RETURN v_exam_id;\n    END IF;\n\n    -- 2. Alias match\n    SELECT exam_id INTO v_exam_id\n    FROM public.exam_aliases\n    WHERE lower(alias) = v_clean\n    LIMIT 1;\n\n    IF v_exam_id IS NOT NULL THEN\n        RETURN v_exam_id;\n    END IF;\n\n    -- 3. Fuzzy ILIKE match\n    SELECT id INTO v_exam_id\n    FROM public.exams\n    WHERE lower(name) ILIKE '%' || v_clean || '%'\n    LIMIT 1;\n\n    RETURN v_exam_id;\nEND;\n$function$\n"
+    },
+    {
+      "function_name": "submit_mcq_answer_atomic",
+      "arguments": "p_user_id uuid, p_mcq_id uuid, p_selected_index integer, p_selected_option text",
+      "is_security_definer": true,
+      "volatility": "v",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.submit_mcq_answer_atomic(p_user_id uuid, p_mcq_id uuid, p_selected_index integer DEFAULT NULL::integer, p_selected_option text DEFAULT NULL::text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\nDECLARE\n  v_mcq RECORD;\n  v_is_correct BOOLEAN := FALSE;\n  v_correct_answer TEXT;\n  v_options JSONB;\n  v_chosen_option TEXT;\nBEGIN\n  SELECT * INTO v_mcq FROM public.mcqs WHERE id = p_mcq_id;\n  IF v_mcq.id IS NULL THEN\n    RETURN jsonb_build_object('success', false, 'error', 'MCQ not found');\n  END IF;\n\n  v_correct_answer := v_mcq.correct_answer;\n  v_options := v_mcq.options;\n\n  -- Determine chosen option string\n  IF p_selected_option IS NOT NULL THEN\n    v_chosen_option := p_selected_option;\n  ELSIF p_selected_index IS NOT NULL AND jsonb_typeof(v_options) = 'array' THEN\n    v_chosen_option := v_options->>p_selected_index;\n  END IF;\n\n  -- Verify correctness\n  IF v_chosen_option IS NOT NULL AND v_correct_answer IS NOT NULL THEN\n    IF TRIM(LOWER(v_chosen_option)) = TRIM(LOWER(v_correct_answer)) THEN\n      v_is_correct := TRUE;\n    END IF;\n  END IF;\n\n  -- Record attempt if user is authenticated or guest\n  INSERT INTO public.mcq_attempts (user_id, mcq_id, selected_option, selected_index, is_correct)\n  VALUES (p_user_id, p_mcq_id, v_chosen_option, p_selected_index, v_is_correct);\n\n  RETURN jsonb_build_object(\n    'success', true,\n    'is_correct', v_is_correct,\n    'correct_answer', v_correct_answer,\n    'explanation', v_mcq.explanation,\n    'rationale', v_mcq.rationale,\n    'clinical_pearl', v_mcq.clinical_pearl\n  );\nEND;\n$function$\n"
+    }
+  ],
+  "security_invoker_functions": [
+    {
+      "function_name": "generate_slug",
+      "arguments": "input_name text",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.generate_slug(input_name text)\n RETURNS text\n LANGUAGE plpgsql\n IMMUTABLE\nAS $function$\nBEGIN\n  RETURN REGEXP_REPLACE(TRIM(REGEXP_REPLACE(LOWER(REPLACE(input_name, '-', ' ')), '\\s+', ' ', 'g')), '\\s+', '-', 'g');\nEND;\n$function$\n"
+    },
+    {
+      "function_name": "gin_extract_query_trgm",
+      "arguments": "text, internal, smallint, internal, internal, internal, internal",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.gin_extract_query_trgm(text, internal, smallint, internal, internal, internal, internal)\n RETURNS internal\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$gin_extract_query_trgm$function$\n"
+    },
+    {
+      "function_name": "gin_extract_value_trgm",
+      "arguments": "text, internal",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.gin_extract_value_trgm(text, internal)\n RETURNS internal\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$gin_extract_value_trgm$function$\n"
+    },
+    {
+      "function_name": "gin_trgm_consistent",
+      "arguments": "internal, smallint, text, integer, internal, internal, internal, internal",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.gin_trgm_consistent(internal, smallint, text, integer, internal, internal, internal, internal)\n RETURNS boolean\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$gin_trgm_consistent$function$\n"
+    },
+    {
+      "function_name": "gin_trgm_triconsistent",
+      "arguments": "internal, smallint, text, integer, internal, internal, internal",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.gin_trgm_triconsistent(internal, smallint, text, integer, internal, internal, internal)\n RETURNS \"char\"\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$gin_trgm_triconsistent$function$\n"
+    },
+    {
+      "function_name": "gtrgm_compress",
+      "arguments": "internal",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.gtrgm_compress(internal)\n RETURNS internal\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$gtrgm_compress$function$\n"
+    },
+    {
+      "function_name": "gtrgm_consistent",
+      "arguments": "internal, text, smallint, oid, internal",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.gtrgm_consistent(internal, text, smallint, oid, internal)\n RETURNS boolean\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$gtrgm_consistent$function$\n"
+    },
+    {
+      "function_name": "gtrgm_decompress",
+      "arguments": "internal",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.gtrgm_decompress(internal)\n RETURNS internal\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$gtrgm_decompress$function$\n"
+    },
+    {
+      "function_name": "gtrgm_distance",
+      "arguments": "internal, text, smallint, oid, internal",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.gtrgm_distance(internal, text, smallint, oid, internal)\n RETURNS double precision\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$gtrgm_distance$function$\n"
+    },
+    {
+      "function_name": "gtrgm_in",
+      "arguments": "cstring",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.gtrgm_in(cstring)\n RETURNS gtrgm\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$gtrgm_in$function$\n"
+    },
+    {
+      "function_name": "gtrgm_options",
+      "arguments": "internal",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.gtrgm_options(internal)\n RETURNS void\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE\nAS '$libdir/pg_trgm', $function$gtrgm_options$function$\n"
+    },
+    {
+      "function_name": "gtrgm_out",
+      "arguments": "gtrgm",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.gtrgm_out(gtrgm)\n RETURNS cstring\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$gtrgm_out$function$\n"
+    },
+    {
+      "function_name": "gtrgm_penalty",
+      "arguments": "internal, internal, internal",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.gtrgm_penalty(internal, internal, internal)\n RETURNS internal\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$gtrgm_penalty$function$\n"
+    },
+    {
+      "function_name": "gtrgm_picksplit",
+      "arguments": "internal, internal",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.gtrgm_picksplit(internal, internal)\n RETURNS internal\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$gtrgm_picksplit$function$\n"
+    },
+    {
+      "function_name": "gtrgm_same",
+      "arguments": "gtrgm, gtrgm, internal",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.gtrgm_same(gtrgm, gtrgm, internal)\n RETURNS internal\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$gtrgm_same$function$\n"
+    },
+    {
+      "function_name": "gtrgm_union",
+      "arguments": "internal, internal",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.gtrgm_union(internal, internal)\n RETURNS gtrgm\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$gtrgm_union$function$\n"
+    },
+    {
+      "function_name": "normalize_canonical_name",
+      "arguments": "input_name text",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.normalize_canonical_name(input_name text)\n RETURNS text\n LANGUAGE plpgsql\n IMMUTABLE\nAS $function$\nBEGIN\n  RETURN TRIM(REGEXP_REPLACE(LOWER(REPLACE(input_name, '-', ' ')), '\\s+', ' ', 'g'));\nEND;\n$function$\n"
+    },
+    {
+      "function_name": "populate_exam_normalization",
+      "arguments": "",
+      "is_security_definer": false,
+      "volatility": "v",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.populate_exam_normalization()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n  IF NEW.name IS NOT NULL THEN\n    NEW.normalized_name := public.normalize_canonical_name(NEW.name);\n    IF NEW.slug IS NULL OR NEW.slug = '' THEN\n      NEW.slug := public.generate_slug(NEW.name);\n    END IF;\n  END IF;\n  RETURN NEW;\nEND;\n$function$\n"
+    },
+    {
+      "function_name": "populate_subject_normalization",
+      "arguments": "",
+      "is_security_definer": false,
+      "volatility": "v",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.populate_subject_normalization()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n  IF NEW.name IS NOT NULL THEN\n    NEW.normalized_name := public.normalize_canonical_name(NEW.name);\n    IF NEW.slug IS NULL OR NEW.slug = '' THEN\n      NEW.slug := public.generate_slug(NEW.name);\n    END IF;\n  END IF;\n  RETURN NEW;\nEND;\n$function$\n"
+    },
+    {
+      "function_name": "populate_subtopic_normalization",
+      "arguments": "",
+      "is_security_definer": false,
+      "volatility": "v",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.populate_subtopic_normalization()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n  IF NEW.name IS NOT NULL THEN\n    NEW.normalized_name := public.normalize_canonical_name(NEW.name);\n    IF NEW.slug IS NULL OR NEW.slug = '' THEN\n      NEW.slug := public.generate_slug(NEW.name);\n    END IF;\n  END IF;\n  RETURN NEW;\nEND;\n$function$\n"
+    },
+    {
+      "function_name": "populate_topic_normalization",
+      "arguments": "",
+      "is_security_definer": false,
+      "volatility": "v",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.populate_topic_normalization()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n  IF NEW.name IS NOT NULL THEN\n    NEW.normalized_name := public.normalize_canonical_name(NEW.name);\n    IF NEW.slug IS NULL OR NEW.slug = '' THEN\n      NEW.slug := public.generate_slug(NEW.name);\n    END IF;\n  END IF;\n  RETURN NEW;\nEND;\n$function$\n"
+    },
+    {
+      "function_name": "set_limit",
+      "arguments": "real",
+      "is_security_definer": false,
+      "volatility": "v",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.set_limit(real)\n RETURNS real\n LANGUAGE c\n STRICT\nAS '$libdir/pg_trgm', $function$set_limit$function$\n"
+    },
+    {
+      "function_name": "show_limit",
+      "arguments": "",
+      "is_security_definer": false,
+      "volatility": "s",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.show_limit()\n RETURNS real\n LANGUAGE c\n STABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$show_limit$function$\n"
+    },
+    {
+      "function_name": "show_trgm",
+      "arguments": "text",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.show_trgm(text)\n RETURNS text[]\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$show_trgm$function$\n"
+    },
+    {
+      "function_name": "similarity",
+      "arguments": "text, text",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.similarity(text, text)\n RETURNS real\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$similarity$function$\n"
+    },
+    {
+      "function_name": "similarity_dist",
+      "arguments": "text, text",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.similarity_dist(text, text)\n RETURNS real\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$similarity_dist$function$\n"
+    },
+    {
+      "function_name": "similarity_op",
+      "arguments": "text, text",
+      "is_security_definer": false,
+      "volatility": "s",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.similarity_op(text, text)\n RETURNS boolean\n LANGUAGE c\n STABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$similarity_op$function$\n"
+    },
+    {
+      "function_name": "strict_word_similarity",
+      "arguments": "text, text",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.strict_word_similarity(text, text)\n RETURNS real\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$strict_word_similarity$function$\n"
+    },
+    {
+      "function_name": "strict_word_similarity_commutator_op",
+      "arguments": "text, text",
+      "is_security_definer": false,
+      "volatility": "s",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.strict_word_similarity_commutator_op(text, text)\n RETURNS boolean\n LANGUAGE c\n STABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$strict_word_similarity_commutator_op$function$\n"
+    },
+    {
+      "function_name": "strict_word_similarity_dist_commutator_op",
+      "arguments": "text, text",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.strict_word_similarity_dist_commutator_op(text, text)\n RETURNS real\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$strict_word_similarity_dist_commutator_op$function$\n"
+    },
+    {
+      "function_name": "strict_word_similarity_dist_op",
+      "arguments": "text, text",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.strict_word_similarity_dist_op(text, text)\n RETURNS real\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$strict_word_similarity_dist_op$function$\n"
+    },
+    {
+      "function_name": "strict_word_similarity_op",
+      "arguments": "text, text",
+      "is_security_definer": false,
+      "volatility": "s",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.strict_word_similarity_op(text, text)\n RETURNS boolean\n LANGUAGE c\n STABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$strict_word_similarity_op$function$\n"
+    },
+    {
+      "function_name": "word_similarity",
+      "arguments": "text, text",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.word_similarity(text, text)\n RETURNS real\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$word_similarity$function$\n"
+    },
+    {
+      "function_name": "word_similarity_commutator_op",
+      "arguments": "text, text",
+      "is_security_definer": false,
+      "volatility": "s",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.word_similarity_commutator_op(text, text)\n RETURNS boolean\n LANGUAGE c\n STABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$word_similarity_commutator_op$function$\n"
+    },
+    {
+      "function_name": "word_similarity_dist_commutator_op",
+      "arguments": "text, text",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.word_similarity_dist_commutator_op(text, text)\n RETURNS real\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$word_similarity_dist_commutator_op$function$\n"
+    },
+    {
+      "function_name": "word_similarity_dist_op",
+      "arguments": "text, text",
+      "is_security_definer": false,
+      "volatility": "i",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.word_similarity_dist_op(text, text)\n RETURNS real\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$word_similarity_dist_op$function$\n"
+    },
+    {
+      "function_name": "word_similarity_op",
+      "arguments": "text, text",
+      "is_security_definer": false,
+      "volatility": "s",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION public.word_similarity_op(text, text)\n RETURNS boolean\n LANGUAGE c\n STABLE PARALLEL SAFE STRICT\nAS '$libdir/pg_trgm', $function$word_similarity_op$function$\n"
+    }
+  ],
+  "grants": [
+    {
+      "routine_name": "acquire_topic_refresh_lock",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "acquire_topic_refresh_lock",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "acquire_topic_refresh_lock",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "acquire_topic_refresh_lock",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "acquire_topic_refresh_lock",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "acquire_topic_refresh_lock",
+      "grantee": "supabase_auth_admin",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "credit_adjust",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "credit_adjust",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "credit_adjust",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "credit_adjust",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "credit_adjust",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "credit_adjust",
+      "grantee": "supabase_auth_admin",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "credit_consume",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "credit_consume",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "credit_consume",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "credit_consume",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "credit_consume",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "credit_consume",
+      "grantee": "supabase_auth_admin",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "credit_release",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "credit_release",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "credit_release",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "credit_release",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "credit_release",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "credit_release",
+      "grantee": "supabase_auth_admin",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "credit_reserve",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "credit_reserve",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "credit_reserve",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "credit_reserve",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "credit_reserve",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "credit_reserve",
+      "grantee": "supabase_auth_admin",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "execute_exam_switch_atomic",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "execute_exam_switch_atomic",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "execute_exam_switch_atomic",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "execute_exam_switch_atomic",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "execute_exam_switch_atomic",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "execute_exam_switch_atomic",
+      "grantee": "supabase_auth_admin",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "generate_slug",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "generate_slug",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "generate_slug",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "generate_slug",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "generate_slug",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "generate_slug",
+      "grantee": "supabase_auth_admin",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "get_admin_analytics_summary",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "get_admin_analytics_summary",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "get_admin_analytics_summary",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "get_admin_analytics_summary",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "get_admin_analytics_summary",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "get_admin_analytics_summary",
+      "grantee": "supabase_auth_admin",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "get_public_mcq_by_slug",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "get_public_mcq_by_slug",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "get_public_mcq_by_slug",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "get_public_mcq_by_slug",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "get_public_mcq_by_slug",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "get_public_mcq_by_slug",
+      "grantee": "supabase_auth_admin",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gin_extract_query_trgm",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gin_extract_query_trgm",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gin_extract_query_trgm",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gin_extract_query_trgm",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gin_extract_query_trgm",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gin_extract_value_trgm",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gin_extract_value_trgm",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gin_extract_value_trgm",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gin_extract_value_trgm",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gin_extract_value_trgm",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gin_trgm_consistent",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gin_trgm_consistent",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gin_trgm_consistent",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gin_trgm_consistent",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gin_trgm_consistent",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gin_trgm_triconsistent",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gin_trgm_triconsistent",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gin_trgm_triconsistent",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gin_trgm_triconsistent",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gin_trgm_triconsistent",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_compress",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_compress",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_compress",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_compress",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_compress",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_consistent",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_consistent",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_consistent",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_consistent",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_consistent",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_decompress",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_decompress",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_decompress",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_decompress",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_decompress",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_distance",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_distance",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_distance",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_distance",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_distance",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_in",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_in",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_in",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_in",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_in",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_options",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_options",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_options",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_options",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_options",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_out",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_out",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_out",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_out",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_out",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_penalty",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_penalty",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_penalty",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_penalty",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_penalty",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_picksplit",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_picksplit",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_picksplit",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_picksplit",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_picksplit",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_same",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_same",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_same",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_same",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_same",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_union",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_union",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_union",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_union",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "gtrgm_union",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "handle_new_profile_wallet",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "handle_new_profile_wallet",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "handle_new_profile_wallet",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "handle_new_profile_wallet",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "handle_new_profile_wallet",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "handle_new_profile_wallet",
+      "grantee": "supabase_auth_admin",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "handle_new_user",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "handle_new_user",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "handle_new_user",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "handle_new_user",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "handle_new_user",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "handle_new_user",
+      "grantee": "supabase_auth_admin",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "handle_updated_at",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "handle_updated_at",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "handle_updated_at",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "handle_updated_at",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "handle_updated_at",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "handle_updated_at",
+      "grantee": "supabase_auth_admin",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "has_permission",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "has_permission",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "has_permission",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "has_permission",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "has_permission",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "has_permission",
+      "grantee": "supabase_auth_admin",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "is_admin",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "is_admin",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "is_admin",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "is_admin",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "is_admin",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "is_admin",
+      "grantee": "supabase_auth_admin",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "normalize_canonical_name",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "normalize_canonical_name",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "normalize_canonical_name",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "normalize_canonical_name",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "normalize_canonical_name",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "normalize_canonical_name",
+      "grantee": "supabase_auth_admin",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "populate_exam_normalization",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "populate_exam_normalization",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "populate_exam_normalization",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "populate_exam_normalization",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "populate_exam_normalization",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "populate_exam_normalization",
+      "grantee": "supabase_auth_admin",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "populate_subject_normalization",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "populate_subject_normalization",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "populate_subject_normalization",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "populate_subject_normalization",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "populate_subject_normalization",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "populate_subject_normalization",
+      "grantee": "supabase_auth_admin",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "populate_subtopic_normalization",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "populate_subtopic_normalization",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "populate_subtopic_normalization",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "populate_subtopic_normalization",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "populate_subtopic_normalization",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "populate_subtopic_normalization",
+      "grantee": "supabase_auth_admin",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "populate_topic_normalization",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "populate_topic_normalization",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "populate_topic_normalization",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "populate_topic_normalization",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "populate_topic_normalization",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "populate_topic_normalization",
+      "grantee": "supabase_auth_admin",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "promote_ugc_to_canonical",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "promote_ugc_to_canonical",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "promote_ugc_to_canonical",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "promote_ugc_to_canonical",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "promote_ugc_to_canonical",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "promote_ugc_to_canonical",
+      "grantee": "supabase_auth_admin",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "protect_locked_exam_update",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "protect_locked_exam_update",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "protect_locked_exam_update",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "protect_locked_exam_update",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "protect_locked_exam_update",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "protect_locked_exam_update",
+      "grantee": "supabase_auth_admin",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "record_payment_event",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "record_payment_event",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "record_payment_event",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "record_payment_event",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "record_payment_event",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "record_payment_event",
+      "grantee": "supabase_auth_admin",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "resolve_exam_alias",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "resolve_exam_alias",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "resolve_exam_alias",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "resolve_exam_alias",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "resolve_exam_alias",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "resolve_exam_alias",
+      "grantee": "supabase_auth_admin",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "set_limit",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "set_limit",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "set_limit",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "set_limit",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "set_limit",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "show_limit",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "show_limit",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "show_limit",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "show_limit",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "show_limit",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "show_trgm",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "show_trgm",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "show_trgm",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "show_trgm",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "show_trgm",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "similarity",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "similarity",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "similarity",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "similarity",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "similarity",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "similarity_dist",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "similarity_dist",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "similarity_dist",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "similarity_dist",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "similarity_dist",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "similarity_op",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "similarity_op",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "similarity_op",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "similarity_op",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "similarity_op",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "strict_word_similarity",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "strict_word_similarity",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "strict_word_similarity",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "strict_word_similarity",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "strict_word_similarity",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "strict_word_similarity_commutator_op",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "strict_word_similarity_commutator_op",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "strict_word_similarity_commutator_op",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "strict_word_similarity_commutator_op",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "strict_word_similarity_commutator_op",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "strict_word_similarity_dist_commutator_op",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "strict_word_similarity_dist_commutator_op",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "strict_word_similarity_dist_commutator_op",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "strict_word_similarity_dist_commutator_op",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "strict_word_similarity_dist_commutator_op",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "strict_word_similarity_dist_op",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "strict_word_similarity_dist_op",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "strict_word_similarity_dist_op",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "strict_word_similarity_dist_op",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "strict_word_similarity_dist_op",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "strict_word_similarity_op",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "strict_word_similarity_op",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "strict_word_similarity_op",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "strict_word_similarity_op",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "strict_word_similarity_op",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "submit_mcq_answer_atomic",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "submit_mcq_answer_atomic",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "submit_mcq_answer_atomic",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "submit_mcq_answer_atomic",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "submit_mcq_answer_atomic",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "submit_mcq_answer_atomic",
+      "grantee": "supabase_auth_admin",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "word_similarity",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "word_similarity",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "word_similarity",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "word_similarity",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "word_similarity",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "word_similarity_commutator_op",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "word_similarity_commutator_op",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "word_similarity_commutator_op",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "word_similarity_commutator_op",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "word_similarity_commutator_op",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "word_similarity_dist_commutator_op",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "word_similarity_dist_commutator_op",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "word_similarity_dist_commutator_op",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "word_similarity_dist_commutator_op",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "word_similarity_dist_commutator_op",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "word_similarity_dist_op",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "word_similarity_dist_op",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "word_similarity_dist_op",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "word_similarity_dist_op",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "word_similarity_dist_op",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "word_similarity_op",
+      "grantee": "PUBLIC",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "word_similarity_op",
+      "grantee": "anon",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "word_similarity_op",
+      "grantee": "authenticated",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "word_similarity_op",
+      "grantee": "postgres",
+      "privilege_type": "EXECUTE"
+    },
+    {
+      "routine_name": "word_similarity_op",
+      "grantee": "service_role",
+      "privilege_type": "EXECUTE"
+    }
+  ]
+}

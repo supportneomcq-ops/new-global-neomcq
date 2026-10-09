@@ -1120,6 +1120,37 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                   </div>
 
                   <div className="space-y-3 pt-1">
+                    {/* Resolved Exam Intelligence Card */}
+                    {resolvedExamInfo && (
+                      <div className="p-3 rounded-2xl bg-slate-50 dark:bg-gray-900/70 border border-slate-200 dark:border-gray-800 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="text-xl shrink-0">{selectedExamFlag}</span>
+                          <div className="min-w-0">
+                            <div className="text-xs font-heading font-bold text-slate-900 dark:text-white truncate">
+                              {resolvedExamInfo.name || activeExamName}
+                            </div>
+                            <div className="text-[10px] text-slate-500 dark:text-gray-400 flex items-center gap-2">
+                              <span>{resolvedExamInfo.subjectCount || 0} Subjects</span>
+                              <span>•</span>
+                              <span>{resolvedExamInfo.topicCount || 0} Topics</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0 flex items-center gap-1.5">
+                          {resolvedExamInfo.verification_status === 'verified' ? (
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                              <ShieldCheck className="w-3 h-3" /> Official Syllabus Verified
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3" /> AI Inferred ({resolvedExamInfo.coverage_percentage || 0}% Coverage)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     <div>
                       <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
                         Select Target Date <span className="text-rose-500">*</span>

@@ -160,32 +160,32 @@ function generateContextualContent(
       },
       {
         id: `mcq_${cleanTopic.toLowerCase().replace(/[^a-z0-9]/g, '_')}_2`,
-        question: `A patient presenting with classic symptoms related to ${cleanTopic} requires diagnostic confirmation. What is the gold-standard initial diagnostic step?`,
+        question: `When analyzing core scenarios related to ${cleanTopic} within ${cleanExam}, what is the initial recommended evaluation step?`,
         options: [
-          `High-sensitivity initial diagnostic screening and clinical algorithm evaluation`,
-          `Immediate exploratory surgical intervention`,
-          `Empiric high-dose steroid therapy without imaging`,
-          `Reassurance with no further workup`,
+          `High-yield initial evaluation and core framework application`,
+          `Unsubstantiated secondary intervention`,
+          `Ignoring foundational criteria without verification`,
+          `Empiric conclusion without analyzing primary evidence`,
         ],
         correct_index: 0,
-        explanation: `Appropriate initial workup for ${cleanTopic} begins with standardized diagnostic criteria and non-invasive confirmation before proceeding to advanced interventions.`,
-        clinical_pearl: `Standard board exams emphasize cost-effective, high-yield diagnostic ordering. Avoid jumping to invasive testing if non-invasive criteria suffice.`,
-        high_yield_tag: `${cleanSubject} • Diagnostic Workup`,
+        explanation: `Appropriate evaluation for ${cleanTopic} begins with standardized criteria and non-invasive analysis before proceeding to advanced applications.`,
+        clinical_pearl: `Standard board exams emphasize cost-effective, high-yield diagnostic ordering and systematic analysis.`,
+        high_yield_tag: `${cleanSubject} • Evaluation Framework`,
         difficulty: 'Board Classic',
       },
       {
         id: `mcq_${cleanTopic.toLowerCase().replace(/[^a-z0-9]/g, '_')}_3`,
-        question: `Which pharmacologic or therapeutic management strategy represents the guideline-directed first-line choice in ${cleanTopic}?`,
+        question: `Which analytical or decision-making strategy represents the guideline-directed first-line choice in ${cleanTopic}?`,
         options: [
-          `Evidence-based first-line targeted pharmacotherapy and lifestyle stabilization`,
-          `Experimental second-line biologic therapy`,
-          `High-dose sedatives with delayed monitoring`,
-          `Immediate discharge without maintenance plan`,
+          `Evidence-based first-line targeted methodology and framework application`,
+          `Experimental unverified secondary approach`,
+          `Arbitrary selection without systematic review`,
+          `Immediate dismissal without structured analysis`,
         ],
         correct_index: 0,
-        explanation: `First-line management in ${cleanTopic} focuses on guideline-recommended agents that reduce morbidity, prevent relapse, and optimize patient outcomes.`,
-        clinical_pearl: `Always check contraindications and organ function before initiating targeted therapy for ${cleanTopic}.`,
-        high_yield_tag: `${cleanSubject} • Pharmacotherapy`,
+        explanation: `First-line management in ${cleanTopic} focuses on guideline-recommended principles that optimize outcomes and prevent common misconceptions.`,
+        clinical_pearl: `Always verify core assumptions and foundational rules before selecting targeted answers in ${cleanTopic}.`,
+        high_yield_tag: `${cleanSubject} • Methodology`,
         difficulty: 'Core High Yield',
       },
     ],
@@ -194,44 +194,44 @@ function generateContextualContent(
     notes: `# 📚 ${cleanTopic.toUpperCase()}
 ## ${cleanSubject} • ${cleanExam} Blueprint
 
-### 1. Pathophysiology & Core Mechanisms
-${cleanTopic} is an essential curriculum topic for ${cleanExam}. Mastery requires understanding the fundamental molecular, physiological, and clinical pathways governing disease progression and therapeutic response.
+### 1. Fundamental Principles & Core Mechanisms
+${cleanTopic} is an essential curriculum topic for ${cleanExam}. Mastery requires understanding the fundamental concepts, rules, and analytical frameworks governing this domain.
 
-* **Primary Etiology:** Core pathophysiological triggers and risk factors.
-* **Cellular Response:** Acute vs chronic tissue changes and compensation.
-* **Clinical Significance:** Board-tested clinical manifestations and complications.
+* **Primary Principles:** Core foundational concepts and key principles.
+* **Structural Framework:** Key components and logical progression.
+* **Exam Relevance:** Board-tested applications and problem-solving patterns.
 
-### 2. High-Yield Clinical Pearls & Diagnostic Criteria
-* **Key Presentation:** Cardinal symptoms, physical exam findings, and pathognomonic signs.
-* **Diagnostic Algorithm:** Initial screening tests followed by definitive gold-standard confirmation.
-* **Management Priorities:** Guideline-directed medical therapy and acute stabilization.
+### 2. High-Yield Key Concepts & Evaluation Rules
+* **Key Application:** Cardinal definitions, rules, and standard examples.
+* **Diagnostic & Analytical Algorithm:** Initial evaluation steps followed by definitive verification.
+* **Strategic Priorities:** Standard guideline-directed approaches and core problem solving.
 
 ### 3. Summary Comparison
-| Feature | Typical Presentation | High-Yield Board Trap |
+| Feature | Core Pattern | High-Yield Board Trap |
 | :--- | :--- | :--- |
-| **Onset** | Acute / Subacute | Do not confuse with benign mimics |
-| **Diagnostics** | High sensitivity screening | Always confirm before invasive therapy |
-| **Management** | First-line targeted therapy | Watch for organ-specific contraindications |
+| **Foundations** | Standard / Primary | Do not confuse with peripheral edge cases |
+| **Analysis** | High precision evaluation | Always verify rules before applying conclusions |
+| **Strategy** | First-line standard approach | Watch for subtle rule exceptions |
 `,
     flashcards: [
       {
         id: 'fc_1',
-        front: `What is the primary pathophysiological hallmark of ${cleanTopic}?`,
-        back: `Core mechanism involves targeted dysregulation in ${cleanSubject}, resulting in characteristic clinical manifestations.`,
+        front: `What is the primary core hallmark of ${cleanTopic}?`,
+        back: `Core mechanism involves targeted principles in ${cleanSubject}, resulting in characteristic domain applications.`,
         category: cleanSubject,
         difficulty: 'High Yield',
       },
       {
         id: 'fc_2',
-        front: `What is the first-line diagnostic investigation for suspected ${cleanTopic}?`,
-        back: `Standard non-invasive diagnostic screening followed by guideline-directed confirmatory testing.`,
+        front: `What is the first-line evaluation approach for ${cleanTopic}?`,
+        back: `Standard systematic evaluation followed by guideline-directed verification.`,
         category: cleanSubject,
         difficulty: 'Essential',
       },
       {
         id: 'fc_3',
-        front: `What is the first-line therapeutic management for ${cleanTopic}?`,
-        back: `Targeted guideline-directed pharmacotherapy and patient stabilization.`,
+        front: `What is the primary strategy for solving problems in ${cleanTopic}?`,
+        back: `Targeted guideline-directed framework and systematic application.`,
         category: cleanSubject,
         difficulty: 'High Yield',
       },
@@ -239,14 +239,14 @@ ${cleanTopic} is an essential curriculum topic for ${cleanExam}. Mastery require
     sticky_notes: [
       {
         id: 'st_1',
-        text: `⭐ HIGH YIELD PEARL: In ${cleanTopic}, always verify diagnostic criteria before choosing definitive therapy.`,
+        text: `⭐ HIGH YIELD PEARL: In ${cleanTopic}, always verify core criteria before choosing final answers.`,
         color: 'amber',
-        category: 'Clinical Pearl',
+        category: 'High Yield Pearl',
         pinned: true,
       },
       {
         id: 'st_2',
-        text: `⚠️ BOARD TRAP: Do not confuse early atypical presentation of ${cleanTopic} with common benign mimickers.`,
+        text: `⚠️ BOARD TRAP: Do not confuse early foundational concepts of ${cleanTopic} with common distractors.`,
         color: 'rose',
         category: 'Board Trap',
       },

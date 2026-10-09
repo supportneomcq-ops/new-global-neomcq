@@ -12,7 +12,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { normalizeInput, calculateLevenshteinSimilarity } from './normalizer'
 import { classifyUserInput } from './classifier'
-import { VERIFIED_EXAM_TEMPLATES } from '@/lib/server/exam-intelligence/engine'
+import { VERIFIED_EXAM_TEMPLATES, resolveOrInitializeExamIntelligence } from '@/lib/server/exam-intelligence/engine'
 
 export interface ResolvedExam {
   id: string
@@ -383,10 +383,40 @@ export async function resolveCanonicalSubject(
   }
 
   // 4. Fuzzy search across all subjects for this exam
-  const { data: allSubjects } = await supabase
+  let { data: allSubjects } = await supabase
     .from('exam_subjects')
     .select('id, exam_id, name, slug, description, weight_percentage')
     .eq('exam_id', examId)
+
+  // If exam currently has 0 subjects in database, trigger canonical curriculum synthesis & persistence
+  if (!allSubjects || allSubjects.length === 0) {
+    try {
+      const { data: exRow } = await supabase.from('exams').select('name').eq('id', examId).maybeSingle()
+      if (exRow?.name) {
+        await resolveOrInitializeExamIntelligence({ examQuery: exRow.name })
+        const { data: refSubjects } = await supabase
+          .from('exam_subjects')
+          .select('id, exam_id, name, slug, description, weight_percentage')
+          .eq('exam_id', examId)
+        if (refSubjects && refSubjects.length > 0) {
+          allSubjects = refSubjects
+          const exact = refSubjects.find(
+            (s: any) => s.name.toLowerCase().trim() === norm.canonical || s.slug === norm.slug || s.name.toLowerCase().trim() === rawTrimmed.toLowerCase()
+          ) || refSubjects[0]
+
+          if (exact) {
+            return {
+              subject: exact,
+              matchType: 'exact',
+              confidence: 100.0,
+            }
+          }
+        }
+      }
+    } catch (initErr) {
+      console.warn('[CanonicalResolver] Exam initialization note:', initErr)
+    }
+  }
 
   let bestMatch: any = null
   let maxConfidence = 0.0
@@ -606,6 +636,121 @@ export async function resolveCanonicalTopic(
 }
 
 /**
+ * Resolves or creates a Canonical Subtopic under a specific topic
+ */
+export async function resolveCanonicalSubtopic(
+  supabase: any,
+  topicId: string,
+  rawSubtopicInput: string,
+  autoCreate = false
+): Promise<{ subtopic: ResolvedSubtopic | null; matchType: 'exact' | 'slug' | 'alias' | 'fuzzy' | 'created' | 'none'; confidence: number }> {
+  if (!rawSubtopicInput || !topicId) {
+    return { subtopic: null, matchType: 'none', confidence: 0 }
+  }
+
+  const rawTrimmed = rawSubtopicInput.trim()
+
+  // 1. UUID lookup
+  if (UUID_REGEX.test(rawTrimmed)) {
+    const { data: byId } = await supabase
+      .from('exam_subtopics')
+      .select('id, topic_id, name, slug, description')
+      .eq('id', rawTrimmed)
+      .maybeSingle()
+
+    if (byId) {
+      return { subtopic: byId, matchType: 'exact', confidence: 100.0 }
+    }
+  }
+
+  const norm = normalizeInput(rawSubtopicInput)
+  if (!norm.canonical) {
+    return { subtopic: null, matchType: 'none', confidence: 0 }
+  }
+
+  // 2. Exact match by name or slug under this topic
+  const { data: directMatches } = await supabase
+    .from('exam_subtopics')
+    .select('id, topic_id, name, slug, description')
+    .eq('topic_id', topicId)
+    .or(`name.ilike.${norm.canonical},name.ilike.${rawTrimmed},slug.eq.${norm.slug},name.ilike.%${norm.canonical}%`)
+    .limit(10)
+
+  if (directMatches && directMatches.length > 0) {
+    const exact = directMatches.find(
+      (st: any) => st.name.toLowerCase().trim() === norm.canonical || st.slug === norm.slug || st.name.toLowerCase().trim() === rawTrimmed.toLowerCase()
+    ) || directMatches[0]
+
+    return {
+      subtopic: exact,
+      matchType: 'exact',
+      confidence: 100.0,
+    }
+  }
+
+  // 3. Fuzzy search across subtopics in this topic
+  const { data: allSubtopics } = await supabase
+    .from('exam_subtopics')
+    .select('id, topic_id, name, slug, description')
+    .eq('topic_id', topicId)
+
+  let bestMatch: any = null
+  let maxConfidence = 0.0
+
+  if (allSubtopics && allSubtopics.length > 0) {
+    for (const subtop of allSubtopics) {
+      const nameSim = calculateLevenshteinSimilarity(norm.canonical, subtop.name)
+      const rawSim = calculateLevenshteinSimilarity(rawTrimmed, subtop.name)
+      const containsSub = subtop.name.toLowerCase().includes(norm.canonical) || norm.canonical.includes(subtop.name.toLowerCase())
+      const subScore = containsSub ? 85.0 : 0.0
+
+      const score = Math.max(nameSim, rawSim, subScore)
+      if (score > maxConfidence) {
+        maxConfidence = score
+        bestMatch = subtop
+      }
+    }
+  }
+
+  if (bestMatch && maxConfidence >= CONFIDENCE_THRESHOLD) {
+    return {
+      subtopic: bestMatch,
+      matchType: 'fuzzy',
+      confidence: maxConfidence,
+    }
+  }
+
+  // 4. Auto-create if enabled
+  if (autoCreate) {
+    const capitalizedName = norm.tokens
+      .map((t) => t.charAt(0).toUpperCase() + t.slice(1))
+      .join(' ')
+
+    const { data: newSubtop, error: createErr } = await supabase
+      .from('exam_subtopics')
+      .insert({
+        topic_id: topicId,
+        name: capitalizedName,
+        slug: norm.slug,
+        description: `Fine-grained subtopic module for ${capitalizedName}.`,
+        is_active: true,
+      })
+      .select('id, topic_id, name, slug, description')
+      .single()
+
+    if (!createErr && newSubtop) {
+      return {
+        subtopic: newSubtop,
+        matchType: 'created',
+        confidence: 100.0,
+      }
+    }
+  }
+
+  return { subtopic: null, matchType: 'none', confidence: maxConfidence }
+}
+
+/**
  * Master Canonical Hierarchy Resolver
  * Resolves Exam -> Subject -> Topic -> Subtopic with strict relationship verification
  */
@@ -666,16 +811,29 @@ export async function resolveCanonicalHierarchy({
     }
   }
 
+  // 4. Resolve Subtopic under Resolved Topic (if requested)
+  let subtopicResult: any = { subtopic: null, matchType: 'none', confidence: 100.0 }
+  if (subtopicInput) {
+    subtopicResult = await resolveCanonicalSubtopic(supabase, topicResult.topic.id, subtopicInput, autoCreate)
+  }
+
   return {
     success: true,
     exam: examResult.exam,
     subject: subjectResult.subject,
     topic: topicResult.topic,
+    subtopic: subtopicResult.subtopic,
     matchType: {
       exam: examResult.matchType,
       subject: subjectResult.matchType,
       topic: topicResult.matchType,
+      subtopic: subtopicResult.matchType,
     },
-    confidence: Math.min(examResult.confidence, subjectResult.confidence, topicResult.confidence),
+    confidence: Math.min(
+      examResult.confidence,
+      subjectResult.confidence,
+      topicResult.confidence,
+      subtopicInput ? subtopicResult.confidence : 100.0
+    ),
   }
 }

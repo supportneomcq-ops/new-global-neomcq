@@ -847,12 +847,12 @@ Return JSON matching the schema.
             .eq('topic_id', firstMcq.topicId);
 
           const idsToDelete = (existingMcqs || [])
-            .filter((m) => {
+            .filter((m: any) => {
               const qSet = m.metadata?.question_set;
               const isMain = !qSet || qSet === 'MAIN' || m.tags?.includes('MAIN') || m.tags?.includes('Main MCQ');
               return isMain && !validIds.includes(m.id);
             })
-            .map((m) => m.id);
+            .map((m: any) => m.id);
 
           if (idsToDelete.length > 0) {
             await supabase.from('mcqs').delete().in('id', idsToDelete);

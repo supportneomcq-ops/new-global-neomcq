@@ -511,13 +511,13 @@ export class QuizMCQGenerator {
             .eq('topic_id', firstMcq.topicId);
 
           const idsToDelete = (existingMcqs || [])
-            .filter((m) => {
+            .filter((m: any) => {
               const isThisSlot =
                 m.metadata?.question_set?.toUpperCase() === upperSlot ||
                 m.tags?.some((t: string) => t.toUpperCase() === upperSlot);
               return isThisSlot && !validIds.includes(m.id);
             })
-            .map((m) => m.id);
+            .map((m: any) => m.id);
 
           if (idsToDelete.length > 0) {
             await supabase.from('mcqs').delete().in('id', idsToDelete);

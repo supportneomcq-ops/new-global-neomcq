@@ -168,12 +168,12 @@ export default function OnboardingPage() {
   // Step 5 Progress Animation Steps
   const [prepProgress, setPrepProgress] = useState<number>(0);
   const [prepStatuses, setPrepStatuses] = useState<string[]>([
-    'Recognizing examination profile & validity...',
-    'Checking canonical curriculum database...',
-    'Synchronizing official subject categories...',
-    'Mapping high-yield topics & blueprints...',
-    'Validating subtopics & difficulty parameters...',
-    'Generating milestone study plan & daily schedule...',
+    'Preparing your exam curriculum...',
+    'Exam verified',
+    'Subjects prepared',
+    'Main topics prepared',
+    'Subtopics prepared where applicable',
+    'Curriculum saved',
   ]);
   const [activePrepIndex, setActivePrepIndex] = useState<number>(0);
 
@@ -199,9 +199,9 @@ export default function OnboardingPage() {
     customExamInput: '',
     isCustomExam: false,
     resolvedCurriculumSummary: {
-      subjectCount: 19,
-      topicCount: 120,
-      subtopicCount: 350,
+      subjectCount: 0,
+      topicCount: 0,
+      subtopicCount: 0,
     },
 
     examDate: '',
@@ -460,21 +460,24 @@ export default function OnboardingPage() {
         updateField('selectedExamDescription', ex.description || `Official curriculum for ${ex.name}`);
 
         const subjects = ex.exam_subjects || [];
-        const subjectCount = subjects.length;
-        let topicCount = 0;
-        let subtopicCount = 0;
-        subjects.forEach((s: any) => {
-          const topics = s.exam_topics || [];
-          topicCount += topics.length;
-          topics.forEach((t: any) => {
-            if (t.exam_subtopics) subtopicCount += t.exam_subtopics.length;
+        const subjectCount = ex.subjectCount ?? subjects.length;
+        let topicCount = ex.topicCount ?? 0;
+        let subtopicCount = ex.subtopicCount ?? 0;
+
+        if (!ex.topicCount && subjects.length > 0) {
+          subjects.forEach((s: any) => {
+            const topics = s.exam_topics || [];
+            topicCount += topics.length;
+            topics.forEach((t: any) => {
+              if (t.exam_subtopics) subtopicCount += t.exam_subtopics.length;
+            });
           });
-        });
+        }
 
         updateField('resolvedCurriculumSummary', {
-          subjectCount: Math.max(subjectCount, 12),
-          topicCount: Math.max(topicCount, 65),
-          subtopicCount: Math.max(subtopicCount, 180),
+          subjectCount,
+          topicCount,
+          subtopicCount,
         });
       }
 
@@ -1113,21 +1116,21 @@ export default function OnboardingPage() {
                     <div className="p-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-100 dark:border-gray-800 text-center">
                       <Layers className="w-4 h-4 text-[#6D5BFF] mx-auto mb-1" />
                       <div className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
-                        {formData.resolvedCurriculumSummary?.subjectCount || 19}
+                        {formData.resolvedCurriculumSummary?.subjectCount ?? 0}
                       </div>
                       <div className="text-[10px] text-slate-400 uppercase font-bold">Subjects</div>
                     </div>
                     <div className="p-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-100 dark:border-gray-800 text-center">
                       <FileText className="w-4 h-4 text-[#00D4FF] mx-auto mb-1" />
                       <div className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
-                        {formData.resolvedCurriculumSummary?.topicCount || 120}
+                        {formData.resolvedCurriculumSummary?.topicCount ?? 0}
                       </div>
                       <div className="text-[10px] text-slate-400 uppercase font-bold">Topics</div>
                     </div>
                     <div className="p-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-100 dark:border-gray-800 text-center">
                       <BookmarkCheck className="w-4 h-4 text-emerald-500 mx-auto mb-1" />
                       <div className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
-                        {formData.resolvedCurriculumSummary?.subtopicCount || 350}
+                        {formData.resolvedCurriculumSummary?.subtopicCount ?? 0}
                       </div>
                       <div className="text-[10px] text-slate-400 uppercase font-bold">Subtopics</div>
                     </div>

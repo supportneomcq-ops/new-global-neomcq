@@ -26,11 +26,17 @@ export function buildIdempotencyKey(
   examId: string,
   subjectId: string,
   topicId: string,
-  packageType: ContentPackageType = 'full_pack',
-  version: number = 1
+  packageType: ContentPackageType | string = 'full_pack',
+  version: number | string = 1,
+  examVersionId?: string | null
 ): string {
-  const canonicalKey = buildCanonicalPackageKey(examId, subjectId, topicId, version);
-  return `canonical_content:${canonicalKey}:${packageType}`;
+  const versionTag = typeof version === 'number' ? `v${Math.max(1, Math.floor(version))}` : version;
+  if (!examId || !subjectId || !topicId) {
+    const scope = [examId || 'global', examVersionId ? `ev_${examVersionId}` : null, subjectId, topicId].filter(Boolean).join(':');
+    return `canonical_content:${scope}:${versionTag}:${packageType}`;
+  }
+  const verPart = examVersionId ? `ev_${examVersionId}:` : '';
+  return `canonical_content:${examId}:${verPart}${subjectId}:${topicId}:${versionTag}:${packageType}`;
 }
 
 export interface HierarchyVerificationResult {
