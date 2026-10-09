@@ -233,9 +233,12 @@ export async function POST(req: NextRequest) {
       if (aiJob?.id) {
         fetch(`${req.nextUrl.origin}/api/ai/process-job`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-internal-api-secret': process.env.INTERNAL_API_SECRET || '',
+          },
           body: JSON.stringify({ jobId: aiJob.id }),
-        }).catch(() => {})
+        }).catch((err) => console.warn('[Onboarding] Background study-plan job could not be started:', err))
       }
     }
 
