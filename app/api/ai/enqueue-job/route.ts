@@ -9,7 +9,10 @@ const inputParamsSchema = z.record(z.string(), z.any()).superRefine((value, ctx)
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Input parameters must be 16 KB or smaller.' });
   }
 
-  const requestedBatchSize = value.batch_size ?? value.batchSize ?? value.num_questions ?? value.question_count;
+  const requestedBatchSize =
+    value.batch_size ?? value.batchSize ?? value.num_questions ?? value.question_count ??
+    value.numQuestions ?? value.questionCount ?? value.total_questions ?? value.totalQuestions ??
+    value.number_of_questions ?? value.numberOfQuestions ?? value.count ?? value.num_items;
   if (typeof requestedBatchSize === 'number' &&
       (!Number.isInteger(requestedBatchSize) || requestedBatchSize < 1 || requestedBatchSize > 50)) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Batch size must be between 1 and 50.' });
