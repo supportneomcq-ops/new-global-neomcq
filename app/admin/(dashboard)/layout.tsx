@@ -35,7 +35,6 @@ export default async function AdminDashboardLayout({ children }: { children: Rea
   const isAuthorizedAdmin =
     roleNames.includes('admin') ||
     roleNames.includes('super_admin') ||
-    roleNames.includes('support') ||
     roleNames.includes('content_admin');
   if (!isAuthorizedAdmin) {
     redirect('/dashboard');
