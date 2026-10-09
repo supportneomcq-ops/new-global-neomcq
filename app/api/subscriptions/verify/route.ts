@@ -62,6 +62,19 @@ export async function POST(req: NextRequest) {
 
     const admin = getSupabaseAdmin();
 
+    // The live schema requires a valid subscription_plans foreign key.
+    const { data: subscriptionPlan, error: subscriptionPlanError } = await admin
+      .from('subscription_plans')
+      .select('id, slug, price_inr, price_usd, billing_interval')
+      .eq('slug', plan.slug)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (subscriptionPlanError || !subscriptionPlan) {
+      console.error('Could not resolve subscription plan during verification:', subscriptionPlanError);
+      return NextResponse.json({ error: 'The selected plan could not be verified. Please contact support.' }, { status: 503 });
+    }
+
     // Only verify a checkout that this authenticated user initiated for this exact plan.
     const { data: pendingSub, error: pendingSubError } = await admin
       .from('subscriptions')
@@ -182,6 +195,7 @@ export async function POST(req: NextRequest) {
     const { error: subError } = await admin.from('subscriptions').upsert(
       {
         user_id: user.id,
+        plan_id: subscriptionPlan.id,
         plan_code: plan.code,
         status: 'active',
         razorpay_subscription_id: razorpay_subscription_id || razorpay_order_id,
