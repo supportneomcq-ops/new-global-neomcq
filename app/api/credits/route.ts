@@ -75,81 +75,15 @@ export async function GET(req: NextRequest) {
 /**
  * Initiates simulated or live credit pack purchase
  */
-export async function POST(req: NextRequest) {
-  try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 });
-    }
-
-    const { packId } = await req.json();
-    if (!packId) {
-      return NextResponse.json({ error: 'Missing packId' }, { status: 400 });
-    }
-
-    const adminClient = getSupabaseAdmin();
-
-    const { data: pack } = await adminClient
-      .from('credit_packs')
-      .select('*')
-      .eq('id', packId)
-      .eq('active', true)
-      .maybeSingle();
-
-    if (!pack) {
-      return NextResponse.json({ error: 'Credit pack not found or inactive' }, { status: 404 });
-    }
-
-    // Grant credits immediately for the user (simulated payment capture)
-    // In production, this is done via Razorpay Webhook. For testing, we can do it directly.
-    const { data: wallet } = await adminClient
-      .from('credit_accounts')
-      .select('credit_balance, lifetime_credits_purchased')
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    const totalCredits = Number(pack.credits) + Number(pack.bonus_credits || 0);
-    const oldBal = wallet ? Number(wallet.credit_balance) : 0;
-    const newBal = oldBal + totalCredits;
-    const paymentId = 'pay_' + Math.random().toString(36).substr(2, 9);
-
-    if (wallet) {
-      await adminClient
-        .from('credit_accounts')
-        .update({
-          credit_balance: newBal,
-          lifetime_credits_purchased: Number(wallet.lifetime_credits_purchased || 0) + totalCredits,
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', user.id);
-    } else {
-      await adminClient.from('credit_accounts').insert({
-        user_id: user.id,
-        credit_balance: newBal,
-        lifetime_credits_purchased: totalCredits,
-      });
-    }
-
-    // Insert to ledger
-    await adminClient.from('credit_ledger').insert({
-      user_id: user.id,
-      transaction_type: 'PURCHASE',
-      credits: totalCredits,
-      balance_before: oldBal,
-      balance_after: newBal,
-      reference_type: 'credit_pack',
-      reference_id: paymentId,
-      description: `Purchased credit pack: ${pack.name} (Simulated Sandbox)`
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: `Successfully credited ${totalCredits} credits to your account!`,
-      newBalance: newBal
-    });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
-  }
+/**
+ * Credit packs must only be granted after a verified payment.
+ * The previous implementation directly credited balances with a simulated payment ID,
+ * allowing any signed-in user to obtain paid credits for free.
+ * Keep this endpoint fail-closed until the real order + Razorpay verification flow is wired here.
+ */
+export async function POST(_req: NextRequest) {
+  return NextResponse.json(
+    { success: false, error: 'Credit pack checkout is temporarily unavailable. Credits are added only after a verified payment.' },
+    { status: 503 }
+  );
 }
