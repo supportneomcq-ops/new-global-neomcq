@@ -589,6 +589,11 @@ export default function OnboardingPage() {
           setStep(1);
           return;
         }
+
+        // Do not continue onboarding when account creation failed for any other reason.
+        setFormError('We could not create your account right now. Please try again in a moment.');
+        setStep(1);
+        return;
       }
 
       // Progress Step 2: Curriculum framework resolved in database
