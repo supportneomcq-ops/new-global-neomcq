@@ -1,213 +1,164 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { verifyRazorpaySignature, EXAM_SWITCH_CONFIG } from '@/lib/razorpay';
+import { verifyRazorpaySignature } from '@/lib/razorpay';
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
+    const session = await createClient();
+    const { data: { user }, error: authError } = await session.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
     const body = await req.json();
-    const {
-      switchRequestId,
-      razorpay_order_id,
-      razorpay_payment_id,
-      razorpay_signature,
-    } = body;
+    const switchRequestId = typeof body.switchRequestId === 'string' ? body.switchRequestId : null;
+    const razorpay_order_id = typeof body.razorpay_order_id === 'string' ? body.razorpay_order_id : '';
+    const razorpay_payment_id = typeof body.razorpay_payment_id === 'string' ? body.razorpay_payment_id : '';
+    const razorpay_signature = typeof body.razorpay_signature === 'string' ? body.razorpay_signature : '';
 
-    if (!razorpay_payment_id || !razorpay_order_id) {
+    if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {
       return NextResponse.json(
-        { error: 'Missing required payment verification parameters' },
+        { error: 'A payment ID, order ID, and payment signature are required.' },
         { status: 400 }
       );
     }
 
-    // 1. Signature Verification
-    if (razorpay_signature) {
-      const isValid = verifyRazorpaySignature({
-        orderId: razorpay_order_id,
-        paymentId: razorpay_payment_id,
-        signature: razorpay_signature,
-      });
+    if (!verifyRazorpaySignature({ orderId: razorpay_order_id, paymentId: razorpay_payment_id, signature: razorpay_signature })) {
+      return NextResponse.json(
+        { error: 'Payment signature could not be verified. Your exam has not been changed.' },
+        { status: 400 }
+      );
+    }
 
-      if (!isValid && process.env.NODE_ENV === 'production') {
-        return NextResponse.json(
-          { error: 'Payment signature could not be verified by server. Your exam has not been changed.' },
-          { status: 400 }
-        );
-      }
+    const keyId = process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || '';
+    const keySecret = process.env.RAZORPAY_KEY_SECRET || '';
+    if (!keyId || !keySecret || keyId.startsWith('mock_')) {
+      return NextResponse.json(
+        { error: 'Payment verification is temporarily unavailable. Your exam has not been changed.' },
+        { status: 503 }
+      );
     }
 
     const admin = getSupabaseAdmin();
-
-    // 2. Fetch Switch Request and verify ownership
-    let switchReqQuery = admin
+    let query = admin
       .from('exam_switch_requests')
       .select('*, from_exam:exams!from_exam_id(name), to_exam:exams!to_exam_id(name, slug)')
       .eq('user_id', user.id);
+    query = switchRequestId ? query.eq('id', switchRequestId) : query.eq('razorpay_order_id', razorpay_order_id);
 
-    if (switchRequestId) {
-      switchReqQuery = switchReqQuery.eq('id', switchRequestId);
-    } else {
-      switchReqQuery = switchReqQuery.eq('razorpay_order_id', razorpay_order_id);
+    const { data: switchReq, error: fetchError } = await query.maybeSingle();
+    if (fetchError) {
+      console.error('Could not load exam-switch request:', fetchError);
+      return NextResponse.json({ error: 'Could not verify this exam-switch request.' }, { status: 500 });
+    }
+    if (!switchReq) {
+      return NextResponse.json({ error: 'Exam switch request not found for this user.' }, { status: 404 });
     }
 
-    const { data: switchReq, error: fetchErr } = await switchReqQuery.maybeSingle();
-
-    if (fetchErr || !switchReq) {
-      return NextResponse.json(
-        { error: 'Exam switch request not found for this user.' },
-        { status: 404 }
-      );
-    }
-
-    // 3. IDEMPOTENCY CHECK: If already completed, return success
     if (switchReq.status === 'switch_completed') {
-      const { data: targetExam } = await admin
-        .from('exams')
-        .select('id, name, slug')
-        .eq('id', switchReq.to_exam_id)
-        .maybeSingle();
-
-      return NextResponse.json({
-        success: true,
-        message: 'Exam switch already completed.',
-        isDuplicate: true,
-        newExam: targetExam || { id: switchReq.to_exam_id, name: 'Active Exam' },
-      });
+      if (switchReq.razorpay_payment_id !== razorpay_payment_id || switchReq.razorpay_order_id !== razorpay_order_id) {
+        return NextResponse.json({ error: 'This completed switch does not match the supplied payment.' }, { status: 409 });
+      }
+      const { data: targetExam } = await admin.from('exams').select('id, name, slug').eq('id', switchReq.to_exam_id).maybeSingle();
+      return NextResponse.json({ success: true, message: 'Exam switch already completed.', isDuplicate: true, newExam: targetExam });
     }
 
-    // 4. PREVENT REPLAY ATTACK: Check if payment ID was already used
-    const { data: existingPayment } = await admin
-      .from('exam_switch_history')
-      .select('id')
-      .eq('payment_reference', razorpay_payment_id)
-      .maybeSingle();
+    if (switchReq.razorpay_order_id !== razorpay_order_id || !['payment_pending', 'payment_verified', 'pending_payment', 'processing'].includes(switchReq.status)) {
+      return NextResponse.json({ error: 'This payment does not match an eligible pending exam switch.' }, { status: 400 });
+    }
 
-    if (existingPayment) {
+    const razorpayResponse = await fetch(
+      `https://api.razorpay.com/v1/payments/${encodeURIComponent(razorpay_payment_id)}`,
+      {
+        method: 'GET',
+        headers: { Authorization: 'Basic ' + Buffer.from(`${keyId}:${keySecret}`).toString('base64') },
+        cache: 'no-store',
+      }
+    );
+    if (!razorpayResponse.ok) {
+      console.error('Razorpay payment lookup failed:', razorpayResponse.status);
+      return NextResponse.json({ error: 'Razorpay could not confirm this payment. Your exam has not been changed.' }, { status: 502 });
+    }
+
+    const payment = await razorpayResponse.json();
+    const expectedAmount = Number(switchReq.metadata?.amount_cents);
+    if (
+      payment.status !== 'captured' ||
+      payment.order_id !== razorpay_order_id ||
+      payment.currency !== switchReq.currency ||
+      !Number.isFinite(expectedAmount) ||
+      Number(payment.amount) !== expectedAmount ||
+      (payment.notes?.user_id && payment.notes.user_id !== user.id)
+    ) {
       return NextResponse.json(
-        { error: 'This payment reference has already been redeemed for an exam switch.' },
+        { error: 'Payment status, amount, currency, order, or owner did not match. Your exam has not been changed.' },
         { status: 400 }
       );
     }
 
-    // 5. Try calling Database RPC for Atomic Transaction
+    const { data: existingPayment, error: existingPaymentError } = await admin
+      .from('exam_switch_history')
+      .select('id, user_id')
+      .eq('payment_reference', razorpay_payment_id)
+      .maybeSingle();
+    if (existingPaymentError) {
+      console.error('Could not check payment replay:', existingPaymentError);
+      return NextResponse.json({ error: 'Could not verify whether this payment was already used.' }, { status: 500 });
+    }
+    if (existingPayment) {
+      return NextResponse.json({ error: 'This payment has already been used for an exam switch.' }, { status: 409 });
+    }
+
+    const { error: markVerifiedError } = await admin
+      .from('exam_switch_requests')
+      .update({ status: 'payment_verified', razorpay_payment_id, razorpay_signature })
+      .eq('id', switchReq.id)
+      .eq('user_id', user.id)
+      .in('status', ['payment_pending', 'pending_payment', 'processing']);
+    if (markVerifiedError) {
+      console.error('Could not mark exam-switch payment verified:', markVerifiedError);
+      return NextResponse.json({ error: 'Payment was verified but the switch could not be finalized. Contact support; do not pay again.' }, { status: 500 });
+    }
+
+    // This RPC is service-role-only; payment was independently verified above.
     const { data: rpcResult, error: rpcError } = await admin.rpc('execute_exam_switch_atomic', {
       p_user_id: user.id,
       p_switch_request_id: switchReq.id,
       p_razorpay_payment_id: razorpay_payment_id,
       p_razorpay_order_id: razorpay_order_id,
-      p_razorpay_signature: razorpay_signature || null,
-      p_amount: switchReq.amount || EXAM_SWITCH_CONFIG.PRICE_USD,
-      p_currency: switchReq.currency || 'USD',
+      p_razorpay_signature: razorpay_signature,
+      p_amount: switchReq.amount,
+      p_currency: switchReq.currency,
     });
 
-    if (!rpcError && rpcResult && rpcResult.success) {
-      const { data: finalExam } = await admin
-        .from('exams')
-        .select('id, name, slug, description, question_count, time_limit_mins')
-        .eq('id', switchReq.to_exam_id)
-        .maybeSingle();
-
-      return NextResponse.json({
-        success: true,
-        message: `Exam switched successfully to ${finalExam?.name || 'new target exam'}.`,
-        newExam: finalExam,
-        switchCount: rpcResult.switch_count,
-      });
+    if (rpcError || !rpcResult?.success) {
+      console.error('Atomic exam switch failed after payment verification:', rpcError || rpcResult);
+      return NextResponse.json(
+        { error: 'Payment was verified but the switch needs support review. Do not pay again.' },
+        { status: 500 }
+      );
     }
 
-    // Fallback: Direct atomic execution via Admin client (if RPC not yet applied in environment)
-    const { data: profile } = await admin
-      .from('profiles')
-      .select('exam_switch_count')
-      .eq('id', user.id)
-      .single();
-
-    const newCount = (profile?.exam_switch_count || 0) + 1;
-
-    // Step A: Update Profile
-    await admin
-      .from('profiles')
-      .update({
-        current_exam_id: switchReq.to_exam_id,
-        exam_locked: true,
-        exam_selected_at: new Date().toISOString(),
-        exam_switch_count: newCount,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', user.id);
-
-    // Step B: Upsert user_exams for target exam (preserving old user_exams records!)
-    await admin
-      .from('user_exams')
-      .upsert(
-        {
-          user_id: user.id,
-          exam_id: switchReq.to_exam_id,
-          status: 'in_progress',
-          target_score: 85.0,
-        },
-        { onConflict: 'user_id,exam_id' }
-      );
-
-    // Step C: Record in history
-    await admin.from('exam_switch_history').insert({
-      user_id: user.id,
-      from_exam_id: switchReq.from_exam_id,
-      to_exam_id: switchReq.to_exam_id,
-      amount: switchReq.amount || EXAM_SWITCH_CONFIG.PRICE_USD,
-      currency: switchReq.currency || 'USD',
-      payment_reference: razorpay_payment_id,
-      switch_request_id: switchReq.id,
-      switched_at: new Date().toISOString(),
-    });
-
-    // Step D: Update switch request status
-    await admin
-      .from('exam_switch_requests')
-      .update({
-        status: 'switch_completed',
-        razorpay_payment_id,
-        razorpay_signature: razorpay_signature || null,
-        completed_at: new Date().toISOString(),
-      })
-      .eq('id', switchReq.id);
-
-    // Step E: Record general payment record
-    await admin.from('payments').upsert({
-      user_id: user.id,
-      razorpay_payment_id,
-      razorpay_order_id,
-      razorpay_signature: razorpay_signature || null,
-      amount: switchReq.amount || EXAM_SWITCH_CONFIG.PRICE_USD,
-      currency: switchReq.currency || 'USD',
-      status: 'captured',
-      webhook_payload: { type: 'exam_switch', from: switchReq.from_exam_id, to: switchReq.to_exam_id },
-      created_at: new Date().toISOString(),
-    }, { onConflict: 'razorpay_payment_id' });
-
-    const { data: finalExam } = await admin
+    const { data: finalExam, error: finalExamError } = await admin
       .from('exams')
       .select('id, name, slug, description, question_count, time_limit_mins')
       .eq('id', switchReq.to_exam_id)
       .maybeSingle();
+    if (finalExamError) {
+      console.error('Could not load final exam details:', finalExamError);
+    }
 
     return NextResponse.json({
       success: true,
-      message: `Exam switched successfully to ${finalExam?.name || 'new target exam'}.`,
+      message: `Exam switched successfully to ${finalExam?.name || 'your new exam'}.`,
       newExam: finalExam,
-      switchCount: newCount,
+      switchCount: rpcResult.switch_count,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Exam switch verification error:', err);
     return NextResponse.json(
-      { error: err.message || 'Payment verification failed. Your exam has not been changed.' },
+      { error: 'Payment verification failed. Your exam has not been changed.' },
       { status: 500 }
     );
   }
