@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { FuturisticLoader } from './futuristic-loader';
 import { Header } from './header';
 import { Footer } from './footer';
 import { Hero } from './hero';
@@ -20,7 +19,6 @@ interface HomeInteractionManagerProps {
 
 export function HomeInteractionManager({ marquee }: HomeInteractionManagerProps) {
   const router = useRouter();
-  const [isBooting, setIsBooting] = useState(true);
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
@@ -103,7 +101,7 @@ export function HomeInteractionManager({ marquee }: HomeInteractionManagerProps)
     }
   };
 
-  const isAnyModalActive = isBooting || isOnboardingOpen || activeModal !== null || isMobileMenuOpen;
+  const isAnyModalActive = isOnboardingOpen || activeModal !== null || isMobileMenuOpen;
 
   // If user is authenticated & onboarded, display DashboardView
   if (currentUser) {
@@ -118,16 +116,11 @@ export function HomeInteractionManager({ marquee }: HomeInteractionManagerProps)
 
   return (
     <>
-      {/* Futuristic AI Initializing Bootloader */}
-      <FuturisticLoader onComplete={() => setIsBooting(false)} />
-
       <div
-        className={`relative min-h-svh w-screen max-w-full flex flex-col justify-between bg-slate-50 dark:bg-[#050816] transition-opacity duration-500 ${
-          isBooting
-            ? 'fixed inset-0 h-screen overflow-hidden opacity-0 pointer-events-none'
-            : isAnyModalActive
-            ? 'h-screen max-h-screen overflow-hidden opacity-100'
-            : 'overflow-x-hidden opacity-100'
+        className={`relative min-h-svh w-screen max-w-full flex flex-col justify-between bg-slate-50 dark:bg-[#050816] ${
+          isAnyModalActive
+            ? 'h-screen max-h-screen overflow-hidden'
+            : 'overflow-x-hidden'
         }`}
       >
         {/* Navigation Header */}
