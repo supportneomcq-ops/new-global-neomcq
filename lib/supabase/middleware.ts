@@ -79,29 +79,11 @@ export async function updateSession(request: NextRequest) {
         console.error('Failed to query user roles in middleware:', err)
       }
 
-      const userEmail = user.email?.toLowerCase().trim() || ''
-      const initialAdminEmail = (process.env.INITIAL_ADMIN_EMAIL || 'support@neomcq.com').toLowerCase().trim()
-      const isAdminEmail = userEmail === initialAdminEmail ||
-                           userEmail === 'admin@neomcq.com' ||
-                           userEmail === 'swapnilsonawane913@gmail.com'
-
-      if (isAdminEmail && !roleNames.includes('admin') && !roleNames.includes('super_admin')) {
-        try {
-          const adminClient = getSupabaseAdmin()
-          const { data: adminRole } = await adminClient.from('roles').select('id').eq('name', 'admin').maybeSingle()
-          if (adminRole?.id) {
-            await adminClient.from('user_roles').upsert(
-              { user_id: user.id, role_id: adminRole.id },
-              { onConflict: 'user_id,role_id' }
-            )
-            roleNames.push('admin')
-          }
-        } catch (roleErr) {
-          console.error('Error auto-assigning admin role in middleware:', roleErr)
-        }
-      }
-
-      const isAdmin = isAdminEmail || roleNames.includes('admin') || roleNames.includes('super_admin') || roleNames.includes('content_admin')
+      // Admin access is determined only by stored role assignments, never by email address.
+      const isAdmin =
+        roleNames.includes('admin') ||
+        roleNames.includes('super_admin') ||
+        roleNames.includes('content_admin')
       const isSupport = roleNames.includes('support')
 
       // 1. If trying to access sign-in / admin login page while already logged in:
