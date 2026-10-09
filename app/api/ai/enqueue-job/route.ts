@@ -113,6 +113,20 @@ export async function POST(req: NextRequest) {
         : 'Reusing existing active or completed generation job',
     })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 })
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('AI_JOB_RATE_LIMIT')) {
+      return NextResponse.json(
+        { error: 'You have reached the AI generation limit for this hour. Please try again later.' },
+        { status: 429 }
+      );
+    }
+    if (message.includes('payload exceeds 16 KB') || message.includes('batch size must be')) {
+      return NextResponse.json(
+        { error: 'Your AI generation request is too large. Reduce the batch size and try again.' },
+        { status: 400 }
+      );
+    }
+    console.error('[AI Enqueue] Error:', error);
+    return NextResponse.json({ error: 'Failed to enqueue AI job' }, { status: 500 })
   }
 }
