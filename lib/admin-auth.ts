@@ -43,7 +43,6 @@ export async function verifyAdminApiSession() {
   const authorized =
     roleNames.includes('admin') ||
     roleNames.includes('super_admin') ||
-    roleNames.includes('support') ||
     roleNames.includes('content_admin');
   if (!authorized) {
     return {
