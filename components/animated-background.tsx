@@ -1,33 +1,44 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useTheme } from 'next-themes';
 
 export function AnimatedBackground() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: -1000, y: -1000 });
+  const spotlightRef = useRef<HTMLDivElement | null>(null);
   const { resolvedTheme } = useTheme();
 
-  // Mouse tracking spotlight (only on desktop/pointer)
+  // Update the spotlight directly on animation frames to avoid React re-renders on every mouse move.
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
-    // Skip heavy mouse listener on touch/mobile devices
+
+    // Skip pointer tracking on touch/mobile devices.
     const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     if (isTouch) return;
 
-    let frameId: number;
+    let frameId: number | null = null;
+    let latestX = 0;
+    let latestY = 0;
+
     const handleMouseMove = (e: MouseEvent) => {
-      if (frameId) cancelAnimationFrame(frameId);
+      latestX = e.clientX;
+      latestY = e.clientY;
+      if (frameId !== null) return;
+
       frameId = requestAnimationFrame(() => {
-        setMousePos({ x: e.clientX, y: e.clientY });
+        const spotlight = spotlightRef.current;
+        if (spotlight) {
+          spotlight.style.background = `radial-gradient(600px circle at ${latestX}px ${latestY}px, rgba(109, 91, 255, 0.06), transparent 80%)`;
+          spotlight.style.opacity = '1';
+        }
+        frameId = null;
       });
     };
 
     window.addEventListener('mousemove', handleMouseMove, { passive: true });
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
-      if (frameId) cancelAnimationFrame(frameId);
+      if (frameId !== null) cancelAnimationFrame(frameId);
     };
   }, []);
 
@@ -159,15 +170,12 @@ export function AnimatedBackground() {
       {/* 2. Faint Grid Pattern Overlay */}
       <div className="absolute inset-0 bg-grid-pattern opacity-30 dark:opacity-50" />
 
-      {/* 3. Interactive Mouse Spotlight Glow */}
-      {mousePos.x > -500 && (
-        <div
-          className="absolute inset-0 transition-opacity duration-300 hidden md:block"
-          style={{
-            background: `radial-gradient(600px circle at ${mousePos.x}px ${mousePos.y}px, rgba(109, 91, 255, 0.06), transparent 80%)`,
-          }}
-        />
-      )}
+      {/* 3. Interactive Mouse Spotlight Glow (updated without React state churn) */}
+      <div
+        ref={spotlightRef}
+        aria-hidden="true"
+        className="absolute inset-0 transition-opacity duration-300 hidden md:block opacity-0"
+      />
 
       {/* 4. Canvas Neural Network Nodes & Connection Lines (Pre-rendered only on desktop) */}
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full opacity-60 dark:opacity-80 hidden md:block" />
