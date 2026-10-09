@@ -1274,7 +1274,7 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
       ai_infrastructure_cost: costUsd * 0.05,
       credits_deducted: 2.0,
     })
-    if (costEventError) throw new Error(`Failed to record AI cost event: ${costEventError.message}`)
+    if (costEventError) console.error('[AI Content Intelligence] AI cost event could not be recorded:', costEventError)
 
     // 5g. Log Immutable Credit Ledger if user requested
     if (userId) {
@@ -1294,7 +1294,7 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
         transaction_type: 'AI_DEDUCTION',
         description: `Content Generation for ${topic.name} (v${targetVersionNum})`,
       })
-      if (creditLedgerError) throw new Error(`Failed to record AI credit ledger: ${creditLedgerError.message}`)
+      if (creditLedgerError) console.error('[AI Content Intelligence] AI credit ledger could not be recorded:', creditLedgerError)
     }
 
     // 5h. Mark Job as Completed in ai_jobs
@@ -1317,10 +1317,22 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
           credits_consumed: 2.0,
         })
         .eq('id', jobId)
-      if (jobUpdateError) throw new Error(`Failed to mark AI job complete: ${jobUpdateError.message}`)
+      if (jobUpdateError) console.error('[AI Content Intelligence] Content was saved but the job status could not be updated:', jobUpdateError)
     }
   } catch (saveErr) {
     console.error('[AI Content Intelligence] Database persistence failed:', saveErr)
+
+    // Remove partial rows from this generation so a retry cannot mistake incomplete content for a valid cache.
+    const cleanupResults = await Promise.all([
+      supabase.from('mcqs').delete().eq('topic_id', topic.id).eq('version', targetVersionNum).eq('ai_generated', true),
+      supabase.from('notes').delete().eq('topic_id', topic.id).eq('version', targetVersionNum).eq('ai_generated', true),
+      supabase.from('flashcards').delete().eq('topic_id', topic.id).eq('version', targetVersionNum).eq('ai_generated', true),
+      supabase.from('content_versions').delete().eq('asset_id', topic.id).eq('asset_type', 'topic').eq('version', targetVersionNum),
+    ])
+    for (const cleanupResult of cleanupResults) {
+      if (cleanupResult.error) console.error('[AI Content Intelligence] Partial-write cleanup failed:', cleanupResult.error)
+    }
+
     if (jobId) {
       const { error: failedJobError } = await supabase
         .from('ai_jobs')
