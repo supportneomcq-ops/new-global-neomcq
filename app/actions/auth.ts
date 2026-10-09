@@ -2,7 +2,6 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
-import { bootstrapAdmin } from '@/lib/supabase/bootstrap'
 import { loginSchema, signupSchema, resetPasswordSchema, studyPreferencesSchema } from '@/lib/validations/auth'
 import { revalidatePath } from 'next/cache'
 
@@ -12,16 +11,12 @@ export async function loginAction(formData: { email: string; password: string })
     return { error: result.error.issues[0].message }
   }
 
-  // Ensure initial admin is bootstrapped in DB if applicable
-  await bootstrapAdmin().catch((err) => console.error('Bootstrap admin silent catch:', err))
-
   const supabase = await createClient()
   let { data: authData, error } = await supabase.auth.signInWithPassword({
     email: result.data.email,
     password: result.data.password,
   })
 
-  // If initial sign-in fails and it's an admin email, provision/update user and retry
   if (error) {
     const inputEmail = result.data.email.toLowerCase().trim()
     const initialAdminEmail = (process.env.INITIAL_ADMIN_EMAIL || 'support@neomcq.com').toLowerCase().trim()
@@ -142,24 +137,8 @@ export async function loginAction(formData: { email: string; password: string })
 
     let roleNames = userRoles?.map((r: any) => r.roles?.name).filter(Boolean) || []
 
-    const userEmail = authData.user.email?.toLowerCase().trim() || ''
-    const initialAdminEmail = (process.env.INITIAL_ADMIN_EMAIL || 'support@neomcq.com').toLowerCase().trim()
-    
-    const isAdminEmail = userEmail === initialAdminEmail ||
-                         userEmail === 'swapnilsonawane913@gmail.com'
 
-    if (isAdminEmail && !roleNames.includes('admin') && !roleNames.includes('super_admin')) {
-      const { data: adminRole } = await adminClient.from('roles').select('id').eq('name', 'admin').maybeSingle()
-      if (adminRole?.id) {
-        await adminClient.from('user_roles').upsert(
-          { user_id: authData.user.id, role_id: adminRole.id },
-          { onConflict: 'user_id,role_id' }
-        )
-        roleNames.push('admin')
-      }
-    }
-
-    if (isAdminEmail || roleNames.includes('admin') || roleNames.includes('super_admin') || roleNames.includes('content_admin')) {
+    if (roleNames.includes('admin') || roleNames.includes('super_admin') || roleNames.includes('content_admin')) {
       redirectUrl = '/admin'
     } else if (roleNames.includes('support')) {
       redirectUrl = '/support'
