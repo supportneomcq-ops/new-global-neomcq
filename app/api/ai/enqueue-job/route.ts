@@ -1,7 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getSupabaseAdmin } from '@/lib/supabase'
 import { z } from 'zod'
 import { GenerationJobManager } from '@/lib/server/content-engine/job-manager'
+
+const inputParamsSchema = z.record(z.string(), z.any()).superRefine((value, ctx) => {
+  if (JSON.stringify(value).length > 16_000) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Input parameters must be 16 KB or smaller.' });
+  }
+
+  const requestedBatchSize =
+    value.batch_size ?? value.batchSize ?? value.num_questions ?? value.question_count ??
+    value.numQuestions ?? value.questionCount ?? value.total_questions ?? value.totalQuestions ??
+    value.number_of_questions ?? value.numberOfQuestions ?? value.count ?? value.num_items;
+  if (typeof requestedBatchSize === 'number' &&
+      (!Number.isInteger(requestedBatchSize) || requestedBatchSize < 1 || requestedBatchSize > 50)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Batch size must be between 1 and 50.' });
+  }
+});
 
 const enqueueJobSchema = z.object({
   jobType: z.enum([
@@ -14,7 +30,7 @@ const enqueueJobSchema = z.object({
     'exam_structure',
     'exam_topics',
   ]),
-  inputParams: z.record(z.string(), z.any()),
+  inputParams: inputParamsSchema,
 })
 
 export async function POST(req: NextRequest) {
@@ -70,7 +86,7 @@ export async function POST(req: NextRequest) {
           ...inputParams,
         },
       },
-      supabase
+      getSupabaseAdmin()
     )
 
     if (!job) {
@@ -83,6 +99,7 @@ export async function POST(req: NextRequest) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-internal-api-secret': process.env.INTERNAL_API_SECRET || '',
         },
         body: JSON.stringify({ jobId: job.id }),
       }).catch((err) => console.error('Background AI job trigger error:', err))
@@ -99,6 +116,20 @@ export async function POST(req: NextRequest) {
         : 'Reusing existing active or completed generation job',
     })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 })
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('AI_JOB_RATE_LIMIT')) {
+      return NextResponse.json(
+        { error: 'You have reached the AI generation limit for this hour. Please try again later.' },
+        { status: 429 }
+      );
+    }
+    if (message.includes('payload exceeds 16 KB') || message.includes('batch size must be')) {
+      return NextResponse.json(
+        { error: 'Your AI generation request is too large. Reduce the batch size and try again.' },
+        { status: 400 }
+      );
+    }
+    console.error('[AI Enqueue] Error:', error);
+    return NextResponse.json({ error: 'Failed to enqueue AI job' }, { status: 500 })
   }
 }
