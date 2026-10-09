@@ -60,12 +60,13 @@ export async function POST(req: NextRequest) {
     const formattedPriceObj = getFormattedPlanPrice(plan.code, rzpResult.currency as 'USD' | 'INR');
 
     // Record pending subscription attempt
-    await admin.from('subscriptions').upsert(
+    const { error: pendingSubscriptionError } = await admin.from('subscriptions').upsert(
       {
         user_id: user.id,
         plan_code: plan.code,
         status: 'pending',
-        razorpay_subscription_id: rzpResult.subscriptionId || null,
+        // Keep the server-created checkout identifier so verification can bind the callback to this user and plan.
+        razorpay_subscription_id: rzpResult.subscriptionId || rzpResult.orderId,
         amount: planAmount,
         currency: rzpResult.currency,
         cancel_at_period_end: false,
@@ -73,6 +74,11 @@ export async function POST(req: NextRequest) {
       },
       { onConflict: 'user_id' }
     );
+
+    if (pendingSubscriptionError) {
+      console.error('Error recording pending subscription:', pendingSubscriptionError);
+      throw new Error('Could not securely record the pending checkout. Please try again.');
+    }
 
     return NextResponse.json({
       success: true,
