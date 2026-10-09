@@ -1050,7 +1050,7 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
   } catch (genError: any) {
     // Fail the job in database
     if (jobId) {
-      await supabase
+      const { error: jobUpdateError } = await supabase
         .from('ai_jobs')
         .update({
           status: 'failed',
@@ -1154,12 +1154,13 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
         ai_model: modelUsed,
       }))
 
-      await supabase.from('mcqs').insert(mcqRows)
+      const { error: mcqInsertError } = await supabase.from('mcqs').insert(mcqRows)
+      if (mcqInsertError) throw new Error(`Failed to persist generated MCQs: ${mcqInsertError.message}`)
     }
 
     // 5b. Insert Notes into notes table
     if (finalPayload.notes) {
-      await supabase.from('notes').insert({
+      const { error: notesInsertError } = await supabase.from('notes').insert({
         exam_id: exam.id,
         subject_id: subject.id,
         topic_id: topic.id,
@@ -1172,6 +1173,7 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
         ai_provider: providerUsed,
         ai_model: modelUsed,
       })
+      if (notesInsertError) throw new Error(`Failed to persist generated notes: ${notesInsertError.message}`)
     }
 
     // 5c. Insert Flashcards into flashcards table
@@ -1188,13 +1190,14 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
         ai_generated: true,
       }))
 
-      await supabase.from('flashcards').insert(flashRows)
+      const { error: flashcardsInsertError } = await supabase.from('flashcards').insert(flashRows)
+      if (flashcardsInsertError) throw new Error(`Failed to persist generated flashcards: ${flashcardsInsertError.message}`)
     }
 
     // 5d. Insert Revision Sheets
     if (finalPayload.revision_sheet) {
       try {
-        await supabase.from('revision_sheets').insert({
+        const { error: revisionSheetError } = await supabase.from('revision_sheets').insert({
           exam_id: exam.id,
           subject_id: subject.id,
           topic_id: topic.id,
@@ -1203,13 +1206,14 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
           status: 'approved',
           ai_generated: true,
         })
-      } catch {
-        // Non-blocking
+        if (revisionSheetError) console.warn('[AI Content Intelligence] Revision sheet was not persisted:', revisionSheetError.message)
+      } catch (revisionSheetError) {
+        console.warn('[AI Content Intelligence] Revision sheet persistence failed:', revisionSheetError)
       }
     }
 
     // 5e. Save Content Version in content_versions
-    const { data: versionData } = await supabase
+    const { data: versionData, error: versionInsertError } = await supabase
       .from('content_versions')
       .insert({
         asset_id: topic.id,
@@ -1248,10 +1252,13 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
       .select('id')
       .maybeSingle()
 
-    if (versionData) contentVersionId = versionData.id
+    if (versionInsertError || !versionData?.id) {
+      throw new Error(`Failed to persist content version: ${versionInsertError?.message || 'No version ID returned'}`)
+    }
+    contentVersionId = versionData.id
 
     // 5f. Log Financial Event in ai_cost_events
-    await supabase.from('ai_cost_events').insert({
+    const { error: costEventError } = await supabase.from('ai_cost_events').insert({
       user_id: userId || null,
       job_id: jobId || null,
       content_version_id: contentVersionId,
@@ -1267,10 +1274,11 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
       ai_infrastructure_cost: costUsd * 0.05,
       credits_deducted: 2.0,
     })
+    if (costEventError) throw new Error(`Failed to record AI cost event: ${costEventError.message}`)
 
     // 5g. Log Immutable Credit Ledger if user requested
     if (userId) {
-      await supabase.from('ai_credit_ledger').insert({
+      const { error: creditLedgerError } = await supabase.from('ai_credit_ledger').insert({
         user_id: userId,
         job_id: jobId || null,
         content_version_id: contentVersionId,
@@ -1286,6 +1294,7 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
         transaction_type: 'AI_DEDUCTION',
         description: `Content Generation for ${topic.name} (v${targetVersionNum})`,
       })
+      if (creditLedgerError) throw new Error(`Failed to record AI credit ledger: ${creditLedgerError.message}`)
     }
 
     // 5h. Mark Job as Completed in ai_jobs
@@ -1308,9 +1317,45 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
           credits_consumed: 2.0,
         })
         .eq('id', jobId)
+      if (jobUpdateError) throw new Error(`Failed to mark AI job complete: ${jobUpdateError.message}`)
     }
   } catch (saveErr) {
-    console.warn('[AI Content Intelligence] Database commit notice:', saveErr)
+    console.error('[AI Content Intelligence] Database persistence failed:', saveErr)
+    if (jobId) {
+      const { error: failedJobError } = await supabase
+        .from('ai_jobs')
+        .update({
+          status: 'failed',
+          progress_stage: 'Content persistence failed',
+          step_percentage: 100,
+          error_message: 'Generated content could not be saved reliably. Please retry shortly.',
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', jobId)
+      if (failedJobError) console.error('[AI Content Intelligence] Could not mark failed job:', failedJobError)
+    }
+    return {
+      success: false,
+      served_from_cache: false,
+      generation_reason: generationReason,
+      version_number: targetVersionNum,
+      hierarchy,
+      content: null,
+      job_id: jobId || undefined,
+      metrics: {
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        cached_tokens: 0,
+        actual_cost_usd: costUsd,
+        credits_deducted: 0,
+        duration_ms: Date.now() - startTime,
+        model_used: modelUsed,
+        provider_used: providerUsed,
+      },
+      created_at: new Date().toISOString(),
+      error: 'Generated content could not be saved reliably. Please retry shortly.',
+      error_code: 'PERSISTENCE_FAILED',
+    }
   }
 
   const duration = Date.now() - startTime
