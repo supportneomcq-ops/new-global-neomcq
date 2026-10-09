@@ -16,26 +16,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify webhook HMAC SHA256 signature if secret is set
-    if (secret) {
-      const expectedSignature = crypto
-        .createHmac('sha256', secret)
-        .update(rawBody)
-        .digest('hex');
+    if (!secret) {
+      console.error('Razorpay webhook verification is not configured.');
+      return NextResponse.json({ error: 'Webhook verification is temporarily unavailable.' }, { status: 503 });
+    }
 
-      const sigBuf = Buffer.from(signature);
-      const expectedBuf = Buffer.from(expectedSignature);
+    // Webhooks must always have a valid HMAC signature; never fail open when configuration is missing.
+    const expectedSignature = crypto
+      .createHmac('sha256', secret)
+      .update(rawBody)
+      .digest('hex');
 
-      const isSignatureValid =
-        sigBuf.length === expectedBuf.length &&
-        crypto.timingSafeEqual(sigBuf, expectedBuf);
+    const sigBuf = Buffer.from(signature, 'utf8');
+    const expectedBuf = Buffer.from(expectedSignature, 'utf8');
+    const isSignatureValid =
+      sigBuf.length === expectedBuf.length &&
+      crypto.timingSafeEqual(sigBuf, expectedBuf);
 
-      if (!isSignatureValid && process.env.NODE_ENV === 'production') {
-        return NextResponse.json(
-          { error: 'Invalid webhook signature' },
-          { status: 401 }
-        );
-      }
+    if (!isSignatureValid) {
+      return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
     }
 
     const event = JSON.parse(rawBody);
@@ -44,6 +43,22 @@ export async function POST(req: NextRequest) {
     const payload = event.payload;
 
     const admin = getSupabaseAdmin();
+
+    let subscriptionPlan: { id: string; price_inr: number; price_usd: number } | null = null;
+    if (plan) {
+      const { data: dbPlan, error: dbPlanError } = await admin
+        .from('subscription_plans')
+        .select('id, price_inr, price_usd')
+        .eq('slug', plan.code.toLowerCase())
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (dbPlanError || !dbPlan) {
+        console.error('Webhook could not resolve the active subscription plan:', dbPlanError);
+        return NextResponse.json({ error: 'Subscription plan could not be verified.' }, { status: 500 });
+      }
+      subscriptionPlan = dbPlan;
+    }
 
     // 1. STRICT IDEMPOTENCY CHECK via webhook_events table
     const { data: existingEvent } = await admin
