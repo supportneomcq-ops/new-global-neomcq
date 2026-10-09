@@ -1299,7 +1299,7 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
 
     // 5h. Mark Job as Completed in ai_jobs
     if (jobId) {
-      await supabase
+      const { error: jobUpdateError } = await supabase
         .from('ai_jobs')
         .update({
           status: 'completed',
