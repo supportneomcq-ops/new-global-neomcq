@@ -24,14 +24,13 @@ export async function POST(req: NextRequest) {
     const language = body.language || 'en'
     const forceRefresh = !!body.forceRefresh
     
-    let activeUserId = body.userId || body.user_id || null
-    if (!activeUserId) {
-      try {
-        const userClient = await createClient()
-        const { data: { user } } = await userClient.auth.getUser()
-        if (user) activeUserId = user.id
-      } catch (_) {}
+    // Generation is authenticated and quota-bound. Never trust a user ID supplied by the browser.
+    const userClient = await createClient()
+    const { data: { user }, error: authError } = await userClient.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ success: false, error: 'Please sign in to generate study content.' }, { status: 401 })
     }
+    const activeUserId = user.id
 
     const featureKey = (body.feature || (contentType === 'quiz' ? 'quiz' : contentType === 'flashcards' ? 'flashcards' : 'mcq')) as any
 
