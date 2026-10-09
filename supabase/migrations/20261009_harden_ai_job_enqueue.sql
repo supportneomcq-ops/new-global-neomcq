@@ -67,7 +67,15 @@ BEGIN
         NULLIF(COALESCE(p_input_payload, '{}'::jsonb)->>'batch_size', '')::integer,
         NULLIF(COALESCE(p_input_payload, '{}'::jsonb)->>'batchSize', '')::integer,
         NULLIF(COALESCE(p_input_payload, '{}'::jsonb)->>'num_questions', '')::integer,
-        NULLIF(COALESCE(p_input_payload, '{}'::jsonb)->>'question_count', '')::integer
+        NULLIF(COALESCE(p_input_payload, '{}'::jsonb)->>'question_count', '')::integer,
+        NULLIF(COALESCE(p_input_payload, '{}'::jsonb)->>'numQuestions', '')::integer,
+        NULLIF(COALESCE(p_input_payload, '{}'::jsonb)->>'questionCount', '')::integer,
+        NULLIF(COALESCE(p_input_payload, '{}'::jsonb)->>'total_questions', '')::integer,
+        NULLIF(COALESCE(p_input_payload, '{}'::jsonb)->>'totalQuestions', '')::integer,
+        NULLIF(COALESCE(p_input_payload, '{}'::jsonb)->>'number_of_questions', '')::integer,
+        NULLIF(COALESCE(p_input_payload, '{}'::jsonb)->>'numberOfQuestions', '')::integer,
+        NULLIF(COALESCE(p_input_payload, '{}'::jsonb)->>'count', '')::integer,
+        NULLIF(COALESCE(p_input_payload, '{}'::jsonb)->>'num_items', '')::integer
       );
     EXCEPTION WHEN invalid_text_representation THEN
       RAISE EXCEPTION 'AI job batch size must be an integer';
