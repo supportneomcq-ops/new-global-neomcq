@@ -119,20 +119,23 @@ export async function POST(req: NextRequest) {
     const createdAt = latestVersionRecord?.created_at || new Date().toISOString();
 
     // 5. Evaluate status for each of the 8 features
+    const legacyMainMcqs = Array.isArray(snapshot.mainMcqsSlot?.items) ? snapshot.mainMcqsSlot.items : [];
+    const legacyQuizA = Array.isArray(snapshot.quiz1Slot?.items) ? snapshot.quiz1Slot.items : [];
+    const legacyQuizB = Array.isArray(snapshot.quiz2Slot?.items) ? snapshot.quiz2Slot.items : [];
     const rawMcqs = Array.isArray(snapshot.mcqs)
       ? snapshot.mcqs
-      : Array.isArray(snapshot.mainMcqsSlot?.items)
-        ? snapshot.mainMcqsSlot.items
-        : [];
+      : legacyMainMcqs.length > 0
+        ? legacyMainMcqs
+        : [...legacyQuizA, ...legacyQuizB];
     const rawQuizA = Array.isArray(snapshot.quiz_a) && snapshot.quiz_a.length > 0
       ? snapshot.quiz_a
-      : Array.isArray(snapshot.quiz1Slot?.items) && snapshot.quiz1Slot.items.length > 0
-        ? snapshot.quiz1Slot.items
+      : legacyQuizA.length > 0
+        ? legacyQuizA
         : rawMcqs.slice(0, Math.min(20, Math.ceil(rawMcqs.length / 2)));
     const rawQuizB = Array.isArray(snapshot.quiz_b) && snapshot.quiz_b.length > 0
       ? snapshot.quiz_b
-      : Array.isArray(snapshot.quiz2Slot?.items) && snapshot.quiz2Slot.items.length > 0
-        ? snapshot.quiz2Slot.items
+      : legacyQuizB.length > 0
+        ? legacyQuizB
         : rawMcqs.slice(rawQuizA.length, rawQuizA.length + 20);
     const rawFlashcards = Array.isArray(snapshot.flashcards)
       ? snapshot.flashcards
