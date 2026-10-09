@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getSupabaseAdmin } from '@/lib/supabase'
 import { z } from 'zod'
 import { GenerationJobManager } from '@/lib/server/content-engine/job-manager'
 
@@ -82,7 +83,7 @@ export async function POST(req: NextRequest) {
           ...inputParams,
         },
       },
-      supabase
+      getSupabaseAdmin()
     )
 
     if (!job) {
@@ -95,6 +96,7 @@ export async function POST(req: NextRequest) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-internal-api-secret': process.env.INTERNAL_API_SECRET || '',
         },
         body: JSON.stringify({ jobId: job.id }),
       }).catch((err) => console.error('Background AI job trigger error:', err))
