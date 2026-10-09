@@ -579,7 +579,26 @@ export async function getOrGenerateCanonicalTopicContent({
     console.warn('[AI Content Intelligence] Non-fatal error inspecting existing version records:', err)
   }
 
-  const hasExistingContent = existingDbMcqs.length > 0 || Boolean(latestVersionRecord?.snapshot?.mcqs?.length)
+  // Production contains legacy slot-based snapshots as well as the newer flat payload format.
+  // Treat those slots as real cached content to prevent repeat AI generation and unnecessary provider spend.
+  const latestSnapshot = latestVersionRecord?.snapshot || {}
+  const legacyMainItems = Array.isArray(latestSnapshot.mainMcqsSlot?.items) ? latestSnapshot.mainMcqsSlot.items : []
+  const legacyQuizAItems = Array.isArray(latestSnapshot.quiz1Slot?.items) ? latestSnapshot.quiz1Slot.items : []
+  const legacyQuizBItems = Array.isArray(latestSnapshot.quiz2Slot?.items) ? latestSnapshot.quiz2Slot.items : []
+  const legacyFlashcardItems = Array.isArray(latestSnapshot.flashcardsSlot?.items) ? latestSnapshot.flashcardsSlot.items : []
+  const legacyNotesContent = latestSnapshot.notesSlot?.content
+  const hasLegacyNotes = typeof legacyNotesContent === 'string' && legacyNotesContent.trim().length > 20
+  const hasExistingContent =
+    existingDbMcqs.length > 0 ||
+    (Array.isArray(latestSnapshot.mcqs) && latestSnapshot.mcqs.length > 0) ||
+    legacyMainItems.length > 0 ||
+    legacyQuizAItems.length > 0 ||
+    legacyQuizBItems.length > 0 ||
+    existingDbNotes.length > 0 ||
+    (typeof latestSnapshot.notes === 'string' && latestSnapshot.notes.trim().length > 20) ||
+    hasLegacyNotes ||
+    existingDbFlashcards.length > 0 ||
+    legacyFlashcardItems.length > 0
 
   // 3. 30-Day Freshness Check
   let isFresh = false
@@ -597,7 +616,15 @@ export async function getOrGenerateCanonicalTopicContent({
 
   // Format cached content payload helper
   const getCachedPayload = (): ContentIntelligencePayload => {
-    const snapshotPayload = latestVersionRecord?.snapshot || {}
+    const snapshotPayload = latestSnapshot
+    const snapshotMainMcqs = Array.isArray(snapshotPayload.mainMcqsSlot?.items) ? snapshotPayload.mainMcqsSlot.items : []
+    const snapshotQuizA = Array.isArray(snapshotPayload.quiz1Slot?.items) ? snapshotPayload.quiz1Slot.items : []
+    const snapshotQuizB = Array.isArray(snapshotPayload.quiz2Slot?.items) ? snapshotPayload.quiz2Slot.items : []
+    const snapshotMcqs = Array.isArray(snapshotPayload.mcqs)
+      ? snapshotPayload.mcqs
+      : snapshotMainMcqs.length > 0
+        ? snapshotMainMcqs
+        : [...snapshotQuizA, ...snapshotQuizB]
 
     const formattedMcqs = existingDbMcqs.length > 0
       ? existingDbMcqs.map((m: any) => {
@@ -617,12 +644,40 @@ export async function getOrGenerateCanonicalTopicContent({
             difficulty: m.difficulty || difficulty,
           }
         })
-      : snapshotPayload.mcqs || []
+      : snapshotMcqs.map((m: any) => {
+          const options = Array.isArray(m.options) ? m.options : ['Option A', 'Option B', 'Option C', 'Option D']
+          const answer = m.correct_answer ?? m.correctAnswer
+          const explicitIndex = m.correct_index ?? m.correctIndex
+          const foundIndex = answer != null ? options.indexOf(answer) : -1
+          const correctIdx = Number.isInteger(explicitIndex) && explicitIndex >= 0 && explicitIndex < options.length
+            ? explicitIndex
+            : foundIndex >= 0 ? foundIndex : 0
+          return {
+            id: m.id,
+            question: m.question || '',
+            options,
+            correct_index: correctIdx,
+            explanation: m.explanation || 'High-yield explanation.',
+            clinical_pearl: m.clinical_pearl || m.clinicalPearl || `${topic.name} - Pearl`,
+            high_yield_tag: m.high_yield_tag || m.highYieldTag || `${subject.name} - ${topic.name}`,
+            difficulty: m.difficulty || difficulty,
+          }
+        })
 
+    const snapshotNotes = typeof snapshotPayload.notes === 'string'
+      ? snapshotPayload.notes
+      : typeof snapshotPayload.notesSlot?.content === 'string'
+        ? snapshotPayload.notesSlot.content
+        : ''
     const combinedNotes = existingDbNotes.length > 0
       ? existingDbNotes.map((n: any) => n.content).join('\n\n---\n\n')
-      : snapshotPayload.notes || ''
+      : snapshotNotes
 
+    const snapshotFlashcards = Array.isArray(snapshotPayload.flashcards)
+      ? snapshotPayload.flashcards
+      : Array.isArray(snapshotPayload.flashcardsSlot?.items)
+        ? snapshotPayload.flashcardsSlot.items
+        : []
     const formattedFlashcards = existingDbFlashcards.length > 0
       ? existingDbFlashcards.map((f: any) => ({
           id: f.id,
@@ -631,15 +686,35 @@ export async function getOrGenerateCanonicalTopicContent({
           category: subject.name,
           difficulty: f.difficulty || 'High Yield',
         }))
-      : snapshotPayload.flashcards || []
+      : snapshotFlashcards.map((f: any) => ({
+          id: f.id,
+          front: f.front || '',
+          back: f.back || '',
+          category: f.category || subject.name,
+          difficulty: f.difficulty || 'High Yield',
+        }))
 
-    const quizA = snapshotPayload.quiz_a && snapshotPayload.quiz_a.length > 0
+    const quizA = Array.isArray(snapshotPayload.quiz_a) && snapshotPayload.quiz_a.length > 0
       ? snapshotPayload.quiz_a
-      : formattedMcqs.slice(0, Math.min(20, Math.ceil(formattedMcqs.length / 2)))
+      : snapshotQuizA.length > 0
+        ? snapshotQuizA.map((m: any) => ({
+            ...m,
+            correct_index: m.correct_index ?? m.correctIndex ?? 0,
+            clinical_pearl: m.clinical_pearl || m.clinicalPearl || '',
+            high_yield_tag: m.high_yield_tag || m.highYieldTag || '',
+          }))
+        : formattedMcqs.slice(0, Math.min(20, Math.ceil(formattedMcqs.length / 2)))
 
-    const quizB = snapshotPayload.quiz_b && snapshotPayload.quiz_b.length > 0
+    const quizB = Array.isArray(snapshotPayload.quiz_b) && snapshotPayload.quiz_b.length > 0
       ? snapshotPayload.quiz_b
-      : formattedMcqs.slice(quizA.length, quizA.length + 20)
+      : snapshotQuizB.length > 0
+        ? snapshotQuizB.map((m: any) => ({
+            ...m,
+            correct_index: m.correct_index ?? m.correctIndex ?? 0,
+            clinical_pearl: m.clinical_pearl || m.clinicalPearl || '',
+            high_yield_tag: m.high_yield_tag || m.highYieldTag || '',
+          }))
+        : formattedMcqs.slice(quizA.length, quizA.length + 20)
 
     const stickyNotes = snapshotPayload.sticky_notes || []
     const fillInBlanks = snapshotPayload.fill_in_the_blanks || []
