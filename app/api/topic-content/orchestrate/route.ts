@@ -70,10 +70,23 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 1. Resolve canonical hierarchy
+    // Never substitute default names when hierarchy lookup fails: that can attach content
+    // to an unrelated exam and silently create the wrong canonical curriculum.
+    if (
+      typeof actualExamInput !== 'string' || !actualExamInput.trim() ||
+      typeof actualSubjectInput !== 'string' || !actualSubjectInput.trim() ||
+      typeof topicSearch !== 'string' || !topicSearch.trim()
+    ) {
+      return NextResponse.json(
+        { success: false, error: 'Please select a valid exam, subject, and topic. We could not safely resolve the topic hierarchy.' },
+        { status: 400 }
+      );
+    }
+
+    // Resolve only the selected or database-resolved hierarchy.
     const hierarchy = await resolveCanonicalHierarchy({
-      examInput: actualExamInput || 'default_exam',
-      subjectInput: actualSubjectInput || 'default_subject',
+      examInput: actualExamInput,
+      subjectInput: actualSubjectInput,
       topicInput: topicSearch,
       autoCreate: true,
     });
