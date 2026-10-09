@@ -131,191 +131,16 @@ interface TopicContentContextType {
 
 const TopicContentContext = createContext<TopicContentContextType | undefined>(undefined);
 
-// Contextual Content Fallback Generator
-function generateContextualContent(
-  topicName = 'Core High-Yield Concepts',
-  subjectName = 'Core Syllabus',
-  examName = 'Competitive Examination'
-): TopicContentData {
-  const cleanTopic = topicName || 'Core Syllabus';
-  const cleanSubject = subjectName || 'General Studies';
-  const cleanExam = examName || 'Competitive Examination';
-
-  return {
-    mcqs: [
-      {
-        id: `mcq_${cleanTopic.toLowerCase().replace(/[^a-z0-9]/g, '_')}_1`,
-        question: `In the comprehensive evaluation and application of ${cleanTopic} (${cleanSubject}), which of the following mechanisms represents the primary core concept?`,
-        options: [
-          `Primary characteristic principle associated with ${cleanTopic}`,
-          `Secondary compensatory framework response`,
-          `Unrelated background variation`,
-          `Secondary irreversible outcome`,
-        ],
-        correct_index: 0,
-        explanation: `${cleanTopic} is a core high-yield topic tested in ${cleanExam}. The primary presentation revolves around understanding the underlying mechanism, core principles, and practical application.`,
-        clinical_pearl: `When evaluating ${cleanTopic}, always distinguish core principles from peripheral distractors before selecting your answer.`,
-        high_yield_tag: `${cleanSubject} • ${cleanTopic}`,
-        difficulty: 'High Yield',
-      },
-      {
-        id: `mcq_${cleanTopic.toLowerCase().replace(/[^a-z0-9]/g, '_')}_2`,
-        question: `When analyzing core scenarios related to ${cleanTopic} within ${cleanExam}, what is the initial recommended evaluation step?`,
-        options: [
-          `High-yield initial evaluation and core framework application`,
-          `Unsubstantiated secondary intervention`,
-          `Ignoring foundational criteria without verification`,
-          `Empiric conclusion without analyzing primary evidence`,
-        ],
-        correct_index: 0,
-        explanation: `Appropriate evaluation for ${cleanTopic} begins with standardized criteria and non-invasive analysis before proceeding to advanced applications.`,
-        clinical_pearl: `Standard board exams emphasize cost-effective, high-yield diagnostic ordering and systematic analysis.`,
-        high_yield_tag: `${cleanSubject} • Evaluation Framework`,
-        difficulty: 'Board Classic',
-      },
-      {
-        id: `mcq_${cleanTopic.toLowerCase().replace(/[^a-z0-9]/g, '_')}_3`,
-        question: `Which analytical or decision-making strategy represents the guideline-directed first-line choice in ${cleanTopic}?`,
-        options: [
-          `Evidence-based first-line targeted methodology and framework application`,
-          `Experimental unverified secondary approach`,
-          `Arbitrary selection without systematic review`,
-          `Immediate dismissal without structured analysis`,
-        ],
-        correct_index: 0,
-        explanation: `First-line management in ${cleanTopic} focuses on guideline-recommended principles that optimize outcomes and prevent common misconceptions.`,
-        clinical_pearl: `Always verify core assumptions and foundational rules before selecting targeted answers in ${cleanTopic}.`,
-        high_yield_tag: `${cleanSubject} • Methodology`,
-        difficulty: 'Core High Yield',
-      },
-    ],
-    quiz_a: [],
-    quiz_b: [],
-    notes: `# 📚 ${cleanTopic.toUpperCase()}
-## ${cleanSubject} • ${cleanExam} Blueprint
-
-### 1. Fundamental Principles & Core Mechanisms
-${cleanTopic} is an essential curriculum topic for ${cleanExam}. Mastery requires understanding the fundamental concepts, rules, and analytical frameworks governing this domain.
-
-* **Primary Principles:** Core foundational concepts and key principles.
-* **Structural Framework:** Key components and logical progression.
-* **Exam Relevance:** Board-tested applications and problem-solving patterns.
-
-### 2. High-Yield Key Concepts & Evaluation Rules
-* **Key Application:** Cardinal definitions, rules, and standard examples.
-* **Diagnostic & Analytical Algorithm:** Initial evaluation steps followed by definitive verification.
-* **Strategic Priorities:** Standard guideline-directed approaches and core problem solving.
-
-### 3. Summary Comparison
-| Feature | Core Pattern | High-Yield Board Trap |
-| :--- | :--- | :--- |
-| **Foundations** | Standard / Primary | Do not confuse with peripheral edge cases |
-| **Analysis** | High precision evaluation | Always verify rules before applying conclusions |
-| **Strategy** | First-line standard approach | Watch for subtle rule exceptions |
-`,
-    flashcards: [
-      {
-        id: 'fc_1',
-        front: `What is the primary core hallmark of ${cleanTopic}?`,
-        back: `Core mechanism involves targeted principles in ${cleanSubject}, resulting in characteristic domain applications.`,
-        category: cleanSubject,
-        difficulty: 'High Yield',
-      },
-      {
-        id: 'fc_2',
-        front: `What is the first-line evaluation approach for ${cleanTopic}?`,
-        back: `Standard systematic evaluation followed by guideline-directed verification.`,
-        category: cleanSubject,
-        difficulty: 'Essential',
-      },
-      {
-        id: 'fc_3',
-        front: `What is the primary strategy for solving problems in ${cleanTopic}?`,
-        back: `Targeted guideline-directed framework and systematic application.`,
-        category: cleanSubject,
-        difficulty: 'High Yield',
-      },
-    ],
-    sticky_notes: [
-      {
-        id: 'st_1',
-        text: `⭐ HIGH YIELD PEARL: In ${cleanTopic}, always verify core criteria before choosing final answers.`,
-        color: 'amber',
-        category: 'High Yield Pearl',
-        pinned: true,
-      },
-      {
-        id: 'st_2',
-        text: `⚠️ BOARD TRAP: Do not confuse early foundational concepts of ${cleanTopic} with common distractors.`,
-        color: 'rose',
-        category: 'Board Trap',
-      },
-      {
-        id: 'st_3',
-        text: `💡 PHARMACOLOGY: First-line guideline-directed treatment requires baseline organ function assessment.`,
-        color: 'emerald',
-        category: 'Treatment',
-      },
-    ],
-    fill_in_the_blanks: [
-      {
-        id: 'fib_1',
-        sentence: `The primary diagnostic standard in evaluating ${cleanTopic} begins with [BLANK] before initiating invasive procedures.`,
-        blank: 'non-invasive screening',
-        concept: 'Diagnostic Protocol',
-        explanation: `Guidelines recommend beginning with non-invasive confirmation to safely guide subsequent interventions.`,
-      },
-      {
-        id: 'fib_2',
-        sentence: `First-line management for ${cleanTopic} prioritizes [BLANK] to reduce morbidity and prevent relapse.`,
-        blank: 'guideline-directed medical therapy',
-        concept: 'Management Guidelines',
-        explanation: `Evidence-based therapy forms the cornerstone of effective disease management and board exams.`,
-      },
-    ],
-    whiteboard_phases: [
-      {
-        phase: 1,
-        title: `Etiology & Triggers of ${cleanTopic}`,
-        diagram: 'Primary Mechanism → Cellular Stress → Early Biomarkers',
-        description: `Initial presentation and pathophysiological cascade underlying ${cleanTopic}.`,
-        badge: 'Phase 1 • Foundations',
-      },
-      {
-        phase: 2,
-        title: 'Diagnostic Algorithm & Pathway',
-        diagram: 'Clinical Presentation → Initial Screening → Confirmatory Criteria',
-        description: `Step-by-step diagnostic decision tree according to current board guidelines.`,
-        badge: 'Phase 2 • Diagnostics',
-      },
-      {
-        phase: 3,
-        title: 'Therapeutic Management & Pearls',
-        diagram: 'Acute Stabilization → First-Line Pharmacotherapy → Long-term Follow-up',
-        description: `Comprehensive treatment protocol and high-yield board traps.`,
-        badge: 'Phase 3 • Management',
-      },
-    ],
-    tutor_explanation: `Comprehensive clinical breakdown of ${cleanTopic} in ${cleanSubject}.`,
-    revision_sheet: `High-yield rapid review sheet for ${cleanTopic}.`,
-    quality_score: 96.0,
-  };
-}
-
-const FALLBACK_DEFAULT_CONTENT = generateContextualContent();
-FALLBACK_DEFAULT_CONTENT.quiz_a = FALLBACK_DEFAULT_CONTENT.mcqs.slice(0, 2);
-FALLBACK_DEFAULT_CONTENT.quiz_b = FALLBACK_DEFAULT_CONTENT.mcqs.slice(2, 4);
-
 export function TopicContentProvider({ children }: { children: React.ReactNode }) {
   const { selection } = useSelection();
 
-  const [content, setContent] = useState<TopicContentData | null>(FALLBACK_DEFAULT_CONTENT);
+  const [content, setContent] = useState<TopicContentData | null>(null);
   const [cards, setCards] = useState<ContentCardItem[]>([]);
   const [isOrchestrating, setIsOrchestrating] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isCached, setIsCached] = useState(true);
+  const [isCached, setIsCached] = useState(false);
   const [version, setVersion] = useState(1);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -368,14 +193,14 @@ export function TopicContentProvider({ children }: { children: React.ReactNode }
 
   // Derive active questions based on current active quiz
   const activeQuestions: MCQQuestion[] = useMemo(() => {
-    if (!content) return FALLBACK_DEFAULT_CONTENT.mcqs;
+    if (!content) return [];
     if (activeQuiz === 'A' && content.quiz_a && content.quiz_a.length > 0) {
       return content.quiz_a;
     }
     if (activeQuiz === 'B' && content.quiz_b && content.quiz_b.length > 0) {
       return content.quiz_b;
     }
-    return content.mcqs || FALLBACK_DEFAULT_CONTENT.mcqs;
+    return content.mcqs || [];
   }, [content, activeQuiz]);
 
   // Main Topic Fetcher & Pipeline Orchestrator
@@ -424,49 +249,37 @@ export function TopicContentProvider({ children }: { children: React.ReactNode }
         if (data.success && data.content) {
           const raw = data.content;
 
-          // Ensure Quiz A and Quiz B exist and have questions
-          const allMcqs: MCQQuestion[] = Array.isArray(raw.mcqs) && raw.mcqs.length > 0
-            ? raw.mcqs
-            : FALLBACK_DEFAULT_CONTENT.mcqs;
+          // Use only persisted/generated content. Do not silently replace missing assets with fabricated demo material.
+          const rawMcqs: MCQQuestion[] = Array.isArray(raw.mcqs) ? raw.mcqs : [];
+          const rawQuizA: MCQQuestion[] = Array.isArray(raw.quiz_a) ? raw.quiz_a : [];
+          const rawQuizB: MCQQuestion[] = Array.isArray(raw.quiz_b) ? raw.quiz_b : [];
+          const allMcqs: MCQQuestion[] = rawMcqs.length > 0 ? rawMcqs : [...rawQuizA, ...rawQuizB];
 
-          const quizA: MCQQuestion[] = Array.isArray(raw.quiz_a) && raw.quiz_a.length > 0
-            ? raw.quiz_a
+          const quizA: MCQQuestion[] = rawQuizA.length > 0
+            ? rawQuizA
             : allMcqs.slice(0, Math.min(20, Math.ceil(allMcqs.length / 2)));
 
-          const quizB: MCQQuestion[] = Array.isArray(raw.quiz_b) && raw.quiz_b.length > 0
-            ? raw.quiz_b
-            : allMcqs.slice(quizA.length, quizA.length + 20).length > 0
-              ? allMcqs.slice(quizA.length, quizA.length + 20)
-              : quizA;
+          const quizB: MCQQuestion[] = rawQuizB.length > 0
+            ? rawQuizB
+            : allMcqs.slice(quizA.length, quizA.length + 20);
 
-          const flashcards: FlashcardItem[] = Array.isArray(raw.flashcards) && raw.flashcards.length > 0
-            ? raw.flashcards
-            : FALLBACK_DEFAULT_CONTENT.flashcards;
-
-          const stickyNotes: StickyNoteItem[] = Array.isArray(raw.sticky_notes) && raw.sticky_notes.length > 0
-            ? raw.sticky_notes
-            : FALLBACK_DEFAULT_CONTENT.sticky_notes;
-
-          const fillInBlanks: FillInBlankItem[] = Array.isArray(raw.fill_in_the_blanks) && raw.fill_in_the_blanks.length > 0
-            ? raw.fill_in_the_blanks
-            : FALLBACK_DEFAULT_CONTENT.fill_in_the_blanks;
-
-          const whiteboardPhases: WhiteboardPhaseItem[] = Array.isArray(raw.whiteboard_phases) && raw.whiteboard_phases.length > 0
-            ? raw.whiteboard_phases
-            : FALLBACK_DEFAULT_CONTENT.whiteboard_phases;
+          const flashcards: FlashcardItem[] = Array.isArray(raw.flashcards) ? raw.flashcards : [];
+          const stickyNotes: StickyNoteItem[] = Array.isArray(raw.sticky_notes) ? raw.sticky_notes : [];
+          const fillInBlanks: FillInBlankItem[] = Array.isArray(raw.fill_in_the_blanks) ? raw.fill_in_the_blanks : [];
+          const whiteboardPhases: WhiteboardPhaseItem[] = Array.isArray(raw.whiteboard_phases) ? raw.whiteboard_phases : [];
 
           const parsedContent: TopicContentData = {
             mcqs: allMcqs,
             quiz_a: quizA,
             quiz_b: quizB,
-            notes: raw.notes || FALLBACK_DEFAULT_CONTENT.notes,
+            notes: typeof raw.notes === 'string' ? raw.notes : '',
             flashcards,
             sticky_notes: stickyNotes,
             fill_in_the_blanks: fillInBlanks,
             whiteboard_phases: whiteboardPhases,
-            tutor_explanation: raw.tutor_explanation || FALLBACK_DEFAULT_CONTENT.tutor_explanation,
-            revision_sheet: raw.revision_sheet || FALLBACK_DEFAULT_CONTENT.revision_sheet,
-            quality_score: raw.quality_score || 95.0,
+            tutor_explanation: typeof raw.tutor_explanation === 'string' ? raw.tutor_explanation : undefined,
+            revision_sheet: typeof raw.revision_sheet === 'string' ? raw.revision_sheet : undefined,
+            quality_score: typeof raw.quality_score === 'number' ? raw.quality_score : undefined,
           };
 
           setContent(parsedContent);
@@ -474,15 +287,14 @@ export function TopicContentProvider({ children }: { children: React.ReactNode }
           setVersion(data.version || 1);
           setLastRefreshedAt(data.topicState?.last_refreshed_at || new Date().toISOString());
         } else {
-          // Graceful fallback to rich structured default content
-          console.warn('[TopicContentProvider] API responded with non-success, using high-yield fallback:', data.error);
-          setContent(FALLBACK_DEFAULT_CONTENT);
+          // Keep existing valid content during a failed refresh; on first load, show the actual error instead of fake content.
+          console.warn('[TopicContentProvider] API could not load topic content:', data.error);
+          setError(data.error || 'No saved learning content is available for this topic yet.');
         }
       } catch (err: any) {
         if (stepTimer) clearInterval(stepTimer);
         console.error('[TopicContentProvider] Network fetch failed:', err);
         setError(err.message || 'Failed to load topic learning content.');
-        setContent(FALLBACK_DEFAULT_CONTENT);
       } finally {
         // Brief pleasant pause on completion
         setTimeout(() => {
@@ -563,6 +375,9 @@ export function TopicContentProvider({ children }: { children: React.ReactNode }
   // When active topic changes, immediately reset cards so no stale cards are shown!
   useEffect(() => {
     setCards([]);
+    setContent(null);
+    setError(null);
+    setIsInitialLoad(true);
     if (selection.topic?.name) {
       orchestrateTopic(false);
     }
