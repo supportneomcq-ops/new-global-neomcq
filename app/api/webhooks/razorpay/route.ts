@@ -44,22 +44,6 @@ export async function POST(req: NextRequest) {
 
     const admin = getSupabaseAdmin();
 
-    let subscriptionPlan: { id: string; price_inr: number; price_usd: number } | null = null;
-    if (plan) {
-      const { data: dbPlan, error: dbPlanError } = await admin
-        .from('subscription_plans')
-        .select('id, price_inr, price_usd')
-        .eq('slug', plan.code.toLowerCase())
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (dbPlanError || !dbPlan) {
-        console.error('Webhook could not resolve the active subscription plan:', dbPlanError);
-        return NextResponse.json({ error: 'Subscription plan could not be verified.' }, { status: 500 });
-      }
-      subscriptionPlan = dbPlan;
-    }
-
     // 1. STRICT IDEMPOTENCY CHECK via webhook_events table
     const { data: existingEvent } = await admin
       .from('webhook_events')
@@ -104,6 +88,22 @@ export async function POST(req: NextRequest) {
 
     const planCode = rawPlanCode ? (rawPlanCode.toUpperCase() as PlanCode) : null;
     const plan = getPlanByCode(planCode);
+
+    let subscriptionPlan: { id: string; price_inr: number; price_usd: number } | null = null;
+    if (plan) {
+      const { data: dbPlan, error: dbPlanError } = await admin
+        .from('subscription_plans')
+        .select('id, price_inr, price_usd')
+        .eq('slug', plan.code.toLowerCase())
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (dbPlanError || !dbPlan) {
+        console.error('Webhook could not resolve the active subscription plan:', dbPlanError);
+        return NextResponse.json({ error: 'Subscription plan could not be verified.' }, { status: 500 });
+      }
+      subscriptionPlan = dbPlan;
+    }
 
     const isExamSwitch =
       paymentEntity?.notes?.type === 'exam_switch' ||
