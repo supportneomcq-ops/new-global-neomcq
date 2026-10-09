@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/server';
+import { checkFeatureQuota } from '@/lib/entitlements/quota-checker';
 import { resolveCanonicalHierarchy } from '@/lib/knowledge/canonical-resolver';
 import { GenerationJobManager } from '@/lib/server/content-engine/job-manager';
 import { getOrGenerateCanonicalTopicContent } from '@/lib/knowledge/ai-content-intelligence';
@@ -9,6 +11,12 @@ const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
+    const userClient = await createClient();
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ success: false, error: 'Please sign in to access study content.' }, { status: 401 });
+    }
+
     const {
       examId,
       examName,
@@ -19,7 +27,6 @@ export async function POST(req: NextRequest) {
       subtopicId,
       subtopicName,
       forceRefresh = false,
-      userId,
     } = body;
 
     const topicSearch = topicId || topicName;
@@ -137,13 +144,32 @@ export async function POST(req: NextRequest) {
     }
 
     if (triggerGeneration) {
-      // Fire-and-forget generation call so endpoint responds instantly
+      const quotaResult = await checkFeatureQuota({
+        userId: user.id,
+        feature: 'mcq',
+        topicId: topic.id,
+        examId: exam.id,
+        subjectId: subject.id,
+      });
+
+      if (!quotaResult.allowed) {
+        return NextResponse.json({
+          success: false,
+          limitReached: true,
+          limitType: quotaResult.limitType,
+          error: quotaResult.upgradeMessage || quotaResult.reason,
+          upgradeRequired: true,
+          planCode: quotaResult.planCode,
+        }, { status: 403 });
+      }
+
+      // Generation runs only for the authenticated user and only after quota authorization.
       getOrGenerateCanonicalTopicContent({
         examInput: exam.id,
         subjectInput: subject.id,
         topicInput: topic.id,
-        userId: userId || null,
-        forceRefresh: true,
+        userId: user.id,
+        forceRefresh: forceRefresh === true,
       }).catch((err) => console.error('[Orchestration API] Async generation error:', err));
     }
 
