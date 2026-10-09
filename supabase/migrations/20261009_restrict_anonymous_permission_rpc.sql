@@ -1,3 +1,4 @@
--- Permission checks are meaningful only for authenticated users or trusted service calls.
--- Anonymous clients have no use for this RPC and receive no information from it.
-REVOKE EXECUTE ON FUNCTION public.has_permission(uuid, text) FROM anon;
+-- Permission checks are meaningful only for signed-in users or trusted server calls.
+-- Revoke the default PUBLIC grant too; removing only the anon role grant is not sufficient.
+REVOKE EXECUTE ON FUNCTION public.has_permission(uuid, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.has_permission(uuid, text) TO authenticated, service_role;
