@@ -32,7 +32,8 @@ export async function POST(req: NextRequest) {
     }
     const activeUserId = user.id
 
-    const featureKey = (body.feature || (contentType === 'quiz' ? 'quiz' : contentType === 'flashcards' ? 'flashcards' : 'mcq')) as any
+    // Derive quota category from the requested content type; do not accept a client-selected quota category.
+    const featureKey = (contentType === 'quiz' ? 'quiz' : contentType === 'flashcards' ? 'flashcards' : 'mcq') as any
 
     // Enforce quota checking
     if (activeUserId) {
