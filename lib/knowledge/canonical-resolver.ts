@@ -303,6 +303,8 @@ export async function resolveCanonicalSubject(
     if (byId) {
       return { subject: byId, matchType: 'exact', confidence: 100.0 }
     }
+    // An unknown UUID must not be fuzzy-matched or created as a subject name.
+    return { subject: null, matchType: 'none', confidence: 0 }
   }
 
   const norm = normalizeInput(rawSubjectInput)
@@ -480,6 +482,8 @@ export async function resolveCanonicalTopic(
     if (byId) {
       return { topic: byId, matchType: 'exact', confidence: 100.0 }
     }
+    // An unknown UUID must not be fuzzy-matched or created as a topic name.
+    return { topic: null, matchType: 'none', confidence: 0 }
   }
 
   const norm = normalizeInput(rawTopicInput)
@@ -633,6 +637,8 @@ export async function resolveCanonicalSubtopic(
     if (byId) {
       return { subtopic: byId, matchType: 'exact', confidence: 100.0 }
     }
+    // An unknown UUID must not be fuzzy-matched or created as a subtopic name.
+    return { subtopic: null, matchType: 'none', confidence: 0 }
   }
 
   const norm = normalizeInput(rawSubtopicInput)
