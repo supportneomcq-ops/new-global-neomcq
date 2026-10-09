@@ -111,25 +111,59 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Snapshot payload
+    // Snapshot payload. Support both the current schema and the slot-based format already stored in production.
+    // Without these fallbacks, existing quizzes and flashcards appear empty and trigger unnecessary AI regeneration.
     const snapshot = (latestVersionRecord?.snapshot || {}) as any;
     const versionNum = latestVersionRecord?.version || 1;
     const versionId = latestVersionRecord?.id || `v-${topic.id}-${versionNum}`;
     const createdAt = latestVersionRecord?.created_at || new Date().toISOString();
 
     // 5. Evaluate status for each of the 8 features
-    const rawMcqs = Array.isArray(snapshot.mcqs) ? snapshot.mcqs : [];
+    const rawMcqs = Array.isArray(snapshot.mcqs)
+      ? snapshot.mcqs
+      : Array.isArray(snapshot.mainMcqsSlot?.items)
+        ? snapshot.mainMcqsSlot.items
+        : [];
     const rawQuizA = Array.isArray(snapshot.quiz_a) && snapshot.quiz_a.length > 0
       ? snapshot.quiz_a
-      : rawMcqs.slice(0, Math.min(20, Math.ceil(rawMcqs.length / 2)));
+      : Array.isArray(snapshot.quiz1Slot?.items) && snapshot.quiz1Slot.items.length > 0
+        ? snapshot.quiz1Slot.items
+        : rawMcqs.slice(0, Math.min(20, Math.ceil(rawMcqs.length / 2)));
     const rawQuizB = Array.isArray(snapshot.quiz_b) && snapshot.quiz_b.length > 0
       ? snapshot.quiz_b
-      : rawMcqs.slice(rawQuizA.length, rawQuizA.length + 20);
-    const rawFlashcards = Array.isArray(snapshot.flashcards) ? snapshot.flashcards : [];
-    const rawNotes = typeof snapshot.notes === 'string' && snapshot.notes.trim().length > 20 ? snapshot.notes : '';
-    const rawSticky = Array.isArray(snapshot.sticky_notes) ? snapshot.sticky_notes : [];
-    const rawBlanks = Array.isArray(snapshot.fill_in_the_blanks) ? snapshot.fill_in_the_blanks : [];
-    const rawTutorPhases = Array.isArray(snapshot.whiteboard_phases) ? snapshot.whiteboard_phases : [];
+      : Array.isArray(snapshot.quiz2Slot?.items) && snapshot.quiz2Slot.items.length > 0
+        ? snapshot.quiz2Slot.items
+        : rawMcqs.slice(rawQuizA.length, rawQuizA.length + 20);
+    const rawFlashcards = Array.isArray(snapshot.flashcards)
+      ? snapshot.flashcards
+      : Array.isArray(snapshot.flashcardsSlot?.items)
+        ? snapshot.flashcardsSlot.items
+        : [];
+    const legacyNotesContent = snapshot.notesSlot?.content;
+    const rawNotes = typeof snapshot.notes === 'string' && snapshot.notes.trim().length > 20
+      ? snapshot.notes
+      : typeof legacyNotesContent === 'string' && legacyNotesContent.trim().length > 20
+        ? legacyNotesContent
+        : typeof legacyNotesContent?.content === 'string' && legacyNotesContent.content.trim().length > 20
+          ? legacyNotesContent.content
+          : typeof legacyNotesContent?.text === 'string' && legacyNotesContent.text.trim().length > 20
+            ? legacyNotesContent.text
+            : '';
+    const rawSticky = Array.isArray(snapshot.sticky_notes)
+      ? snapshot.sticky_notes
+      : Array.isArray(snapshot.stickyNotesSlot?.items)
+        ? snapshot.stickyNotesSlot.items
+        : [];
+    const rawBlanks = Array.isArray(snapshot.fill_in_the_blanks)
+      ? snapshot.fill_in_the_blanks
+      : Array.isArray(snapshot.fillInTheBlanksSlot?.items)
+        ? snapshot.fillInTheBlanksSlot.items
+        : [];
+    const rawTutorPhases = Array.isArray(snapshot.whiteboard_phases)
+      ? snapshot.whiteboard_phases
+      : Array.isArray(snapshot.aiTutorSlot?.items)
+        ? snapshot.aiTutorSlot.items
+        : [];
 
     const hasFullContent = rawMcqs.length >= 3 && Boolean(rawNotes);
 
