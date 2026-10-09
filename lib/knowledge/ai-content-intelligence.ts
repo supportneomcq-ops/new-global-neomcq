@@ -1327,6 +1327,7 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
       supabase.from('mcqs').delete().eq('topic_id', topic.id).eq('version', targetVersionNum).eq('ai_generated', true),
       supabase.from('notes').delete().eq('topic_id', topic.id).eq('version', targetVersionNum).eq('ai_generated', true),
       supabase.from('flashcards').delete().eq('topic_id', topic.id).eq('version', targetVersionNum).eq('ai_generated', true),
+      supabase.from('revision_sheets').delete().eq('topic_id', topic.id).eq('title', `60s Revision — ${topic.name} (v${targetVersionNum})`).eq('ai_generated', true),
       supabase.from('content_versions').delete().eq('asset_id', topic.id).eq('asset_type', 'topic').eq('version', targetVersionNum),
     ])
     for (const cleanupResult of cleanupResults) {
