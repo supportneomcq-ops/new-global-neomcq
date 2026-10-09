@@ -643,24 +643,20 @@ export default function OnboardingPage() {
       setActivePrepIndex(4);
       setPrepProgress(85);
 
-      // 4. Generate persistent Study Plan via /api/study-plan
-      try {
-        await fetch('/api/study-plan', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: authData?.user?.id || null,
-            examId: formData.selectedExamId || null,
-            examName: formData.selectedExamName,
-            examDate: formData.examDate,
-            dailyHours: formData.studyHours,
-            preferredTime: dbPreferredTime,
-            learningMode: formData.learningStyle === 'Rapid Learning' ? 'rapid' : 'balanced',
-            studyGoals: formData.studyGoals,
-          }),
-        });
-      } catch (planErr) {
-        console.warn('Study plan auto-sync note:', planErr);
+      // 4. Initialize the real study-plan endpoint only when sign-up returned a session.
+      // Email-confirmation sign-ups have no session yet; the dashboard initializes the plan after verification.
+      if (authData?.session) {
+        try {
+          const studyPlanResponse = await fetch('/api/study-plans/current', {
+            method: 'GET',
+            cache: 'no-store',
+          });
+          if (!studyPlanResponse.ok) {
+            console.warn('Study plan initialization deferred:', studyPlanResponse.status);
+          }
+        } catch (planErr) {
+          console.warn('Study plan initialization deferred:', planErr);
+        }
       }
 
       // Progress Step 5: Finished
