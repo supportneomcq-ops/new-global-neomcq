@@ -116,69 +116,126 @@ export async function POST(req: NextRequest) {
     // =========================================================================
 
     if (eventType === 'subscription.activated' || eventType === 'subscription.authenticated') {
-      if (userId && plan) {
-        const startDate = new Date();
-        const endDate = new Date(startDate);
-        if (plan.annual) {
-          endDate.setFullYear(endDate.getFullYear() + 1);
+      if (userId && plan && subscriptionPlan) {
+        const { data: pendingSub, error: pendingSubError } = await admin
+          .from('subscriptions')
+          .select('plan_code, status, currency, amount, razorpay_subscription_id')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        const matchesPendingCheckout =
+          !pendingSubError &&
+          !!pendingSub &&
+          pendingSub.plan_code === plan.code &&
+          pendingSub.razorpay_subscription_id === subscriptionId &&
+          ['pending', 'active'].includes(pendingSub.status);
+
+        if (!matchesPendingCheckout) {
+          console.warn('[Razorpay webhook] Ignoring activation without a matching pending checkout.', {
+            userId,
+            subscriptionId,
+            planCode: plan.code,
+          });
         } else {
-          endDate.setMonth(endDate.getMonth() + 1);
-        }
+          const startDate = new Date();
+          const endDate = new Date(startDate);
+          if (plan.annual) {
+            endDate.setFullYear(endDate.getFullYear() + 1);
+          } else {
+            endDate.setMonth(endDate.getMonth() + 1);
+          }
 
-        await admin.from('subscriptions').upsert(
-          {
-            user_id: userId,
-            plan_code: plan.code,
-            status: 'active',
-            razorpay_subscription_id: subscriptionId,
-            razorpay_customer_id: subscriptionEntity?.customer_id || null,
-            razorpay_plan_id: subscriptionEntity?.plan_id || null,
-            currency: 'USD',
-            amount: plan.price_usd,
-            started_at: startDate.toISOString(),
-            current_period_start: startDate.toISOString(),
-            current_period_end: endDate.toISOString(),
-            cancel_at_period_end: false,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'user_id' }
-        );
+          const currency = pendingSub.currency || paymentEntity?.currency || 'INR';
+          const amount = Number(pendingSub.amount ?? (currency === 'INR' ? subscriptionPlan.price_inr : subscriptionPlan.price_usd));
+          const { error: activationError } = await admin.from('subscriptions').upsert(
+            {
+              user_id: userId,
+              plan_id: subscriptionPlan.id,
+              plan_code: plan.code,
+              status: 'active',
+              razorpay_subscription_id: subscriptionId,
+              razorpay_customer_id: subscriptionEntity?.customer_id || null,
+              razorpay_plan_id: subscriptionEntity?.plan_id || null,
+              currency,
+              amount,
+              started_at: startDate.toISOString(),
+              current_period_start: startDate.toISOString(),
+              current_period_end: endDate.toISOString(),
+              cancel_at_period_end: false,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'user_id' }
+          );
 
-        if (plan.code === 'ELITE') {
-          await admin.from('profiles').update({ exam_locked: false }).eq('id', userId);
+          if (activationError) throw activationError;
+
+          if (plan.code === 'ELITE') {
+            await admin.from('profiles').update({ exam_locked: false }).eq('id', userId);
+          }
         }
       }
     } else if (eventType === 'subscription.charged') {
-      if (userId && plan) {
-        const periodEndTimestamp = subscriptionEntity?.current_end
-          ? new Date(subscriptionEntity.current_end * 1000).toISOString()
-          : new Date(Date.now() + plan.duration_days * 24 * 60 * 60 * 1000).toISOString();
+      if (userId && plan && subscriptionPlan) {
+        const { data: pendingSub, error: pendingSubError } = await admin
+          .from('subscriptions')
+          .select('plan_code, status, currency, amount, razorpay_subscription_id')
+          .eq('user_id', userId)
+          .maybeSingle();
 
-        await admin.from('subscriptions').upsert(
-          {
-            user_id: userId,
-            plan_code: plan.code,
-            status: 'active',
-            razorpay_subscription_id: subscriptionId,
-            current_period_end: periodEndTimestamp,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'user_id' }
-        );
+        const matchesPendingCheckout =
+          !pendingSubError &&
+          !!pendingSub &&
+          pendingSub.plan_code === plan.code &&
+          pendingSub.razorpay_subscription_id === subscriptionId &&
+          ['pending', 'active'].includes(pendingSub.status);
 
-        if (paymentId) {
-          await admin.from('payments').upsert(
+        if (!matchesPendingCheckout) {
+          console.warn('[Razorpay webhook] Ignoring charge without a matching subscription.', {
+            userId,
+            subscriptionId,
+            planCode: plan.code,
+          });
+        } else {
+          const periodEndTimestamp = subscriptionEntity?.current_end
+            ? new Date(subscriptionEntity.current_end * 1000).toISOString()
+            : new Date(Date.now() + plan.duration_days * 24 * 60 * 60 * 1000).toISOString();
+
+          const { error: chargeUpdateError } = await admin.from('subscriptions').upsert(
             {
               user_id: userId,
-              razorpay_payment_id: paymentId,
-              razorpay_order_id: paymentEntity?.order_id || null,
-              amount: plan.price_usd,
-              currency: 'USD',
-              status: 'captured',
-              webhook_payload: event,
+              plan_id: subscriptionPlan.id,
+              plan_code: plan.code,
+              status: 'active',
+              razorpay_subscription_id: subscriptionId,
+              currency: pendingSub.currency || paymentEntity?.currency || 'INR',
+              amount: Number(pendingSub.amount ?? (pendingSub.currency === 'USD' ? subscriptionPlan.price_usd : subscriptionPlan.price_inr)),
+              current_period_end: periodEndTimestamp,
+              updated_at: new Date().toISOString(),
             },
-            { onConflict: 'razorpay_payment_id' }
+            { onConflict: 'user_id' }
           );
+
+          if (chargeUpdateError) throw chargeUpdateError;
+
+          if (paymentId) {
+            const paymentCurrency = paymentEntity?.currency || pendingSub.currency || 'INR';
+            const paymentAmount = paymentEntity?.amount != null
+              ? Number(paymentEntity.amount) / 100
+              : Number(pendingSub.amount ?? (paymentCurrency === 'USD' ? subscriptionPlan.price_usd : subscriptionPlan.price_inr));
+            const { error: paymentRecordError } = await admin.from('payments').upsert(
+              {
+                user_id: userId,
+                razorpay_payment_id: paymentId,
+                razorpay_order_id: paymentEntity?.order_id || null,
+                amount: paymentAmount,
+                currency: paymentCurrency,
+                status: 'captured',
+                webhook_payload: event,
+              },
+              { onConflict: 'razorpay_payment_id' }
+            );
+            if (paymentRecordError) throw paymentRecordError;
+          }
         }
       }
     } else if (eventType === 'subscription.cancelled') {
