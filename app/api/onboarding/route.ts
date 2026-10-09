@@ -68,9 +68,37 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient()
     const admin = getSupabaseAdmin()
 
-    // Retrieve current authenticated user or authId
-    const { data: { user } } = await supabase.auth.getUser()
-    const targetUserId = user?.id || authId
+    // Prefer the verified session. For sign-ups that require email confirmation, accept only
+    // the freshly-created, unconfirmed auth user whose email matches this onboarding request.
+    const { data: { user }, error: sessionError } = await supabase.auth.getUser()
+    if (sessionError) {
+      console.warn('[Onboarding] Could not resolve authenticated session:', sessionError.message)
+    }
+
+    let targetUserId: string | null = user?.id || null
+    if (user && user.email?.toLowerCase() !== email.toLowerCase()) {
+      return NextResponse.json({ error: 'The signed-in account does not match this onboarding email.' }, { status: 403 })
+    }
+
+    if (!user && authId) {
+      const { data: authLookup, error: authLookupError } = await admin.auth.admin.getUserById(authId)
+      const pendingUser = authLookup?.user
+      const createdAt = pendingUser?.created_at ? new Date(pendingUser.created_at).getTime() : 0
+      const isRecentSignup = createdAt > 0 && Date.now() - createdAt <= 15 * 60 * 1000
+      const emailMatches = pendingUser?.email?.toLowerCase() === email.toLowerCase()
+
+      if (authLookupError || !pendingUser || !emailMatches || pendingUser.email_confirmed_at || !isRecentSignup) {
+        return NextResponse.json(
+          { error: 'Please verify your email or sign in again before finishing onboarding.' },
+          { status: 401 }
+        )
+      }
+      targetUserId = pendingUser.id
+    }
+
+    if (!targetUserId) {
+      return NextResponse.json({ error: 'Authentication required to save onboarding preferences.' }, { status: 401 })
+    }
 
     let finalExamId: string | null = inputExamId || null
 
