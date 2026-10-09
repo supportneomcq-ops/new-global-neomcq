@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/server';
 import { AIGateway } from '@/lib/ai-gateway';
 import { verifyAdminApiSession } from '@/lib/admin-auth';
 import crypto from 'crypto';
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
       isTrustedInternalCall = expected.length === supplied.length && crypto.timingSafeEqual(expected, supplied);
     }
 
-    const userClient = await (await import('@/lib/supabase/server')).createClient();
+    const userClient = await createClient();
     const { data: { user } } = await userClient.auth.getUser();
     if (!isTrustedInternalCall && !user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
