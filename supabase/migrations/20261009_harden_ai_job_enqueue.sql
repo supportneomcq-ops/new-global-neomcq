@@ -1,3 +1,6 @@
+CREATE INDEX IF NOT EXISTS idx_ai_jobs_user_created_at
+  ON public.ai_jobs (user_id, created_at DESC);
+
 CREATE OR REPLACE FUNCTION public.get_or_create_ai_generation_job(
   p_idempotency_key text,
   p_task text,
