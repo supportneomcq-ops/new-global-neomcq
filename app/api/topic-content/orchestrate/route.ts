@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/server';
+import { checkFeatureQuota } from '@/lib/entitlements/quota-checker';
 import { resolveCanonicalHierarchy } from '@/lib/knowledge/canonical-resolver';
 import { GenerationJobManager } from '@/lib/server/content-engine/job-manager';
 import { getOrGenerateCanonicalTopicContent } from '@/lib/knowledge/ai-content-intelligence';
@@ -9,6 +11,12 @@ const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
+    const userClient = await createClient();
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ success: false, error: 'Please sign in to access study content.' }, { status: 401 });
+    }
+
     const {
       examId,
       examName,
@@ -19,7 +27,6 @@ export async function POST(req: NextRequest) {
       subtopicId,
       subtopicName,
       forceRefresh = false,
-      userId,
     } = body;
 
     const topicSearch = topicId || topicName;
@@ -104,25 +111,62 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Snapshot payload
+    // Snapshot payload. Support both the current schema and the slot-based format already stored in production.
+    // Without these fallbacks, existing quizzes and flashcards appear empty and trigger unnecessary AI regeneration.
     const snapshot = (latestVersionRecord?.snapshot || {}) as any;
     const versionNum = latestVersionRecord?.version || 1;
     const versionId = latestVersionRecord?.id || `v-${topic.id}-${versionNum}`;
     const createdAt = latestVersionRecord?.created_at || new Date().toISOString();
 
     // 5. Evaluate status for each of the 8 features
-    const rawMcqs = Array.isArray(snapshot.mcqs) ? snapshot.mcqs : [];
+    const legacyMainMcqs = Array.isArray(snapshot.mainMcqsSlot?.items) ? snapshot.mainMcqsSlot.items : [];
+    const legacyQuizA = Array.isArray(snapshot.quiz1Slot?.items) ? snapshot.quiz1Slot.items : [];
+    const legacyQuizB = Array.isArray(snapshot.quiz2Slot?.items) ? snapshot.quiz2Slot.items : [];
+    const rawMcqs = Array.isArray(snapshot.mcqs)
+      ? snapshot.mcqs
+      : legacyMainMcqs.length > 0
+        ? legacyMainMcqs
+        : [...legacyQuizA, ...legacyQuizB];
     const rawQuizA = Array.isArray(snapshot.quiz_a) && snapshot.quiz_a.length > 0
       ? snapshot.quiz_a
-      : rawMcqs.slice(0, Math.min(20, Math.ceil(rawMcqs.length / 2)));
+      : legacyQuizA.length > 0
+        ? legacyQuizA
+        : rawMcqs.slice(0, Math.min(20, Math.ceil(rawMcqs.length / 2)));
     const rawQuizB = Array.isArray(snapshot.quiz_b) && snapshot.quiz_b.length > 0
       ? snapshot.quiz_b
-      : rawMcqs.slice(rawQuizA.length, rawQuizA.length + 20);
-    const rawFlashcards = Array.isArray(snapshot.flashcards) ? snapshot.flashcards : [];
-    const rawNotes = typeof snapshot.notes === 'string' && snapshot.notes.trim().length > 20 ? snapshot.notes : '';
-    const rawSticky = Array.isArray(snapshot.sticky_notes) ? snapshot.sticky_notes : [];
-    const rawBlanks = Array.isArray(snapshot.fill_in_the_blanks) ? snapshot.fill_in_the_blanks : [];
-    const rawTutorPhases = Array.isArray(snapshot.whiteboard_phases) ? snapshot.whiteboard_phases : [];
+      : legacyQuizB.length > 0
+        ? legacyQuizB
+        : rawMcqs.slice(rawQuizA.length, rawQuizA.length + 20);
+    const rawFlashcards = Array.isArray(snapshot.flashcards)
+      ? snapshot.flashcards
+      : Array.isArray(snapshot.flashcardsSlot?.items)
+        ? snapshot.flashcardsSlot.items
+        : [];
+    const legacyNotesContent = snapshot.notesSlot?.content;
+    const rawNotes = typeof snapshot.notes === 'string' && snapshot.notes.trim().length > 20
+      ? snapshot.notes
+      : typeof legacyNotesContent === 'string' && legacyNotesContent.trim().length > 20
+        ? legacyNotesContent
+        : typeof legacyNotesContent?.content === 'string' && legacyNotesContent.content.trim().length > 20
+          ? legacyNotesContent.content
+          : typeof legacyNotesContent?.text === 'string' && legacyNotesContent.text.trim().length > 20
+            ? legacyNotesContent.text
+            : '';
+    const rawSticky = Array.isArray(snapshot.sticky_notes)
+      ? snapshot.sticky_notes
+      : Array.isArray(snapshot.stickyNotesSlot?.items)
+        ? snapshot.stickyNotesSlot.items
+        : [];
+    const rawBlanks = Array.isArray(snapshot.fill_in_the_blanks)
+      ? snapshot.fill_in_the_blanks
+      : Array.isArray(snapshot.fillInTheBlanksSlot?.items)
+        ? snapshot.fillInTheBlanksSlot.items
+        : [];
+    const rawTutorPhases = Array.isArray(snapshot.whiteboard_phases)
+      ? snapshot.whiteboard_phases
+      : Array.isArray(snapshot.aiTutorSlot?.items)
+        ? snapshot.aiTutorSlot.items
+        : [];
 
     const hasFullContent = rawMcqs.length >= 3 && Boolean(rawNotes);
 
@@ -137,13 +181,32 @@ export async function POST(req: NextRequest) {
     }
 
     if (triggerGeneration) {
-      // Fire-and-forget generation call so endpoint responds instantly
+      const quotaResult = await checkFeatureQuota({
+        userId: user.id,
+        feature: 'mcq',
+        topicId: topic.id,
+        examId: exam.id,
+        subjectId: subject.id,
+      });
+
+      if (!quotaResult.allowed) {
+        return NextResponse.json({
+          success: false,
+          limitReached: true,
+          limitType: quotaResult.limitType,
+          error: quotaResult.upgradeMessage || quotaResult.reason,
+          upgradeRequired: true,
+          planCode: quotaResult.planCode,
+        }, { status: 403 });
+      }
+
+      // Generation runs only for the authenticated user and only after quota authorization.
       getOrGenerateCanonicalTopicContent({
         examInput: exam.id,
         subjectInput: subject.id,
         topicInput: topic.id,
-        userId: userId || null,
-        forceRefresh: true,
+        userId: user.id,
+        forceRefresh: forceRefresh === true,
       }).catch((err) => console.error('[Orchestration API] Async generation error:', err));
     }
 

@@ -100,39 +100,8 @@ export async function resolveCanonicalExam(
       }
     }
 
-    // Fallback: if UUID not found in exams, pick the first available exam in the database, or create one
-    const { data: fallbackExams } = await supabase
-      .from('exams')
-      .select('id, name, slug, code, description, difficulty, status')
-      .limit(1)
-
-    if (fallbackExams && fallbackExams.length > 0) {
-      return {
-        exam: fallbackExams[0],
-        matchType: 'exact',
-        confidence: 90.0,
-      }
-    }
-
-    const defaultExam = {
-      id: rawTrimmed,
-      name: 'USMLE Step 1 & 2 CK',
-      slug: 'usmle-step-1-2-ck',
-      code: 'USMLE',
-      description: 'Comprehensive medical licensing examination preparation.',
-      difficulty: 'Advanced',
-      status: 'active',
-    }
-    try {
-      await supabase.from('exams').insert(defaultExam)
-    } catch {
-      // Non-blocking if insert fails
-    }
-    return {
-      exam: defaultExam,
-      matchType: 'created',
-      confidence: 100.0,
-    }
+    // A UUID that does not exist is invalid; never silently map it to an unrelated exam.
+    return { exam: null, matchType: 'none', confidence: 0 }
   }
 
   const norm = normalizeInput(rawExamInput)
@@ -328,6 +297,7 @@ export async function resolveCanonicalSubject(
       .from('exam_subjects')
       .select('id, exam_id, name, slug, description, weight_percentage')
       .eq('id', rawTrimmed)
+      .eq('exam_id', examId)
       .maybeSingle()
 
     if (byId) {
@@ -504,6 +474,7 @@ export async function resolveCanonicalTopic(
       .from('exam_topics')
       .select('id, subject_id, name, slug, description, parent_id')
       .eq('id', rawTrimmed)
+      .eq('subject_id', subjectId)
       .maybeSingle()
 
     if (byId) {
@@ -656,6 +627,7 @@ export async function resolveCanonicalSubtopic(
       .from('exam_subtopics')
       .select('id, topic_id, name, slug, description')
       .eq('id', rawTrimmed)
+      .eq('topic_id', topicId)
       .maybeSingle()
 
     if (byId) {

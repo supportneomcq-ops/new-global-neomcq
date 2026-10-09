@@ -283,16 +283,19 @@ export function verifyRazorpaySignature(params: {
       return false;
     }
 
-    const text = `${targetId}|${params.paymentId}`;
+    // Razorpay signs orders as order_id|payment_id, but subscriptions as payment_id|subscription_id.
+    const signaturePayload = params.subscriptionId
+      ? `${params.paymentId}|${params.subscriptionId}`
+      : `${params.orderId}|${params.paymentId}`;
     const expectedSignature = crypto
       .createHmac('sha256', secret)
-      .update(text)
+      .update(signaturePayload)
       .digest('hex');
 
-    return crypto.timingSafeEqual(
-      Buffer.from(params.signature),
-      Buffer.from(expectedSignature)
-    );
+    const supplied = Buffer.from(params.signature, 'utf8');
+    const expected = Buffer.from(expectedSignature, 'utf8');
+    if (supplied.length !== expected.length) return false;
+    return crypto.timingSafeEqual(supplied, expected);
   } catch (err) {
     console.error('Signature verification error:', err);
     return false;

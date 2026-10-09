@@ -1,13 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/server';
 import { AIGateway } from '@/lib/ai-gateway';
+import { verifyAdminApiSession } from '@/lib/admin-auth';
+import crypto from 'crypto';
 
 export async function POST(req: NextRequest) {
   try {
     const { jobId } = await req.json();
 
-    if (!jobId) {
-      return NextResponse.json({ error: 'Missing jobId' }, { status: 400 });
+    if (!jobId || typeof jobId !== 'string') {
+      return NextResponse.json({ error: 'Missing or invalid jobId' }, { status: 400 });
+    }
+
+    // Background processing must be initiated by a trusted server or the owner of the job.
+    const configuredSecret = process.env.INTERNAL_API_SECRET || '';
+    const suppliedSecret = req.headers.get('x-internal-api-secret') || '';
+    let isTrustedInternalCall = false;
+    if (configuredSecret && suppliedSecret) {
+      const expected = Buffer.from(configuredSecret, 'utf8');
+      const supplied = Buffer.from(suppliedSecret, 'utf8');
+      isTrustedInternalCall = expected.length === supplied.length && crypto.timingSafeEqual(expected, supplied);
+    }
+
+    const userClient = await createClient();
+    const { data: { user } } = await userClient.auth.getUser();
+    if (!isTrustedInternalCall && !user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
     const adminClient = getSupabaseAdmin();
@@ -21,6 +40,13 @@ export async function POST(req: NextRequest) {
 
     if (fetchError || !job) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+    }
+
+    if (!isTrustedInternalCall && user && job.user_id !== user.id) {
+      const adminAuth = await verifyAdminApiSession();
+      if (!adminAuth.authorized) {
+        return NextResponse.json({ error: 'You are not allowed to process this job.' }, { status: 403 });
+      }
     }
 
     if (job.status === 'completed') {

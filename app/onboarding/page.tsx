@@ -441,8 +441,8 @@ export default function OnboardingPage() {
       });
 
       const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to resolve exam intelligence');
+      if (!res.ok || !data.success || !data.exam?.id) {
+        throw new Error(data.error || 'We could not verify this exam. Please choose a listed exam or try again.');
       }
 
       // Detect if server identified a new custom synthesis vs existing canonical record
@@ -498,11 +498,12 @@ export default function OnboardingPage() {
     } catch (err: any) {
       console.error('Exam resolution error:', err);
       clearInterval(stageInterval);
-      setResolvingStage(4);
-      await new Promise((resolve) => setTimeout(resolve, 400));
+      setResolvingStage(0);
+      await new Promise((resolve) => setTimeout(resolve, 250));
 
-      updateField('selectedExamName', targetInput);
-      setStep(3);
+      // Never advance onboarding with an unresolved or fabricated exam selection.
+      setFormError('We could not verify this exam right now. Please try again or choose an exam from the list. Your selection has not been saved.');
+      setStep(2);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       clearInterval(stageInterval);
@@ -588,6 +589,11 @@ export default function OnboardingPage() {
           setStep(1);
           return;
         }
+
+        // Do not continue onboarding when account creation failed for any other reason.
+        setFormError('We could not create your account right now. Please try again in a moment.');
+        setStep(1);
+        return;
       }
 
       // Progress Step 2: Curriculum framework resolved in database
@@ -637,24 +643,20 @@ export default function OnboardingPage() {
       setActivePrepIndex(4);
       setPrepProgress(85);
 
-      // 4. Generate persistent Study Plan via /api/study-plan
-      try {
-        await fetch('/api/study-plan', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: authData?.user?.id || null,
-            examId: formData.selectedExamId || null,
-            examName: formData.selectedExamName,
-            examDate: formData.examDate,
-            dailyHours: formData.studyHours,
-            preferredTime: dbPreferredTime,
-            learningMode: formData.learningStyle === 'Rapid Learning' ? 'rapid' : 'balanced',
-            studyGoals: formData.studyGoals,
-          }),
-        });
-      } catch (planErr) {
-        console.warn('Study plan auto-sync note:', planErr);
+      // 4. Initialize the real study-plan endpoint only when sign-up returned a session.
+      // Email-confirmation sign-ups have no session yet; the dashboard initializes the plan after verification.
+      if (authData?.session) {
+        try {
+          const studyPlanResponse = await fetch('/api/study-plans/current', {
+            method: 'GET',
+            cache: 'no-store',
+          });
+          if (!studyPlanResponse.ok) {
+            console.warn('Study plan initialization deferred:', studyPlanResponse.status);
+          }
+        } catch (planErr) {
+          console.warn('Study plan initialization deferred:', planErr);
+        }
       }
 
       // Progress Step 5: Finished
