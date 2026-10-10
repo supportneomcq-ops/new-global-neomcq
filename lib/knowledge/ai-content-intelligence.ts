@@ -195,10 +195,19 @@ function validateGeneratedContent(
         continue
       }
 
-      const stem = normalizeQuestionStem(m.question)
-      if (stem.length < 15) {
+      const question = m.question.trim()
+      const stem = normalizeQuestionStem(question)
+      const options = m.options.map((option: unknown) => typeof option === 'string' ? option.trim() : '')
+      if (stem.length < 15 || options.some((option: string) => !option)) {
         isStructural = false
-        score -= 5
+        score -= 10
+        continue
+      }
+
+      const uniqueOptions = new Set(options.map((option: string) => option.toLowerCase()))
+      if (uniqueOptions.size !== options.length) {
+        isStructural = false
+        score -= 10
         continue
       }
 
@@ -209,23 +218,29 @@ function validateGeneratedContent(
       }
       existingQuestionStems.add(stem)
 
-      const correctIndex = typeof m.correct_index === 'number' && m.correct_index >= 0 && m.correct_index < m.options.length
-        ? m.correct_index
-        : 0
-
-      if (!m.explanation || m.explanation.length < 15) {
+      // Never invent option zero as the answer when the model supplies an invalid answer index.
+      const correctIndex = m.correct_index
+      if (!Number.isInteger(correctIndex) || correctIndex < 0 || correctIndex >= options.length) {
         isAnswers = false
-        score -= 5
+        score -= 15
+        continue
+      }
+
+      const explanation = typeof m.explanation === 'string' ? m.explanation.trim() : ''
+      if (explanation.length < 15) {
+        isAnswers = false
+        score -= 10
+        continue
       }
 
       validMcqs.push({
-        question: m.question.trim(),
-        options: m.options.slice(0, 4).map((o: any) => String(o).trim()),
+        question,
+        options,
         correct_index: correctIndex,
-        explanation: String(m.explanation || '').trim() || 'Comprehensive high-yield rationale.',
-        clinical_pearl: m.clinical_pearl || `${topicName} - High-Yield Pearl`,
-        high_yield_tag: m.high_yield_tag || `${subjectName} - ${topicName}`,
-        difficulty: m.difficulty || 'Intermediate',
+        explanation,
+        clinical_pearl: typeof m.clinical_pearl === 'string' && m.clinical_pearl.trim() ? m.clinical_pearl.trim() : undefined,
+        high_yield_tag: typeof m.high_yield_tag === 'string' && m.high_yield_tag.trim() ? m.high_yield_tag.trim() : undefined,
+        difficulty: typeof m.difficulty === 'string' && m.difficulty.trim() ? m.difficulty.trim() : 'Intermediate',
       })
     }
   } else {
@@ -319,7 +334,7 @@ function validateGeneratedContent(
   const payload: ContentIntelligencePayload = {
     mcqs: validMcqs,
     quiz_a: quizA,
-    quiz_b: quizB.length > 0 ? quizB : quizA,
+    quiz_b: quizB,
     notes: validNotes,
     flashcards: validFlashcards,
     sticky_notes: validStickyNotes,
