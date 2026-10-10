@@ -1465,10 +1465,14 @@ export async function resolveOrInitializeExamIntelligence(options: {
       },
     }
 
+    const canonicalExamName = (intelligenceProfile.official_name || intelligenceProfile.exam_name || rawInput).trim()
     const examPayload: any = {
-      name: rawInput,
+      // Persist the resolved canonical exam title, not the user's shorthand/search alias.
+      // Keep the search-derived slug stable and register the raw input as an alias below.
+      name: canonicalExamName,
+      short_name: intelligenceProfile.exam_code || aiSpec.exam.code || undefined,
       slug: querySlug,
-      description: `Official preparation syllabus and curriculum for ${rawInput}.`,
+      description: `Preparation syllabus and curriculum for ${canonicalExamName}.`,
       difficulty: intelligenceProfile.difficulty_level,
       question_count: intelligenceProfile.question_config.default_question_count || 100,
       time_limit_mins: intelligenceProfile.question_config.duration_minutes || 120,
@@ -1562,8 +1566,8 @@ export async function resolveOrInitializeExamIntelligence(options: {
 
     // Run Process A (Curriculum Enrichment) and Process B (Rules Collection) in parallel
     const [curriculumResult, rulesResult] = await Promise.all([
-      enrichCurriculumProcess(newExam.id, rawInput, country, category, supabase),
-      collectExamRulesProcess(newExam.id, rawInput, country, category, supabase),
+      enrichCurriculumProcess(newExam.id, canonicalExamName, country, category, supabase),
+      collectExamRulesProcess(newExam.id, canonicalExamName, country, category, supabase),
     ])
 
     if (userId) {
