@@ -1430,7 +1430,10 @@ export async function resolveOrInitializeExamIntelligence(options: {
       throw new Error(`AI could not produce a sufficiently complete exam-specific curriculum for "${rawInput}". No generic placeholder curriculum was saved; retry after the AI provider is available.`)
     }
 
-    const isVerifiedTemplate = aiSpec.confidence.overall > 0.98
+    // A model's confidence score is not official evidence. This path always
+    // creates an AI-generated exam; it must remain pending review until an
+    // official source is independently verified.
+    const isVerifiedTemplate = false
 
     const intelligenceProfile: ExamIntelligenceProfile = {
       exam_id: '',
@@ -1477,7 +1480,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
       status: 'active',
       is_featured: false,
       created_by_ai: !isVerifiedTemplate,
-      verification_status: isVerifiedTemplate ? 'verified' : 'AI_inferred',
+      verification_status: isVerifiedTemplate ? 'verified' : 'pending_review',
       marking_scheme: {
         positive_mark: intelligenceProfile.question_config.positive_mark,
         negative_mark: intelligenceProfile.question_config.negative_mark,
