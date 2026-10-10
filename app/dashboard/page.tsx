@@ -121,7 +121,10 @@ export default function DashboardPage() {
     <DashboardView
       user={currentUser}
       onSignOut={handleSignOut}
-      onOpenPractice={() => alert('Starting adaptive exam module...')}
+      onOpenPractice={() => { router.push('/exams'); }}
+      onUpdateProfile={(updated) => {
+        setCurrentUser((current) => current ? { ...current, ...updated } : current);
+      }}
     />
   );
 }
