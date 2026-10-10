@@ -94,20 +94,7 @@ interface OnboardingState {
 const STORAGE_KEY = 'neomcq_onboarding_state';
 const CURRENT_STEP_KEY = 'neomcq_onboarding_step';
 
-const PRESET_EXAMS: ExamInfo[] = [
-  { id: 'fmge', name: 'FMGE (Foreign Medical Graduate Examination)', slug: 'fmge', short_name: 'FMGE', category: 'Medical Licensing', country: 'India', flag: '🇮🇳', description: 'National Board of Examinations screening test for medical graduates.' },
-  { id: 'usmle-step-1', name: 'USMLE Step 1', slug: 'usmle-step-1', short_name: 'USMLE Step 1', category: 'Medical Licensing', country: 'United States', flag: '🇺🇸', description: 'United States Medical Licensing Examination Step 1.' },
-  { id: 'neet-pg', name: 'NEET PG Medical', slug: 'neet-pg', short_name: 'NEET PG', category: 'Postgraduate Medical', country: 'India', flag: '🇮🇳', description: 'National Eligibility cum Entrance Test for Postgraduate medical admissions in India. INI-CET is a separate examination.' },
-  { id: 'plab', name: 'PLAB 1 / UKMLA', slug: 'plab', short_name: 'PLAB/UKMLA', category: 'Medical Licensing', country: 'United Kingdom', flag: '🇬🇧', description: 'Professional and Linguistic Assessments Board test for UK medical licensing.' },
-  { id: 'nclex-rn', name: 'NCLEX-RN Nursing Licensure', slug: 'nclex-rn', short_name: 'NCLEX-RN', category: 'Nursing & Healthcare', country: 'United States', flag: '🇺🇸', description: 'National Council Licensure Examination for Registered Nurses.' },
-  { id: 'amc-mcq', name: 'AMC MCQ Examination', slug: 'amc-mcq', short_name: 'AMC', category: 'Medical Licensing', country: 'Australia', flag: '🇦🇺', description: 'Australian Medical Council computer-adaptive multiple-choice examination.' },
-  { id: 'upsc-cse', name: 'UPSC Civil Services Examination (Prelims & Mains)', slug: 'upsc-cse', short_name: 'UPSC CSE', category: 'Civil Services & Administration', country: 'India', flag: '🇮🇳', description: 'Union Public Service Commission premier civil services examination.' },
-  { id: 'cfa-level-1', name: 'CFA Level I, II & III', slug: 'cfa-level-1', short_name: 'CFA', category: 'Finance & Investment', country: 'Global', flag: '🌐', description: 'Chartered Financial Analyst credential covering ethical, analytical and financial standards.' },
-  { id: 'ca-final', name: 'ICAI Chartered Accountancy (CA Final / Inter)', slug: 'ca-final', short_name: 'CA Final', category: 'Accounting & Taxation', country: 'India', flag: '🇮🇳', description: 'Institute of Chartered Accountants of India professional examination.' },
-  { id: 'gre-general', name: 'GRE General Test', slug: 'gre-general', short_name: 'GRE', category: 'Graduate Entrance', country: 'Global', flag: '🌐', description: 'Graduate Record Examination assessing verbal reasoning, quantitative reasoning, and writing.' },
-  { id: 'gmat-focus', name: 'GMAT Focus Edition', slug: 'gmat-focus', short_name: 'GMAT', category: 'Business & Management', country: 'Global', flag: '🌐', description: 'Graduate Management Admission Test for top global MBA and business master programs.' },
-  { id: 'ielts-academic', name: 'IELTS Academic', slug: 'ielts-academic', short_name: 'IELTS', category: 'Language Proficiency', country: 'Global', flag: '🌐', description: 'International English Language Testing System for university admissions and visa verification.' },
-];
+
 
 const COUNTRY_CODES = [
   { code: '+91', flag: '🇮🇳', name: 'India' },
