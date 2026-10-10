@@ -793,6 +793,23 @@ export async function resolveCanonicalHierarchy({
   let subtopicResult: any = { subtopic: null, matchType: 'none', confidence: 100.0 }
   if (subtopicInput) {
     subtopicResult = await resolveCanonicalSubtopic(supabase, topicResult.topic.id, subtopicInput, autoCreate)
+    if (!subtopicResult.subtopic) {
+      return {
+        success: false,
+        exam: examResult.exam,
+        subject: subjectResult.subject,
+        topic: topicResult.topic,
+        subtopic: null,
+        matchType: {
+          exam: examResult.matchType,
+          subject: subjectResult.matchType,
+          topic: topicResult.matchType,
+          subtopic: 'none',
+        },
+        confidence: Math.min(examResult.confidence, subjectResult.confidence, topicResult.confidence, subtopicResult.confidence),
+        error: `Could not resolve canonical subtopic '${subtopicInput}' under topic '${topicResult.topic.name}'.`,
+      }
+    }
   }
 
   return {
