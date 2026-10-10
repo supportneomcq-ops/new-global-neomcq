@@ -1346,10 +1346,10 @@ export async function resolveOrInitializeExamIntelligence(options: {
     if (matchedExam) {
       console.log(`[Exam Intelligence] Reusing existing canonical exam: "${matchedExam.name}" (${matchedExam.id})`)
 
-      const [curriculumResult, rulesResult] = await Promise.all([
-        enrichCurriculumProcess(matchedExam.id, matchedExam.name, country, category, supabase),
-        collectExamRulesProcess(matchedExam.id, matchedExam.name, country, category, supabase),
-      ])
+      // These processes both update exams.metadata. Run sequentially so the
+      // second write reads the first process's latest metadata instead of overwriting it.
+      const curriculumResult = await enrichCurriculumProcess(matchedExam.id, matchedExam.name, country, category, supabase)
+      const rulesResult = await collectExamRulesProcess(matchedExam.id, matchedExam.name, country, category, supabase)
 
       if (userId) {
         try {
@@ -1675,7 +1675,7 @@ export async function enrichCurriculumProcess(
 
   // 2. Query authority, evidence, and versions
   const [{ data: examRow }, { data: evidenceRows }, { data: versionRows }] = await Promise.all([
-    supabase.from('exams').select('id, name, authority_id, authority').eq('id', examId).maybeSingle(),
+    supabase.from('exams').select('id, name, authority_id, authority, metadata, syllabus_info').eq('id', examId).maybeSingle(),
     supabase.from('exam_evidence').select('*').eq('exam_id', examId),
     supabase.from('exam_versions').select('*').eq('exam_id', examId),
   ])
@@ -1790,56 +1790,84 @@ export async function enrichCurriculumProcess(
     subtopicCount: finalSubtopicCount,
   })
 
-  // 7. Persist Evidence Audit Trail in `exam_evidence`
-  try {
-    await supabase.from('exam_evidence').upsert(
-      {
-        exam_id: examId,
-        source_url: evalResult.sourceUrl || `https://neomcq.ai/exams/${examId}`,
-        source_reference: `${examName} Syllabus Specification`,
-        source_type: isVerifiedTemplate ? 'official_syllabus' : 'ai_synthesis',
-        publisher_authority: evalResult.authorityName || countryHint || 'Examining Authority',
-        verification_status: evalResult.verificationStatus === 'verified' ? 'valid' : 'partially_verified',
-        extracted_data: {
-          coverage_percentage: evalResult.coveragePercentage,
-          matched_subjects: comparisonReport.matchedSubjects,
-          total_expected_subjects: comparisonReport.totalExpectedSubjects,
-          matched_topics: comparisonReport.matchedTopics,
-          total_expected_topics: comparisonReport.totalExpectedTopics,
-          evidence_scope: evalResult.evidenceScope,
-          reconciled_at: new Date().toISOString(),
-        },
-      },
-      { onConflict: 'exam_id' }
-    )
-  } catch (evErr) {
-    console.warn('[Exam Intelligence] exam_evidence upsert note:', evErr)
+  // 7. Persist the AI syllabus audit record without claiming it is an official source.
+  // exam_evidence intentionally supports multiple sources per exam, so do not use
+  // ON CONFLICT (exam_id): production has no such unique constraint.
+  const sourceReference = `${examName} Syllabus Specification`
+  const evidencePayload = {
+    exam_id: examId,
+    source_url: evalResult.sourceUrl || null,
+    source_reference: sourceReference,
+    source_type: 'other',
+    publisher_authority: evalResult.authorityName || null,
+    verification_status: 'pending',
+    extracted_data: {
+      coverage_percentage: evalResult.coveragePercentage,
+      matched_subjects: comparisonReport.matchedSubjects,
+      total_expected_subjects: comparisonReport.totalExpectedSubjects,
+      matched_topics: comparisonReport.matchedTopics,
+      total_expected_topics: comparisonReport.totalExpectedTopics,
+      evidence_scope: evalResult.evidenceScope,
+      reconciled_at: new Date().toISOString(),
+      generated_by: 'ai_exam_intelligence',
+    },
   }
 
-  // 8. Update exams row status & syllabus_info
-  try {
-    await supabase
-      .from('exams')
-      .update({
+  const { data: existingEvidence, error: evidenceLookupError } = await supabase
+    .from('exam_evidence')
+    .select('id')
+    .eq('exam_id', examId)
+    .eq('source_reference', sourceReference)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (evidenceLookupError) {
+    console.error('[Exam Intelligence] Could not locate prior syllabus audit record:', evidenceLookupError)
+  } else {
+    const evidenceWrite = existingEvidence?.id
+      ? await supabase.from('exam_evidence').update(evidencePayload).eq('id', existingEvidence.id)
+      : await supabase.from('exam_evidence').insert(evidencePayload)
+    if (evidenceWrite.error) {
+      console.error('[Exam Intelligence] Failed to persist syllabus audit record:', evidenceWrite.error)
+    }
+  }
+
+  // 8. Persist the exam's curriculum status using the production DB's allowed values.
+  // Internal evaluation statuses (AI_inferred / partially_verified) are not accepted
+  // by the exams.verification_status CHECK constraint.
+  const persistedVerificationStatus =
+    evalResult.verificationStatus === 'verified'
+      ? 'verified'
+      : evalResult.verificationStatus === 'needs_review'
+        ? 'needs_review'
+        : 'pending_review'
+
+  const { error: examStatusError } = await supabase
+    .from('exams')
+    .update({
+      verification_status: persistedVerificationStatus,
+      syllabus_info: {
+        ...(examRow?.syllabus_info || {}),
+        source: 'ai_inferred',
+        coverage_percentage: evalResult.coveragePercentage,
+        evidence_scope: evalResult.evidenceScope,
+        authority: evalResult.authorityName,
+      },
+      metadata: {
+        ...(examRow?.metadata || {}),
+        curriculum_status: evalResult.curriculumStatus,
+        rules_status: (examRow?.metadata || {}).rules_status || 'needs_review',
         verification_status: evalResult.verificationStatus,
-        syllabus_info: {
-          source: isVerifiedTemplate ? 'official_syllabus' : 'ai_inferred',
-          coverage_percentage: evalResult.coveragePercentage,
-          evidence_scope: evalResult.evidenceScope,
-          authority: evalResult.authorityName,
-        },
-        metadata: {
-          curriculum_status: evalResult.curriculumStatus,
-          rules_status: evalResult.rulesStatus,
-          verification_status: evalResult.verificationStatus,
-          coverage_percentage: evalResult.coveragePercentage,
-          last_reconciled_at: new Date().toISOString(),
-        },
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', examId)
-  } catch (exUpErr) {
-    console.warn('[Exam Intelligence] exams status update note:', exUpErr)
+        coverage_percentage: evalResult.coveragePercentage,
+        last_reconciled_at: new Date().toISOString(),
+      },
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', examId)
+
+  if (examStatusError) {
+    console.error('[Exam Intelligence] Failed to persist exam curriculum status:', examStatusError)
   }
 
   return {
