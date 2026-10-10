@@ -26,9 +26,10 @@ interface DashboardViewProps {
   user: OnboardingData;
   onSignOut: () => void;
   onOpenPractice: () => void;
+  onUpdateProfile?: (updatedData: Partial<OnboardingData>) => void;
 }
 
-export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardViewProps) {
+export function DashboardView({ user, onSignOut, onOpenPractice, onUpdateProfile }: DashboardViewProps) {
   const [completedHours, setCompletedHours] = useState<number>(0);
   const [streakDays, setStreakDays] = useState<number>(0);
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('dashboard');
@@ -174,6 +175,7 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
           onClose={() => setIsProfileOpen(false)}
           user={user}
           initialTab={profileTab}
+          onUpdateProfile={onUpdateProfile}
         />
       )}
 
