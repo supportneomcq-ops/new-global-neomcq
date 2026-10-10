@@ -27,6 +27,8 @@ import Link from 'next/link';
 import { getSupabaseClient } from '@/lib/supabase';
 import { GLOBAL_COUNTRIES } from '@/lib/data/countries';
 
+export type UserProfileTab = 'profile' | 'security' | 'billing' | 'devices' | 'danger' | 'credits';
+
 interface UserProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -39,10 +41,11 @@ interface UserProfileModalProps {
     language?: string;
   };
   onUpdateProfile?: (updatedData: any) => void;
+  initialTab?: UserProfileTab;
 }
 
-export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile }: UserProfileModalProps) {
-  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'billing' | 'devices' | 'danger'>('profile');
+export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile, initialTab = 'profile' }: UserProfileModalProps) {
+  const [activeTab, setActiveTab] = useState<UserProfileTab>(initialTab);
 
   // Form State
   const [firstName, setFirstName] = useState(user.firstName || '');
@@ -54,6 +57,10 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile }: Use
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [creditInfo, setCreditInfo] = useState<any | null>(null);
+  const [creditLoading, setCreditLoading] = useState(false);
+  const [creditError, setCreditError] = useState('');
+  const [creditReloadKey, setCreditReloadKey] = useState(0);
 
   useEffect(() => {
     if (user) {
@@ -63,6 +70,29 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile }: Use
       if (user.country) setCountry(user.country);
     }
   }, [user]);
+
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'credits') return;
+    let cancelled = false;
+    const loadCredits = async () => {
+      setCreditLoading(true);
+      setCreditError('');
+      try {
+        const response = await fetch('/api/credits', { cache: 'no-store' });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || 'Could not load your credit balance. Please try again.');
+        }
+        if (!cancelled) setCreditInfo(data);
+      } catch (error: any) {
+        if (!cancelled) setCreditError(error?.message || 'Could not load your credit balance.');
+      } finally {
+        if (!cancelled) setCreditLoading(false);
+      }
+    };
+    loadCredits();
+    return () => { cancelled = true; };
+  }, [isOpen, activeTab, creditReloadKey]);
 
   // Password Change State
   const [currentPassword, setCurrentPassword] = useState('');
@@ -223,6 +253,7 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile }: Use
             {[
               { id: 'profile', label: 'Profile Details', icon: User },
               { id: 'billing', label: 'Plan & Billing', icon: CreditCard },
+              { id: 'credits', label: 'Credits & AI Usage', icon: Zap },
               { id: 'security', label: 'Password & Auth', icon: Key },
               { id: 'devices', label: 'Active Sessions', icon: Smartphone },
               { id: 'danger', label: 'Danger Zone', icon: ShieldAlert },
@@ -413,6 +444,71 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile }: Use
                     <div className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">FREE unlimited exam switching</div>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* TAB: CREDITS & AI USAGE */}
+            {activeTab === 'credits' && (
+              <div className="space-y-4 text-sm">
+                {creditLoading && (
+                  <div className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 dark:border-gray-800 p-8 text-slate-500">
+                    <Loader2 className="h-5 w-5 animate-spin" /> Loading your credit balance…
+                  </div>
+                )}
+                {creditError && (
+                  <div role="alert" className="rounded-2xl border border-rose-300 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/30 p-4 text-rose-700 dark:text-rose-300">
+                    <p>{creditError}</p>
+                    <button type="button" onClick={() => setCreditReloadKey((key) => key + 1)} className="mt-3 rounded-lg bg-rose-600 px-3 py-2 text-xs font-bold text-white">Try again</button>
+                  </div>
+                )}
+                {creditInfo && !creditLoading && (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="rounded-2xl border border-[#6D5BFF]/30 bg-gradient-to-br from-[#6D5BFF]/10 to-[#00D4FF]/5 p-5">
+                        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-gray-400"><Zap className="h-4 w-4 text-[#6D5BFF]" /> Available credits</div>
+                        <div className="mt-2 text-3xl font-black text-slate-900 dark:text-white">{Number(creditInfo.wallet?.credit_balance ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">Used for eligible AI learning features</p>
+                      </div>
+                      <div className="rounded-2xl border border-slate-200 dark:border-gray-800 bg-slate-50 dark:bg-gray-900/50 p-5">
+                        <div className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-gray-400">Reserved credits</div>
+                        <div className="mt-2 text-3xl font-black text-slate-900 dark:text-white">{Number(creditInfo.wallet?.reserved_credits ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">Temporarily held for in-progress tasks</p>
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 dark:border-gray-800 overflow-hidden">
+                      <div className="border-b border-slate-200 dark:border-gray-800 px-4 py-3 font-extrabold">Recent credit activity</div>
+                      {Array.isArray(creditInfo.ledger) && creditInfo.ledger.length > 0 ? (
+                        <ul className="divide-y divide-slate-100 dark:divide-gray-800">
+                          {creditInfo.ledger.slice(0, 10).map((entry: any, index: number) => {
+                            const amount = Number(entry.credits ?? 0);
+                            return (
+                              <li key={entry.id || `${entry.created_at}-${index}`} className="flex items-start justify-between gap-4 px-4 py-3">
+                                <div className="min-w-0">
+                                  <p className="font-bold text-slate-800 dark:text-slate-100">{String(entry.transaction_type || 'Credit activity').replace(/_/g, ' ')}</p>
+                                  <p className="mt-0.5 text-xs text-slate-500 dark:text-gray-400">{entry.description || 'Account credit transaction'}</p>
+                                  {entry.created_at && <p className="mt-1 text-[11px] text-slate-400">{new Date(entry.created_at).toLocaleDateString()}</p>}
+                                </div>
+                                <span className={`shrink-0 text-xs font-extrabold ${amount >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                  {amount > 0 ? '+' : ''}{amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      ) : (
+                        <p className="px-4 py-6 text-xs text-slate-500 dark:text-gray-400">No credit activity recorded yet.</p>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Link href="/billing" onClick={onClose} className="inline-flex items-center gap-2 rounded-xl bg-[#6D5BFF] px-4 py-2.5 text-xs font-extrabold text-white hover:opacity-90">
+                        Manage plan & billing <ArrowRight className="h-3.5 w-3.5" />
+                      </Link>
+                      <button type="button" onClick={() => setCreditReloadKey((key) => key + 1)} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 dark:border-gray-700 px-4 py-2.5 text-xs font-bold hover:bg-slate-100 dark:hover:bg-gray-800">
+                        Refresh balance
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
