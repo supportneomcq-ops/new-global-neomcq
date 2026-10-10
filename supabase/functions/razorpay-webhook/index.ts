@@ -116,14 +116,35 @@ serve(async (req) => {
       }, { onConflict: "razorpay_payment_id" });
       if (paymentError) throw new Error(`Payment record could not be saved: ${paymentError.message}`);
 
-      const creditAmount = amount >= 999 ? 1000 : amount >= 499 ? 500 : 200;
-      const { error: creditError } = await supabase.rpc("credit_adjust", {
-        p_user_id: userId,
-        p_amount: creditAmount,
-        p_type: "PURCHASE",
-        p_reason: `Razorpay Payment ${paymentId}`
-      });
-      if (creditError) throw new Error(`Verified payment credit grant failed: ${creditError.message}`);
+      let creditAmount = 0;
+      const creditPackId = notes.creditPackId || notes.credit_pack_id;
+      if (creditPackId) {
+        const { data: pack, error: packError } = await supabase
+          .from("credit_packs")
+          .select("id, price_usd, credits, bonus_credits, active")
+          .eq("id", creditPackId)
+          .eq("active", true)
+          .maybeSingle();
+        if (packError) throw new Error(`Credit pack could not be verified: ${packError.message}`);
+        if (!pack) throw new Error("The referenced credit pack is not active or does not exist.");
+        if (currency !== "USD" || Math.round(amount * 100) !== Math.round(Number(pack.price_usd) * 100)) {
+          throw new Error("Captured payment currency or amount does not match the selected credit pack.");
+        }
+        creditAmount = Math.round(Number(pack.credits) + Number(pack.bonus_credits || 0));
+        if (!Number.isFinite(creditAmount) || creditAmount <= 0) {
+          throw new Error("The selected credit pack has an invalid credit amount.");
+        }
+        const { error: creditError } = await supabase.rpc("credit_adjust", {
+          p_user_id: userId,
+          p_amount: creditAmount,
+          p_type: "PURCHASE",
+          p_reason: `Razorpay Payment ${paymentId}`
+        });
+        if (creditError) throw new Error(`Verified payment credit grant failed: ${creditError.message}`);
+      } else {
+        // Subscription charges and other payments must not be misclassified as credit-pack sales.
+        console.warn("Captured payment has no credit-pack reference; no credit-pack grant applied:", paymentId);
+      }
 
       const { error: auditError } = await supabase.from("audit_logs").insert({
         user_id: userId,
