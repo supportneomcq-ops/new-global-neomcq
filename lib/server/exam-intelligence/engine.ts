@@ -683,9 +683,10 @@ CRITICAL ARCHITECTURAL DIRECTIVES:
    - Establish realistic question configuration (option count, negative marking, question types, duration).
    - Classify question types: standard_mcq, clinical_vignette, case_based, calculation, image_based, scenario_architecture.
 2. CURRICULUM HIERARCHY:
-   - Create 100% of the relevant canonical SUBJECTS (typically 4 to 15) that belong to the exam based on reliable exam/syllabus research.
-   - For every subject, create 100% of the relevant main TOPICS (typically 3 to 10 per subject).
-   - For every main topic, create approximately 5 to 10 meaningful, deep SUBTOPICS (where the subject/topic structure supports them) to ensure COMPLETE EXAM CURRICULUM COVERAGE instead of abbreviated lists. If a topic has fewer natural subtopics, output that natural complete structure. Do not output meaningless fillers.
+   - Build the exam-specific syllabus breadth, not a short illustrative sample. Use official exam-body syllabus/blueprint knowledge where available; never merge separate exams or omit independently tested domains.
+   - FMGE and NEET PG must cover the full MBBS subject domains, not only 4-5 broad clinical subjects; target at least 15 distinct subjects. USMLE Step 1 must cover the full basic-science/organ-system blueprint, target at least 8 distinct domains. UPSC CSE must cover its major Prelims/Mains syllabus domains, target at least 6 subjects. AWS Solutions Architect Associate must cover all current exam domains, target at least 4.
+   - For every subject, create the full relevant main topics (normally at least 3 where appropriate). For every main topic, create meaningful, domain-specific subtopics (normally at least 3 where appropriate). Do not use generic placeholders, duplicate subjects, or filler labels.
+   - If you cannot confidently produce a complete, exam-specific hierarchy, do not claim that the syllabus is complete.
    - IMPORTANT: This stage creates ONLY the curriculum structure (names and descriptions). DO NOT generate MCQs, quizzes, flashcards, notes, or AI lessons in this profile.
    - Ensure subjects, topics, and subtopics are genuinely, domain-accurately relevant to "${cleanName}".
 3. GENERATION RULES:
@@ -782,11 +783,19 @@ Output schema:
       const validated = AIExamIntelligenceOutputSchema.safeParse(parsed)
 
       if (validated.success) {
+        const q = normalizeInput(cleanName).slug.toLowerCase()
+        const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 15 : /usmle-step-1|usmle-1/.test(q) ? 8 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
+        if (validated.data.subjects.length < minimumSubjects) {
+          console.warn(`[Exam Intelligence] Incomplete curriculum rejected for ${cleanName}: ${validated.data.subjects.length}/${minimumSubjects} minimum subjects.`)
+          return null
+        }
         return validated.data
       } else {
         console.warn('[Exam Intelligence] Validation schema issues:', validated.error.format())
         // Attempt partial recovery if subjects array exists
-        if (parsed.subjects && Array.isArray(parsed.subjects) && parsed.subjects.length > 0) {
+        const q = normalizeInput(cleanName).slug.toLowerCase()
+        const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 15 : /usmle-step-1|usmle-1/.test(q) ? 8 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
+        if (parsed.subjects && Array.isArray(parsed.subjects) && parsed.subjects.length >= minimumSubjects) {
           return {
             exam: {
               name: cleanName,
@@ -1416,9 +1425,10 @@ export async function resolveOrInitializeExamIntelligence(options: {
     if (catRow) categoryId = catRow.id
 
     // Generate Structured Exam Intelligence & Curriculum
-    const aiSpec =
-      (await generateAIExamIntelligence(rawInput, country, category)) ||
-      buildFallbackCurriculum(rawInput, country, category)
+    const aiSpec = await generateAIExamIntelligence(rawInput, country, category)
+    if (!aiSpec) {
+      throw new Error(`AI could not produce a sufficiently complete exam-specific curriculum for "${rawInput}". No generic placeholder curriculum was saved; retry after the AI provider is available.`)
+    }
 
     const isVerifiedTemplate = aiSpec.confidence.overall > 0.98
 
@@ -1677,9 +1687,15 @@ export async function enrichCurriculumProcess(
   }
 
   // 3. Obtain expected syllabus specification
-  const aiSpec =
-    (await generateAIExamIntelligence(examName, countryHint, categoryHint)) ||
-    buildFallbackCurriculum(examName, countryHint, categoryHint)
+  const generatedSpec = await generateAIExamIntelligence(examName, countryHint, categoryHint)
+  if (!generatedSpec) {
+    const subjects = existingSubjects || []
+    const topicCount = subjects.reduce((n: number, s: any) => n + (s.exam_topics || []).length, 0)
+    const subtopicCount = subjects.reduce((n: number, s: any) => n + (s.exam_topics || []).reduce((m: number, t: any) => m + (t.exam_subtopics || []).length, 0), 0)
+    console.error(`[Curriculum Intelligence] AI did not return a complete valid syllabus for ${examName}; refusing to write fallback filler.`)
+    return { subjectCount: subjects.length, topicCount, subtopicCount, subjects, curriculumStatus: 'needs_enrichment', verificationStatus: 'needs_review', coveragePercentage: 0, evidenceScope: 'AI syllabus generation incomplete; official curriculum verification required', authorityName: null }
+  }
+  const aiSpec = generatedSpec
 
   const isVerifiedTemplate = aiSpec.confidence.overall > 0.98
 
@@ -2060,10 +2076,10 @@ async function persistCurriculumHierarchy(
         }
 
         if (subtopicInserts.length > 0) {
-          try {
-            await supabase.from('exam_subtopics').insert(subtopicInserts)
-          } catch (stErr) {
-            console.warn('[Exam Intelligence] Subtopics batch insert note:', stErr)
+          const { error: subtopicsInsertError } = await supabase.from('exam_subtopics').insert(subtopicInserts)
+          if (subtopicsInsertError) {
+            console.error('[Exam Intelligence] Subtopics batch insert failed:', subtopicsInsertError)
+            throw new Error(`Failed to persist curriculum subtopics for topic "${tItem.name}": ${subtopicsInsertError.message}`)
           }
         }
       }

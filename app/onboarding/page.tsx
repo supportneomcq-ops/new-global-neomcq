@@ -94,20 +94,7 @@ interface OnboardingState {
 const STORAGE_KEY = 'neomcq_onboarding_state';
 const CURRENT_STEP_KEY = 'neomcq_onboarding_step';
 
-const PRESET_EXAMS: ExamInfo[] = [
-  { id: 'fmge', name: 'FMGE (Foreign Medical Graduate Examination)', slug: 'fmge', short_name: 'FMGE', category: 'Medical Licensing', country: 'India', flag: '🇮🇳', description: 'National Board of Examinations screening test for medical graduates.' },
-  { id: 'usmle-step-1', name: 'USMLE Step 1 & Step 2 CK', slug: 'usmle-step-1', short_name: 'USMLE', category: 'Medical Licensing', country: 'United States', flag: '🇺🇸', description: 'United States Medical Licensing Examination assessing fundamental sciences and clinical knowledge.' },
-  { id: 'neet-pg', name: 'NEET PG / INI-CET', slug: 'neet-pg', short_name: 'NEET PG', category: 'Postgraduate Medical', country: 'India', flag: '🇮🇳', description: 'National Eligibility cum Entrance Test for Postgraduate medical admissions in India.' },
-  { id: 'plab', name: 'PLAB 1 / UKMLA', slug: 'plab', short_name: 'PLAB/UKMLA', category: 'Medical Licensing', country: 'United Kingdom', flag: '🇬🇧', description: 'Professional and Linguistic Assessments Board test for UK medical licensing.' },
-  { id: 'nclex-rn', name: 'NCLEX-RN Nursing Licensure', slug: 'nclex-rn', short_name: 'NCLEX-RN', category: 'Nursing & Healthcare', country: 'United States', flag: '🇺🇸', description: 'National Council Licensure Examination for Registered Nurses.' },
-  { id: 'amc-mcq', name: 'AMC MCQ Examination', slug: 'amc-mcq', short_name: 'AMC', category: 'Medical Licensing', country: 'Australia', flag: '🇦🇺', description: 'Australian Medical Council computer-adaptive multiple-choice examination.' },
-  { id: 'upsc-cse', name: 'UPSC Civil Services Examination (Prelims & Mains)', slug: 'upsc-cse', short_name: 'UPSC CSE', category: 'Civil Services & Administration', country: 'India', flag: '🇮🇳', description: 'Union Public Service Commission premier civil services examination.' },
-  { id: 'cfa-level-1', name: 'CFA Level I, II & III', slug: 'cfa-level-1', short_name: 'CFA', category: 'Finance & Investment', country: 'Global', flag: '🌐', description: 'Chartered Financial Analyst credential covering ethical, analytical and financial standards.' },
-  { id: 'ca-final', name: 'ICAI Chartered Accountancy (CA Final / Inter)', slug: 'ca-final', short_name: 'CA Final', category: 'Accounting & Taxation', country: 'India', flag: '🇮🇳', description: 'Institute of Chartered Accountants of India professional examination.' },
-  { id: 'gre-general', name: 'GRE General Test', slug: 'gre-general', short_name: 'GRE', category: 'Graduate Entrance', country: 'Global', flag: '🌐', description: 'Graduate Record Examination assessing verbal reasoning, quantitative reasoning, and writing.' },
-  { id: 'gmat-focus', name: 'GMAT Focus Edition', slug: 'gmat-focus', short_name: 'GMAT', category: 'Business & Management', country: 'Global', flag: '🌐', description: 'Graduate Management Admission Test for top global MBA and business master programs.' },
-  { id: 'ielts-academic', name: 'IELTS Academic', slug: 'ielts-academic', short_name: 'IELTS', category: 'Language Proficiency', country: 'Global', flag: '🌐', description: 'International English Language Testing System for university admissions and visa verification.' },
-];
+
 
 const COUNTRY_CODES = [
   { code: '+91', flag: '🇮🇳', name: 'India' },
@@ -189,13 +176,13 @@ export default function OnboardingPage() {
     password: '',
 
     examSearchQuery: '',
-    selectedExamId: 'fmge',
-    selectedExamName: 'FMGE (Foreign Medical Graduate Examination)',
-    selectedExamShortName: 'FMGE',
-    selectedExamCategory: 'Medical Licensing',
+    selectedExamId: '',
+    selectedExamName: '',
+    selectedExamShortName: '',
+    selectedExamCategory: '',
     selectedExamCountry: 'India',
     selectedExamFlag: '🇮🇳',
-    selectedExamDescription: 'National Board of Examinations screening test for medical graduates.',
+    selectedExamDescription: '',
     customExamInput: '',
     isCustomExam: false,
     resolvedCurriculumSummary: {
@@ -237,17 +224,20 @@ export default function OnboardingPage() {
             setDbExams(data.exams);
             setSearchResults(data.exams);
           } else {
-            setDbExams(PRESET_EXAMS);
-            setSearchResults(PRESET_EXAMS);
+            setDbExams([]);
+            setSearchResults([]);
+            setFormError('The exam database is temporarily unavailable. Please retry exam search; do not select a fallback exam.');
           }
         } else {
-          setDbExams(PRESET_EXAMS);
-          setSearchResults(PRESET_EXAMS);
+          setDbExams([]);
+          setSearchResults([]);
+          setFormError('The exam database is temporarily unavailable. Please retry exam search; do not select a fallback exam.');
         }
       } catch (err) {
         console.error('Failed to load database reference data:', err);
-        setDbExams(PRESET_EXAMS);
-        setSearchResults(PRESET_EXAMS);
+        setDbExams([]);
+        setSearchResults([]);
+        setFormError('The exam database is temporarily unavailable. Please retry exam search; do not select a fallback exam.');
       }
     }
     loadReferenceData();
@@ -256,7 +246,7 @@ export default function OnboardingPage() {
   // Search debounce
   useEffect(() => {
     if (!formData.examSearchQuery.trim()) {
-      setSearchResults(dbExams.length > 0 ? dbExams : PRESET_EXAMS);
+      setSearchResults(dbExams);
       return;
     }
 
@@ -273,7 +263,7 @@ export default function OnboardingPage() {
       } catch (err) {
         console.warn('Search request fallback to client filter:', err);
         const q = formData.examSearchQuery.toLowerCase();
-        const list = (dbExams.length > 0 ? dbExams : PRESET_EXAMS).filter(
+        const list = dbExams.filter(
           (e) =>
             e.name.toLowerCase().includes(q) ||
             e.category?.toLowerCase().includes(q) ||
@@ -667,7 +657,7 @@ export default function OnboardingPage() {
       try {
         const initialSelection = {
           exam: {
-            id: formData.selectedExamId || onboardData.exam?.id || 'selected-exam',
+            id: onboardData.examId || formData.selectedExamId || onboardData.exam?.id || 'selected-exam',
             name: formData.selectedExamName,
             slug: formData.selectedExamName.toLowerCase().replace(/[^a-z0-9]/g, '-'),
           },

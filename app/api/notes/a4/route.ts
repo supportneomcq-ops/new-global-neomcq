@@ -275,6 +275,14 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    if (jobInsertError) {
+      console.error('[A4 Notes] Failed to create generation job:', jobInsertError);
+      return NextResponse.json(
+        { status: 'FAILED', error: 'Could not start notes generation. Please retry shortly.' },
+        { status: 500 }
+      );
+    }
+
     // 6. Execute AI Generation
     try {
       const generatedDocument = await generateA4NotesManuscript({
@@ -326,7 +334,7 @@ export async function POST(req: NextRequest) {
           .from('ai_jobs')
           .update({
             status: 'failed',
-            error_message: genError.message || 'Generation failed',
+            error: genError.message || 'Generation failed',
           })
           .eq('id', jobRecord.id);
       }

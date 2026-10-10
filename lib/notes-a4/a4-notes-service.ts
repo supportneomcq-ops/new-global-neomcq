@@ -486,18 +486,41 @@ CRITICAL RULES:
     taskType: 'a4_notes_generation',
     prompt,
     systemInstruction,
+    preferredProvider: 'gemini',
     preferredModel: 'gemini-3.5-flash',
+    // The previous default could truncate a multi-page manuscript and make JSON.parse fail.
+    maxOutputTokens: 8192,
+    responseMimeType: 'application/json',
   });
 
   let parsed: any;
-  if (genResult.parsedJson) {
+  if (genResult.parsedJson && typeof genResult.parsedJson === 'object') {
     parsed = genResult.parsedJson;
   } else {
     let cleanText = (genResult.text || '').trim();
     if (cleanText.startsWith('```')) {
       cleanText = cleanText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
     }
-    parsed = JSON.parse(cleanText);
+    try {
+      parsed = JSON.parse(cleanText);
+    } catch (parseError) {
+      // Some provider responses include a short preamble despite JSON mode.
+      const firstObject = cleanText.indexOf('{');
+      const lastObject = cleanText.lastIndexOf('}');
+      if (firstObject >= 0 && lastObject > firstObject) {
+        try {
+          parsed = JSON.parse(cleanText.slice(firstObject, lastObject + 1));
+        } catch {
+          throw new Error(
+            `AI provider returned incomplete JSON for A4 notes (output length: ${cleanText.length}). Please retry generation.`
+          );
+        }
+      } else {
+        throw new Error(
+          `AI provider returned incomplete JSON for A4 notes (output length: ${cleanText.length}). Please retry generation.`
+        );
+      }
+    }
   }
 
   // Validate output against schema

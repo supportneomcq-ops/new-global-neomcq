@@ -1234,9 +1234,9 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
         asset_id: topic.id,
         asset_type: 'topic',
         version: targetVersionNum,
-        is_current: true,
-        generation_reason: generationReason,
-        requested_by: userId || null,
+        // Match the live content_versions schema: created_by exists; requested_by,
+        // is_current, and generation_reason do not.
+        created_by: userId || null,
         snapshot: {
           exam_id: exam.id,
           exam_name: exam.name,
@@ -1318,8 +1318,6 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
         .from('ai_jobs')
         .update({
           status: 'completed',
-          progress_stage: 'Completed successfully',
-          step_percentage: 100,
           completed_at: new Date().toISOString(),
           output_payload: {
             mcqs_count: finalPayload.mcqs.length,
@@ -1354,9 +1352,7 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
         .from('ai_jobs')
         .update({
           status: 'failed',
-          progress_stage: 'Content persistence failed',
-          step_percentage: 100,
-          error_message: 'Generated content could not be saved reliably. Please retry shortly.',
+          error: 'Generated content could not be saved reliably. Please retry shortly.',
           completed_at: new Date().toISOString(),
         })
         .eq('id', jobId)
