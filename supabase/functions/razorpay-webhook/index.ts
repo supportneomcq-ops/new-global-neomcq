@@ -106,8 +106,14 @@ serve(async (req) => {
     const orderId = paymentEntity?.order_id || orderEntity?.id || null;
     const amount = Number(paymentEntity?.amount || 0) / 100;
     const currency = paymentEntity?.currency || orderEntity?.currency || "INR";
-    const notes = paymentEntity?.notes || orderEntity?.notes || subscriptionEntity?.notes || {};
+    const notes = {
+      ...(subscriptionEntity?.notes || {}),
+      ...(orderEntity?.notes || {}),
+      ...(paymentEntity?.notes || {})
+    };
     const userId = notes.userId || notes.user_id;
+    const planCode = notes.planCode || notes.plan_code;
+    const isSubscriptionPayment = notes.type === "subscription" && Boolean(userId && planCode);
 
     if ((eventType === "payment.captured" || eventType === "order.paid") && userId && paymentId) {
       const { error: paymentError } = await supabase.from("payments").upsert({
@@ -116,72 +122,179 @@ serve(async (req) => {
         razorpay_order_id: orderId,
         amount,
         currency,
-        status: "completed",
+        status: "captured",
         webhook_payload: event
       }, { onConflict: "razorpay_payment_id" });
       if (paymentError) throw new Error(`Payment record could not be saved: ${paymentError.message}`);
 
-      let creditAmount = 0;
-      const creditPackId = notes.creditPackId || notes.credit_pack_id;
-      if (creditPackId) {
-        const { data: pack, error: packError } = await supabase
-          .from("credit_packs")
-          .select("id, price_usd, credits, bonus_credits, active")
-          .eq("id", creditPackId)
-          .eq("active", true)
+      if (isSubscriptionPayment) {
+        // A standard order checkout stores the order ID in the pending subscription row.
+        // Recurring subscriptions instead carry subscription_id on the payment entity.
+        const recurringSubscriptionId = paymentEntity?.subscription_id || notes.subscription_id || null;
+        const checkoutId = recurringSubscriptionId || orderId;
+        if (!checkoutId) throw new Error("Subscription payment is missing its checkout identifier.");
+
+        const { data: pendingSub, error: pendingError } = await supabase
+          .from("subscriptions")
+          .select("id, plan_id, plan_code, status, amount, currency, razorpay_subscription_id")
+          .eq("user_id", userId)
+          .eq("razorpay_subscription_id", checkoutId)
           .maybeSingle();
-        if (packError) throw new Error(`Credit pack could not be verified: ${packError.message}`);
-        if (!pack) throw new Error("The referenced credit pack is not active or does not exist.");
-        if (currency !== "USD" || Math.round(amount * 100) !== Math.round(Number(pack.price_usd) * 100)) {
-          throw new Error("Captured payment currency or amount does not match the selected credit pack.");
+        if (pendingError) throw new Error(`Pending subscription could not be loaded: ${pendingError.message}`);
+        if (!pendingSub || pendingSub.plan_code !== planCode) {
+          throw new Error("Captured payment does not match a pending subscription for this user and plan.");
         }
-        creditAmount = Math.round(Number(pack.credits) + Number(pack.bonus_credits || 0));
-        if (!Number.isFinite(creditAmount) || creditAmount <= 0) {
-          throw new Error("The selected credit pack has an invalid credit amount.");
+        if (pendingSub.currency !== currency || Math.round(Number(pendingSub.amount) * 100) !== Math.round(Number(paymentEntity?.amount || 0))) {
+          throw new Error("Captured subscription payment amount or currency does not match the pending checkout.");
         }
-        const { error: creditError } = await supabase.rpc("credit_adjust", {
-          p_user_id: userId,
-          p_amount: creditAmount,
-          p_type: "PURCHASE",
-          p_reason: `Razorpay Payment ${paymentId}`
+
+        const { data: planRow, error: planError } = await supabase
+          .from("subscription_plans")
+          .select("billing_interval")
+          .eq("id", pendingSub.plan_id)
+          .maybeSingle();
+        if (planError || !planRow) throw new Error("The local subscription plan could not be resolved.");
+
+        const startDate = new Date();
+        const endDate = new Date(startDate);
+        if (planRow.billing_interval === "yearly") endDate.setFullYear(endDate.getFullYear() + 1);
+        else if (planRow.billing_interval === "monthly") endDate.setMonth(endDate.getMonth() + 1);
+        else throw new Error("Unsupported subscription billing interval.");
+
+        const { error: activateError } = await supabase.from("subscriptions").update({
+          status: "active",
+          razorpay_payment_id: paymentId,
+          started_at: startDate.toISOString(),
+          current_period_start: startDate.toISOString(),
+          current_period_end: endDate.toISOString(),
+          updated_at: new Date().toISOString()
+        }).eq("id", pendingSub.id);
+        if (activateError) throw new Error(`Subscription could not be activated: ${activateError.message}`);
+
+        // For a one-time order fallback, no subscription.charged event will arrive.
+        // Recurring subscription payments are credited by subscription.charged below.
+        if (!recurringSubscriptionId) {
+          const { error: creditError } = await supabase.rpc("credit_adjust", {
+            p_user_id: userId,
+            p_amount: 1000,
+            p_type: "SUBSCRIPTION_GRANT",
+            p_reason: `Subscription Activated ${checkoutId}`
+          });
+          if (creditError) throw new Error(`Subscription credit grant failed: ${creditError.message}`);
+        }
+
+        const { error: auditError } = await supabase.from("audit_logs").insert({
+          user_id: userId,
+          action: "PAYMENT_SUCCESS",
+          entity_type: "payment",
+          entity_id: paymentId,
+          details: { amount, currency, plan_code: planCode, subscription_activated: true }
         });
-        if (creditError) throw new Error(`Verified payment credit grant failed: ${creditError.message}`);
+        if (auditError) console.error("Subscription payment audit log could not be saved:", auditError.message);
       } else {
-        // Subscription charges and other payments must not be misclassified as credit-pack sales.
-        console.warn("Captured payment has no credit-pack reference; no credit-pack grant applied:", paymentId);
+        let creditAmount = 0;
+        const creditPackId = notes.creditPackId || notes.credit_pack_id;
+        if (creditPackId) {
+          const { data: pack, error: packError } = await supabase
+            .from("credit_packs")
+            .select("id, price_usd, credits, bonus_credits, active")
+            .eq("id", creditPackId)
+            .eq("active", true)
+            .maybeSingle();
+          if (packError) throw new Error(`Credit pack could not be verified: ${packError.message}`);
+          if (!pack) throw new Error("The referenced credit pack is not active or does not exist.");
+          if (currency !== "USD" || Math.round(amount * 100) !== Math.round(Number(pack.price_usd) * 100)) {
+            throw new Error("Captured payment currency or amount does not match the selected credit pack.");
+          }
+          creditAmount = Math.round(Number(pack.credits) + Number(pack.bonus_credits || 0));
+          if (!Number.isFinite(creditAmount) || creditAmount <= 0) {
+            throw new Error("The selected credit pack has an invalid credit amount.");
+          }
+          const { error: creditError } = await supabase.rpc("credit_adjust", {
+            p_user_id: userId,
+            p_amount: creditAmount,
+            p_type: "PURCHASE",
+            p_reason: `Razorpay Payment ${paymentId}`
+          });
+          if (creditError) throw new Error(`Verified payment credit grant failed: ${creditError.message}`);
+        } else {
+          console.warn("Captured payment has no credit-pack reference; no credit-pack grant applied:", paymentId);
+        }
+
+        const { error: auditError } = await supabase.from("audit_logs").insert({
+          user_id: userId,
+          action: "PAYMENT_SUCCESS",
+          entity_type: "payment",
+          entity_id: paymentId,
+          details: { amount, currency, credits_granted: creditAmount }
+        });
+        if (auditError) console.error("Payment audit log could not be saved:", auditError.message);
+      }
+    } else if ((eventType === "subscription.charged" || eventType === "subscription.activated") && userId && subscriptionEntity?.id) {
+      const { data: existingSub, error: existingSubError } = await supabase
+        .from("subscriptions")
+        .select("id, plan_id, plan_code, status, amount, currency")
+        .eq("user_id", userId)
+        .eq("razorpay_subscription_id", subscriptionEntity.id)
+        .maybeSingle();
+      if (existingSubError) throw new Error(`Subscription could not be loaded: ${existingSubError.message}`);
+      if (!existingSub || (planCode && existingSub.plan_code !== planCode)) {
+        throw new Error("Razorpay subscription does not match a locally pending subscription.");
       }
 
-      const { error: auditError } = await supabase.from("audit_logs").insert({
-        user_id: userId,
-        action: "PAYMENT_SUCCESS",
-        entity_type: "payment",
-        entity_id: paymentId,
-        details: { amount, currency, credits_granted: creditAmount }
-      });
-      if (auditError) console.error("Payment audit log could not be saved:", auditError.message);
-    } else if ((eventType === "subscription.charged" || eventType === "subscription.activated") && userId && subscriptionEntity?.id) {
-      const currentStart = Number(subscriptionEntity.current_start || 0);
-      const currentEnd = Number(subscriptionEntity.current_end || 0);
-      const subscriptionRecord: Record<string, unknown> = {
-        user_id: userId,
-        razorpay_subscription_id: subscriptionEntity.id,
-        status: "active"
-      };
-      if (currentStart > 0) subscriptionRecord.current_period_start = new Date(currentStart * 1000).toISOString();
-      if (currentEnd > 0) subscriptionRecord.current_period_end = new Date(currentEnd * 1000).toISOString();
+      if (paymentEntity?.amount && (existingSub.currency !== currency || Math.round(Number(existingSub.amount) * 100) !== Math.round(Number(paymentEntity.amount)))) {
+        throw new Error("Recurring payment amount or currency does not match the stored subscription.");
+      }
 
-      const { error: subscriptionError } = await supabase.from("subscriptions").upsert(
-        subscriptionRecord, { onConflict: "user_id" }
-      );
+      const { data: planRow, error: planError } = await supabase
+        .from("subscription_plans")
+        .select("billing_interval")
+        .eq("id", existingSub.plan_id)
+        .maybeSingle();
+      if (planError || !planRow) throw new Error("The local subscription plan could not be resolved.");
+
+      const startSeconds = Number(subscriptionEntity.current_start || 0);
+      const endSeconds = Number(subscriptionEntity.current_end || 0);
+      const startDate = startSeconds > 0 ? new Date(startSeconds * 1000) : new Date();
+      const endDate = endSeconds > 0 ? new Date(endSeconds * 1000) : new Date(startDate);
+      if (endSeconds <= 0) {
+        if (planRow.billing_interval === "yearly") endDate.setFullYear(endDate.getFullYear() + 1);
+        else if (planRow.billing_interval === "monthly") endDate.setMonth(endDate.getMonth() + 1);
+        else throw new Error("Unsupported subscription billing interval.");
+      }
+
+      const { error: subscriptionError } = await supabase.from("subscriptions").update({
+        status: "active",
+        started_at: startDate.toISOString(),
+        current_period_start: startDate.toISOString(),
+        current_period_end: endDate.toISOString(),
+        ...(paymentId ? { razorpay_payment_id: paymentId } : {}),
+        updated_at: new Date().toISOString()
+      }).eq("id", existingSub.id);
       if (subscriptionError) throw new Error(`Subscription record could not be saved: ${subscriptionError.message}`);
 
-      const { error: creditError } = await supabase.rpc("credit_adjust", {
-        p_user_id: userId,
-        p_amount: 1000,
-        p_type: "SUBSCRIPTION_GRANT",
-        p_reason: `Subscription Activated ${subscriptionEntity.id}`
-      });
-      if (creditError) throw new Error(`Subscription credit grant failed: ${creditError.message}`);
+      if (eventType === "subscription.charged") {
+        if (paymentId) {
+          const { error: paymentError } = await supabase.from("payments").upsert({
+            user_id: userId,
+            razorpay_payment_id: paymentId,
+            razorpay_order_id: orderId,
+            amount,
+            currency,
+            status: "captured",
+            webhook_payload: event
+          }, { onConflict: "razorpay_payment_id" });
+          if (paymentError) throw new Error(`Subscription payment record could not be saved: ${paymentError.message}`);
+        }
+
+        const { error: creditError } = await supabase.rpc("credit_adjust", {
+          p_user_id: userId,
+          p_amount: 1000,
+          p_type: "SUBSCRIPTION_GRANT",
+          p_reason: `Subscription Charge ${subscriptionEntity.id}:${paymentId || eventId}`
+        });
+        if (creditError) throw new Error(`Subscription credit grant failed: ${creditError.message}`);
+      }
     }
 
     const { error: completionError } = await supabase.from("payment_events").update({
