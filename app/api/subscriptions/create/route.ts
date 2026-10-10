@@ -72,6 +72,16 @@ export async function POST(req: NextRequest) {
     const planAmount = rzpResult.currency === 'INR' ? plan.price_inr : plan.price_usd;
     const formattedPriceObj = getFormattedPlanPrice(plan.code, rzpResult.currency as 'USD' | 'INR');
 
+    // The live subscriptions schema requires both period timestamps even while checkout is pending.
+    // Pending status prevents these provisional dates from granting paid entitlements.
+    const pendingPeriodStart = new Date();
+    const pendingPeriodEnd = new Date(pendingPeriodStart);
+    if (plan.annual) {
+      pendingPeriodEnd.setFullYear(pendingPeriodEnd.getFullYear() + 1);
+    } else {
+      pendingPeriodEnd.setMonth(pendingPeriodEnd.getMonth() + 1);
+    }
+
     // Record pending subscription attempt
     const { error: pendingSubscriptionError } = await admin.from('subscriptions').upsert(
       {
@@ -83,6 +93,8 @@ export async function POST(req: NextRequest) {
         razorpay_subscription_id: rzpResult.subscriptionId || rzpResult.orderId,
         amount: planAmount,
         currency: rzpResult.currency,
+        current_period_start: pendingPeriodStart.toISOString(),
+        current_period_end: pendingPeriodEnd.toISOString(),
         cancel_at_period_end: false,
         updated_at: new Date().toISOString(),
       },
