@@ -5,20 +5,61 @@ import { corsHeaders, handleCors } from "../_shared/cors.ts";
 serve(async (req) => {
   const corsRes = handleCors(req);
   if (corsRes) return corsRes;
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
+    });
+  }
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY") || "";
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY") || "";
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return new Response(JSON.stringify({ error: "Server configuration unavailable" }), {
+        status: 503,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    const authorization = req.headers.get("Authorization") || "";
+    const bearerToken = authorization.replace(/^Bearer\\s+/i, "");
+    const isServiceRole = bearerToken.length > 0 && bearerToken === supabaseServiceKey;
+    let callerUserId: string | null = null;
+
+    // This function has JWT gateway verification disabled for compatibility with its
+    // existing custom-auth deployment, so enforce identity here before using service role.
+    if (!isServiceRole) {
+      if (!bearerToken || !supabaseAnonKey) {
+        return new Response(JSON.stringify({ error: "Authentication required" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+      const callerClient = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: { persistSession: false, autoRefreshToken: false }
+      });
+      const { data: { user }, error: userError } = await callerClient.auth.getUser(bearerToken);
+      if (userError || !user) {
+        return new Response(JSON.stringify({ error: "Authentication required" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+      callerUserId = user.id;
+    }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const body = await req.json();
     const { jobId } = body;
 
-    if (!jobId) {
+    if (typeof jobId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jobId)) {
       return new Response(
-        JSON.stringify({ error: "Missing required field: jobId" }),
+        JSON.stringify({ error: "Missing or invalid jobId" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -35,6 +76,18 @@ serve(async (req) => {
         JSON.stringify({ error: "AI job not found" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    if (!isServiceRole && callerUserId !== job.user_id) {
+      const { data: isAdmin, error: adminCheckError } = await supabase.rpc("is_admin", {
+        p_user_id: callerUserId
+      });
+      if (adminCheckError || !isAdmin) {
+        return new Response(
+          JSON.stringify({ error: "You are not allowed to process this AI job" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     if (job.status === "completed") {
