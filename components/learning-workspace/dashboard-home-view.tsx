@@ -214,6 +214,37 @@ export function DashboardHomeView({
     <div className="space-y-6 sm:space-y-8 pb-16">
       {/* Selection Context Bar (Exam -> Subject -> Topic -> Subtopic + SHOW) */}
       <LearningContextBar />
+      {/* Personalized exam countdown: values come from the saved onboarding profile. */}
+      <section aria-label="Your exam countdown and study targets" className="rounded-3xl border border-indigo-200 dark:border-indigo-900/70 bg-white dark:bg-slate-900 p-5 sm:p-6 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-300">Your exam countdown</p>
+            <h2 className="mt-1 text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">{activeExamName}</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Exam date: {resolvedTargetDate ? new Date(resolvedTargetDate + (resolvedTargetDate.length === 10 ? 'T00:00:00' : '')).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : 'Not set'}
+            </p>
+          </div>
+          <div className="rounded-2xl bg-indigo-600 px-5 py-4 text-white text-center min-w-[124px]">
+            <p className="text-xs font-semibold text-indigo-100">Days left</p>
+            <p className="text-4xl font-black tabular-nums">{calculatedDaysLeft}</p>
+            <p className="text-xs text-indigo-100">{calculatedDaysLeft === 1 ? 'day remaining' : 'days remaining'}</p>
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="rounded-xl bg-slate-50 dark:bg-slate-800/70 p-3">
+            <p className="text-xs text-slate-500 dark:text-slate-400">Preparation mode</p>
+            <p className="mt-1 font-bold">{user.learningStyle === 'Rapid Learning' ? 'Rapid Learning' : 'Regular / Balanced Study'}</p>
+          </div>
+          <div className="rounded-xl bg-slate-50 dark:bg-slate-800/70 p-3">
+            <p className="text-xs text-slate-500 dark:text-slate-400">Daily study target</p>
+            <p className="mt-1 font-bold">{Math.max(1, user.studyHours || 2)} hours/day</p>
+          </div>
+          <div className="rounded-xl bg-slate-50 dark:bg-slate-800/70 p-3">
+            <p className="text-xs text-slate-500 dark:text-slate-400">Preferred study time</p>
+            <p className="mt-1 font-bold">{user.studyTime || 'Flexible'}</p>
+          </div>
+        </div>
+      </section>
       {/* ========================================================================= */}
       {/* 1. TOP COMMAND CENTER: HERO READY & EXAM STATUS */}
       {/* ========================================================================= */}
