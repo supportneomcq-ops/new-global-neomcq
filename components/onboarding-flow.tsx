@@ -166,7 +166,7 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
 
   // 2. Exam Discovery & Selection
   const [examSearchQuery, setExamSearchQuery] = useState('');
-  const [selectedExam, setSelectedExam] = useState('FMGE (Foreign Medical Graduate Examination)');
+  const [selectedExam, setSelectedExam] = useState('');
   const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
   const [selectedExamCountry, setSelectedExamCountry] = useState('India');
   const [selectedExamFlag, setSelectedExamFlag] = useState('🇮🇳');
@@ -593,6 +593,41 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
         isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
       }`}
     >
+      {pendingExamConfirmation && (
+        <div className="absolute inset-0 z-[100000] flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="exam-confirm-title">
+          <div className="w-full max-w-md rounded-3xl border border-indigo-300/30 bg-white p-6 text-slate-900 shadow-2xl dark:bg-[#0E1324] dark:text-white space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl bg-indigo-100 p-3 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300"><ShieldCheck className="h-6 w-6" /></div>
+              <div><h2 id="exam-confirm-title" className="text-lg font-extrabold">Confirm your exam</h2><p className="text-xs text-slate-500 dark:text-slate-400">Please verify before continuing.</p></div>
+            </div>
+            <div className="rounded-2xl bg-slate-100 p-4 dark:bg-slate-800">
+              <p className="text-xl font-extrabold">{pendingExamConfirmation.name}</p>
+              {pendingExamConfirmation.country && <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">{pendingExamConfirmation.country}</p>}
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Is this exactly the examination you are preparing for?</p>
+            </div>
+            <button type="button" className="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white hover:bg-indigo-700" onClick={() => {
+              const ex = pendingExamConfirmation;
+              setSelectedExam(ex.name);
+              setSelectedExamId(ex.in_database ? ex.id : null);
+              setSelectedExamCountry(ex.country || 'Global');
+              setSelectedExamFlag(ex.flag || '🌐');
+              setSelectedExamCategory(ex.category || 'Professional Licensure');
+              setCustomExamInput('');
+              setExamSearchQuery(ex.name);
+              setPendingExamConfirmation(null);
+              setFormError('');
+            }}>Yes, this is my exam</button>
+            <button type="button" className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-bold hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800" onClick={() => {
+              setPendingExamConfirmation(null);
+              setSelectedExamId(null);
+              setSelectedExam('');
+              setCustomExamInput('');
+              setExamSearchQuery('');
+              setFormError('Please paste the exact official exam name or search again.');
+            }}>No, enter the exact exam name</button>
+          </div>
+        </div>
+      )}
       {/* Backdrop overlay click */}
       <div onClick={onClose} className="absolute inset-0 bg-transparent cursor-pointer" />
 
@@ -1045,12 +1080,8 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                             key={ex.id || ex.slug || ex.name}
                             type="button"
                             onClick={() => {
-                              setSelectedExam(ex.name);
-                              setSelectedExamId(ex.in_database ? ex.id : null);
-                              setSelectedExamCountry(ex.country || 'Global');
-                              setSelectedExamFlag(flag);
-                              setSelectedExamCategory(ex.category || 'Professional Licensure');
-                              setCustomExamInput('');
+                              // Never silently select an exam: require explicit learner confirmation.
+                              setPendingExamConfirmation(ex);
                             }}
                             className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
                               isSelected
