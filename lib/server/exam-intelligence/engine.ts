@@ -1430,7 +1430,10 @@ export async function resolveOrInitializeExamIntelligence(options: {
       throw new Error(`AI could not produce a sufficiently complete exam-specific curriculum for "${rawInput}". No generic placeholder curriculum was saved; retry after the AI provider is available.`)
     }
 
-    const isVerifiedTemplate = aiSpec.confidence.overall > 0.98
+    // A model's confidence score is not official evidence. This path always
+    // creates an AI-generated exam; it must remain pending review until an
+    // official source is independently verified.
+    const isVerifiedTemplate = false
 
     const intelligenceProfile: ExamIntelligenceProfile = {
       exam_id: '',
@@ -1468,7 +1471,9 @@ export async function resolveOrInitializeExamIntelligence(options: {
     const examPayload: any = {
       name: rawInput,
       slug: querySlug,
-      description: `Official preparation syllabus and curriculum for ${rawInput}.`,
+      description: isVerifiedTemplate
+        ? `Official preparation syllabus and curriculum for ${rawInput}.`
+        : `AI-generated draft curriculum for ${rawInput}; official syllabus verification is pending.`,
       difficulty: intelligenceProfile.difficulty_level,
       question_count: intelligenceProfile.question_config.default_question_count || 100,
       time_limit_mins: intelligenceProfile.question_config.duration_minutes || 120,
@@ -1477,7 +1482,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
       status: 'active',
       is_featured: false,
       created_by_ai: !isVerifiedTemplate,
-      verification_status: isVerifiedTemplate ? 'verified' : 'AI_inferred',
+      verification_status: isVerifiedTemplate ? 'verified' : 'pending_review',
       marking_scheme: {
         positive_mark: intelligenceProfile.question_config.positive_mark,
         negative_mark: intelligenceProfile.question_config.negative_mark,
@@ -1945,16 +1950,22 @@ export async function collectExamRulesProcess(
   // Preserve historical versions; insert version record for current year if missing
   if (!existingCurrentVersion) {
     const patternSummary = `${examName} | ${rulesValidation.duration_minutes || 'N/A'} mins | ${rulesValidation.question_count || 'N/A'} questions | Marking: +${rulesValidation.marking_scheme?.positive_mark || 1}, ${rulesValidation.marking_scheme?.has_negative_marking ? '-' + (rulesValidation.marking_scheme?.negative_mark || 0.25) : 'no penalty'}`
-    try {
-      await supabase.from('exam_versions').insert({
-        exam_id: examId,
-        version_year: currentYear,
-        is_current: true,
-        pattern_summary: patternSummary,
-        verified_at: new Date().toISOString(),
-      })
-    } catch (verErr) {
-      console.warn('[Exam Rules Process B] exam_versions insert note:', verErr)
+    const hasOfficialEvidence = (evidenceRows || []).some(
+      (e: any) =>
+        ['official_syllabus', 'official_bulletin'].includes(e.source_type) &&
+        e.verification_status === 'valid'
+    )
+    const { error: versionInsertError } = await supabase.from('exam_versions').insert({
+      exam_id: examId,
+      version_year: currentYear,
+      is_current: true,
+      pattern_summary: patternSummary,
+      // Verification status is authoritative; AI-generated rules remain pending review.
+      verified_at: new Date().toISOString(),
+      verification_status: hasOfficialEvidence ? 'verified' : 'pending_review',
+    })
+    if (versionInsertError) {
+      console.warn('[Exam Rules Process B] exam_versions insert note:', versionInsertError)
     }
   }
 
