@@ -80,6 +80,7 @@ export async function signupAction(formData: { email: string; password: string; 
     email: result.data.email,
     password: result.data.password,
     options: {
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://neomcq.com'}/auth/callback?next=/onboarding`,
       data: {
         first_name: result.data.firstName,
         last_name: result.data.lastName,
