@@ -149,7 +149,8 @@ export async function POST(req: NextRequest) {
         if (!resolved?.success || !resolved.exam?.id) {
           console.error('[Onboarding] Exam resolution returned no canonical exam:', {
             examName,
-            decision: resolved?.decision,
+            success: resolved?.success,
+            hasExam: Boolean(resolved?.exam?.id),
           })
           return NextResponse.json(
             { success: false, error: 'We could not verify this exam and its curriculum. Please return to exam selection and try again.' },
