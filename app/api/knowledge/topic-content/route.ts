@@ -124,6 +124,20 @@ export async function POST(req: NextRequest) {
       autoCreateEntities: true,
     })
 
+    if (result.error_code === 'GENERATION_IN_PROGRESS') {
+      return NextResponse.json(
+        {
+          success: false,
+          pending: true,
+          status: 'generating',
+          jobId: result.job_id || null,
+          retryAfter: result.retry_after || 3,
+          error: result.error || 'This topic pack is already being prepared.',
+        },
+        { status: 202, headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      )
+    }
+
     if (!result.success && !result.content) {
       return NextResponse.json(
         { success: false, error: result.error || 'Failed to generate topic content' },
