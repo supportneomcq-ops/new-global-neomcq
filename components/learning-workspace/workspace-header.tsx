@@ -9,7 +9,6 @@ import {
   Shield,
   CreditCard,
   Zap,
-  Settings,
   ChevronDown,
   X,
   Menu,
