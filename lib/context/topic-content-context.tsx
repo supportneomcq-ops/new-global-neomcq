@@ -346,12 +346,18 @@ export function TopicContentProvider({ children }: { children: React.ReactNode }
           fetchTopicContent(false);
           return data.cards;
         } else {
-          console.warn('[orchestrateTopic] Non-success response:', data.error);
+          const message = data.error || 'Could not load study content for this topic. Please try again.';
+          console.warn('[orchestrateTopic] Non-success response:', message);
+          setError(message);
+          setIsInitialLoad(false);
+          setIsRefreshing(false);
           return [];
         }
       } catch (err: any) {
         console.error('[orchestrateTopic] Failed to orchestrate topic cards:', err);
         setError(err.message || 'Failed to check topic cards.');
+        setIsInitialLoad(false);
+        setIsRefreshing(false);
         return [];
       } finally {
         setIsOrchestrating(false);
