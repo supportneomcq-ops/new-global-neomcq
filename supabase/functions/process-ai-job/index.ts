@@ -27,7 +27,7 @@ serve(async (req) => {
     }
 
     const authorization = req.headers.get("Authorization") || "";
-    const bearerToken = authorization.replace(/^Bearer\\s+/i, "");
+    const bearerToken = authorization.replace(/^Bearer\s+/i, "");
     const isServiceRole = bearerToken.length > 0 && bearerToken === supabaseServiceKey;
     let callerUserId: string | null = null;
 
