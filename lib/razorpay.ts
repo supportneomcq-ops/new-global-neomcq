@@ -169,7 +169,7 @@ export async function createSubscriptionRazorpayOrder(params: {
   }
 
   // Never return fake checkout IDs in production; they cannot be verified or charged.
-  if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === 'production' && process.env.VERCEL_ENV === 'production') {
     throw new Error('Razorpay checkout is not configured on this server. Please contact support.');
   }
 
@@ -254,7 +254,7 @@ export async function createExamSwitchRazorpayOrder(params: {
   }
 
   // Never return fake exam-switch checkout IDs in production; they cannot be verified or charged.
-  if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === 'production' && process.env.VERCEL_ENV === 'production') {
     throw new Error('Razorpay checkout is not configured on this server. Please contact support.');
   }
 
