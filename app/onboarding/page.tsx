@@ -96,8 +96,8 @@ const CURRENT_STEP_KEY = 'neomcq_onboarding_step';
 
 const PRESET_EXAMS: ExamInfo[] = [
   { id: 'fmge', name: 'FMGE (Foreign Medical Graduate Examination)', slug: 'fmge', short_name: 'FMGE', category: 'Medical Licensing', country: 'India', flag: '🇮🇳', description: 'National Board of Examinations screening test for medical graduates.' },
-  { id: 'usmle-step-1', name: 'USMLE Step 1 & Step 2 CK', slug: 'usmle-step-1', short_name: 'USMLE', category: 'Medical Licensing', country: 'United States', flag: '🇺🇸', description: 'United States Medical Licensing Examination assessing fundamental sciences and clinical knowledge.' },
-  { id: 'neet-pg', name: 'NEET PG / INI-CET', slug: 'neet-pg', short_name: 'NEET PG', category: 'Postgraduate Medical', country: 'India', flag: '🇮🇳', description: 'National Eligibility cum Entrance Test for Postgraduate medical admissions in India.' },
+  { id: 'usmle-step-1', name: 'USMLE Step 1', slug: 'usmle-step-1', short_name: 'USMLE Step 1', category: 'Medical Licensing', country: 'United States', flag: '🇺🇸', description: 'United States Medical Licensing Examination Step 1.' },
+  { id: 'neet-pg', name: 'NEET PG Medical', slug: 'neet-pg', short_name: 'NEET PG', category: 'Postgraduate Medical', country: 'India', flag: '🇮🇳', description: 'National Eligibility cum Entrance Test for Postgraduate medical admissions in India. INI-CET is a separate examination.' },
   { id: 'plab', name: 'PLAB 1 / UKMLA', slug: 'plab', short_name: 'PLAB/UKMLA', category: 'Medical Licensing', country: 'United Kingdom', flag: '🇬🇧', description: 'Professional and Linguistic Assessments Board test for UK medical licensing.' },
   { id: 'nclex-rn', name: 'NCLEX-RN Nursing Licensure', slug: 'nclex-rn', short_name: 'NCLEX-RN', category: 'Nursing & Healthcare', country: 'United States', flag: '🇺🇸', description: 'National Council Licensure Examination for Registered Nurses.' },
   { id: 'amc-mcq', name: 'AMC MCQ Examination', slug: 'amc-mcq', short_name: 'AMC', category: 'Medical Licensing', country: 'Australia', flag: '🇦🇺', description: 'Australian Medical Council computer-adaptive multiple-choice examination.' },
@@ -237,17 +237,20 @@ export default function OnboardingPage() {
             setDbExams(data.exams);
             setSearchResults(data.exams);
           } else {
-            setDbExams(PRESET_EXAMS);
-            setSearchResults(PRESET_EXAMS);
+            setDbExams([]);
+            setSearchResults([]);
+            setFormError('The exam database is temporarily unavailable. Please retry exam search; do not select a fallback exam.');
           }
         } else {
-          setDbExams(PRESET_EXAMS);
-          setSearchResults(PRESET_EXAMS);
+          setDbExams([]);
+          setSearchResults([]);
+          setFormError('The exam database is temporarily unavailable. Please retry exam search; do not select a fallback exam.');
         }
       } catch (err) {
         console.error('Failed to load database reference data:', err);
-        setDbExams(PRESET_EXAMS);
-        setSearchResults(PRESET_EXAMS);
+        setDbExams([]);
+        setSearchResults([]);
+        setFormError('The exam database is temporarily unavailable. Please retry exam search; do not select a fallback exam.');
       }
     }
     loadReferenceData();
@@ -256,7 +259,7 @@ export default function OnboardingPage() {
   // Search debounce
   useEffect(() => {
     if (!formData.examSearchQuery.trim()) {
-      setSearchResults(dbExams.length > 0 ? dbExams : PRESET_EXAMS);
+      setSearchResults(dbExams);
       return;
     }
 
@@ -273,7 +276,7 @@ export default function OnboardingPage() {
       } catch (err) {
         console.warn('Search request fallback to client filter:', err);
         const q = formData.examSearchQuery.toLowerCase();
-        const list = (dbExams.length > 0 ? dbExams : PRESET_EXAMS).filter(
+        const list = dbExams.filter(
           (e) =>
             e.name.toLowerCase().includes(q) ||
             e.category?.toLowerCase().includes(q) ||
