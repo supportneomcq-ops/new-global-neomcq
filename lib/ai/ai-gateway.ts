@@ -27,7 +27,7 @@ export class AIGateway {
       .trim()
       .toLowerCase()
       .replace(/[_-]+/g, ' ')
-      .replace(/\\s+/g, ' ');
+      .replace(/\s+/g, ' ');
 
     if (['gemini', 'google gemini', 'google gemini ai', 'google gemini api'].includes(normalized)) {
       return this.geminiProvider;
