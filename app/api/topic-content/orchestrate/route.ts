@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { createClient } from '@/lib/supabase/server';
 import { checkFeatureQuota } from '@/lib/entitlements/quota-checker';
@@ -7,6 +7,9 @@ import { GenerationJobManager } from '@/lib/server/content-engine/job-manager';
 import { getOrGenerateCanonicalTopicContent } from '@/lib/knowledge/ai-content-intelligence';
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
+// AI generation can take longer than the response itself; keep the post-response task alive.
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
@@ -214,13 +217,25 @@ export async function POST(req: NextRequest) {
       }
 
       // Generation runs only for the authenticated user and only after quota authorization.
-      getOrGenerateCanonicalTopicContent({
-        examInput: exam.id,
-        subjectInput: subject.id,
-        topicInput: topic.id,
-        userId: user.id,
-        forceRefresh: forceRefresh === true,
-      }).catch((err) => console.error('[Orchestration API] Async generation error:', err));
+      // Use Next.js after() so the serverless function continues this work after returning
+      // the initial QUEUED response; an untracked fire-and-forget promise can be terminated
+      // as soon as the response finishes on serverless platforms.
+      after(async () => {
+        try {
+          const generation = await getOrGenerateCanonicalTopicContent({
+            examInput: exam.id,
+            subjectInput: subject.id,
+            topicInput: topic.id,
+            userId: user.id,
+            forceRefresh: forceRefresh === true,
+          });
+          if (!generation.success) {
+            console.error('[Orchestration API] Background generation did not complete:', generation.error || generation.error_code);
+          }
+        } catch (err) {
+          console.error('[Orchestration API] Background generation error:', err);
+        }
+      });
     }
 
     // Helper to compute individual card status
