@@ -168,6 +168,11 @@ export async function createSubscriptionRazorpayOrder(params: {
     };
   }
 
+  // Never return fake checkout IDs in production; they cannot be verified or charged.
+  if (process.env.NODE_ENV === 'production' && process.env.VERCEL_ENV === 'production') {
+    throw new Error('Razorpay checkout is not configured on this server. Please contact support.');
+  }
+
   // Preview / Development Mode fallback
   const mockOrderId = `order_${params.planCode.toLowerCase()}_${Math.random().toString(36).substring(2, 12)}`;
   return {
@@ -246,6 +251,11 @@ export async function createExamSwitchRazorpayOrder(params: {
       keyId,
       receipt: data.receipt,
     };
+  }
+
+  // Never return fake exam-switch checkout IDs in production; they cannot be verified or charged.
+  if (process.env.NODE_ENV === 'production' && process.env.VERCEL_ENV === 'production') {
+    throw new Error('Razorpay checkout is not configured on this server. Please contact support.');
   }
 
   // Fallback for sandboxed preview environments
