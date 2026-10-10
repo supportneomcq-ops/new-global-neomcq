@@ -435,9 +435,9 @@ export class TaskRouter {
   }> {
     const rule = await this.getRuleForTask(taskType);
 
-    let primaryProvider = preferredProvider || rule.primary_provider;
+    let primaryProvider = normalizeProviderId(preferredProvider) || rule.primary_provider;
     let primaryModel = preferredModel || rule.primary_model;
-    let fallbackProvider = rule.fallback_provider;
+    let fallbackProvider = normalizeProviderId(rule.fallback_provider) || 'openai';
     let fallbackModel = rule.fallback_model;
 
     // Verify against model registry to avoid routing to inactive or non-existent models
