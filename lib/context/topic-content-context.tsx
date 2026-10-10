@@ -244,6 +244,12 @@ export function TopicContentProvider({ children }: { children: React.ReactNode }
         const data = await res.json();
 
         if (stepTimer) clearInterval(stepTimer);
+        if (data.pending) {
+          // A shared generation job is already running. Keep the UI usable and
+          // let the orchestration cards poll status instead of surfacing a false error.
+          setError(null);
+          return;
+        }
         setCurrentStageIndex(PREPARATION_STEPS.length - 1); // Done / Saved
 
         if (data.success && data.content) {
