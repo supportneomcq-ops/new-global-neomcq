@@ -141,7 +141,7 @@ serve(async (req) => {
           .eq("razorpay_subscription_id", checkoutId)
           .maybeSingle();
         if (pendingError) throw new Error(`Pending subscription could not be loaded: ${pendingError.message}`);
-        if (!pendingSub || pendingSub.plan_code !== planCode) {
+        if (!pendingSub || pendingSub.plan_code !== planCode || !["pending", "active"].includes(pendingSub.status)) {
           throw new Error("Captured payment does not match a pending subscription for this user and plan.");
         }
         if (pendingSub.currency !== currency || Math.round(Number(pendingSub.amount) * 100) !== Math.round(Number(paymentEntity?.amount || 0))) {
@@ -161,14 +161,17 @@ serve(async (req) => {
         else if (planRow.billing_interval === "monthly") endDate.setMonth(endDate.getMonth() + 1);
         else throw new Error("Unsupported subscription billing interval.");
 
-        const { error: activateError } = await supabase.from("subscriptions").update({
+        const subscriptionUpdate: Record<string, unknown> = {
           status: "active",
           razorpay_payment_id: paymentId,
-          started_at: startDate.toISOString(),
           current_period_start: startDate.toISOString(),
           current_period_end: endDate.toISOString(),
           updated_at: new Date().toISOString()
-        }).eq("id", pendingSub.id);
+        };
+        if (pendingSub.status !== "active") subscriptionUpdate.started_at = startDate.toISOString();
+        const { error: activateError } = await supabase.from("subscriptions")
+          .update(subscriptionUpdate)
+          .eq("id", pendingSub.id);
         if (activateError) throw new Error(`Subscription could not be activated: ${activateError.message}`);
 
         // For a one-time order fallback, no subscription.charged event will arrive.
@@ -263,14 +266,17 @@ serve(async (req) => {
         else throw new Error("Unsupported subscription billing interval.");
       }
 
-      const { error: subscriptionError } = await supabase.from("subscriptions").update({
+      const subscriptionUpdate: Record<string, unknown> = {
         status: "active",
-        started_at: startDate.toISOString(),
         current_period_start: startDate.toISOString(),
         current_period_end: endDate.toISOString(),
         ...(paymentId ? { razorpay_payment_id: paymentId } : {}),
         updated_at: new Date().toISOString()
-      }).eq("id", existingSub.id);
+      };
+      if (existingSub.status !== "active") subscriptionUpdate.started_at = startDate.toISOString();
+      const { error: subscriptionError } = await supabase.from("subscriptions")
+        .update(subscriptionUpdate)
+        .eq("id", existingSub.id);
       if (subscriptionError) throw new Error(`Subscription record could not be saved: ${subscriptionError.message}`);
 
       if (eventType === "subscription.charged") {
