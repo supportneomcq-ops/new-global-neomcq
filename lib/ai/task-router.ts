@@ -2,15 +2,26 @@ import { getSupabaseAdmin } from '../supabase/admin';
 import type { TaskRoutingRule, AIProviderId } from './types';
 import { ModelRegistry } from './model-registry';
 
+function normalizeProviderId(value: unknown): AIProviderId | null {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\\s+/g, ' ');
+  if (['gemini', 'google gemini', 'google gemini ai', 'google ai', 'google ai studio'].includes(normalized)) return 'gemini';
+  if (['openai', 'open ai', 'openai api'].includes(normalized)) return 'openai';
+  return null;
+}
+
 export const CANONICAL_TASK_ROUTING_DEFAULTS: TaskRoutingRule[] = [
   {
     task_type: 'FIRST_CANONICAL_CONTENT_CREATION',
     display_name: 'First-Time Canonical Topic Generation',
     description: 'High-accuracy reasoning model for canonical exam content',
     primary_provider: 'gemini',
-    primary_model: 'gemini-3.7-flash',
+    primary_model: 'gemini-3.6-flash',
     fallback_provider: 'openai',
-    fallback_model: 'gpt-4o',
+    fallback_model: 'gpt-4o-mini',
     credit_cost: 3.0,
     temperature: 0.4,
     max_input_tokens: 16384,
@@ -50,7 +61,7 @@ export const CANONICAL_TASK_ROUTING_DEFAULTS: TaskRoutingRule[] = [
     display_name: 'Standard MCQ Generation',
     description: 'Fast, accurate single-choice board and exam questions',
     primary_provider: 'gemini',
-    primary_model: 'gemini-3.5-flash',
+    primary_model: 'gemini-3.6-flash',
     fallback_provider: 'openai',
     fallback_model: 'gpt-4o-mini',
     credit_cost: 1.5,
@@ -64,7 +75,7 @@ export const CANONICAL_TASK_ROUTING_DEFAULTS: TaskRoutingRule[] = [
     display_name: 'High-Yield Comprehensive Notes',
     description: 'Structured markdown summaries and core revision sheets',
     primary_provider: 'gemini',
-    primary_model: 'gemini-3.5-flash',
+    primary_model: 'gemini-3.6-flash',
     fallback_provider: 'openai',
     fallback_model: 'gpt-4o-mini',
     credit_cost: 2.0,
@@ -78,7 +89,7 @@ export const CANONICAL_TASK_ROUTING_DEFAULTS: TaskRoutingRule[] = [
     display_name: 'Active Recall Flashcards',
     description: 'Front/back rapid recall cards for exam preparation',
     primary_provider: 'gemini',
-    primary_model: 'gemini-3.5-flash',
+    primary_model: 'gemini-3.5-flash-lite',
     fallback_provider: 'openai',
     fallback_model: 'gpt-4o-mini',
     credit_cost: 1.0,
@@ -92,7 +103,7 @@ export const CANONICAL_TASK_ROUTING_DEFAULTS: TaskRoutingRule[] = [
     display_name: 'Custom AI Study Plan & Timeline',
     description: 'Curriculum timeline, key target scheduling, and pacing',
     primary_provider: 'gemini',
-    primary_model: 'gemini-3.5-flash',
+    primary_model: 'gemini-3.5-flash-lite',
     fallback_provider: 'openai',
     fallback_model: 'gpt-4o-mini',
     credit_cost: 1.5,
@@ -148,7 +159,7 @@ export const CANONICAL_TASK_ROUTING_DEFAULTS: TaskRoutingRule[] = [
     display_name: 'Canonical Entity Resolution',
     description: 'Fast entity normalization, canonical topic matching, and aliases',
     primary_provider: 'gemini',
-    primary_model: 'gemini-3.1-flash-lite',
+    primary_model: 'gemini-3.5-flash-lite',
     fallback_provider: 'openai',
     fallback_model: 'gpt-4o-mini',
     credit_cost: 0.25,
@@ -162,7 +173,7 @@ export const CANONICAL_TASK_ROUTING_DEFAULTS: TaskRoutingRule[] = [
     display_name: 'Topic & Question Duplicate Detection',
     description: 'Semantic duplicate detection across syllabus catalogs',
     primary_provider: 'gemini',
-    primary_model: 'gemini-3.1-flash-lite',
+    primary_model: 'gemini-3.5-flash-lite',
     fallback_provider: 'openai',
     fallback_model: 'gpt-4o-mini',
     credit_cost: 0.25,
@@ -260,7 +271,7 @@ export const CANONICAL_TASK_ROUTING_DEFAULTS: TaskRoutingRule[] = [
     display_name: 'Add Missing Subject Validation',
     description: 'Validates and resolves new canonical subjects under a locked examination',
     primary_provider: 'gemini',
-    primary_model: 'gemini-3.5-flash',
+    primary_model: 'gemini-3.5-flash-lite',
     fallback_provider: 'openai',
     fallback_model: 'gpt-4o-mini',
     credit_cost: 0.25,
@@ -274,7 +285,7 @@ export const CANONICAL_TASK_ROUTING_DEFAULTS: TaskRoutingRule[] = [
     display_name: 'Add Missing Topic Validation',
     description: 'Validates and resolves new canonical topics under a locked exam and subject',
     primary_provider: 'gemini',
-    primary_model: 'gemini-3.5-flash',
+    primary_model: 'gemini-3.5-flash-lite',
     fallback_provider: 'openai',
     fallback_model: 'gpt-4o-mini',
     credit_cost: 0.25,
@@ -288,7 +299,7 @@ export const CANONICAL_TASK_ROUTING_DEFAULTS: TaskRoutingRule[] = [
     display_name: 'Add Missing Subtopic Validation',
     description: 'Validates and resolves new canonical subtopics under a locked exam, subject, and topic',
     primary_provider: 'gemini',
-    primary_model: 'gemini-3.5-flash',
+    primary_model: 'gemini-3.5-flash-lite',
     fallback_provider: 'openai',
     fallback_model: 'gpt-4o-mini',
     credit_cost: 0.25,
@@ -343,9 +354,9 @@ export class TaskRouter {
             task_type: norm,
             display_name: norm,
             description: norm,
-            primary_provider: (row.primary_provider || 'gemini') as AIProviderId,
-            primary_model: row.primary_model || 'gemini-3.5-flash',
-            fallback_provider: (row.fallback_provider || 'openai') as AIProviderId,
+            primary_provider: normalizeProviderId(row.primary_provider) || 'gemini',
+            primary_model: row.primary_model || 'gemini-3.6-flash',
+            fallback_provider: normalizeProviderId(row.fallback_provider) || 'openai',
             fallback_model: row.fallback_model || 'gpt-4o-mini',
             credit_cost: Number(row.credit_cost || 1.5),
             temperature: Number(row.temperature || 0.7),
@@ -359,9 +370,9 @@ export class TaskRouter {
             id: row.id,
             display_name: row.display_name || existing.display_name,
             description: row.description || existing.description,
-            primary_provider: (row.primary_provider || existing.primary_provider) as AIProviderId,
+            primary_provider: normalizeProviderId(row.primary_provider) || existing.primary_provider,
             primary_model: row.primary_model || existing.primary_model,
-            fallback_provider: (row.fallback_provider || existing.fallback_provider) as AIProviderId,
+            fallback_provider: normalizeProviderId(row.fallback_provider) || existing.fallback_provider,
             fallback_model: row.fallback_model || existing.fallback_model,
             credit_cost: Number(row.credit_cost ?? existing.credit_cost),
             temperature: Number(row.temperature ?? existing.temperature),
