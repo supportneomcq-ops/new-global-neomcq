@@ -189,13 +189,13 @@ export default function OnboardingPage() {
     password: '',
 
     examSearchQuery: '',
-    selectedExamId: 'fmge',
-    selectedExamName: 'FMGE (Foreign Medical Graduate Examination)',
-    selectedExamShortName: 'FMGE',
-    selectedExamCategory: 'Medical Licensing',
+    selectedExamId: '',
+    selectedExamName: '',
+    selectedExamShortName: '',
+    selectedExamCategory: '',
     selectedExamCountry: 'India',
     selectedExamFlag: '🇮🇳',
-    selectedExamDescription: 'National Board of Examinations screening test for medical graduates.',
+    selectedExamDescription: '',
     customExamInput: '',
     isCustomExam: false,
     resolvedCurriculumSummary: {
@@ -667,7 +667,7 @@ export default function OnboardingPage() {
       try {
         const initialSelection = {
           exam: {
-            id: formData.selectedExamId || onboardData.exam?.id || 'selected-exam',
+            id: onboardData.examId || formData.selectedExamId || onboardData.exam?.id || 'selected-exam',
             name: formData.selectedExamName,
             slug: formData.selectedExamName.toLowerCase().replace(/[^a-z0-9]/g, '-'),
           },
