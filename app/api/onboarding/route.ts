@@ -40,7 +40,6 @@ export async function POST(req: NextRequest) {
       country,
       language,
       examName,
-      examId: inputExamId,
       examDate,
       learningStyle,
       studyHours,
@@ -100,7 +99,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Authentication required to save onboarding preferences.' }, { status: 401 })
     }
 
-    let finalExamId: string | null = inputExamId || null
+    // Never trust a client-supplied exam ID as the canonical curriculum source.
+    // Resolve the submitted exam name server-side and stop if resolution fails.
+    let finalExamId: string | null = null
 
     if (targetUserId) {
       // 1. Resolve country_id and language_id from database
@@ -135,22 +136,36 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // 2. Resolve or Initialize Exam Intelligence & Curriculum
+      // 2. Resolve or Initialize Exam Intelligence & Curriculum.
+      // A successful HTTP response must never leave the user with an unresolved exam,
+      // a preset slug (such as "fmge"), or a client-supplied ID that was not verified.
       try {
         const resolved = await resolveOrInitializeExamIntelligence({
           examQuery: examName,
           country,
           userId: targetUserId,
         })
-        if (resolved.success && resolved.exam?.id) {
-          finalExamId = resolved.exam.id
+        if (!resolved?.success || !resolved.exam?.id) {
+          console.error('[Onboarding] Exam resolution returned no canonical exam:', {
+            examName,
+            decision: resolved?.decision,
+          })
+          return NextResponse.json(
+            { success: false, error: 'We could not verify this exam and its curriculum. Please return to exam selection and try again.' },
+            { status: 422 }
+          )
         }
+        finalExamId = resolved.exam.id
       } catch (examErr) {
         console.error('[Onboarding] Error resolving exam intelligence:', examErr)
+        return NextResponse.json(
+          { success: false, error: 'We could not verify this exam and its curriculum. Your study profile has not been saved. Please try again.' },
+          { status: 422 }
+        )
       }
 
-      // Update Profile
-      await (admin as any)
+      // Update Profile and fail visibly if persistence fails.
+      const { error: profileError } = await (admin as any)
         .from('profiles')
         .update({
           first_name: firstName,
@@ -167,6 +182,14 @@ export async function POST(req: NextRequest) {
         })
         .eq('id', targetUserId)
 
+      if (profileError) {
+        console.error('[Onboarding] Profile update failed:', profileError)
+        return NextResponse.json(
+          { success: false, error: 'Your exam was verified, but we could not save your profile. Please retry onboarding.' },
+          { status: 500 }
+        )
+      }
+
       // Ensure clean ISO date string YYYY-MM-DD for target_date
       let cleanTargetDate: string | null = null
       if (examDate) {
@@ -178,28 +201,34 @@ export async function POST(req: NextRequest) {
       }
 
       // 3. User Exam Link
-      if (finalExamId) {
-        await (admin as any)
-          .from('user_exams')
-          .upsert(
-            {
-              user_id: targetUserId,
-              exam_id: finalExamId,
-              target_date: cleanTargetDate,
-              target_score: 85.0,
-              status: 'in_progress',
-              is_primary: true,
-              last_accessed_at: new Date().toISOString(),
-            },
-            { onConflict: 'user_id,exam_id' }
-          )
+      const { error: userExamError } = await (admin as any)
+        .from('user_exams')
+        .upsert(
+          {
+            user_id: targetUserId,
+            exam_id: finalExamId,
+            target_date: cleanTargetDate,
+            target_score: 85.0,
+            status: 'in_progress',
+            is_primary: true,
+            last_accessed_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id,exam_id' }
+        )
+
+      if (userExamError) {
+        console.error('[Onboarding] User exam link failed:', userExamError)
+        return NextResponse.json(
+          { success: false, error: 'Your exam was verified, but we could not link it to your account. Please retry onboarding.' },
+          { status: 500 }
+        )
       }
 
       // Map learningStyle selection
       const mappedLearningMode = (learningStyle === 'Rapid Learning' || learningStyle === 'rapid') ? 'rapid' : 'balanced'
 
       // 4. Update Study Preferences
-      await (admin as any).from('study_preferences').upsert({
+      const { error: preferencesError } = await (admin as any).from('study_preferences').upsert({
         user_id: targetUserId,
         daily_hours: studyHours || 2.0,
         preferred_time: (studyTime?.toLowerCase() as any) || 'morning',
@@ -209,8 +238,16 @@ export async function POST(req: NextRequest) {
         timezone: resolvedTimezone,
       }, { onConflict: 'user_id' })
 
+      if (preferencesError) {
+        console.error('[Onboarding] Study preferences save failed:', preferencesError)
+        return NextResponse.json(
+          { success: false, error: 'Your exam was verified, but we could not save your study preferences. Please retry onboarding.' },
+          { status: 500 }
+        )
+      }
+
       // 5. Enqueue Async AI Study Plan Generation Job
-      const { data: aiJob } = await (admin as any).from('ai_jobs').insert({
+      const { data: aiJob, error: aiJobError } = await (admin as any).from('ai_jobs').insert({
         user_id: targetUserId,
         exam_id: finalExamId || null,
         task: 'study_plan_generation',
@@ -230,6 +267,11 @@ export async function POST(req: NextRequest) {
         },
       }).select('id').single()
 
+      if (aiJobError) {
+        // Core registration is saved; study-plan generation can be retried independently.
+        console.error('[Onboarding] AI study-plan job could not be queued:', aiJobError)
+      }
+
       if (aiJob?.id) {
         fetch(`${req.nextUrl.origin}/api/ai/process-job`, {
           method: 'POST',
@@ -244,9 +286,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Onboarding preferences saved and AI study plan job enqueued',
+      message: 'Onboarding preferences saved',
       userId: targetUserId,
       examId: finalExamId,
+      studyPlanQueued: Boolean(finalExamId),
     })
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Onboarding failed' }, { status: 500 })
