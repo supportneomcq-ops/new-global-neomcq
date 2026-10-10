@@ -2076,10 +2076,10 @@ async function persistCurriculumHierarchy(
         }
 
         if (subtopicInserts.length > 0) {
-          try {
-            await supabase.from('exam_subtopics').insert(subtopicInserts)
-          } catch (stErr) {
-            console.warn('[Exam Intelligence] Subtopics batch insert note:', stErr)
+          const { error: subtopicsInsertError } = await supabase.from('exam_subtopics').insert(subtopicInserts)
+          if (subtopicsInsertError) {
+            console.error('[Exam Intelligence] Subtopics batch insert failed:', subtopicsInsertError)
+            throw new Error(`Failed to persist curriculum subtopics for topic "${tItem.name}": ${subtopicsInsertError.message}`)
           }
         }
       }
