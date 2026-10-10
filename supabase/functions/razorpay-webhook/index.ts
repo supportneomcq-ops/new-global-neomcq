@@ -33,124 +33,153 @@ async function verifyRazorpaySignature(
   }
 }
 
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 serve(async (req) => {
   const corsRes = handleCors(req);
   if (corsRes) return corsRes;
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" }
+    });
+  }
+
+  let supabase: any = null;
+  let eventId: string | null = null;
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
     const razorpayWebhookSecret = Deno.env.get("RAZORPAY_WEBHOOK_SECRET") || "";
+    if (!supabaseUrl || !supabaseServiceKey || !razorpayWebhookSecret) {
+      console.error("Razorpay webhook is missing required server configuration");
+      return new Response(JSON.stringify({ error: "Webhook verification is not configured" }), {
+        status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const signature = req.headers.get("x-razorpay-signature") || "";
     const rawBody = await req.text();
-
-    // 1. Strict Signature Verification (if secret configured)
-    if (razorpayWebhookSecret) {
-      const isValid = await verifyRazorpaySignature(rawBody, signature, razorpayWebhookSecret);
-      if (!isValid) {
-        return new Response(
-          JSON.stringify({ error: "Invalid Razorpay webhook signature" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+    if (!signature || !(await verifyRazorpaySignature(rawBody, signature, razorpayWebhookSecret))) {
+      return new Response(JSON.stringify({ error: "Invalid Razorpay webhook signature" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
     }
 
     const event = JSON.parse(rawBody);
-    const eventType = event.event || "unknown";
+    const eventType = typeof event.event === "string" ? event.event : "unknown";
     const payload = event.payload || {};
-    const eventId = event.contains?.[0] || payload?.payment?.entity?.id || `evt_${Date.now()}`;
+    const paymentEntity = payload?.payment?.entity || null;
+    const orderEntity = payload?.order?.entity || null;
+    const subscriptionEntity = payload?.subscription?.entity || null;
+    const stableEntityId = paymentEntity?.id || subscriptionEntity?.id || orderEntity?.id || "";
+    eventId = req.headers.get("x-razorpay-event-id") || `${eventType}:${stableEntityId || await sha256Hex(rawBody)}`;
+    const payloadHash = await sha256Hex(rawBody);
 
-    // 2. Canonical Idempotency Check via RPC
+    supabase = createClient(supabaseUrl, supabaseServiceKey);
+
     const { data: recordRes, error: recordErr } = await supabase.rpc("record_payment_event", {
       p_provider: "razorpay",
       p_event_id: eventId,
       p_event_type: eventType,
-      p_payload_hash: null,
+      p_payload_hash: payloadHash,
       p_payload: event
     });
-
-    if (recordErr) {
-      console.error("Error checking idempotency:", recordErr);
-    } else if (recordRes?.is_duplicate) {
-      return new Response(
-        JSON.stringify({ status: "ignored", message: "Webhook event already processed" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (recordErr || !recordRes) {
+      throw new Error(`Unable to record webhook idempotency: ${recordErr?.message || "No response"}`);
+    }
+    if (recordRes.is_duplicate && recordRes.status === "completed") {
+      return new Response(JSON.stringify({ status: "ignored", message: "Webhook event already completed" }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
     }
 
-    const paymentEntity = payload?.payment?.entity || payload?.order?.entity;
-    const razorpayPaymentId = paymentEntity?.id;
-    const razorpayOrderId = paymentEntity?.order_id;
-    const amount = (paymentEntity?.amount || 0) / 100;
-    const notes = paymentEntity?.notes || {};
+    const paymentId = paymentEntity?.id;
+    const orderId = paymentEntity?.order_id || orderEntity?.id || null;
+    const amount = Number(paymentEntity?.amount || 0) / 100;
+    const currency = paymentEntity?.currency || orderEntity?.currency || "INR";
+    const notes = paymentEntity?.notes || orderEntity?.notes || subscriptionEntity?.notes || {};
     const userId = notes.userId || notes.user_id;
 
-    // 3. Process Events
-    if ((eventType === "payment.captured" || eventType === "order.paid") && userId) {
-      // Upsert Payment Record
-      await supabase.from("payments").upsert({
+    if ((eventType === "payment.captured" || eventType === "order.paid") && userId && paymentId) {
+      const { error: paymentError } = await supabase.from("payments").upsert({
         user_id: userId,
-        razorpay_payment_id: razorpayPaymentId,
-        razorpay_order_id: razorpayOrderId,
+        razorpay_payment_id: paymentId,
+        razorpay_order_id: orderId,
         amount,
-        currency: paymentEntity?.currency || "INR",
+        currency,
         status: "completed",
         webhook_payload: event
-      });
+      }, { onConflict: "razorpay_payment_id" });
+      if (paymentError) throw new Error(`Payment record could not be saved: ${paymentError.message}`);
 
-      // Grant Credits Atomically
       const creditAmount = amount >= 999 ? 1000 : amount >= 499 ? 500 : 200;
-      await supabase.rpc("credit_adjust", {
+      const { error: creditError } = await supabase.rpc("credit_adjust", {
         p_user_id: userId,
         p_amount: creditAmount,
         p_type: "PURCHASE",
-        p_reason: `Razorpay Payment ${razorpayPaymentId}`
+        p_reason: `Razorpay Payment ${paymentId}`
       });
+      if (creditError) throw new Error(`Verified payment credit grant failed: ${creditError.message}`);
 
-      // System Audit Log
-      await supabase.from("audit_logs").insert({
+      const { error: auditError } = await supabase.from("audit_logs").insert({
         user_id: userId,
         action: "PAYMENT_SUCCESS",
         entity_type: "payment",
-        entity_id: razorpayPaymentId,
-        details: { amount, currency: paymentEntity?.currency || "INR", credits_granted: creditAmount }
+        entity_id: paymentId,
+        details: { amount, currency, credits_granted: creditAmount }
       });
-    } else if ((eventType === "subscription.charged" || eventType === "subscription.activated") && userId) {
-      const subEntity = payload?.subscription?.entity;
-      if (subEntity) {
-        await supabase.from("subscriptions").upsert({
-          user_id: userId,
-          razorpay_subscription_id: subEntity.id,
-          status: "active",
-          current_period_start: new Date(subEntity.current_start * 1000).toISOString(),
-          current_period_end: new Date(subEntity.current_end * 1000).toISOString()
-        });
+      if (auditError) console.error("Payment audit log could not be saved:", auditError.message);
+    } else if ((eventType === "subscription.charged" || eventType === "subscription.activated") && userId && subscriptionEntity?.id) {
+      const currentStart = Number(subscriptionEntity.current_start || 0);
+      const currentEnd = Number(subscriptionEntity.current_end || 0);
+      const subscriptionRecord: Record<string, unknown> = {
+        user_id: userId,
+        razorpay_subscription_id: subscriptionEntity.id,
+        status: "active"
+      };
+      if (currentStart > 0) subscriptionRecord.current_period_start = new Date(currentStart * 1000).toISOString();
+      if (currentEnd > 0) subscriptionRecord.current_period_end = new Date(currentEnd * 1000).toISOString();
 
-        await supabase.rpc("credit_adjust", {
-          p_user_id: userId,
-          p_amount: 1000,
-          p_type: "SUBSCRIPTION_GRANT",
-          p_reason: `Subscription Activated ${subEntity.id}`
-        });
-      }
+      const { error: subscriptionError } = await supabase.from("subscriptions").upsert(
+        subscriptionRecord, { onConflict: "user_id" }
+      );
+      if (subscriptionError) throw new Error(`Subscription record could not be saved: ${subscriptionError.message}`);
+
+      const { error: creditError } = await supabase.rpc("credit_adjust", {
+        p_user_id: userId,
+        p_amount: 1000,
+        p_type: "SUBSCRIPTION_GRANT",
+        p_reason: `Subscription Activated ${subscriptionEntity.id}`
+      });
+      if (creditError) throw new Error(`Subscription credit grant failed: ${creditError.message}`);
     }
 
-    // Mark event completed
-    await supabase.from("payment_events").update({
+    const { error: completionError } = await supabase.from("payment_events").update({
       status: "completed",
-      processed_at: new Date().toISOString()
+      processed_at: new Date().toISOString(),
+      error: null
     }).eq("provider", "razorpay").eq("provider_event_id", eventId);
+    if (completionError) throw new Error(`Webhook event could not be finalized: ${completionError.message}`);
 
-    return new Response(
-      JSON.stringify({ status: "success", event: eventType }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ status: "success", event: eventType }), {
+      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
+    });
   } catch (err: any) {
-    return new Response(
-      JSON.stringify({ error: err.message || "Internal server error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    const message = err?.message || "Internal server error";
+    if (supabase && eventId) {
+      const { error: statusError } = await supabase.from("payment_events").update({
+        status: "failed",
+        error: message
+      }).eq("provider", "razorpay").eq("provider_event_id", eventId).neq("status", "completed");
+      if (statusError) console.error("Could not mark webhook event failed:", statusError.message);
+    }
+    console.error("Razorpay webhook processing failed:", message);
+    return new Response(JSON.stringify({ error: message }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" }
+    });
   }
 });
