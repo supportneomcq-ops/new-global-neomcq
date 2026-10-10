@@ -166,7 +166,7 @@ export async function POST(req: NextRequest) {
       }
 
       // Update Profile and fail visibly if persistence fails.
-      const { error: profileError } = await (admin as any)
+      const { data: updatedProfile, error: profileError } = await (admin as any)
         .from('profiles')
         .update({
           first_name: firstName,
@@ -182,9 +182,11 @@ export async function POST(req: NextRequest) {
           updated_at: new Date().toISOString(),
         })
         .eq('id', targetUserId)
+        .select('id')
+        .maybeSingle()
 
-      if (profileError) {
-        console.error('[Onboarding] Profile update failed:', profileError)
+      if (profileError || !updatedProfile) {
+        console.error('[Onboarding] Profile update failed or no profile row matched:', profileError)
         return NextResponse.json(
           { success: false, error: 'Your exam was verified, but we could not save your profile. Please retry onboarding.' },
           { status: 500 }
