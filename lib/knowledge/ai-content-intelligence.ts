@@ -796,28 +796,31 @@ export async function getOrGenerateCanonicalTopicContent({
         .maybeSingle()
 
       if (existingActiveJob) {
-        console.log(`[AI Content Intelligence] Attaching to in-flight DB job (${existingActiveJob.id}) for idempotency key: ${idempotencyKey}`)
-        const completedVersion = await waitForActiveJobCompletion(supabase, existingActiveJob.id, topic.id, targetVersionNum, 25000)
-        if (completedVersion?.snapshot) {
-          return {
-            success: true,
-            served_from_cache: true,
-            generation_reason: generationReason,
-            version_number: targetVersionNum,
-            hierarchy,
-            content: completedVersion.snapshot,
-            metrics: {
-              input_tokens: completedVersion.input_tokens || 0,
-              output_tokens: completedVersion.output_tokens || 0,
-              cached_tokens: 0,
-              actual_cost_usd: 0,
-              credits_deducted: 0,
-              duration_ms: Date.now() - startTime,
-              model_used: completedVersion.model || 'canonical-completed-job',
-              provider_used: completedVersion.provider || 'supabase-db',
-            },
-            created_at: completedVersion.created_at || new Date().toISOString(),
-          }
+        // Attach to the existing shared generation job. Do not wait inside a
+        // request and never launch a second provider call for the same content.
+        console.log(`[AI Content Intelligence] Reusing in-flight DB job (${existingActiveJob.id}) for idempotency key: ${idempotencyKey}`)
+        return {
+          success: false,
+          served_from_cache: false,
+          generation_reason: 'ERROR',
+          version_number: targetVersionNum,
+          hierarchy,
+          content: null,
+          job_id: existingActiveJob.id,
+          metrics: {
+            input_tokens: 0,
+            output_tokens: 0,
+            cached_tokens: 0,
+            actual_cost_usd: 0,
+            credits_deducted: 0,
+            duration_ms: Date.now() - startTime,
+            model_used: 'shared-job-in-progress',
+            provider_used: 'supabase-job-queue',
+          },
+          created_at: existingActiveJob.created_at || new Date().toISOString(),
+          error: 'This topic pack is already being prepared. Please retry shortly.',
+          error_code: 'GENERATION_IN_PROGRESS',
+          retry_after: 3,
         }
       }
     } catch (concurrencyErr) {
@@ -938,8 +941,31 @@ async function executeGenerationWorkflow({
       .maybeSingle()
 
     if (existingActiveJob) {
-      jobId = existingActiveJob.id
-      console.log(`[AI Content Intelligence] Found existing active DB job (${jobId}) with idempotency key: ${idempotencyKey}`)
+      // Another request owns this idempotency key. Return a pending result
+      // instead of generating duplicate content or consuming another API call.
+      return {
+        success: false,
+        served_from_cache: false,
+        generation_reason: 'ERROR',
+        version_number: targetVersionNum,
+        hierarchy,
+        content: null,
+        job_id: existingActiveJob.id,
+        metrics: {
+          input_tokens: 0,
+          output_tokens: 0,
+          cached_tokens: 0,
+          actual_cost_usd: 0,
+          credits_deducted: 0,
+          duration_ms: Date.now() - startTime,
+          model_used: 'shared-job-in-progress',
+          provider_used: 'supabase-job-queue',
+        },
+        created_at: existingActiveJob.created_at || new Date().toISOString(),
+        error: 'This topic pack is already being prepared. Please retry shortly.',
+        error_code: 'GENERATION_IN_PROGRESS',
+        retry_after: 3,
+      }
     } else {
       // Insert new AI job with idempotency key
       const { data: newJob } = await supabase
