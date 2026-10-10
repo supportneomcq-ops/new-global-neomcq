@@ -3,11 +3,11 @@
 
 with names as (
   select
-    lower(regexp_replace(trim(name), '\\s+', ' ', 'g')) as normalized_name,
+    lower(regexp_replace(trim(name), '\s+', ' ', 'g')) as normalized_name,
     min(trim(name)) as display_name
   from public.exam_subjects
   where trim(coalesce(name, '')) <> ''
-  group by lower(regexp_replace(trim(name), '\\s+', ' ', 'g'))
+  group by lower(regexp_replace(trim(name), '\s+', ' ', 'g'))
 ),
 slugged as (
   select
@@ -36,8 +36,8 @@ update public.exam_subjects es
 set subject_id = s.id
 from public.subjects s
 where es.subject_id is null
-  and lower(regexp_replace(trim(es.name), '\\s+', ' ', 'g')) =
-      lower(regexp_replace(trim(s.name), '\\s+', ' ', 'g'));
+  and lower(regexp_replace(trim(es.name), '\s+', ' ', 'g')) =
+      lower(regexp_replace(trim(s.name), '\s+', ' ', 'g'));
 
 update public.subjects s
 set aliases = coalesce((
