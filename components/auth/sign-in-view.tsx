@@ -325,6 +325,10 @@ function SignInContent() {
                 </form>
               )}
             </AnimatePresence>
+          <p className="mt-5 text-center text-sm text-slate-600 dark:text-gray-400">
+            New to NeoMCQ?{' '}
+            <Link href="/signup" className="font-extrabold text-[#6D5BFF] hover:underline dark:text-[#00D4FF]">Create an account</Link>
+          </p>
           </motion.div>
           
           <p className="text-center text-[11px] text-slate-500 dark:text-gray-500 mt-6 font-medium">
