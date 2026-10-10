@@ -256,7 +256,7 @@ export async function POST(req: NextRequest) {
         exam_id: finalExamId || null,
         task: 'study_plan_generation',
         status: 'queued',
-        provider: 'Google Gemini AI',
+        provider: 'gemini',
         model: 'gemini-2.5-flash',
         priority: 5,
         input_payload: {
