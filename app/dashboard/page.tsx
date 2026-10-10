@@ -28,6 +28,16 @@ export default function DashboardPage() {
             .eq('id', user.id)
             .maybeSingle();
 
+          let profileCountry = '';
+          if (profile?.country_id) {
+            const { data: countryRecord } = await supabase
+              .from('countries')
+              .select('name')
+              .eq('id', profile.country_id)
+              .maybeSingle();
+            profileCountry = countryRecord?.name || '';
+          }
+
           // 2. Fetch linked exams
           const { data: userExam } = await supabase
             .from('user_exams')
@@ -59,7 +69,7 @@ export default function DashboardPage() {
             email: user.email || '',
             phone: profile?.phone || '',
             countryCode: '',
-            country: 'Global',
+            country: profileCountry,
             language: 'English',
             examName: (userExam as any)?.exams?.name || 'Not Selected',
             examDate: examDateStr,
