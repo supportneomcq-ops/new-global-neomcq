@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { OnboardingData } from './onboarding-flow';
-import { UserProfileModal } from './user-profile-modal';
+import { UserProfileModal, type UserProfileTab } from './user-profile-modal';
 import { ExamSwitchModal } from './exam-switch-modal';
 import { AddTopicModal } from './add-topic-modal';
 import { CreateStudyModal } from './create-study-modal';
@@ -37,6 +37,7 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
 
   // Modals
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [profileTab, setProfileTab] = useState<UserProfileTab>('profile');
   const [isExamSwitchModalOpen, setIsExamSwitchModalOpen] = useState(false);
   const [isAddTopicModalOpen, setIsAddTopicModalOpen] = useState(false);
   const [isCreateStudyModalOpen, setIsCreateStudyModalOpen] = useState(false);
@@ -73,7 +74,10 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
         streakDays={streakDays}
         completedHours={completedHours}
         onSignOut={onSignOut}
-        onOpenProfile={() => setIsProfileOpen(true)}
+        onOpenProfile={(tab) => {
+          setProfileTab((tab as UserProfileTab) || 'profile');
+          setIsProfileOpen(true);
+        }}
         onOpenExamSwitch={() => setIsExamSwitchModalOpen(true)}
         onOpenAddTopic={() => setIsAddTopicModalOpen(true)}
         onOpenDiscoverExam={() => setIsCreateStudyModalOpen(true)}
@@ -169,6 +173,7 @@ export function DashboardView({ user, onSignOut, onOpenPractice }: DashboardView
           isOpen={isProfileOpen}
           onClose={() => setIsProfileOpen(false)}
           user={user}
+          initialTab={profileTab}
         />
       )}
 
