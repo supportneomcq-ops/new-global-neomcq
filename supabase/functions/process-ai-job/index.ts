@@ -90,8 +90,29 @@ serve(async (req) => {
       throw new Error("AI provider execution failed to generate content");
     }
 
-    // Mark job as completed
-    await supabase
+    // Charge successfully before exposing a completed job. Supabase RPC failures are
+    // returned as { error } and do not necessarily throw, so handle them explicitly.
+    if (job.user_id) {
+      const { error: creditError } = await supabase.rpc("credit_consume", {
+        p_user_id: job.user_id,
+        p_amount: 10,
+        p_task: job.task,
+        p_job_id: jobId
+      });
+      if (creditError) {
+        await supabase
+          .from("ai_jobs")
+          .update({
+            status: "failed",
+            error: `Credit consumption failed: ${creditError.message}`,
+            completed_at: new Date().toISOString()
+          })
+          .eq("id", jobId);
+        throw new Error("AI job could not be finalized because credit accounting failed.");
+      }
+    }
+
+    const { error: completionError } = await supabase
       .from("ai_jobs")
       .update({
         status: "completed",
@@ -102,14 +123,8 @@ serve(async (req) => {
       })
       .eq("id", jobId);
 
-    // Consume credits
-    if (job.user_id) {
-      await supabase.rpc("credit_consume", {
-        p_user_id: job.user_id,
-        p_amount: 10,
-        p_task: job.task,
-        p_job_id: jobId
-      });
+    if (completionError) {
+      throw new Error(`Failed to mark AI job completed: ${completionError.message}`);
     }
 
     return new Response(
