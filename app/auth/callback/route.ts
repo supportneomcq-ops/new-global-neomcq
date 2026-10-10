@@ -4,7 +4,17 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
-  const next = requestUrl.searchParams.get('next') ?? '/'
+  const requestedNext = requestUrl.searchParams.get('next') ?? '/dashboard'
+  // Only allow redirects whose parsed origin remains this application.
+  let next = '/dashboard'
+  try {
+    const target = new URL(requestedNext, requestUrl.origin)
+    if (target.origin === requestUrl.origin) {
+      next = `${target.pathname}${target.search}${target.hash}`
+    }
+  } catch {
+    // Keep the safe dashboard fallback for malformed redirect targets.
+  }
 
   if (code) {
     const supabase = await createClient()

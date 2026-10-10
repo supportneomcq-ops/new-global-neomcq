@@ -9,6 +9,19 @@ import { getSupabaseClient } from '@/lib/supabase';
 import { Logo } from '@/components/logo';
 import Link from 'next/link';
 
+function getSafeNextPath(candidate: string, isAdmin: boolean): string | null {
+  if (!candidate || !candidate.startsWith('/')) return null;
+  try {
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://neomcq.com';
+    const target = new URL(candidate, origin);
+    if (target.origin !== origin) return null;
+    if ((target.pathname === '/admin' || target.pathname.startsWith('/admin/')) && !isAdmin) return null;
+    return `${target.pathname}${target.search}${target.hash}`;
+  } catch {
+    return null;
+  }
+}
+
 function SignInContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -30,24 +43,18 @@ function SignInContent() {
         const supabase = getSupabaseClient();
         const { data: { user } } = await supabase.auth.getUser();
         if (user && isMounted) {
-          const userEmail = user.email?.toLowerCase().trim() || '';
           const { data: userRoles } = await supabase
             .from('user_roles')
             .select('roles(name)')
             .eq('user_id', user.id);
 
           const roleNames = userRoles?.map((r: any) => r.roles?.name).filter(Boolean) || [];
-          const isKnownAdmin =
-            userEmail === 'swapnilsonawane913@gmail.com' ||
-            userEmail === 'support@neomcq.com' ||
-            userEmail === 'admin@neomcq.com' ||
-            roleNames.includes('admin') ||
-            roleNames.includes('super_admin') ||
-            roleNames.includes('content_admin');
+          const isAdmin = roleNames.some((role: string) => ['admin', 'super_admin', 'content_admin'].includes(role));
+          const safeNext = getSafeNextPath(redirectedFrom, isAdmin);
 
-          if (redirectedFrom && redirectedFrom.startsWith('/')) {
-            router.push(redirectedFrom);
-          } else if (isKnownAdmin) {
+          if (safeNext) {
+            router.push(safeNext);
+          } else if (isAdmin) {
             router.push('/admin');
           } else if (roleNames.includes('support')) {
             router.push('/support');
@@ -96,20 +103,18 @@ function SignInContent() {
           return;
         }
 
-        // Check if admin
-        const clientEmail = clientAuth.data?.user?.email?.toLowerCase().trim() || '';
-        const isClientAdmin =
-          clientEmail === 'swapnilsonawane913@gmail.com' ||
-          clientEmail === 'support@neomcq.com' ||
-          clientEmail === 'admin@neomcq.com';
+        const { data: clientRoles } = await supabase
+          .from('user_roles')
+          .select('roles(name)')
+          .eq('user_id', clientAuth.data.user.id);
+        const roleNames = clientRoles?.map((role: any) => role.roles?.name).filter(Boolean) || [];
+        const isClientAdmin = roleNames.some((role: string) => ['admin', 'super_admin', 'content_admin'].includes(role));
+        const isClientSupport = roleNames.includes('support');
 
         setSuccess(true);
-        let fallbackTarget = isClientAdmin ? '/admin' : '/dashboard';
-        if (redirectedFrom && redirectedFrom.startsWith('/')) {
-          if (!redirectedFrom.startsWith('/admin') || isClientAdmin) {
-            fallbackTarget = redirectedFrom;
-          }
-        }
+        let fallbackTarget = isClientAdmin ? '/admin' : isClientSupport ? '/support' : '/dashboard';
+        const safeNext = getSafeNextPath(redirectedFrom, isClientAdmin);
+        if (safeNext) fallbackTarget = safeNext;
         setTimeout(() => {
           window.location.href = fallbackTarget;
         }, 600);
@@ -131,12 +136,9 @@ function SignInContent() {
 
       setSuccess(true);
       let targetUrl = res?.redirectUrl || '/dashboard';
-      if (redirectedFrom && redirectedFrom.startsWith('/')) {
-        const isAdmin = res?.user?.roles?.includes('admin') || res?.user?.email === 'swapnilsonawane913@gmail.com';
-        if (!redirectedFrom.startsWith('/admin') || isAdmin) {
-          targetUrl = redirectedFrom;
-        }
-      }
+      const isAdmin = ['admin', 'super_admin', 'content_admin'].some((role) => res?.user?.roles?.includes(role));
+      const safeNext = getSafeNextPath(redirectedFrom, isAdmin);
+      if (safeNext) targetUrl = safeNext;
 
       setTimeout(() => {
         window.location.href = targetUrl;
@@ -152,9 +154,9 @@ function SignInContent() {
         }
         setSuccess(true);
         let targetUrl = actionRes?.redirectUrl || '/dashboard';
-        if (redirectedFrom && redirectedFrom.startsWith('/')) {
-          targetUrl = redirectedFrom;
-        }
+        const isAdmin = targetUrl === '/admin' || targetUrl.startsWith('/admin/');
+        const safeNext = getSafeNextPath(redirectedFrom, isAdmin);
+        if (safeNext) targetUrl = safeNext;
         setTimeout(() => {
           window.location.href = targetUrl;
         }, 600);
@@ -325,6 +327,10 @@ function SignInContent() {
                 </form>
               )}
             </AnimatePresence>
+          <p className="mt-5 text-center text-sm text-slate-600 dark:text-gray-400">
+            New to NeoMCQ?{' '}
+            <Link href="/signup" className="font-extrabold text-[#6D5BFF] hover:underline dark:text-[#00D4FF]">Create an account</Link>
+          </p>
           </motion.div>
           
           <p className="text-center text-[11px] text-slate-500 dark:text-gray-500 mt-6 font-medium">
