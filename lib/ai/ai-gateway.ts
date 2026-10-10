@@ -19,9 +19,22 @@ export class AIGateway {
   private static geminiProvider = new GoogleGeminiProvider();
   private static openaiProvider = new OpenAIProvider();
 
-  public static getAdapter(provider: AIProviderId): ProviderAdapter {
-    if (provider === 'gemini') return this.geminiProvider;
-    if (provider === 'openai') return this.openaiProvider;
+  public static getAdapter(provider: AIProviderId | string): ProviderAdapter {
+    // Database rows and legacy jobs may contain display labels (e.g. "OpenAI"
+    // or "Google Gemini AI") instead of canonical provider IDs. Normalize them
+    // at this boundary so persisted labels cannot break AI execution.
+    const normalized = String(provider || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[_-]+/g, ' ')
+      .replace(/\\s+/g, ' ');
+
+    if (['gemini', 'google gemini', 'google gemini ai', 'google gemini api'].includes(normalized)) {
+      return this.geminiProvider;
+    }
+    if (['openai', 'open ai', 'openai api'].includes(normalized)) {
+      return this.openaiProvider;
+    }
     throw new Error(`Unknown AI Provider: ${provider}`);
   }
 
