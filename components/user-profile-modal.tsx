@@ -187,7 +187,6 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile, initi
       if (error) throw error;
 
       setSuccessMessage('Password changed successfully!');
-      setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
       setTimeout(() => setSuccessMessage(''), 3000);
