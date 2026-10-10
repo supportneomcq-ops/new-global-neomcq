@@ -51,9 +51,7 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile, initi
   const [firstName, setFirstName] = useState(user.firstName || '');
   const [lastName, setLastName] = useState(user.lastName || '');
   const [phone, setPhone] = useState(user.phone || '');
-  const [country, setCountry] = useState(user.country || 'United States');
-  const [college, setCollege] = useState('Harvard Medical School');
-  const [bio, setBio] = useState('Medical student aspiring for high-yield mastery.');
+  const [country, setCountry] = useState(user.country || '');
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -95,16 +93,10 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile, initi
   }, [isOpen, activeTab, creditReloadKey]);
 
   // Password Change State
-  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // Mock Active Devices
-  const [devices, setDevices] = useState([
-    { id: 'dev_1', name: 'MacBook Pro (Current Session)', location: 'California, USA', lastActive: 'Active now', current: true },
-    { id: 'dev_2', name: 'iPhone 15 Pro', location: 'California, USA', lastActive: '2 hours ago', current: false },
-    { id: 'dev_3', name: 'iPad Air 5th Gen', location: 'California, USA', lastActive: 'Yesterday', current: false },
-  ]);
+  const [sessionActionLoading, setSessionActionLoading] = useState(false);
 
   const handleCountryChange = (selectedCountryName: string) => {
     setCountry(selectedCountryName);
@@ -125,23 +117,38 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile, initi
       const supabase = getSupabaseClient();
       const { data: { user: authUser } } = await supabase.auth.getUser();
 
-      if (authUser) {
-        const { error } = await supabase
-          .from('profiles')
-          .update({
-            first_name: firstName,
-            last_name: lastName,
-            phone: phone,
-            country: country,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', authUser.id);
-
-        if (error) throw error;
+      if (!authUser) {
+        throw new Error('Your session has expired. Please sign in again.');
       }
 
+      let countryId: string | null = null;
+      if (country.trim()) {
+        const { data: countryRecord, error: countryLookupError } = await supabase
+          .from('countries')
+          .select('id')
+          .ilike('name', country.trim())
+          .maybeSingle();
+
+        if (countryLookupError) throw countryLookupError;
+        if (!countryRecord) throw new Error('Select a valid country or region before saving.');
+        countryId = countryRecord.id;
+      }
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          phone: phone.trim() || null,
+          country_id: countryId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', authUser.id);
+
+      if (error) throw error;
+
       if (onUpdateProfile) {
-        onUpdateProfile({ firstName, lastName, phone, country, college, bio });
+        onUpdateProfile({ firstName: firstName.trim(), lastName: lastName.trim(), phone: phone.trim(), country });
       }
 
       setSuccessMessage('Profile updated successfully!');
@@ -191,14 +198,20 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile, initi
     }
   };
 
-  const handleRevokeDevice = (deviceId: string) => {
-    setDevices(devices.filter((d) => d.id !== deviceId));
-  };
-
-  const handleRevokeAllOtherDevices = () => {
-    setDevices(devices.filter((d) => d.current));
-    setSuccessMessage('Logouts triggered on all other devices');
-    setTimeout(() => setSuccessMessage(''), 3000);
+  const handleRevokeAllOtherDevices = async () => {
+    setSessionActionLoading(true);
+    setSuccessMessage('');
+    setErrorMessage('');
+    try {
+      const supabase = getSupabaseClient();
+      const { error } = await supabase.auth.signOut({ scope: 'others' });
+      if (error) throw error;
+      setSuccessMessage('Other active sessions have been signed out.');
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Could not sign out other sessions. Please try again.');
+    } finally {
+      setSessionActionLoading(false);
+    }
   };
 
   const handleDeleteAccount = async () => {
@@ -325,6 +338,7 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile, initi
                       onChange={(e) => handleCountryChange(e.target.value)}
                       className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-900 dark:text-white focus:outline-none focus:border-[#6D5BFF]"
                     >
+                      <option value="">Select country / region</option>
                       {GLOBAL_COUNTRIES.map((c) => (
                         <option key={c.iso2} value={c.name} className="bg-white dark:bg-gray-900">
                           {c.flag_emoji} {c.name} ({c.phone_code})
@@ -342,26 +356,6 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile, initi
                       className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-900 dark:text-white focus:outline-none focus:border-[#6D5BFF]"
                     />
                   </div>
-                </div>
-
-                <div>
-                  <label className="block text-slate-500 mb-1">Target College / Institution</label>
-                  <input
-                    type="text"
-                    value={college}
-                    onChange={(e) => setCollege(e.target.value)}
-                    className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-900 dark:text-white focus:outline-none focus:border-[#6D5BFF]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-500 mb-1">Personal Bio</label>
-                  <textarea
-                    rows={3}
-                    value={bio}
-                    onChange={(e) => setBio(e.target.value)}
-                    className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-900 dark:text-white focus:outline-none focus:border-[#6D5BFF]"
-                  />
                 </div>
 
                 <div className="flex justify-end pt-2">
@@ -554,51 +548,31 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile, initi
 
             {/* TAB 3: ACTIVE SESSIONS */}
             {activeTab === 'devices' && (
-              <div className="space-y-4 text-xs font-semibold">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Currently logged in devices</span>
-                  <button
-                    onClick={handleRevokeAllOtherDevices}
-                    className="px-3 py-1.5 rounded-xl bg-rose-500/10 text-rose-500 font-bold hover:bg-rose-500/20 cursor-pointer"
-                  >
-                    Logout All Other Sessions
-                  </button>
-                </div>
-
-                <div className="space-y-2">
-                  {devices.map((dev) => (
-                    <div
-                      key={dev.id}
-                      className="p-3.5 rounded-2xl bg-slate-50 dark:bg-gray-900/60 border border-slate-200 dark:border-gray-800 flex items-center justify-between"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Smartphone className="w-5 h-5 text-[#6D5BFF]" />
-                        <div>
-                          <div className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                            <span>{dev.name}</span>
-                            {dev.current && (
-                              <span className="px-2 py-0.5 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-500 uppercase">
-                                This Device
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-[10px] text-slate-400">
-                            {dev.location} • {dev.lastActive}
-                          </div>
-                        </div>
-                      </div>
-
-                      {!dev.current && (
-                        <button
-                          onClick={() => handleRevokeDevice(dev.id)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 cursor-pointer"
-                          title="Revoke session"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      )}
+              <div className="space-y-4 text-sm">
+                <div className="rounded-2xl border border-slate-200 dark:border-gray-800 bg-slate-50 dark:bg-gray-900/50 p-4 flex items-start gap-3">
+                  <Smartphone className="w-5 h-5 mt-0.5 text-[#6D5BFF]" />
+                  <div>
+                    <div className="font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                      Current browser session
+                      <span className="px-2 py-0.5 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 uppercase">Active</span>
                     </div>
-                  ))}
+                    <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">Signed in as {user.email}. This panel does not display fabricated device or location history.</p>
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-slate-200 dark:border-gray-800 p-4 space-y-3">
+                  <div>
+                    <h4 className="font-extrabold text-slate-900 dark:text-white">Sign out other sessions</h4>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">This signs your account out of other active sessions while keeping this browser signed in.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRevokeAllOtherDevices}
+                    disabled={sessionActionLoading}
+                    className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-60"
+                  >
+                    {sessionActionLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                    Sign out other sessions
+                  </button>
                 </div>
               </div>
             )}
