@@ -169,7 +169,10 @@ export async function POST(req: NextRequest) {
       // Update Profile and fail visibly if persistence fails.
       const { data: updatedProfile, error: profileError } = await (admin as any)
         .from('profiles')
-        .update({
+        .upsert({
+          id: targetUserId,
+          auth_user_id: targetUserId,
+          email: email.toLowerCase(),
           first_name: firstName,
           last_name: lastName || '',
           phone: phone || null,
@@ -181,10 +184,9 @@ export async function POST(req: NextRequest) {
           exam_selected_at: new Date().toISOString(),
           exam_switch_count: 0,
           updated_at: new Date().toISOString(),
-        })
-        .eq('id', targetUserId)
+        }, { onConflict: 'id' })
         .select('id')
-        .maybeSingle()
+        .single()
 
       if (profileError || !updatedProfile) {
         console.error('[Onboarding] Profile update failed or no profile row matched:', profileError)
