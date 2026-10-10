@@ -7,7 +7,7 @@ function normalizeProviderId(value: unknown): AIProviderId | null {
     .trim()
     .toLowerCase()
     .replace(/[_-]+/g, ' ')
-    .replace(/\\s+/g, ' ');
+    .replace(/\s+/g, ' ');
   if (['gemini', 'google gemini', 'google gemini ai', 'google ai', 'google ai studio'].includes(normalized)) return 'gemini';
   if (['openai', 'open ai', 'openai api'].includes(normalized)) return 'openai';
   return null;
