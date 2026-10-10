@@ -9,7 +9,6 @@ import {
   Shield,
   CreditCard,
   Zap,
-  Settings,
   ChevronDown,
   X,
   Menu,
@@ -60,9 +59,8 @@ export function WorkspaceHeader({
     { label: 'Profile', icon: User, action: () => onOpenProfile('profile') },
     { label: 'Account', icon: Shield, action: () => onOpenProfile('security') },
     { label: 'Study Plan', icon: Calendar, action: () => onSelectTab && onSelectTab('plan') },
-    { label: 'Subscription', icon: CreditCard, action: () => onOpenProfile('subscription') },
+    { label: 'Subscription', icon: CreditCard, action: () => onOpenProfile('billing') },
     { label: 'Credits / AI Usage', icon: Zap, action: () => onOpenProfile('credits') },
-    { label: 'Settings', icon: Settings, action: () => onOpenProfile('settings') },
   ];
 
   return (
