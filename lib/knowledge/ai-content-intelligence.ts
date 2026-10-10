@@ -1318,6 +1318,8 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
         .from('ai_jobs')
         .update({
           status: 'completed',
+          progress_stage: 'Completed successfully',
+          step_percentage: 100,
           completed_at: new Date().toISOString(),
           output_payload: {
             mcqs_count: finalPayload.mcqs.length,
@@ -1352,6 +1354,8 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
         .from('ai_jobs')
         .update({
           status: 'failed',
+          progress_stage: 'Content persistence failed',
+          step_percentage: 100,
           error: 'Generated content could not be saved reliably. Please retry shortly.',
           completed_at: new Date().toISOString(),
         })
