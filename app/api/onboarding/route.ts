@@ -102,6 +102,7 @@ export async function POST(req: NextRequest) {
     // Never trust a client-supplied exam ID as the canonical curriculum source.
     // Resolve the submitted exam name server-side and stop if resolution fails.
     let finalExamId: string | null = null
+    let studyPlanQueued = false
 
     if (targetUserId) {
       // 1. Resolve country_id and language_id from database
@@ -273,6 +274,7 @@ export async function POST(req: NextRequest) {
       }
 
       if (aiJob?.id) {
+        studyPlanQueued = true
         fetch(`${req.nextUrl.origin}/api/ai/process-job`, {
           method: 'POST',
           headers: {
@@ -289,7 +291,7 @@ export async function POST(req: NextRequest) {
       message: 'Onboarding preferences saved',
       userId: targetUserId,
       examId: finalExamId,
-      studyPlanQueued: Boolean(finalExamId),
+      studyPlanQueued,
     })
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Onboarding failed' }, { status: 500 })
