@@ -27,7 +27,12 @@ async function verifyRazorpaySignature(
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
 
-    return computedSignature === signature;
+    if (computedSignature.length !== signature.length) return false;
+    let difference = 0;
+    for (let i = 0; i < computedSignature.length; i++) {
+      difference |= computedSignature.charCodeAt(i) ^ signature.charCodeAt(i);
+    }
+    return difference === 0;
   } catch (_e) {
     return false;
   }
