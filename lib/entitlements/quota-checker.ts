@@ -70,7 +70,7 @@ export async function checkFeatureQuota(params: QuotaCheckParams): Promise<Quota
         return { allowed: true, planCode: 'FREE' };
       }
 
-      // Check user_free_topic_usage table in Supabase
+      // The table is server-only. Fail closed if the entitlement record cannot be read.
       const { data: freeUsage, error: freeUsageErr } = await admin
         .from('user_free_topic_usage')
         .select('topic_id')
@@ -80,44 +80,67 @@ export async function checkFeatureQuota(params: QuotaCheckParams): Promise<Quota
 
       if (freeUsageErr && freeUsageErr.code !== 'PGRST116') {
         console.error('Error checking user_free_topic_usage:', freeUsageErr);
-      }
-
-      if (!freeUsage) {
-        // Record 1st unique topic for this feature on Free plan in Supabase
-        await admin.from('user_free_topic_usage').insert({
-          user_id: userId,
-          feature,
-          topic_id: topicId,
-          exam_id: examId || null,
-          subject_id: subjectId || null,
-          created_at: new Date().toISOString(),
-        });
-
         return {
-          allowed: true,
+          allowed: false,
           planCode: 'FREE',
-          recordedTopicId: topicId,
+          reason: 'Could not verify your free-plan topic limit. Please retry shortly.',
+          upgradeMessage: 'We could not safely verify your topic allowance. Please retry shortly.',
         };
       }
 
-      // Compare with existing recorded topic for this feature
-      if (freeUsage.topic_id === topicId) {
-        return {
-          allowed: true,
-          planCode: 'FREE',
-          recordedTopicId: freeUsage.topic_id,
-        };
-      }
-
-      // Trying to access a 2nd topic for this feature on Free plan -> BLOCKED
-      return {
+      const blockAdditionalTopic = (recordedTopicId: string): QuotaCheckResult => ({
         allowed: false,
         limitType: 'free_lifetime_topic',
         featureName,
         planCode: 'FREE',
-        recordedTopicId: freeUsage.topic_id,
+        recordedTopicId,
         reason: `Free plan allows 1 unique lifetime topic for ${featureName}.`,
         upgradeMessage: `Free plan allows 1 unique lifetime topic for ${featureName}. Upgrade to Pro to access unlimited topics across all subjects.`,
+      });
+
+      if (freeUsage) {
+        if (freeUsage.topic_id === topicId) {
+          return { allowed: true, planCode: 'FREE', recordedTopicId: freeUsage.topic_id };
+        }
+        return blockAdditionalTopic(freeUsage.topic_id);
+      }
+
+      // Insert the first topic atomically. A concurrent request may win the unique
+      // (user_id, feature) constraint; re-read that winner before deciding.
+      const { error: insertError } = await admin.from('user_free_topic_usage').insert({
+        user_id: userId,
+        feature,
+        topic_id: topicId,
+        exam_id: examId || null,
+        subject_id: subjectId || null,
+      });
+
+      if (!insertError) {
+        return { allowed: true, planCode: 'FREE', recordedTopicId: topicId };
+      }
+
+      if (insertError.code === '23505') {
+        const { data: winner, error: winnerError } = await admin
+          .from('user_free_topic_usage')
+          .select('topic_id')
+          .eq('user_id', userId)
+          .eq('feature', feature)
+          .maybeSingle();
+
+        if (!winnerError && winner?.topic_id === topicId) {
+          return { allowed: true, planCode: 'FREE', recordedTopicId: topicId };
+        }
+        if (!winnerError && winner?.topic_id) {
+          return blockAdditionalTopic(winner.topic_id);
+        }
+      }
+
+      console.error('Failed to record user_free_topic_usage:', insertError);
+      return {
+        allowed: false,
+        planCode: 'FREE',
+        reason: 'Could not safely record your free-plan topic allowance. Please retry shortly.',
+        upgradeMessage: 'We could not safely verify your topic allowance. Please retry shortly.',
       };
     }
 
