@@ -5,10 +5,16 @@ export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
   const requestedNext = requestUrl.searchParams.get('next') ?? '/dashboard'
-  // Only allow same-origin relative paths; prevent callback open redirects.
-  const next = requestedNext.startsWith('/') && !requestedNext.startsWith('//') && !requestedNext.includes('\\\\')
-    ? requestedNext
-    : '/dashboard'
+  // Only allow redirects whose parsed origin remains this application.
+  let next = '/dashboard'
+  try {
+    const target = new URL(requestedNext, requestUrl.origin)
+    if (target.origin === requestUrl.origin) {
+      next = `${target.pathname}${target.search}${target.hash}`
+    }
+  } catch {
+    // Keep the safe dashboard fallback for malformed redirect targets.
+  }
 
   if (code) {
     const supabase = await createClient()
