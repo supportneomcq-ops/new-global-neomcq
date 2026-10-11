@@ -175,7 +175,14 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearchingExams, setIsSearchingExams] = useState(false);
   const [fuzzyMatchProposal, setFuzzyMatchProposal] = useState<any | null>(null);
-  const [pendingExamConfirmation, setPendingExamConfirmation] = useState<any | null>(null);
+  const [pendingExamConfirmation, setPendingExamConfirmation] = useState<{
+    id?: string;
+    name: string;
+    country?: string;
+    flag?: string;
+    category?: string;
+    in_database?: boolean;
+  } | null>(null);
   const [nameConfirmationProposal, setNameConfirmationProposal] = useState<{
     original: string;
     proposed: string;
