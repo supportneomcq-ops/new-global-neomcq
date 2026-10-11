@@ -221,41 +221,10 @@ export function DashboardHomeView({
     <div className="space-y-6 sm:space-y-8 pb-16">
       {/* Selection Context Bar (Exam -> Subject -> Topic -> Subtopic + SHOW) */}
       <LearningContextBar />
-      {/* Personalized exam countdown: values come from the saved onboarding profile. */}
-      <section aria-label="Your exam countdown and study targets" className="rounded-3xl border border-indigo-200 dark:border-indigo-900/70 bg-white dark:bg-slate-900 p-5 sm:p-6 shadow-sm">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <p className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-300">Your exam countdown</p>
-            <h2 className="mt-1 text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">{activeExamName}</h2>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Exam date: {resolvedTargetDate ? new Date(resolvedTargetDate + (resolvedTargetDate.length === 10 ? 'T00:00:00' : '')).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : 'Not set'}
-            </p>
-          </div>
-          <div className="rounded-2xl bg-indigo-600 px-5 py-4 text-white text-center min-w-[124px]">
-            <p className="text-xs font-semibold text-indigo-100">Days left</p>
-            <p className="text-4xl font-black tabular-nums">{calculatedDaysLeft}</p>
-            <p className="text-xs text-indigo-100">{calculatedDaysLeft === 1 ? 'day remaining' : 'days remaining'}</p>
-          </div>
-        </div>
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="rounded-xl bg-slate-50 dark:bg-slate-800/70 p-3">
-            <p className="text-xs text-slate-500 dark:text-slate-400">Preparation mode</p>
-            <p className="mt-1 font-bold">{user.learningStyle === 'Rapid Learning' ? 'Rapid Learning' : 'Regular / Balanced Study'}</p>
-          </div>
-          <div className="rounded-xl bg-slate-50 dark:bg-slate-800/70 p-3">
-            <p className="text-xs text-slate-500 dark:text-slate-400">Daily study target</p>
-            <p className="mt-1 font-bold">{Math.max(1, user.studyHours || 2)} hours/day</p>
-          </div>
-          <div className="rounded-xl bg-slate-50 dark:bg-slate-800/70 p-3">
-            <p className="text-xs text-slate-500 dark:text-slate-400">Preferred study time</p>
-            <p className="mt-1 font-bold">{user.studyTime || 'Flexible'}</p>
-          </div>
-        </div>
-      </section>
       {/* ========================================================================= */}
       {/* 1. TOP COMMAND CENTER: HERO READY & EXAM STATUS */}
       {/* ========================================================================= */}
-      <section className="relative rounded-3xl bg-slate-900 dark:bg-slate-950 text-white p-6 sm:p-8 lg:p-10 border border-slate-800 shadow-2xl overflow-hidden">
+      <section className="neo-dashboard-enter relative rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 dark:from-[#070B16] dark:via-[#0B1020] dark:to-indigo-950 text-white p-6 sm:p-8 lg:p-10 border border-indigo-400/20 shadow-2xl overflow-hidden">
         {/* Subtle decorative glow */}
         <div className="absolute -top-24 -right-24 w-96 h-96 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
@@ -308,6 +277,11 @@ export function DashboardHomeView({
                 <Clock className="w-3.5 h-3.5 text-cyan-300" />
                 <span className="text-slate-300 font-medium">Daily target:</span>
                 <span className="font-bold text-white">{Math.max(1, user.studyHours || 2)} hours</span>
+              </div>
+              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-fuchsia-500/15 border border-fuchsia-400/25 text-xs text-fuchsia-100">
+                <Clock className="w-3.5 h-3.5 text-fuchsia-300" />
+                <span className="text-slate-300 font-medium">Study time:</span>
+                <span className="font-bold text-white">{user.studyTime || 'Flexible'}</span>
               </div>
             </div>
           </div>
@@ -396,7 +370,7 @@ export function DashboardHomeView({
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Recommendation 1: Practice Sprint */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-600 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group">
+          <div className="neo-dashboard-enter neo-lift p-5 rounded-2xl bg-white/95 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-600 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between group">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-md uppercase tracking-wider bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">
@@ -424,7 +398,7 @@ export function DashboardHomeView({
           </div>
 
           {/* Recommendation 2: Active Recall Flashcards */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-600 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group">
+          <div className="neo-dashboard-enter neo-lift p-5 rounded-2xl bg-white/95 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-600 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between group">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-md uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
@@ -452,7 +426,7 @@ export function DashboardHomeView({
           </div>
 
           {/* Recommendation 3: AI Synaptic Whiteboard */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-400 dark:hover:border-amber-600 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group">
+          <div className="neo-dashboard-enter neo-lift p-5 rounded-2xl bg-white/95 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-400 dark:hover:border-amber-600 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between group">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-md uppercase tracking-wider bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300">
@@ -617,7 +591,7 @@ export function DashboardHomeView({
                   }
                   onSelectTab(cfg.tab, cfg.subTab);
                 }}
-                className={`p-5 rounded-3xl bg-white dark:bg-slate-900 border transition-all flex flex-col justify-between group cursor-pointer ${
+                className={`neo-dashboard-enter neo-lift p-5 rounded-3xl bg-white dark:bg-slate-900 border transition-all duration-300 flex flex-col justify-between group cursor-pointer focus-within:ring-2 focus-within:ring-indigo-500/50 ${
                   status === 'READY'
                     ? 'border-slate-200 dark:border-slate-800 hover:border-indigo-500 dark:hover:border-indigo-500 shadow-xs hover:shadow-xl'
                     : status === 'FAILED'
