@@ -224,10 +224,10 @@ export function DashboardHomeView({
       {/* ========================================================================= */}
       {/* 1. TOP COMMAND CENTER: HERO READY & EXAM STATUS */}
       {/* ========================================================================= */}
-      <section className="neo-dashboard-enter relative rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 dark:from-[#070B16] dark:via-[#0B1020] dark:to-indigo-950 text-white p-6 sm:p-8 lg:p-10 border border-indigo-400/20 shadow-2xl overflow-hidden">
+      <section className="neo-dashboard-enter relative rounded-3xl bg-gradient-to-br from-white via-indigo-50 to-sky-50 dark:from-[#070B16] dark:via-[#0B1020] dark:to-indigo-950 text-slate-900 dark:text-slate-900 dark:text-white p-4 sm:p-7 lg:p-9 border border-indigo-100 dark:border-indigo-400/20 shadow-xl shadow-indigo-950/5 overflow-hidden">
         {/* Subtle decorative glow */}
-        <div className="absolute -top-24 -right-24 w-96 h-96 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -top-24 -right-24 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
           {/* Left Column: Greeting & Target Exam Focus */}
@@ -242,52 +242,52 @@ export function DashboardHomeView({
             </div>
 
             <div>
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white leading-tight">
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight">
                 Welcome back, {user.firstName || 'Learner'}!
               </h1>
-              <p className="text-sm sm:text-base text-slate-300 mt-2 leading-relaxed">
-                Your preparation for <span className="text-white font-bold underline decoration-indigo-400 decoration-2 underline-offset-4">{activeExamName}</span> is currently active. Target exam date is <span className="text-white font-semibold">{resolvedTargetDate || 'Scheduled'}</span> ({calculatedDaysLeft} days remaining).
+              <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 mt-2 leading-relaxed">
+                Your preparation for <span className="text-slate-900 dark:text-white font-bold underline decoration-indigo-400 decoration-2 underline-offset-4">{activeExamName}</span> is currently active. Target exam date is <span className="text-slate-900 dark:text-white font-semibold">{resolvedTargetDate || 'Scheduled'}</span> ({calculatedDaysLeft} days remaining).
               </p>
             </div>
 
             {/* Active Topic / Subject Breadcrumb Pill */}
             <div className="pt-1 flex flex-wrap items-center gap-2.5">
-              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white/10 border border-white/15 text-xs text-slate-200 backdrop-blur-xs">
+              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white/80 border border-indigo-100 text-xs text-slate-200 backdrop-blur-xs">
                 <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
-                <span className="text-slate-400 font-medium">Subject:</span>
-                <span className="font-bold text-white truncate max-w-[180px]">{activeSubjectName}</span>
+                <span className="text-slate-500 dark:text-slate-400 font-medium">Subject:</span>
+                <span className="font-bold text-slate-900 dark:text-white truncate max-w-[180px]">{activeSubjectName}</span>
               </div>
-              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white/10 border border-white/15 text-xs text-slate-200 backdrop-blur-xs">
+              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white/80 border border-indigo-100 text-xs text-slate-200 backdrop-blur-xs">
                 <Layers className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-slate-400 font-medium">Topic:</span>
+                <span className="text-slate-500 dark:text-slate-400 font-medium">Topic:</span>
                 <span className="font-bold text-emerald-300 truncate max-w-[200px]">{activeTopicName}</span>
               </div>
               {activeSubtopicName && (
                 <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-xs text-emerald-200 backdrop-blur-xs">
-                  <span className="text-slate-300 font-medium">Subtopic:</span>
-                  <span className="font-bold text-white truncate max-w-[200px]">{activeSubtopicName}</span>
+                  <span className="text-slate-600 dark:text-slate-300 font-medium">Subtopic:</span>
+                  <span className="font-bold text-slate-900 dark:text-white truncate max-w-[200px]">{activeSubtopicName}</span>
                 </div>
               )}
               <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-violet-500/15 border border-violet-400/25 text-xs text-violet-100">
                 <Zap className="w-3.5 h-3.5 text-violet-300" />
-                <span className="text-slate-300 font-medium">Mode:</span>
-                <span className="font-bold text-white">{user.learningStyle === 'Rapid Learning' ? 'Rapid Learning' : 'Regular Study'}</span>
+                <span className="text-slate-600 dark:text-slate-300 font-medium">Mode:</span>
+                <span className="font-bold text-slate-900 dark:text-white">{user.learningStyle === 'Rapid Learning' ? 'Rapid Learning' : 'Regular Study'}</span>
               </div>
               <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-cyan-500/15 border border-cyan-400/25 text-xs text-cyan-100">
                 <Clock className="w-3.5 h-3.5 text-cyan-300" />
-                <span className="text-slate-300 font-medium">Daily target:</span>
-                <span className="font-bold text-white">{Math.max(1, user.studyHours || 2)} hours</span>
+                <span className="text-slate-600 dark:text-slate-300 font-medium">Daily target:</span>
+                <span className="font-bold text-slate-900 dark:text-white">{Math.max(1, user.studyHours || 2)} hours</span>
               </div>
               <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-fuchsia-500/15 border border-fuchsia-400/25 text-xs text-fuchsia-100">
                 <Clock className="w-3.5 h-3.5 text-fuchsia-300" />
-                <span className="text-slate-300 font-medium">Study time:</span>
-                <span className="font-bold text-white">{user.studyTime || 'Flexible'}</span>
+                <span className="text-slate-600 dark:text-slate-300 font-medium">Study time:</span>
+                <span className="font-bold text-slate-900 dark:text-white">{user.studyTime || 'Flexible'}</span>
               </div>
             </div>
           </div>
 
           {/* Right Column: Readiness & Key Metrics Card */}
-          <div className="flex flex-row sm:flex-col lg:flex-row items-center gap-4 bg-white/5 border border-white/10 p-5 rounded-2xl shrink-0 backdrop-blur-md">
+          <div className="flex flex-row sm:flex-col lg:flex-row items-center gap-4 bg-white/80 border border-indigo-100 dark:bg-white/5 dark:border-white/10 p-5 rounded-2xl shrink-0 backdrop-blur-md">
             {/* Days Left */}
             <div className="text-center px-3">
               <div className="text-3xl sm:text-4xl font-black text-indigo-400 tracking-tight">

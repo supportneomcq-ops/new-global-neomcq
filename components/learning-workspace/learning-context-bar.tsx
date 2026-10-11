@@ -107,9 +107,9 @@ export function LearningContextBar({ onShowClick }: LearningContextBarProps = {}
 
   return (
     <>
-      <section aria-label="Learning path selector" className="neo-dashboard-enter w-full px-3 sm:px-5 py-4 sm:py-5 rounded-3xl border border-indigo-100 dark:border-indigo-400/15 bg-gradient-to-br from-white via-indigo-50/60 to-violet-50/70 dark:from-[#0B1020] dark:via-[#10152A] dark:to-[#17112B] shadow-lg shadow-indigo-950/5">
-        <div className="max-w-7xl mx-auto space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <section aria-label="Learning path selector" className="neo-dashboard-enter w-full px-2.5 sm:px-5 py-2.5 sm:py-4 rounded-2xl sm:rounded-3xl border border-slate-200 bg-white dark:border-indigo-400/15 dark:bg-gradient-to-br dark:from-[#0B1020] dark:via-[#10152A] dark:to-[#17112B] shadow-md shadow-slate-900/5">
+        <div className="max-w-7xl mx-auto space-y-2.5 sm:space-y-4">
+          <div className="hidden sm:flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/25">
                 <Layers className="h-5 w-5" />
@@ -128,11 +128,11 @@ export function LearningContextBar({ onShowClick }: LearningContextBarProps = {}
               <span className="rounded-full border border-emerald-200 bg-white/80 px-2.5 py-1 text-emerald-700 dark:border-emerald-400/20 dark:bg-white/5 dark:text-emerald-200">03 Subtopic</span>
             </div>
           </div>
-          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white/80 p-3 sm:p-4 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.035]">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-2 sm:gap-3 rounded-xl sm:rounded-2xl border border-slate-200 bg-slate-50/70 p-2 sm:p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.035]">
             {/* Hierarchy Nav Controls */}
-            <div className="flex flex-wrap items-center gap-2 text-xs">
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 text-xs">
             {/* 1. Exam (Locked / Selector) */}
-            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 font-bold text-slate-800 dark:text-slate-100 shadow-inner">
+            <div className="col-span-2 sm:col-span-1 min-w-0 flex items-center justify-between sm:justify-start gap-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 sm:px-3 py-2 sm:py-1.5 font-bold text-slate-800 dark:text-slate-100">
               <BookOpen className="w-3.5 h-3.5 text-[#6D5BFF]" />
               <span className="truncate max-w-[140px] sm:max-w-[200px]" title={activeExam?.name || 'Exam'}>
                 {activeExam?.name || 'Loading Exam...'}
@@ -161,7 +161,7 @@ export function LearningContextBar({ onShowClick }: LearningContextBarProps = {}
             <span className="text-slate-400 font-bold hidden sm:inline">/</span>
 
             {/* 2. Subject Dropdown */}
-            <div className="relative" ref={subjectRef}>
+            <div className="relative min-w-0" ref={subjectRef}>
               <button
                 type="button"
                 onClick={() => {
@@ -169,7 +169,7 @@ export function LearningContextBar({ onShowClick }: LearningContextBarProps = {}
                   setIsTopicOpen(false);
                   setIsSubtopicOpen(false);
                 }}
-                className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2.5 font-bold text-xs transition-all duration-200 border shadow-sm hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 ${
+                className={`w-full min-w-0 justify-between flex items-center gap-1.5 rounded-xl px-2.5 sm:px-3.5 py-3 sm:py-2.5 font-bold text-xs transition-all duration-200 border shadow-sm hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 ${
                   activeSubject
                     ? 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white hover:border-[#6D5BFF]/50'
                     : 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
@@ -253,7 +253,7 @@ export function LearningContextBar({ onShowClick }: LearningContextBarProps = {}
             <span className="text-slate-400 font-bold hidden sm:inline">/</span>
 
             {/* 3. Topic Dropdown */}
-            <div className="relative" ref={topicRef}>
+            <div className="relative min-w-0" ref={topicRef}>
               <button
                 type="button"
                 onClick={() => {
@@ -345,7 +345,7 @@ export function LearningContextBar({ onShowClick }: LearningContextBarProps = {}
             <span className="text-slate-400 font-bold hidden sm:inline">/</span>
 
             {/* 4. Subtopic Dropdown */}
-            <div className="relative" ref={subtopicRef}>
+            <div className="relative min-w-0" ref={subtopicRef}>
               <button
                 type="button"
                 onClick={() => {
@@ -444,14 +444,14 @@ export function LearningContextBar({ onShowClick }: LearningContextBarProps = {}
           </div>
 
           {/* Action Tools: SHOW / Resolve Content & Add Missing */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 sm:gap-2">
             <button
               type="button"
               onClick={() => {
                 setAddMissingMode('topic');
                 setIsAddMissingOpen(true);
               }}
-              className="px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-white hover:bg-slate-50 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-all duration-200 shadow-sm hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60"
+              className="flex-1 sm:flex-none justify-center px-3 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-white hover:bg-slate-50 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-all duration-200 shadow-sm hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60"
               title="Add a missing subject, topic, or subtopic"
             >
               <Plus className="w-3.5 h-3.5 text-indigo-500" />
@@ -467,7 +467,7 @@ export function LearningContextBar({ onShowClick }: LearningContextBarProps = {}
                 }
               }}
               disabled={isOrchestrating || isLoading || isRefreshing}
-              className={`px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-md ${
+              className={`flex-1 sm:flex-none justify-center px-3.5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-md ${
                 isOrchestrating || isLoading || isRefreshing
                   ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 cursor-not-allowed'
                   : 'bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white shadow-indigo-600/30 hover:shadow-lg hover:shadow-indigo-600/25 hover:-translate-y-0.5 active:scale-[0.98] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60'
