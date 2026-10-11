@@ -74,43 +74,19 @@ export function GlobalLoadingProvider({ children }: { children: React.ReactNode 
     };
   }, [startLoading, stopLoading]);
 
-  // Intercept anchor clicks for navigation loading (except local hash/modals)
+  // Do not start a global loader on internal anchor clicks. Next.js App Router
+  // navigation is client-side, so a document-level click listener cannot know
+  // when navigation finishes and can leave the floating "Loading..." badge stuck.
+  // Screens that perform async work should use startLoading/stopLoading explicitly.
+  // Add a hard safety timeout for any loader that is accidentally not stopped.
   useEffect(() => {
-    const handleAnchorClick = (e: MouseEvent) => {
-      const target = (e.target as HTMLElement)?.closest('a');
-      if (!target) return;
-
-      const href = target.getAttribute('href');
-      if (!href) return;
-
-      // Ignore external, javascript, hash, or target="_blank" links
-      if (
-        href.startsWith('http') ||
-        href.startsWith('#') ||
-        href.startsWith('javascript:') ||
-        target.target === '_blank' ||
-        e.ctrlKey ||
-        e.metaKey
-      ) {
-        return;
-      }
-
-      // Determine navigation message
-      let navMsg = 'Loading...';
-      if (href.includes('/dashboard')) navMsg = 'Opening dashboard...';
-      else if (href.includes('/onboarding')) navMsg = 'Preparing your workspace...';
-      else if (href.includes('/exams')) navMsg = 'Loading exams...';
-      else if (href.includes('/pricing')) navMsg = 'Loading plan options...';
-      else if (href.includes('/auth')) navMsg = 'Preparing sign in...';
-
-      startLoading(navMsg);
-    };
-
-    document.addEventListener('click', handleAnchorClick, true);
-    return () => {
-      document.removeEventListener('click', handleAnchorClick, true);
-    };
-  }, [startLoading]);
+    if (!isLoading) return;
+    const safetyTimer = window.setTimeout(() => {
+      setIsLoading(false);
+      setProgress(0);
+    }, 12000);
+    return () => window.clearTimeout(safetyTimer);
+  }, [isLoading]);
 
   // Animate top progress bar tick while loading
   useEffect(() => {
