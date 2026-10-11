@@ -134,7 +134,7 @@ export function StudyPlanWorkspaceView({ user, onSelectTab }: StudyPlanWorkspace
               {planData.examName || selection.exam?.name || 'Target Examination'} Roadmap
             </h1>
             <p className="text-sm text-slate-300">
-              Personalized timeline calibrated for <span className="text-indigo-300 font-bold">{targetHours} hrs/day</span>. 
+              Personalized timeline calibrated for <span className="text-indigo-300 font-bold">{targetHours} hrs/day</span> using <span className="text-violet-300 font-bold">{user.learningStyle === 'Rapid Learning' ? 'Rapid Learning' : 'Regular Study'}</span> mode.
               Target Exam Date: <span className="font-bold text-white">{planData.targetDate || user.examDate || 'Scheduled'}</span> ({totalDays} total days).
             </p>
           </div>
