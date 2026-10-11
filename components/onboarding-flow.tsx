@@ -517,6 +517,11 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
       if (!authData?.user?.id) {
         throw new Error('Your account could not be created. Please check your details and try again.');
       }
+      // Supabase may intentionally return an obfuscated user with no identities
+      // for an already-registered email. Do not proceed with a non-authenticated user.
+      if (Array.isArray(authData.user.identities) && authData.user.identities.length === 0) {
+        throw new Error('This email may already be registered. Please sign in, or use a different email address.');
+      }
 
       setIsPreparingAI(true);
 
