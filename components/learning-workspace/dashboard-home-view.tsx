@@ -292,6 +292,16 @@ export function DashboardHomeView({
                   <span className="font-bold text-white truncate max-w-[200px]">{activeSubtopicName}</span>
                 </div>
               )}
+              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-violet-500/15 border border-violet-400/25 text-xs text-violet-100">
+                <Zap className="w-3.5 h-3.5 text-violet-300" />
+                <span className="text-slate-300 font-medium">Mode:</span>
+                <span className="font-bold text-white">{user.learningStyle === 'Rapid Learning' ? 'Rapid Learning' : 'Regular Study'}</span>
+              </div>
+              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-cyan-500/15 border border-cyan-400/25 text-xs text-cyan-100">
+                <Clock className="w-3.5 h-3.5 text-cyan-300" />
+                <span className="text-slate-300 font-medium">Daily target:</span>
+                <span className="font-bold text-white">{Math.max(1, user.studyHours || 2)} hours</span>
+              </div>
             </div>
           </div>
 
