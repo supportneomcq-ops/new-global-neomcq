@@ -98,6 +98,7 @@ export function DashboardHomeView({
   const [dbStats, setDbStats] = useState<UserStudyStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [isLoggingTime, setIsLoggingTime] = useState(false);
+  const [studyActionError, setStudyActionError] = useState('');
 
   // Fetch real user study statistics
   const loadUserStats = useCallback(async () => {
@@ -114,9 +115,10 @@ export function DashboardHomeView({
 
       const res = await fetch(`/api/user/study-stats?${params.toString()}`);
       const json = await res.json();
-      if (json.success && json.stats) {
-        setDbStats(json.stats);
+      if (!res.ok || !json.success || !json.stats) {
+        throw new Error(json.error || 'Study statistics are temporarily unavailable.');
       }
+      setDbStats(json.stats);
     } catch (err) {
       console.warn('[DashboardHomeView] Failed to load study stats:', err);
     } finally {
@@ -132,29 +134,34 @@ export function DashboardHomeView({
   const handleLogStudyTime = async (hours: number) => {
     try {
       setIsLoggingTime(true);
-      propOnLogStudyTime(hours);
-
+      setStudyActionError('');
       const supabase = getSupabaseClient();
       const { data: { user: authUser } } = await supabase.auth.getUser();
       const effectiveUserId = authUser?.id || user.userId;
+      if (!effectiveUserId) throw new Error('Please sign in again before logging study time.');
 
-      if (effectiveUserId) {
-        await fetch('/api/user/study-stats', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: effectiveUserId,
-            examId: selection.exam?.id,
-            subjectId: selection.subject?.id,
-            topicId: selection.topic?.id,
-            hours,
-            durationMins: Math.round(hours * 60),
-            mode: 'self_study',
-          }),
-        });
-        await loadUserStats();
+      const res = await fetch('/api/user/study-stats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: effectiveUserId,
+          examId: selection.exam?.id,
+          subjectId: selection.subject?.id,
+          topicId: selection.topic?.id,
+          hours,
+          durationMins: Math.round(hours * 60),
+          mode: 'self_study',
+        }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok || !result.success) {
+        throw new Error(result.error || 'Study time could not be saved. Please try again.');
       }
+      propOnLogStudyTime(hours);
+      await loadUserStats();
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'Study time could not be saved.';
+      setStudyActionError(message);
       console.error('[DashboardHomeView] Log time error:', err);
     } finally {
       setIsLoggingTime(false);
@@ -973,6 +980,12 @@ export function DashboardHomeView({
                 {isLoggingTime ? <Loader2 className="w-3.5 h-3.5 animate-spin mx-auto" /> : '+1h Logged'}
               </button>
             </div>
+
+            {studyActionError && (
+              <p role="alert" className="pt-2 text-xs font-medium text-rose-600 dark:text-rose-400">
+                {studyActionError}
+              </p>
+            )}
 
             {/* 7-Day Consistency Dots */}
             <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
