@@ -3,7 +3,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #f8fafc;
+  --background: #f5f7ff;
   --foreground: #0f172a;
   --card: #ffffff;
   --card-foreground: #0f172a;
@@ -11,37 +11,37 @@
   --popover-foreground: #0f172a;
   --primary: #6d5bff;
   --primary-foreground: #ffffff;
-  --secondary: #e0f2fe;
+  --secondary: #e8eaff;
   --secondary-foreground: #0369a1;
-  --muted: #f1f5f9;
+  --muted: #eef2ff;
   --muted-foreground: #64748b;
-  --accent: #f1f5f9;
+  --accent: #fff1f7;
   --accent-foreground: #0f172a;
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
-  --border: #e2e8f0;
+  --border: #dfe4f5;
   --input: #e2e8f0;
   --ring: #6d5bff;
 }
 
 .dark {
-  --background: #050816;
+  --background: #080b1b;
   --foreground: #f8fafc;
-  --card: #0e1324;
+  --card: #10162d;
   --card-foreground: #f8fafc;
-  --popover: #0e1324;
+  --popover: #121a35;
   --popover-foreground: #f8fafc;
   --primary: #6d5bff;
   --primary-foreground: #ffffff;
-  --secondary: #1e293b;
+  --secondary: #172449;
   --secondary-foreground: #38bdf8;
-  --muted: #1e293b;
+  --muted: #17213b;
   --muted-foreground: #a6adc8;
-  --accent: #1e293b;
+  --accent: #252044;
   --accent-foreground: #f8fafc;
   --destructive: #7f1d1d;
   --destructive-foreground: #f8fafc;
-  --border: rgba(109, 91, 255, 0.25);
+  --border: rgba(133, 122, 255, 0.34);
   --input: #1e293b;
   --ring: #6d5bff;
 }
@@ -356,3 +356,28 @@ body {
 }
 
 
+
+
+/* NeoMCQ colorful, theme-aware learning workspace */
+:root { color-scheme: light; --neo-violet:#6d5bff; --neo-blue:#3b82f6; --neo-cyan:#06b6d4; --neo-emerald:#10b981; --neo-amber:#f59e0b; --neo-pink:#ec4899; --neo-surface:rgba(255,255,255,.88); }
+.dark { color-scheme:dark; --neo-surface:rgba(16,22,45,.9); }
+body { background-image:radial-gradient(ellipse at 5% 0%,rgba(109,91,255,.075),transparent 32rem),radial-gradient(ellipse at 95% 12%,rgba(6,182,212,.065),transparent 28rem); background-attachment:fixed; }
+.dark body { background-image:radial-gradient(ellipse at 5% 0%,rgba(109,91,255,.15),transparent 34rem),radial-gradient(ellipse at 95% 12%,rgba(6,182,212,.10),transparent 30rem); }
+.neo-learning-path-controls { display:flex; flex-wrap:wrap; align-items:stretch; gap:.7rem; }
+.neo-path-step { position:relative; min-width:12rem; max-width:min(100%,19rem); flex:1 1 12rem; }
+.neo-path-step > button { width:100%; min-height:3.65rem; justify-content:flex-start; gap:.7rem; padding:.72rem .85rem !important; border-radius:1rem !important; border-width:1px !important; box-shadow:0 5px 18px rgba(31,41,90,.06),inset 0 1px 0 rgba(255,255,255,.7); background:linear-gradient(135deg,rgba(255,255,255,.98),rgba(245,247,255,.94)) !important; transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease,background .18s ease; }
+.neo-path-step > button:hover { transform:translateY(-2px); box-shadow:0 12px 26px rgba(70,70,150,.13); }
+.neo-path-subject > button { border-color:rgba(59,130,246,.35) !important; }
+.neo-path-subject > button > svg:first-child { color:#3b82f6 !important; }
+.neo-path-topic > button { border-color:rgba(168,85,247,.35) !important; }
+.neo-path-topic > button > svg:first-child { color:#a855f7 !important; }
+.neo-path-subtopic > button { border-color:rgba(16,185,129,.38) !important; }
+.neo-path-subtopic > button > svg:first-child { color:#059669 !important; }
+.dark .neo-path-step > button { color:#f8faff !important; background:linear-gradient(135deg,rgba(25,34,67,.98),rgba(17,23,47,.96)) !important; box-shadow:0 8px 24px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.06); }
+.dark .neo-path-subject > button { border-color:rgba(96,165,250,.48) !important; background:linear-gradient(135deg,rgba(59,130,246,.16),rgba(17,23,47,.96)) !important; }
+.dark .neo-path-topic > button { border-color:rgba(192,132,252,.48) !important; background:linear-gradient(135deg,rgba(168,85,247,.16),rgba(17,23,47,.96)) !important; }
+.dark .neo-path-subtopic > button { border-color:rgba(52,211,153,.48) !important; background:linear-gradient(135deg,rgba(16,185,129,.15),rgba(17,23,47,.96)) !important; }
+.neo-path-step [class*="absolute"] { border-radius:1rem; box-shadow:0 18px 55px rgba(29,38,90,.18); backdrop-filter:blur(18px); }
+.dark .neo-path-step [class*="absolute"] { box-shadow:0 20px 60px rgba(0,0,0,.42); }
+@media (max-width:640px) { .neo-learning-path-controls { display:grid; grid-template-columns:1fr; width:100%; } .neo-path-step { max-width:none; min-width:0; width:100%; } }
+@media (prefers-reduced-motion:reduce) { .neo-path-step > button { transition:none; } .neo-path-step > button:hover { transform:none; } }

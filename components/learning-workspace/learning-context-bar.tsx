@@ -110,7 +110,7 @@ export function LearningContextBar({ onShowClick }: LearningContextBarProps = {}
       <div className="w-full bg-white dark:bg-[#0B101E] border-b border-slate-200 dark:border-slate-800/80 px-4 py-2.5 shadow-sm transition-colors">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
           {/* Hierarchy Nav Controls */}
-          <div className="flex flex-wrap items-center gap-2 text-xs">
+          <div className="neo-learning-path-controls flex flex-wrap items-center gap-2 text-xs">
             {/* 1. Exam (Locked / Selector) */}
             <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 font-bold text-slate-800 dark:text-slate-100 shadow-inner">
               <BookOpen className="w-3.5 h-3.5 text-[#6D5BFF]" />
@@ -141,7 +141,7 @@ export function LearningContextBar({ onShowClick }: LearningContextBarProps = {}
             <span className="text-slate-400 font-bold hidden sm:inline">/</span>
 
             {/* 2. Subject Dropdown */}
-            <div className="relative" ref={subjectRef}>
+            <div className="relative neo-path-step neo-path-subject" ref={subjectRef}>
               <button
                 type="button"
                 onClick={() => {
@@ -233,7 +233,7 @@ export function LearningContextBar({ onShowClick }: LearningContextBarProps = {}
             <span className="text-slate-400 font-bold hidden sm:inline">/</span>
 
             {/* 3. Topic Dropdown */}
-            <div className="relative" ref={topicRef}>
+            <div className="relative neo-path-step neo-path-topic" ref={topicRef}>
               <button
                 type="button"
                 onClick={() => {
@@ -325,7 +325,7 @@ export function LearningContextBar({ onShowClick }: LearningContextBarProps = {}
             <span className="text-slate-400 font-bold hidden sm:inline">/</span>
 
             {/* 4. Subtopic Dropdown */}
-            <div className="relative" ref={subtopicRef}>
+            <div className="relative neo-path-step neo-path-subtopic" ref={subtopicRef}>
               <button
                 type="button"
                 onClick={() => {
