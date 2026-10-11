@@ -510,8 +510,9 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
 
       setIsPreparingAI(true);
 
-      // Save onboarding preferences & link canonical exam
-      await fetch('/api/onboarding', {
+      // Registration waits for canonical exam resolution and curriculum completeness.
+      // Do not launch a second resolver in the background: it can duplicate AI work.
+      const onboardingResponse = await fetch('/api/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -521,6 +522,8 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
           email,
           phone: `${countryCode}${phone}`,
           country,
+          examCountry: selectedExamCountry,
+          examCategory: selectedExamCategory,
           language,
           examName: activeExamName,
           examId: selectedExamId,
@@ -534,18 +537,13 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
           studyGoals,
         }),
       });
-
-      // Ensure canonical exam resolution in background
-      fetch('/api/exams/resolve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          examQuery: activeExamName,
-          country: selectedExamCountry,
-          category: selectedExamCategory,
-          userId: authData?.user?.id || null,
-        }),
-      }).catch((e) => console.warn('Background exam resolve note:', e));
+      const onboardingResult = await onboardingResponse.json().catch(() => ({}));
+      if (!onboardingResponse.ok || onboardingResult?.success !== true) {
+        throw new Error(
+          onboardingResult?.error ||
+          'We could not finish exam verification and curriculum setup. Please try again.'
+        );
+      }
 
       setTimeout(() => {
         setIsSubmitting(false);
