@@ -1,121 +1,53 @@
 'use client';
 
 import React from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { CheckCircle2, CircleDashed, Sparkles, BookOpen, Layers, X } from 'lucide-react';
+import { Loader2, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useTopicContent, PREPARATION_STEPS } from '@/lib/context/topic-content-context';
 import { useSelection } from '@/lib/context/selection-context';
 
+/**
+ * Non-blocking preparation status. Learners can switch between learning tools
+ * while a topic pack is being fetched/prepared in the background.
+ * This intentionally does not display a fabricated percentage or ETA.
+ */
 export function TopicPreparationModal() {
-  const { isLoading, currentStageIndex } = useTopicContent();
+  const { isLoading, isOrchestrating, error, currentStageIndex } = useTopicContent();
   const { selection } = useSelection();
 
-  if (!isLoading) return null;
+  if (!isLoading && !isOrchestrating && !error) return null;
 
   const currentStep = PREPARATION_STEPS[Math.min(currentStageIndex, PREPARATION_STEPS.length - 1)];
-  const progressPercent = Math.min(100, Math.round(((currentStageIndex + 1) / PREPARATION_STEPS.length) * 100));
+  const preparing = isLoading || isOrchestrating;
 
   return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 10 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          transition={{ duration: 0.2 }}
-          className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]"
-        >
-          {/* Header */}
-          <div className="p-6 bg-gradient-to-r from-emerald-600 to-teal-700 text-white relative">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/30 border border-white/20 text-white flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-emerald-200" />
-                Adaptive Learning Engine
-              </span>
-              <span className="text-xs text-emerald-100 font-medium ml-auto">
-                {progressPercent}% Complete
-              </span>
+    <div className="fixed bottom-20 right-4 z-40 w-[min(24rem,calc(100vw-2rem))] pointer-events-none">
+      <div
+        role={error ? 'alert' : 'status'}
+        aria-live="polite"
+        className="pointer-events-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 shadow-xl backdrop-blur p-4"
+      >
+        <div className="flex items-start gap-3">
+          <div className={`mt-0.5 rounded-xl p-2 ${error ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'}`}>
+            {error ? <AlertCircle className="h-5 w-5" /> : preparing ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+              {error ? 'Content needs attention' : preparing ? 'Preparing your learning content' : 'Learning content status'}
+              {!error && <Sparkles className="h-4 w-4 text-indigo-500" />}
             </div>
-
-            <h3 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-              Preparing Your Learning Library
-            </h3>
-            <p className="text-sm text-emerald-100 mt-1 line-clamp-1">
-              {selection.topic?.name || 'Topic Knowledge Pack'} • {selection.exam?.name || 'Selected Exam'}
+            <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-300">
+              {error
+                ? error
+                : `${selection.topic?.name || 'Selected topic'} · ${currentStep?.label || 'Checking saved content'}`}
             </p>
-
-            {/* Top Progress Bar */}
-            <div className="w-full bg-emerald-950/40 rounded-full h-1.5 mt-4 overflow-hidden">
-              <motion.div
-                className="h-full bg-emerald-300 rounded-full"
-                animate={{ width: `${progressPercent}%` }}
-                transition={{ duration: 0.3 }}
-              />
-            </div>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              {error
+                ? 'You can keep using content that is already available, then retry when ready.'
+                : 'You can switch learning tools while preparation continues. We will reuse saved content whenever possible.'}
+            </p>
           </div>
-
-          {/* Step-by-Step Educational Stepper */}
-          <div className="p-6 overflow-y-auto max-h-96 space-y-3.5 divide-y divide-slate-100">
-            {PREPARATION_STEPS.map((step, idx) => {
-              const isCompleted = idx < currentStageIndex;
-              const isCurrent = idx === currentStageIndex;
-              const isUpcoming = idx > currentStageIndex;
-
-              return (
-                <div
-                  key={step.id}
-                  className={`pt-3.5 first:pt-0 flex items-start gap-3 transition-opacity ${
-                    isUpcoming ? 'opacity-40' : 'opacity-100'
-                  }`}
-                >
-                  <div className="mt-0.5 flex-shrink-0">
-                    {isCompleted ? (
-                      <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                    ) : isCurrent ? (
-                      <CircleDashed className="w-5 h-5 text-teal-600 animate-spin" />
-                    ) : (
-                      <div className="w-5 h-5 rounded-full border-2 border-slate-300 flex items-center justify-center text-[10px] font-bold text-slate-400">
-                        {idx + 1}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <p
-                        className={`text-sm font-semibold ${
-                          isCompleted
-                            ? 'text-slate-800'
-                            : isCurrent
-                            ? 'text-teal-700 font-bold'
-                            : 'text-slate-500'
-                        }`}
-                      >
-                        {step.label}
-                      </p>
-                      {isCurrent && (
-                        <span className="text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded bg-teal-50 text-teal-700 border border-teal-200">
-                          Active
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-slate-500 mt-0.5">{step.detail}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Footer */}
-          <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
-            <span className="flex items-center gap-1.5 text-slate-600">
-              <Layers className="w-4 h-4 text-emerald-600" />
-              Generating 40 MCQs, A4 Notes & Spaced Flashcards
-            </span>
-            <span className="font-medium text-slate-600">{currentStep.label}</span>
-          </div>
-        </motion.div>
+        </div>
       </div>
-    </AnimatePresence>
+    </div>
   );
 }

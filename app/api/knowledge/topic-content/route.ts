@@ -97,9 +97,20 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Default fallbacks if exam or subject name not provided
-    if (!examNameInput) examNameInput = 'USMLE Step 1 & 2 CK'
-    if (!subjectNameInput) subjectNameInput = 'General Medicine'
+    // Never silently attach a learner's content to a default exam or subject.
+    // Resolve missing names from canonical IDs above; if still missing, fail safely.
+    if (!examId && !examNameInput) {
+      return NextResponse.json(
+        { success: false, error: 'Select your exam before preparing topic content.' },
+        { status: 400 }
+      )
+    }
+    if (!subjectId && !subjectNameInput) {
+      return NextResponse.json(
+        { success: false, error: 'Select your subject before preparing topic content.' },
+        { status: 400 }
+      )
+    }
 
     // Execute through Master AI Content Intelligence Engine
     const result = await getOrGenerateCanonicalTopicContent({
@@ -112,6 +123,20 @@ export async function POST(req: NextRequest) {
       forceRefresh,
       autoCreateEntities: true,
     })
+
+    if (result.error_code === 'GENERATION_IN_PROGRESS') {
+      return NextResponse.json(
+        {
+          success: false,
+          pending: true,
+          status: 'generating',
+          jobId: result.job_id || null,
+          retryAfter: result.retry_after || 3,
+          error: result.error || 'This topic pack is already being prepared.',
+        },
+        { status: 202, headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      )
+    }
 
     if (!result.success && !result.content) {
       return NextResponse.json(

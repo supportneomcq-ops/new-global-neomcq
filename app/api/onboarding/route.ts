@@ -267,6 +267,8 @@ export async function POST(req: NextRequest) {
           examName,
           examId: finalExamId,
           examDate,
+          learningStyle,
+          learningMode: mappedLearningMode,
           studyHours,
           studyTime,
           studyGoals,

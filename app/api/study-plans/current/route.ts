@@ -171,16 +171,12 @@ export async function GET(req: NextRequest) {
       .select('*')
       .single();
 
-    if (insertErr) {
+    if (insertErr || !newPlan) {
       console.error('[Study Plan Current] Insert error:', insertErr);
-      return NextResponse.json({
-        success: true,
-        plan: {
-          id: 'temp-plan',
-          plan_data: planPayload,
-          is_active: true,
-        },
-      });
+      return NextResponse.json(
+        { success: false, error: 'Study plan could not be saved. Please retry.' },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
@@ -204,28 +200,51 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { planId, planData, isCompletedDay, dayNumber } = body;
+    const { planId, isCompletedDay, dayNumber } = body;
 
-    if (planId && dayNumber !== undefined) {
-      // Toggle day completion inside plan_data
-      const { data: existing } = await admin.from('study_plans').select('plan_data').eq('id', planId).single();
-      if (existing) {
-        const pd = existing.plan_data || {};
-        if (pd.schedule) {
-          pd.schedule.forEach((week: any) => {
-            week.days?.forEach((d: any) => {
-              if (d.day === dayNumber) {
-                d.completed = isCompletedDay;
-              }
-            });
-          });
-        }
-        await admin.from('study_plans').update({ plan_data: pd, updated_at: new Date().toISOString() }).eq('id', planId);
-        return NextResponse.json({ success: true, plan_data: pd });
-      }
+    if (typeof planId !== 'string' || !planId || !Number.isInteger(dayNumber) || dayNumber < 1 || typeof isCompletedDay !== 'boolean') {
+      return NextResponse.json({ success: false, error: 'Invalid study-plan update.' }, { status: 400 });
     }
 
-    return NextResponse.json({ success: true });
+    // Only the authenticated owner may update a plan.
+    const { data: existing, error: readError } = await admin
+      .from('study_plans')
+      .select('id, plan_data')
+      .eq('id', planId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (readError || !existing) {
+      return NextResponse.json({ success: false, error: 'Study plan not found.' }, { status: 404 });
+    }
+
+    const pd = existing.plan_data || {};
+    let dayFound = false;
+    if (Array.isArray(pd.schedule)) {
+      pd.schedule.forEach((week: any) => {
+        week.days?.forEach((day: any) => {
+          if (day.day === dayNumber) {
+            day.completed = isCompletedDay;
+            dayFound = true;
+          }
+        });
+      });
+    }
+    if (!dayFound) {
+      return NextResponse.json({ success: false, error: 'Study day not found in this plan.' }, { status: 404 });
+    }
+
+    const { error: updateError } = await admin
+      .from('study_plans')
+      .update({ plan_data: pd, updated_at: new Date().toISOString() })
+      .eq('id', planId)
+      .eq('user_id', user.id);
+
+    if (updateError) {
+      console.error('[Study Plan Current] Update error:', updateError);
+      return NextResponse.json({ success: false, error: 'Could not save study progress.' }, { status: 500 });
+    }
+    return NextResponse.json({ success: true, plan_data: pd });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

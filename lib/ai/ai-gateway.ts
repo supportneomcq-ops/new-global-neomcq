@@ -214,8 +214,10 @@ export class AIGateway {
     let primaryAdapter: ProviderAdapter;
     try {
       primaryAdapter = this.getAdapter(route.primaryProvider);
-    } catch {
-      primaryAdapter = this.geminiProvider;
+    } catch (providerErr) {
+      await this.releaseCreditReservation(userId, reservedCredits);
+      const detail = providerErr instanceof Error ? providerErr.message : String(providerErr);
+      throw new Error(`AI routing configuration error: ${detail}`);
     }
 
     let isFallback = false;

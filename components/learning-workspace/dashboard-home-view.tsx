@@ -98,6 +98,7 @@ export function DashboardHomeView({
   const [dbStats, setDbStats] = useState<UserStudyStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [isLoggingTime, setIsLoggingTime] = useState(false);
+  const [studyActionError, setStudyActionError] = useState('');
 
   // Fetch real user study statistics
   const loadUserStats = useCallback(async () => {
@@ -114,9 +115,10 @@ export function DashboardHomeView({
 
       const res = await fetch(`/api/user/study-stats?${params.toString()}`);
       const json = await res.json();
-      if (json.success && json.stats) {
-        setDbStats(json.stats);
+      if (!res.ok || !json.success || !json.stats) {
+        throw new Error(json.error || 'Study statistics are temporarily unavailable.');
       }
+      setDbStats(json.stats);
     } catch (err) {
       console.warn('[DashboardHomeView] Failed to load study stats:', err);
     } finally {
@@ -132,29 +134,34 @@ export function DashboardHomeView({
   const handleLogStudyTime = async (hours: number) => {
     try {
       setIsLoggingTime(true);
-      propOnLogStudyTime(hours);
-
+      setStudyActionError('');
       const supabase = getSupabaseClient();
       const { data: { user: authUser } } = await supabase.auth.getUser();
       const effectiveUserId = authUser?.id || user.userId;
+      if (!effectiveUserId) throw new Error('Please sign in again before logging study time.');
 
-      if (effectiveUserId) {
-        await fetch('/api/user/study-stats', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: effectiveUserId,
-            examId: selection.exam?.id,
-            subjectId: selection.subject?.id,
-            topicId: selection.topic?.id,
-            hours,
-            durationMins: Math.round(hours * 60),
-            mode: 'self_study',
-          }),
-        });
-        await loadUserStats();
+      const res = await fetch('/api/user/study-stats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: effectiveUserId,
+          examId: selection.exam?.id,
+          subjectId: selection.subject?.id,
+          topicId: selection.topic?.id,
+          hours,
+          durationMins: Math.round(hours * 60),
+          mode: 'self_study',
+        }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok || !result.success) {
+        throw new Error(result.error || 'Study time could not be saved. Please try again.');
       }
+      propOnLogStudyTime(hours);
+      await loadUserStats();
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'Study time could not be saved.';
+      setStudyActionError(message);
       console.error('[DashboardHomeView] Log time error:', err);
     } finally {
       setIsLoggingTime(false);
@@ -217,7 +224,7 @@ export function DashboardHomeView({
       {/* ========================================================================= */}
       {/* 1. TOP COMMAND CENTER: HERO READY & EXAM STATUS */}
       {/* ========================================================================= */}
-      <section className="relative rounded-3xl bg-slate-900 dark:bg-slate-950 text-white p-6 sm:p-8 lg:p-10 border border-slate-800 shadow-2xl overflow-hidden">
+      <section className="neo-dashboard-enter relative rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 dark:from-[#070B16] dark:via-[#0B1020] dark:to-indigo-950 text-white p-6 sm:p-8 lg:p-10 border border-indigo-400/20 shadow-2xl overflow-hidden">
         {/* Subtle decorative glow */}
         <div className="absolute -top-24 -right-24 w-96 h-96 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
@@ -261,6 +268,21 @@ export function DashboardHomeView({
                   <span className="font-bold text-white truncate max-w-[200px]">{activeSubtopicName}</span>
                 </div>
               )}
+              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-violet-500/15 border border-violet-400/25 text-xs text-violet-100">
+                <Zap className="w-3.5 h-3.5 text-violet-300" />
+                <span className="text-slate-300 font-medium">Mode:</span>
+                <span className="font-bold text-white">{user.learningStyle === 'Rapid Learning' ? 'Rapid Learning' : 'Regular Study'}</span>
+              </div>
+              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-cyan-500/15 border border-cyan-400/25 text-xs text-cyan-100">
+                <Clock className="w-3.5 h-3.5 text-cyan-300" />
+                <span className="text-slate-300 font-medium">Daily target:</span>
+                <span className="font-bold text-white">{Math.max(1, user.studyHours || 2)} hours</span>
+              </div>
+              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-fuchsia-500/15 border border-fuchsia-400/25 text-xs text-fuchsia-100">
+                <Clock className="w-3.5 h-3.5 text-fuchsia-300" />
+                <span className="text-slate-300 font-medium">Study time:</span>
+                <span className="font-bold text-white">{user.studyTime || 'Flexible'}</span>
+              </div>
             </div>
           </div>
 
@@ -348,7 +370,7 @@ export function DashboardHomeView({
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Recommendation 1: Practice Sprint */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-600 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group">
+          <div className="neo-dashboard-enter neo-lift p-5 rounded-2xl bg-white/95 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-600 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between group">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-md uppercase tracking-wider bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">
@@ -376,7 +398,7 @@ export function DashboardHomeView({
           </div>
 
           {/* Recommendation 2: Active Recall Flashcards */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-600 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group">
+          <div className="neo-dashboard-enter neo-lift p-5 rounded-2xl bg-white/95 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-600 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between group">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-md uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
@@ -404,7 +426,7 @@ export function DashboardHomeView({
           </div>
 
           {/* Recommendation 3: AI Synaptic Whiteboard */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-400 dark:hover:border-amber-600 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group">
+          <div className="neo-dashboard-enter neo-lift p-5 rounded-2xl bg-white/95 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-400 dark:hover:border-amber-600 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between group">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-md uppercase tracking-wider bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300">
@@ -569,7 +591,7 @@ export function DashboardHomeView({
                   }
                   onSelectTab(cfg.tab, cfg.subTab);
                 }}
-                className={`p-5 rounded-3xl bg-white dark:bg-slate-900 border transition-all flex flex-col justify-between group cursor-pointer ${
+                className={`neo-dashboard-enter neo-lift p-5 rounded-3xl bg-white dark:bg-slate-900 border transition-all duration-300 flex flex-col justify-between group cursor-pointer focus-within:ring-2 focus-within:ring-indigo-500/50 ${
                   status === 'READY'
                     ? 'border-slate-200 dark:border-slate-800 hover:border-indigo-500 dark:hover:border-indigo-500 shadow-xs hover:shadow-xl'
                     : status === 'FAILED'
@@ -932,6 +954,12 @@ export function DashboardHomeView({
                 {isLoggingTime ? <Loader2 className="w-3.5 h-3.5 animate-spin mx-auto" /> : '+1h Logged'}
               </button>
             </div>
+
+            {studyActionError && (
+              <p role="alert" className="pt-2 text-xs font-medium text-rose-600 dark:text-rose-400">
+                {studyActionError}
+              </p>
+            )}
 
             {/* 7-Day Consistency Dots */}
             <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
