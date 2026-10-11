@@ -1989,6 +1989,15 @@ function isGenericFillerSubtopic(name: string): boolean {
   return GENERIC_FILLER_SUBTOPIC_REGEX.test(name.trim())
 }
 
+function canonicalSubjectIdentity(value: string): string {
+  const normalized = normalizeInput(value).canonical.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  const compact = normalized.replace(/\b(ent|otorhinolaryngology)\b/g, ' ')
+    .replace(/\s+/g, ' ').trim()
+  // ENT and Otorhinolaryngology are the same specialty, regardless of label order.
+  if (/\bent\b/.test(normalized) || /\botorhinolaryngology\b/.test(normalized)) return 'otorhinolaryngology'
+  return compact || normalized
+}
+
 async function persistCurriculumHierarchy(
   examId: string,
   spec: AIExamIntelligenceOutput,
@@ -2008,7 +2017,9 @@ async function persistCurriculumHierarchy(
     const subSlug = normalizeInput(sItem.name).slug.toLowerCase()
 
     let subjectId: string | null = null
+    const identity = canonicalSubjectIdentity(sItem.name)
     const existingSub = findMatchingSubjectInList(sItem.name, currentSubjectsList)
+      || currentSubjectsList.find((subject: any) => canonicalSubjectIdentity(subject.name || '') === identity)
 
     if (existingSub) {
       subjectId = existingSub.id
