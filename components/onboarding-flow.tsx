@@ -616,7 +616,7 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
             <button type="button" className="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white hover:bg-indigo-700" onClick={() => {
               const ex = pendingExamConfirmation;
               setSelectedExam(ex.name);
-              setSelectedExamId(ex.in_database ? ex.id : null);
+              setSelectedExamId(ex.in_database ? (ex.id ?? null) : null);
               setSelectedExamCountry(ex.country || 'Global');
               setSelectedExamFlag(ex.flag || '🌐');
               setSelectedExamCategory(ex.category || 'Professional Licensure');
