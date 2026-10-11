@@ -243,8 +243,6 @@ export async function POST(req: NextRequest) {
             target_date: cleanTargetDate,
             target_score: 85.0,
             status: 'in_progress',
-            is_primary: true,
-            last_accessed_at: new Date().toISOString(),
           },
           { onConflict: 'user_id,exam_id' }
         )
