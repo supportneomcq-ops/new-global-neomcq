@@ -11,6 +11,8 @@ const onboardingSchema = z.object({
   email: z.string().email(),
   phone: z.string().optional(),
   country: z.string().optional(),
+  examCountry: z.string().optional(),
+  examCategory: z.string().optional(),
   language: z.string().optional(),
   examName: z.string().min(1),
   examId: z.string().nullable().optional(),
@@ -38,6 +40,8 @@ export async function POST(req: NextRequest) {
       email,
       phone,
       country,
+      examCountry,
+      examCategory,
       language,
       examName,
       examDate,
@@ -143,7 +147,8 @@ export async function POST(req: NextRequest) {
       try {
         const resolved = await resolveOrInitializeExamIntelligence({
           examQuery: examName,
-          country,
+          country: examCountry || country,
+          category: examCategory,
           userId: targetUserId,
         })
         if (!resolved?.success || !resolved.exam?.id) {
@@ -156,6 +161,28 @@ export async function POST(req: NextRequest) {
             { success: false, error: 'We could not verify this exam and its curriculum. Please return to exam selection and try again.' },
             { status: 422 }
           )
+        }
+        const curriculumCounts = {
+          subjects: Number(resolved.exam.subjectCount || 0),
+          topics: Number(resolved.exam.topicCount || 0),
+          subtopics: Number(resolved.exam.subtopicCount || 0),
+        }
+        // Never complete onboarding with an empty canonical curriculum. The resolver
+        // performs database-first reuse and targeted gap-filling before returning.
+        if (curriculumCounts.subjects < 1 || curriculumCounts.topics < 1 || curriculumCounts.subtopics < 1) {
+          console.error('[Onboarding] Canonical curriculum is incomplete after reconciliation:', {
+            examId: resolved.exam.id,
+            curriculumCounts,
+            curriculumStatus: resolved.exam.curriculum_status,
+            verificationStatus: resolved.exam.verification_status,
+          })
+          return NextResponse.json({
+            success: false,
+            error: 'We identified your exam, but its subject/topic/subtopic structure is still incomplete. Please try again shortly; your dashboard will open after the curriculum is ready.',
+            curriculum: curriculumCounts,
+            curriculumStatus: resolved.exam.curriculum_status || 'partial',
+            verificationStatus: resolved.exam.verification_status || 'needs_review',
+          }, { status: 422 })
         }
         finalExamId = resolved.exam.id
       } catch (examErr) {
