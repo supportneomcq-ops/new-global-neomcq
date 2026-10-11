@@ -504,8 +504,18 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
         },
       });
 
-      if (authError && !authError.message.includes('User already registered')) {
-        console.warn('Supabase auth signup note:', authError.message);
+      // Do not continue onboarding when Supabase rejected account creation.
+      // Previously this error was only logged, then the API received a missing authId
+      // and showed a misleading "verify your email or sign in again" message.
+      if (authError) {
+        throw new Error(
+          authError.message.includes('User already registered')
+            ? 'This email already has an account. Please sign in instead of registering again.'
+            : authError.message
+        );
+      }
+      if (!authData?.user?.id) {
+        throw new Error('Your account could not be created. Please check your details and try again.');
       }
 
       setIsPreparingAI(true);
