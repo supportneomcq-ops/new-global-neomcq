@@ -312,6 +312,7 @@ export class AIGateway {
         credits_deducted: userId ? effectiveCreditCost : 0,
         created_at: new Date().toISOString(),
         request_id: executionResult.requestId || options.jobId || null,
+        idempotency_key: options.jobId || null,
       });
     } catch (err) {
       console.warn('AIGateway: Could not record ai_cost_events ledger:', err);
