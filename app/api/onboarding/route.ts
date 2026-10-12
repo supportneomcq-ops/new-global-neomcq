@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
       const isRecentSignup = createdAt > 0 && Date.now() - createdAt <= 15 * 60 * 1000
       const emailMatches = pendingUser?.email?.toLowerCase() === email.toLowerCase()
 
-      if (authLookupError || !pendingUser || !emailMatches || pendingUser.email_confirmed_at || !isRecentSignup) {
+      if (authLookupError || !pendingUser || !emailMatches || !isRecentSignup) {
         return NextResponse.json(
           { error: 'Please verify your email or sign in again before finishing onboarding.' },
           { status: 401 }
@@ -326,6 +326,11 @@ export async function POST(req: NextRequest) {
       studyPlanQueued,
     })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Onboarding failed' }, { status: 500 })
+    // Keep internal database/table names and implementation details out of the signup UI.
+    console.error('[Onboarding] Unexpected setup failure:', err)
+    return NextResponse.json(
+      { success: false, error: 'We could not finish setting up your account. Please try again.' },
+      { status: 500 }
+    )
   }
 }
