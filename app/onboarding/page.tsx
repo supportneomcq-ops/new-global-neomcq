@@ -586,7 +586,7 @@ export default function OnboardingPage() {
         return;
       }
 
-      // Progress Step 2: Curriculum framework resolved in database
+      // Progress Step 2: Checking the latest available curriculum
       setActivePrepIndex(2);
       setPrepProgress(50);
 
@@ -629,7 +629,7 @@ export default function OnboardingPage() {
         throw new Error(onboardData.error || 'Failed to finalize curriculum setup.');
       }
 
-      // Progress Step 4: Subtopics & modules verified
+      // Progress Step 4: Verifying curriculum details
       setActivePrepIndex(4);
       setPrepProgress(85);
 
@@ -1274,10 +1274,10 @@ export default function OnboardingPage() {
                     <Sparkles className="w-7 h-7 text-white animate-spin" />
                   </div>
                   <h1 className="text-xl sm:text-2xl font-heading font-extrabold tracking-tight">
-                    Preparing Your Master Curriculum
+                    Setting Up Your Exam
                   </h1>
                   <p className="text-xs sm:text-sm text-slate-500 dark:text-gray-400 max-w-md mx-auto">
-                    Synchronizing <strong className="text-[#00D4FF]">{formData.selectedExamName}</strong> with your personalized study plan...
+                    Preparing the latest available curriculum for <strong className="text-[#00D4FF]">{formData.selectedExamName}</strong>...
                   </p>
                 </div>
 
@@ -1294,12 +1294,12 @@ export default function OnboardingPage() {
                 {/* Step Item Checklist */}
                 <div className="space-y-2.5 text-left max-w-md mx-auto pt-2">
                   {[
-                    'Exam recognized & canonical validity verified',
+                    'Confirming your exam and its official name',
                     'Curriculum framework resolved in database',
-                    'Core subjects prepared & synchronized',
-                    'Topics mapped to syllabus specifications',
+                    'Preparing your exam subjects',
+                    'Organizing topics from the syllabus',
                     'Subtopics & modules verified',
-                    'Personalized study plan scheduled',
+                    'Preparing your account and study workspace',
                   ].map((label, idx) => {
                     const isDone = activePrepIndex > idx;
                     const isCurrent = activePrepIndex === idx;
