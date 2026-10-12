@@ -5,7 +5,7 @@ export async function ensureCurrentStudyPlan(
 ): Promise<{ plan: any | null; message?: string }> {
   const { data: profile, error: profileError } = await admin
     .from('profiles')
-    .select('id, current_exam_id, first_name')
+    .select('id, current_exam_id, first_name, country_id')
     .eq('id', userId)
     .maybeSingle();
 
@@ -42,7 +42,39 @@ export async function ensureCurrentStudyPlan(
     throw new Error('Could not load the exam details needed for your study plan.');
   }
   if (!examData) return { plan: null, message: 'The selected exam could not be found.' };
-  if (!subjects || subjects.length === 0) {
+
+  let verifiedSubjects = subjects || [];
+  if (verifiedSubjects.length === 0) {
+    // Existing accounts may point to a canonical exam that predates curriculum generation.
+    // Repair only the user's selected exam and verify the resolved ID before using its data.
+    try {
+      let countryName: string | undefined;
+      if (profile.country_id) {
+        const { data: country } = await admin.from('countries').select('name').eq('id', profile.country_id).maybeSingle();
+        countryName = country?.name || undefined;
+      }
+      const { resolveOrInitializeExamIntelligence } = await import('@/lib/server/exam-intelligence');
+      const resolution = await resolveOrInitializeExamIntelligence({
+        examQuery: examData.name,
+        country: countryName,
+        userId,
+      });
+
+      if (resolution?.success && resolution.exam?.id === examId) {
+        const { data: repairedSubjects, error: repairError } = await admin
+          .from('exam_subjects')
+          .select('id, name, slug, weight_percentage')
+          .eq('exam_id', examId)
+          .order('weight_percentage', { ascending: false });
+        if (repairError) throw repairError;
+        verifiedSubjects = repairedSubjects || [];
+      }
+    } catch (repairError) {
+      console.error('[Study Plan] Selected exam curriculum repair failed:', repairError);
+    }
+  }
+
+  if (verifiedSubjects.length === 0) {
     return {
       plan: null,
       message: 'Your verified exam curriculum is still being prepared. Your personalized study plan will appear as soon as its subjects are ready.',
@@ -63,7 +95,7 @@ export async function ensureCurrentStudyPlan(
 
   for (let week = 1; week <= weeksCount; week++) {
     const isRevisionWeek = week === weeksCount;
-    const assignedSubject = subjects[(week - 1) % subjects.length]?.name || subjects[0].name;
+    const assignedSubject = verifiedSubjects[(week - 1) % verifiedSubjects.length]?.name || verifiedSubjects[0].name;
     const daysInThisWeek = Math.min(7, totalDays - currentDayOffset);
     const days: any[] = [];
     const isRapidMode = preferences?.learning_mode === 'rapid' || preferences?.learning_mode === 'Rapid Learning';
@@ -125,7 +157,7 @@ export async function ensureCurrentStudyPlan(
     startDate,
     targetDate: targetDateString,
     targetScore: userExam?.target_score || 85,
-    subjects: subjects.map((subject: any) => subject.name),
+    subjects: verifiedSubjects.map((subject: any) => subject.name),
     schedule,
     status: 'active',
     generatedAt: now.toISOString(),
