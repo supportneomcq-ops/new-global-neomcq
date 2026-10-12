@@ -373,7 +373,11 @@ async function executeMultiProviderGeneration(prompt: string, taskType: string):
   // 1. Fetch Task Routing & Model Pricing from Database
   const [routingRes, modelsRes] = await Promise.all([
     adminClient.from('ai_task_routing').select('*').eq('task_type', taskType).maybeSingle(),
-    adminClient.from('ai_models').select('*').eq('enabled', true),
+    adminClient
+      .from('ai_model_pricing')
+      .select('provider, model, input_cost_per_1m, output_cost_per_1m')
+      .eq('active', true)
+      .is('effective_until', null),
   ])
 
   const routing = routingRes.data
@@ -425,9 +429,13 @@ async function executeMultiProviderGeneration(prompt: string, taskType: string):
       modelUsed = primaryModel
 
       // Calculate cost from model registry
-      const modelMeta = availableModels.find((m) => m.model_id === primaryModel)
-      const inputRate = modelMeta ? Number(modelMeta.input_price_per_1m) : 0.10
-      const outputRate = modelMeta ? Number(modelMeta.output_price_per_1m) : 0.40
+      const modelMeta = availableModels.find((m) =>
+        m.model === primaryModel && String(m.provider || '').toLowerCase().includes('gemini')
+      )
+      // Use the live pricing catalogue; when a newer model has no row yet, use a conservative
+      // Gemini Flash estimate instead of the obsolete underpriced fallback.
+      const inputRate = modelMeta ? Number(modelMeta.input_cost_per_1m) : 0.75
+      const outputRate = modelMeta ? Number(modelMeta.output_cost_per_1m) : 3.75
       costUsd = (inputTokens * inputRate + outputTokens * outputRate) / 1_000_000
 
       return { rawPayload, providerUsed, modelUsed, inputTokens, outputTokens, costUsd }
@@ -477,9 +485,11 @@ async function executeMultiProviderGeneration(prompt: string, taskType: string):
       providerUsed = 'openai'
       modelUsed = fallbackModel
 
-      const modelMeta = availableModels.find((m) => m.model_id === fallbackModel)
-      const inputRate = modelMeta ? Number(modelMeta.input_price_per_1m) : 2.50
-      const outputRate = modelMeta ? Number(modelMeta.output_price_per_1m) : 10.00
+      const modelMeta = availableModels.find((m) =>
+        m.model === fallbackModel && String(m.provider || '').toLowerCase().includes('openai')
+      )
+      const inputRate = modelMeta ? Number(modelMeta.input_cost_per_1m) : 2.50
+      const outputRate = modelMeta ? Number(modelMeta.output_cost_per_1m) : 10.00
       costUsd = (inputTokens * inputRate + outputTokens * outputRate) / 1_000_000
 
       return { rawPayload, providerUsed, modelUsed, inputTokens, outputTokens, costUsd }
