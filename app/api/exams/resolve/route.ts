@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
       userId: user?.id || undefined,
     })
 
-    const rawError = typeof result?.error === 'string' ? result.error : ''
+    const rawError = typeof (result as any)?.error === 'string' ? (result as any).error : ''
     const exposesInternals = /relation|column|schema|table|database|supabase|postgrest|sql|constraint|permission denied|does not exist|duplicate key|foreign key|PGRST\\d+/i.test(rawError)
 
     if (result?.success === false && exposesInternals) {
