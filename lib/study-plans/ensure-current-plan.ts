@@ -1,3 +1,5 @@
+import { resolveOrInitializeExamIntelligence } from '@/lib/server/exam-intelligence';
+
 export async function ensureCurrentStudyPlan(
   admin: any,
   userId: string,
@@ -53,7 +55,6 @@ export async function ensureCurrentStudyPlan(
         const { data: country } = await admin.from('countries').select('name').eq('id', profile.country_id).maybeSingle();
         countryName = country?.name || undefined;
       }
-      const { resolveOrInitializeExamIntelligence } = await import('@/lib/server/exam-intelligence');
       const resolution = await resolveOrInitializeExamIntelligence({
         examQuery: examData.name,
         country: countryName,
