@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { z } from 'zod'
 import { resolveOrInitializeExamIntelligence } from '@/lib/server/exam-intelligence'
+import { ensureCurrentStudyPlan } from '@/lib/study-plans/ensure-current-plan'
 
 const onboardingSchema = z.object({
   authId: z.string().optional(),
@@ -105,7 +106,7 @@ export async function POST(req: NextRequest) {
     // Never trust a client-supplied exam ID as the canonical curriculum source.
     // Resolve the submitted exam name server-side and stop if resolution fails.
     let finalExamId: string | null = null
-    let studyPlanQueued = false
+    let studyPlanReady = false
 
     if (targetUserId) {
       // 1. Resolve country_id and language_id from database
@@ -302,43 +303,18 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      // 5. Enqueue Async AI Study Plan Generation Job
-      const { data: aiJob, error: aiJobError } = await (admin as any).from('ai_jobs').insert({
-        user_id: targetUserId,
-        exam_id: finalExamId || null,
-        task: 'study_plan_generation',
-        status: 'queued',
-        provider: 'gemini',
-        model: 'gemini-2.5-flash',
-        priority: 5,
-        input_payload: {
-          job_type: 'study_plan',
-          asset_type: 'study_plan',
-          examName,
-          examId: finalExamId,
-          examDate,
-          studyHours,
-          studyTime,
-          studyGoals,
-        },
-      }).select('id').single()
-
-      if (aiJobError) {
-        // Core registration is saved; study-plan generation can be retried independently.
-        console.error('[Onboarding] AI study-plan job could not be queued:', aiJobError)
+      // 5. Persist the personalized plan from the verified exam curriculum before
+      // completing onboarding. This avoids an unawaited AI job that could leave the
+      // account looking ready while no plan exists.
+      const planResult = await ensureCurrentStudyPlan(admin, targetUserId, finalExamId)
+      if (!planResult.plan) {
+        console.error('[Onboarding] Personalized study plan is not ready:', planResult.message)
+        return NextResponse.json(
+          { success: false, error: planResult.message || 'Your personalized study plan is not ready yet. Please retry onboarding.' },
+          { status: 422 }
+        )
       }
-
-      if (aiJob?.id) {
-        studyPlanQueued = true
-        fetch(`${req.nextUrl.origin}/api/ai/process-job`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-internal-api-secret': process.env.INTERNAL_API_SECRET || '',
-          },
-          body: JSON.stringify({ jobId: aiJob.id }),
-        }).catch((err) => console.warn('[Onboarding] Background study-plan job could not be started:', err))
-      }
+      studyPlanReady = true
     }
 
     return NextResponse.json({
@@ -346,7 +322,7 @@ export async function POST(req: NextRequest) {
       message: 'Onboarding preferences saved',
       userId: targetUserId,
       examId: finalExamId,
-      studyPlanQueued,
+      studyPlanReady,
     })
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Onboarding failed' }, { status: 500 })
