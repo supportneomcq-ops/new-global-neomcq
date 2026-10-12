@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveOrInitializeExamIntelligence } from '@/lib/server/exam-intelligence'
 import { createClient } from '@/lib/supabase/server'
+import { getSupabaseAdmin } from '@/lib/supabase'
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,11 +25,89 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Before signup, only resolve the canonical exam name. Do not run paid AI curriculum
+    // generation for anonymous visitors; the full curriculum is prepared once onboarding
+    // has created the account and credit wallet.
+    if (!user) {
+      const admin = getSupabaseAdmin()
+      const { data: exams, error: examsError } = await admin
+        .from('exams')
+        .select('id, name, short_name, slug, countries(name, flag_emoji), exam_categories(name, slug)')
+        .neq('status', 'archived')
+        .limit(500)
+
+      if (examsError) {
+        console.error('[Exam Resolution] Canonical exam lookup failed:', examsError.message)
+        return NextResponse.json({
+          success: false,
+          error: 'We could not verify this exam name right now. Please retry in a moment.',
+        }, { status: 503 })
+      }
+
+      const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+      const query = normalize(examQuery.trim())
+      const normalizedCountry = typeof country === 'string' ? normalize(country) : ''
+      const exactMatches = (exams || []).filter((exam: any) =>
+        normalize(exam.name || '') === query ||
+        normalize(exam.short_name || '') === query ||
+        normalize(exam.slug || '') === query
+      )
+      let matchedExam: any = exactMatches.find((exam: any) =>
+        normalizedCountry && normalize(exam.countries?.name || '') === normalizedCountry
+      ) || exactMatches[0]
+
+      if (!matchedExam) {
+        const { data: aliases, error: aliasesError } = await admin
+          .from('exam_aliases')
+          .select('exam_id, alias')
+          .limit(5000)
+        if (aliasesError) {
+          console.error('[Exam Resolution] Canonical alias lookup failed:', aliasesError.message)
+          return NextResponse.json({
+            success: false,
+            error: 'We could not verify this exam name right now. Please retry in a moment.',
+          }, { status: 503 })
+        }
+        const matchedAlias = (aliases || []).find((alias: any) => normalize(alias.alias || '') === query)
+        if (matchedAlias) matchedExam = (exams || []).find((exam: any) => exam.id === matchedAlias.exam_id)
+      }
+
+      if (matchedExam) {
+        return NextResponse.json({
+          success: true,
+          status: 'EXISTING_EXAM',
+          exam: {
+            id: matchedExam.id,
+            name: matchedExam.name,
+            shortName: matchedExam.short_name || matchedExam.name,
+            country: matchedExam.countries?.name || 'Global',
+            flag: matchedExam.countries?.flag_emoji || '🌐',
+            category: matchedExam.exam_categories?.name || 'Professional Licensing',
+          },
+          curriculumStatus: 'verified_during_signup',
+        })
+      }
+
+      return NextResponse.json({
+        success: true,
+        status: 'NEW_EXAM',
+        exam: {
+          id: null,
+          name: examQuery.trim(),
+          shortName: examQuery.trim(),
+          country: typeof country === 'string' && country.trim() ? country.trim() : 'Global',
+          flag: '🌐',
+          category: typeof category === 'string' && category.trim() ? category.trim() : 'Professional Licensing',
+        },
+        curriculumStatus: 'prepared_during_signup',
+      })
+    }
+
     const result = await resolveOrInitializeExamIntelligence({
       examQuery: examQuery.trim(),
       country: typeof country === 'string' ? country.slice(0, 100) : undefined,
       category: typeof category === 'string' ? category.slice(0, 100) : undefined,
-      userId: user?.id || undefined,
+      userId: user.id,
     })
 
     const rawError = typeof (result as any)?.error === 'string' ? (result as any).error : ''
