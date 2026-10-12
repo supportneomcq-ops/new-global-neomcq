@@ -15,7 +15,9 @@ const onboardingSchema = z.object({
   language: z.string().optional(),
   examName: z.string().min(1),
   examId: z.string().nullable().optional(),
-  examDate: z.string().optional(),
+  examDate: z.string()
+    .min(1, 'Exam date is required')
+    .refine((value) => !Number.isNaN(Date.parse(value)), 'Enter a valid exam date'),
   daysLeft: z.number().optional(),
   learningStyle: z.string().optional(),
   studyHours: z.number().optional(),
