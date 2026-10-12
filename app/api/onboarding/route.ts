@@ -83,10 +83,13 @@ export async function POST(req: NextRequest) {
       const { data: authLookup, error: authLookupError } = await admin.auth.admin.getUserById(authId)
       const pendingUser = authLookup?.user
       const createdAt = pendingUser?.created_at ? new Date(pendingUser.created_at).getTime() : 0
-      const isRecentSignup = createdAt > 0 && Date.now() - createdAt <= 15 * 60 * 1000
+      // Let users retry setup after a slow curriculum generation, but only for an
+      // unconfirmed account created within the last 24 hours and with an exact email match.
+      const isRecentSignup = createdAt > 0 && Date.now() - createdAt <= 24 * 60 * 60 * 1000
       const emailMatches = pendingUser?.email?.toLowerCase() === email.toLowerCase()
+      const emailStillUnconfirmed = !pendingUser?.email_confirmed_at
 
-      if (authLookupError || !pendingUser || !emailMatches || !isRecentSignup) {
+      if (authLookupError || !pendingUser || !emailMatches || !isRecentSignup || !emailStillUnconfirmed) {
         return NextResponse.json(
           { error: 'Please verify your email or sign in again before finishing onboarding.' },
           { status: 401 }
