@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, getSupabaseClient } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/server';
 
 export async function GET(req: NextRequest) {
   try {
@@ -274,19 +275,30 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await req.json();
     const { userId, examId, durationMins, hours, questionsAnswered, correctAnswers, mode } = body;
-
-    if (!userId) {
-      return NextResponse.json({ success: false, error: 'User ID is required' }, { status: 400 });
+    if (!userId || userId !== user.id) {
+      return NextResponse.json({ success: false, error: 'User identity could not be verified.' }, { status: 403 });
+    }
+    if (!examId) {
+      return NextResponse.json({ success: false, error: 'Select an exam before logging study time.' }, { status: 400 });
     }
 
     const calculatedMins = durationMins || (hours ? Math.round(Number(hours) * 60) : 30);
+    if (!Number.isFinite(Number(calculatedMins)) || Number(calculatedMins) <= 0) {
+      return NextResponse.json({ success: false, error: 'Study duration must be greater than zero.' }, { status: 400 });
+    }
     const admin = getSupabaseAdmin();
 
     const newSession = {
-      user_id: userId,
-      exam_id: examId || '8d30e3bb-d55a-4b9d-83ff-1d1ebc96f241',
+      user_id: user.id,
+      exam_id: examId,
       duration_mins: calculatedMins,
       questions_answered: questionsAnswered || 0,
       correct_answers: correctAnswers || 0,
