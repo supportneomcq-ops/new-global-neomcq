@@ -126,13 +126,18 @@ export async function POST(req: NextRequest) {
       }
 
       if (language) {
-        const { data: langData } = await (admin as any)
+        // UI labels such as "English (US/UK)" are display labels, not canonical DB names.
+        // Normalize the label before resolving the foreign key so language preferences persist.
+        const canonicalLanguageName = language.trim().replace(/\s*\([^)]*\)\s*/g, '').trim()
+        const { data: langData, error: languageLookupError } = await (admin as any)
           .from('languages')
           .select('id')
-          .ilike('name', language.trim())
+          .ilike('name', canonicalLanguageName)
           .limit(1)
 
-        if (langData && langData.length > 0) {
+        if (languageLookupError) {
+          console.warn('[Onboarding] Language lookup failed:', languageLookupError.message)
+        } else if (langData && langData.length > 0) {
           resolvedLanguageId = langData[0].id
         }
       }
