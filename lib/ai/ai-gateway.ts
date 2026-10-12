@@ -299,8 +299,6 @@ export class AIGateway {
       const supabaseAdmin: any = supabase;
       await supabaseAdmin.from('ai_cost_events').insert({
         user_id: userId || null,
-        job_id: options.jobId || null,
-        content_version_id: options.contentVersionId || null,
         task_type: taskType,
         provider: finalProvider,
         model: finalModel,
@@ -309,10 +307,11 @@ export class AIGateway {
         output_tokens: executionResult.usage.outputTokens,
         reasoning_tokens: executionResult.usage.reasoningTokens || 0,
         actual_provider_cost: costMetrics.totalProviderCostUsd,
-        revenue_allocated: costMetrics.revenueAllocatedUsd,
+        revenue_allocated: userId ? costMetrics.revenueAllocatedUsd : 0,
         ai_infrastructure_cost: costMetrics.infrastructureCostUsd,
-        credits_deducted: effectiveCreditCost,
-        margin_percent: costMetrics.marginPercent,
+        credits_deducted: userId ? effectiveCreditCost : 0,
+        created_at: new Date().toISOString(),
+        request_id: executionResult.requestId || options.jobId || null,
       });
     } catch (err) {
       console.warn('AIGateway: Could not record ai_cost_events ledger:', err);
