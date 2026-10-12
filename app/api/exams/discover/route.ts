@@ -17,6 +17,21 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = getSupabaseAdmin();
+    const token = req.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1];
+    if (!token) {
+      return NextResponse.json({ success: false, error: 'Authentication required.' }, { status: 401 });
+    }
+    const { data: authData, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !authData.user) {
+      return NextResponse.json({ success: false, error: 'Authentication required.' }, { status: 401 });
+    }
+    const { data: isAdmin, error: adminError } = await supabase.rpc('is_admin', { p_user_id: authData.user.id });
+    if (adminError || isAdmin !== true) {
+      return NextResponse.json({ success: false, error: 'Admin access required for AI exam discovery.' }, { status: 403 });
+    }
+    if (rawExamName.length > 160 || rawCountry.length > 100) {
+      return NextResponse.json({ success: false, error: 'Exam or country name is too long.' }, { status: 400 });
+    }
 
     // 1. Resolve Country from Database
     let countryId: string | null = null;
@@ -37,25 +52,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. Check if Country exists in DB; if completely new country name entered by user, create country entry
+    // Do not create country rows from arbitrary request text. Countries are managed
+    // through the canonical country catalog; an unknown country must be corrected there first.
     if (!countryId && countryName && countryName !== 'Global') {
-      const countrySlug = countryName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-      const { data: newCountry } = await (supabase as any)
-        .from('countries')
-        .insert({
-          name: countryName,
-          iso2: countryName.substring(0, 2).toUpperCase(),
-          slug: countrySlug,
-          flag_emoji: '🌍',
-        })
-        .select('id, name, flag_emoji')
-        .single();
-
-      if (newCountry) {
-        countryId = newCountry.id;
-        countryName = newCountry.name;
-        flagEmoji = newCountry.flag_emoji || '🌍';
-      }
+      return NextResponse.json(
+        { success: false, error: 'Select a country from the supported country list.' },
+        { status: 400 }
+      );
     }
 
     const norm = normalizeInput(rawExamName);
