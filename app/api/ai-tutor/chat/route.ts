@@ -1,10 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { TutorChatEngine } from '@/lib/server/content-engine/tutor-chat-engine';
+import { createClient } from '@/lib/supabase/server';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const lessonId = searchParams.get('lessonId');
-  const userId = searchParams.get('userId') || 'system-user';
+  const requestedUserId = searchParams.get('userId');
+
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json({ success: false, error: 'Please sign in to access tutor history.' }, { status: 401 });
+  }
+  if (requestedUserId && requestedUserId !== user.id) {
+    return NextResponse.json({ success: false, error: 'You cannot access another user’s tutor history.' }, { status: 403 });
+  }
+  const userId = user.id;
 
   if (!lessonId) {
     return NextResponse.json({ success: false, error: 'lessonId query parameter is required.' }, { status: 400 });
@@ -22,16 +33,26 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { lessonId, userId = 'system-user', topicId, question, requestId, idempotencyKey } = body;
+    const { lessonId, userId: requestedUserId, topicId, question, requestId, idempotencyKey } = body;
 
-    if (!lessonId || !topicId || !question) {
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ success: false, error: 'Please sign in to use the AI tutor.' }, { status: 401 });
+    }
+    if (requestedUserId && requestedUserId !== user.id) {
+      return NextResponse.json({ success: false, error: 'You cannot send tutor requests for another user.' }, { status: 403 });
+    }
+    const userId = user.id;
+
+    if (!lessonId || !topicId || typeof question !== 'string' || !question.trim() || question.length > 8000) {
       return NextResponse.json(
-        { success: false, error: 'lessonId, topicId, and question are required.' },
+        { success: false, error: 'Provide a lesson, topic, and question (maximum 8,000 characters).' },
         { status: 400 }
       );
     }
 
-    if (userId && userId !== 'system-user') {
+    if (userId) {
       const { checkFeatureQuota } = await import('@/lib/entitlements/quota-checker');
       const quotaResult = await checkFeatureQuota({
         userId,
@@ -70,6 +91,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(result);
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    console.error('[AI Tutor Chat] Request failed:', err);
+    return NextResponse.json({ success: false, error: 'The tutor could not answer right now. Please retry.' }, { status: 500 });
   }
 }
