@@ -488,39 +488,55 @@ CRITICAL RULES:
     systemInstruction,
     preferredProvider: 'gemini',
     preferredModel: 'gemini-3.5-flash',
-    // The previous default could truncate a multi-page manuscript and make JSON.parse fail.
-    maxOutputTokens: 8192,
+    temperature: 0.25,
+    maxOutputTokens: 12000,
     responseMimeType: 'application/json',
   });
 
-  let parsed: any;
-  if (genResult.parsedJson && typeof genResult.parsedJson === 'object') {
-    parsed = genResult.parsedJson;
-  } else {
-    let cleanText = (genResult.text || '').trim();
+  const parseJsonText = (rawText: string): any | null => {
+    let cleanText = (rawText || '').trim();
     if (cleanText.startsWith('```')) {
       cleanText = cleanText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
     }
+    const firstObject = cleanText.indexOf('{');
+    const lastObject = cleanText.lastIndexOf('}');
+    if (firstObject < 0 || lastObject <= firstObject) return null;
     try {
-      parsed = JSON.parse(cleanText);
-    } catch (parseError) {
-      // Some provider responses include a short preamble despite JSON mode.
-      const firstObject = cleanText.indexOf('{');
-      const lastObject = cleanText.lastIndexOf('}');
-      if (firstObject >= 0 && lastObject > firstObject) {
-        try {
-          parsed = JSON.parse(cleanText.slice(firstObject, lastObject + 1));
-        } catch {
-          throw new Error(
-            `AI provider returned incomplete JSON for A4 notes (output length: ${cleanText.length}). Please retry generation.`
-          );
-        }
-      } else {
-        throw new Error(
-          `AI provider returned incomplete JSON for A4 notes (output length: ${cleanText.length}). Please retry generation.`
-        );
-      }
+      return JSON.parse(cleanText.slice(firstObject, lastObject + 1));
+    } catch {
+      return null;
     }
+  };
+
+  let parsed: any = genResult.parsedJson && typeof genResult.parsedJson === 'object'
+    ? genResult.parsedJson
+    : parseJsonText(genResult.text || '');
+
+  // A4 output is large and can occasionally be truncated. Retry once with a compact,
+  // explicitly bounded manuscript rather than failing the user's generation immediately.
+  if (!parsed) {
+    const repairProvider = String(genResult.providerUsed || '').toLowerCase().includes('openai')
+      ? 'openai'
+      : 'gemini';
+    const repairModel = genResult.modelUsed || (repairProvider === 'openai' ? 'gpt-4o-mini' : 'gemini-3.5-flash');
+    const repairResult = await AIGateway.generateContent({
+      userId,
+      taskType: 'a4_notes_generation',
+      systemInstruction,
+      preferredProvider: repairProvider,
+      preferredModel: repairModel,
+      temperature: 0.2,
+      maxOutputTokens: 12000,
+      responseMimeType: 'application/json',
+      prompt: `The previous response was truncated or invalid JSON. Regenerate the manuscript as compact, complete, valid JSON only. Keep exactly 3 pages, exactly 1 section per page, 180–260 words per page, and no more than 2 structured blocks per page. Preserve exam-specific facts and do not add generic filler. Follow this original request and its JSON structure:\n\n${prompt}\n\nReturn one complete JSON object and close every string, array, and object.`,
+    });
+    parsed = repairResult.parsedJson && typeof repairResult.parsedJson === 'object'
+      ? repairResult.parsedJson
+      : parseJsonText(repairResult.text || '');
+  }
+
+  if (!parsed) {
+    throw new Error('AI provider returned incomplete A4 notes after a recovery attempt. Please retry generation.');
   }
 
   // Validate output against schema
