@@ -97,9 +97,32 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Default fallbacks if exam or subject name not provided
-    if (!examNameInput) examNameInput = 'USMLE Step 1 & 2 CK'
-    if (!subjectNameInput) subjectNameInput = 'General Medicine'
+    // Resolve missing display names from the selected canonical IDs; never silently
+    // substitute USMLE or General Medicine for a different learner's exam.
+    if (!examNameInput && examId) {
+      const { data: selectedExam } = await (supabase as any)
+        .from('exams')
+        .select('name')
+        .eq('id', examId)
+        .maybeSingle()
+      examNameInput = selectedExam?.name || ''
+    }
+
+    if (!subjectNameInput && subjectId) {
+      const { data: selectedSubject } = await (supabase as any)
+        .from('exam_subjects')
+        .select('name')
+        .eq('id', subjectId)
+        .maybeSingle()
+      subjectNameInput = selectedSubject?.name || ''
+    }
+
+    if (!examNameInput || !subjectNameInput) {
+      return NextResponse.json(
+        { success: false, error: 'Select the correct exam and subject before generating study content.' },
+        { status: 400 }
+      )
+    }
 
     // Execute through Master AI Content Intelligence Engine
     const result = await getOrGenerateCanonicalTopicContent({
