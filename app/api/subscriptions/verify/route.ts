@@ -88,6 +88,23 @@ export async function POST(req: NextRequest) {
     }
 
     const callbackCheckoutId = razorpay_subscription_id || razorpay_order_id;
+    const subscriptionCreditReason = razorpay_subscription_id
+      ? `Subscription Charge ${razorpay_subscription_id}:${razorpay_payment_id}`
+      : `Subscription Activated ${callbackCheckoutId}`;
+    const ensureSubscriptionCredits = async () => {
+      const { error } = await admin.rpc('credit_adjust', {
+        p_user_id: user.id,
+        p_amount: 1000,
+        p_type: 'SUBSCRIPTION_GRANT',
+        p_reason: subscriptionCreditReason,
+      });
+      if (error) {
+        console.error('Verified subscription credit grant failed:', error.message);
+        return false;
+      }
+      return true;
+    };
+
     // The Razorpay webhook can activate a subscription before the browser callback
     // reaches this route. Accept that exact same payment idempotently, but never a
     // different payment or checkout.
@@ -177,6 +194,13 @@ export async function POST(req: NextRequest) {
         .eq('user_id', user.id)
         .maybeSingle();
       if (activeSub?.status === 'active' && activeSub.plan_code === plan.code) {
+        // Idempotently ensure the credit grant even if a webhook partially failed after
+        // recording the payment. credit_adjust deduplicates by the same reference as webhook.
+        if (!(await ensureSubscriptionCredits())) {
+          return NextResponse.json({
+            error: 'Your payment and subscription are verified, but credits are still being finalized. Please retry shortly; do not pay again.',
+          }, { status: 503 });
+        }
         const entitlements = await getServerUserEntitlements(user.id);
         return NextResponse.json({
           success: true,
@@ -248,6 +272,14 @@ export async function POST(req: NextRequest) {
     if (paymentRecordError) {
       console.error('Error recording verified payment:', paymentRecordError);
       throw new Error('Payment was verified but could not be fully recorded. Please contact support; do not pay again.');
+    }
+
+    // Grant subscription credits here as well as in the webhook. The database RPC is
+    // idempotent with the webhook's reference, so either delivery order grants once.
+    if (!(await ensureSubscriptionCredits())) {
+      return NextResponse.json({
+        error: 'Your payment is verified and your plan is active, but credits are still being finalized. Please retry shortly; do not pay again.',
+      }, { status: 503 });
     }
 
     // 6. If user upgraded to ELITE, ensure exam locking does not impede unlimited switching
