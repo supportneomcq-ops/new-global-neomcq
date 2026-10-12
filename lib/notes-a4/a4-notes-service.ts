@@ -313,6 +313,7 @@ export async function getCanonicalA4NoteRecord(params: {
  */
 export async function generateA4NotesManuscript(params: {
   userId: string;
+  jobId?: string;
   examId: string;
   examName: string;
   subjectId: string;
@@ -327,6 +328,7 @@ export async function generateA4NotesManuscript(params: {
 }): Promise<A4NotesDocument> {
   const {
     userId,
+    jobId,
     examId,
     examName,
     subjectId,
@@ -491,6 +493,7 @@ CRITICAL RULES:
     temperature: 0.25,
     maxOutputTokens: 12000,
     responseMimeType: 'application/json',
+    jobId,
   });
 
   const parseJsonText = (rawText: string): any | null => {
@@ -528,6 +531,7 @@ CRITICAL RULES:
       temperature: 0.2,
       maxOutputTokens: 12000,
       responseMimeType: 'application/json',
+      jobId,
       prompt: `The previous response was truncated or invalid JSON. Regenerate the manuscript as compact, complete, valid JSON only. Keep exactly 3 pages, exactly 1 section per page, 180–260 words per page, and no more than 2 structured blocks per page. Preserve exam-specific facts and do not add generic filler. Follow this original request and its JSON structure:\n\n${prompt}\n\nReturn one complete JSON object and close every string, array, and object.`,
     });
     parsed = repairResult.parsedJson && typeof repairResult.parsedJson === 'object'
