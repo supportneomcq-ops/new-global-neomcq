@@ -146,7 +146,7 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile, initi
       if (!languageRecord) throw new Error('Select a supported language before saving.');
       const languageId = languageRecord.id;
 
-      const { error } = await supabase
+      const { data: updatedProfile, error } = await supabase
         .from('profiles')
         .update({
           first_name: firstName.trim(),
@@ -156,9 +156,14 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile, initi
           language_id: languageId,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', authUser.id);
+        .eq('id', authUser.id)
+        .select('id')
+        .maybeSingle();
 
       if (error) throw error;
+      if (!updatedProfile) {
+        throw new Error('Your profile was not updated. Please refresh and try again.');
+      }
 
       if (onUpdateProfile) {
         onUpdateProfile({ firstName: firstName.trim(), lastName: lastName.trim(), phone: phone.trim(), country, language: canonicalLanguageName });
