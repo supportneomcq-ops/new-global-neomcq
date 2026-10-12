@@ -125,13 +125,35 @@ serve(async (req) => {
         );
 
         if (!geminiRes.ok) {
-          const errText = await geminiRes.text();
-          throw new Error(`Gemini API Error: ${errText}`);
+          // Use the secondary provider when the configured primary is unavailable.
+          if (!openaiApiKey) {
+            await geminiRes.text();
+            throw new Error("The configured AI provider is unavailable and no fallback provider is configured.");
+          }
+          provider = "openai";
+          model = "gpt-4o-mini";
+          const fallbackRes = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${openaiApiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model,
+              messages: [{ role: "user", content: prompt }],
+              max_tokens: maxOutputTokens
+            })
+          });
+          if (!fallbackRes.ok) {
+            await fallbackRes.text();
+            throw new Error("Both configured AI providers failed. Reserved credits will be returned.");
+          }
+          const fallbackData = await fallbackRes.json();
+          resultText = fallbackData.choices?.[0]?.message?.content || "";
+          inputTokens = fallbackData.usage?.prompt_tokens || inputTokens;
+          outputTokens = fallbackData.usage?.completion_tokens || Math.ceil(resultText.length / 4);
+        } else {
+          const data = await geminiRes.json();
+          resultText = data.candidates?.[0]?.content?.parts?.map((part: any) => part.text || "").join("") || "";
+          outputTokens = Math.ceil(resultText.length / 4);
         }
-
-        const data = await geminiRes.json();
-        resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-        outputTokens = Math.ceil(resultText.length / 4);
       } else if (openaiApiKey) {
         provider = "openai";
         model = "gpt-4o-mini";
@@ -161,12 +183,23 @@ serve(async (req) => {
         throw new Error("No AI API keys configured on backend");
       }
 
-      // 5. Finalize Credit Consumption
-      await supabase.rpc("credit_consume", {
+      // Never report success or silently lose a reservation when credit finalization fails.
+      if (!resultText.trim()) throw new Error("The AI provider returned an empty response.");
+      const { error: consumeError } = await supabase.rpc("credit_consume", {
         p_user_id: reqUserId,
         p_amount: estimatedCredits,
         p_task: task
       });
+      if (consumeError) {
+        await supabase.rpc("credit_release", {
+          p_user_id: reqUserId,
+          p_amount: estimatedCredits,
+          p_task: task,
+          p_metadata: { description: "AI credit finalization failed; reservation released" }
+        });
+        reservationLedgerId = null;
+        throw new Error("Could not finalize AI credits. Please retry.");
+      }
 
       // 6. Record Cost Event
       const estCostUsd = (inputTokens * 0.00000015) + (outputTokens * 0.0000006);
