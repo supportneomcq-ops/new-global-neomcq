@@ -33,10 +33,13 @@ serve(async (req) => {
     const userId = user.id;
 
     const body = await req.json();
+    // Task names are canonicalized server-side. Never trust a client-supplied
+    // tier to choose a cheaper credit charge for a more expensive task.
+    const task = typeof body.task === "string" && body.task.trim()
+      ? body.task.trim().toUpperCase()
+      : "GENERAL";
     const {
-      task = "general",
       prompt,
-      tier = "BALANCED",
       exam_id,
       subject_id,
       topic_id,
@@ -72,11 +75,24 @@ serve(async (req) => {
     const maxOutputTokens = Math.max(128, Math.min(Number(max_tokens) || 1000, 3000));
 
     // 2. Determine Model from ai_task_routing
-    const { data: routingRule } = await supabase
+    const { data: routingRule, error: routingError } = await supabase
       .from("ai_task_routing")
       .select("*")
       .eq("task_type", task)
       .maybeSingle();
+
+    if (routingError) {
+      return new Response(JSON.stringify({ error: "AI routing configuration is unavailable." }), {
+        status: 503,
+        headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" }
+      });
+    }
+    if (routingRule && routingRule.enabled === false) {
+      return new Response(JSON.stringify({ error: "This AI task is temporarily unavailable." }), {
+        status: 503,
+        headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" }
+      });
+    }
 
     // Normalize legacy display labels stored in ai_task_routing. The router's
     // execution branches require canonical provider IDs ("gemini" / "openai").
@@ -87,10 +103,13 @@ serve(async (req) => {
         : configuredProvider.includes("openai")
           ? "openai"
           : (geminiApiKey ? "gemini" : "openai");
-    let model = routingRule?.primary_model || (provider === "gemini" ? "gemini-3.6-flash" : "gpt-4o-mini");
+    let model = routingRule?.primary_model || (provider === "gemini" ? "gemini-3.6-flash" : "gpt-5.4-mini");
 
-    // 3. Credit Reservation (10 credits default)
-    const estimatedCredits = tier === "PREMIUM" ? 25 : tier === "LOW_COST" ? 5 : 10;
+    // Charge the server-configured cost for the task, never a client-provided tier.
+    const configuredCreditCost = Number(routingRule?.credit_cost);
+    const estimatedCredits = Number.isFinite(configuredCreditCost) && configuredCreditCost > 0
+      ? Math.ceil(configuredCreditCost)
+      : 10;
     let reservationLedgerId: string | null = null;
 
     try {
@@ -139,7 +158,7 @@ serve(async (req) => {
             throw new Error("The configured AI provider is unavailable and no fallback provider is configured.");
           }
           provider = "openai";
-          model = "gpt-4o-mini";
+          model = routingRule?.fallback_model || "gpt-5.4-mini";
           const fallbackRes = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
             headers: { "Authorization": `Bearer ${openaiApiKey}`, "Content-Type": "application/json" },
@@ -160,11 +179,12 @@ serve(async (req) => {
         } else {
           const data = await geminiRes.json();
           resultText = data.candidates?.[0]?.content?.parts?.map((part: any) => part.text || "").join("") || "";
-          outputTokens = Math.ceil(resultText.length / 4);
+          inputTokens = Number(data.usageMetadata?.promptTokenCount) || inputTokens;
+          outputTokens = Number(data.usageMetadata?.candidatesTokenCount) || Math.ceil(resultText.length / 4);
         }
       } else if (openaiApiKey) {
         provider = "openai";
-        model = "gpt-4o-mini";
+        model = routingRule?.primary_model || "gpt-5.4-mini";
         const oaRes = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -209,9 +229,24 @@ serve(async (req) => {
         throw new Error("Could not finalize AI credits. Please retry.");
       }
 
-      // 6. Record Cost Event
-      const estCostUsd = (inputTokens * 0.00000015) + (outputTokens * 0.0000006);
-      await supabase.from("ai_cost_events").insert({
+      // 6. Record cost using the active model's current per-token rates.
+      // Conservative provider defaults prevent under-reporting if a model row is missing.
+      const { data: pricingRows, error: pricingLookupError } = await supabase
+        .from("ai_model_pricing")
+        .select("input_cost_per_1m, output_cost_per_1m")
+        .eq("model", model)
+        .eq("active", true)
+        .order("effective_from", { ascending: false })
+        .limit(1);
+      if (pricingLookupError) console.error("AI pricing lookup failed:", pricingLookupError.message);
+      const pricing = pricingRows?.[0];
+      const inputCostPerMillion = Number(pricing?.input_cost_per_1m) || (provider === "gemini" ? 0.75 : 0.75);
+      const outputCostPerMillion = Number(pricing?.output_cost_per_1m) || (provider === "gemini" ? 3.75 : 4.50);
+      const estCostUsd = (
+        inputTokens * inputCostPerMillion +
+        outputTokens * outputCostPerMillion
+      ) / 1_000_000;
+      const { error: costEventError } = await supabase.from("ai_cost_events").insert({
         user_id: reqUserId,
         provider,
         model,
@@ -221,6 +256,7 @@ serve(async (req) => {
         estimated_cost_usd: estCostUsd,
         credits_charged: estimatedCredits
       });
+      if (costEventError) console.error("AI cost event could not be saved:", costEventError.message);
 
       return new Response(
         JSON.stringify({
