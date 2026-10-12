@@ -75,15 +75,15 @@ export default async function ExamDetailPage({ params }: PageProps) {
           <div className="pt-4 border-t border-slate-800 flex flex-wrap gap-6 text-sm text-slate-400">
             <div>
               <span className="block text-xs uppercase tracking-wider text-slate-500 font-semibold">Practice Questions</span>
-              <span className="text-slate-200 font-bold">{exam.mcqs_count > 0 ? `${exam.mcqs_count} available` : 'Personalized during setup'}</span>
+              <span className="text-slate-200 font-bold">{(exam.mcqs_count ?? 0) > 0 ? `${exam.mcqs_count} available` : 'Personalized during setup'}</span>
             </div>
             <div>
               <span className="block text-xs uppercase tracking-wider text-slate-500 font-semibold">Exam Format</span>
-              <span className="text-slate-200 font-bold">{exam.question_count > 0 ? `${exam.question_count} questions` : 'Varies by exam'}</span>
+              <span className="text-slate-200 font-bold">{(exam.question_count ?? 0) > 0 ? `${exam.question_count} questions` : 'Varies by exam'}</span>
             </div>
             <div>
               <span className="block text-xs uppercase tracking-wider text-slate-500 font-semibold">Time Limit</span>
-              <span className="text-slate-200 font-bold">{exam.time_limit_mins > 0 ? `${exam.time_limit_mins} mins` : 'Varies by exam'}</span>
+              <span className="text-slate-200 font-bold">{(exam.time_limit_mins ?? 0) > 0 ? `${exam.time_limit_mins} mins` : 'Varies by exam'}</span>
             </div>
           </div>
         </div>
