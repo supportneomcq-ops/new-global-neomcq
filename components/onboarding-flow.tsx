@@ -361,11 +361,11 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
 
   const handleDirectResolve = async (queryToResolve: string) => {
     setIsResolvingExam(true);
-    setResolutionStage('Resolving canonical exam curriculum...');
+    setResolutionStage('Setting up your exam with the latest curriculum...');
 
-    const stageTimer1 = setTimeout(() => setResolutionStage('Checking database structure...'), 800);
-    const stageTimer2 = setTimeout(() => setResolutionStage('Loading canonical subjects & topics...'), 1800);
-    const stageTimer3 = setTimeout(() => setResolutionStage('Preparing learning environment...'), 2800);
+    const stageTimer1 = setTimeout(() => setResolutionStage('Checking exam requirements...'), 800);
+    const stageTimer2 = setTimeout(() => setResolutionStage('Organizing subjects, topics, and subtopics...'), 1800);
+    const stageTimer3 = setTimeout(() => setResolutionStage('Preparing your personalized study plan...'), 2800);
 
     try {
       const res = await fetch('/api/exams/resolve', {
@@ -424,7 +424,7 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
       // If user hasn't already confirmed a match proposal or name proposal, run verification first
       if (!fuzzyMatchProposal && !nameConfirmationProposal) {
         setIsResolvingExam(true);
-        setResolutionStage('Checking database exam registry...');
+        setResolutionStage('Checking your exam details...');
         try {
           const verifyRes = await fetch('/api/exams/verify-name', {
             method: 'POST',
@@ -759,9 +759,9 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                 <span className="px-3.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
                   Global Curriculum Initialized
                 </span>
-                <h2 className="text-2xl sm:text-3xl font-heading font-extrabold">Welcome to NeoMCQ</h2>
+                <h2 className="text-2xl sm:text-3xl font-heading font-extrabold">Your study setup is ready</h2>
                 <p className="text-sm text-slate-600 dark:text-[#A6ADC8] max-w-md mx-auto">
-                  Configured personalized curriculum for <strong className="text-slate-900 dark:text-white">{activeExamName}</strong>.
+                  Your personalized curriculum for <strong className="text-slate-900 dark:text-white">{activeExamName}</strong> is prepared. Check your inbox to verify <strong className="text-slate-900 dark:text-white">{email}</strong> and secure your NeoMCQ account.
                 </p>
               </div>
 
@@ -781,7 +781,7 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                   onClick={handleCompleteAndDashboard}
                   className="w-full px-6 py-3.5 rounded-2xl bg-gradient-to-r from-[#6D5BFF] via-[#00D4FF] to-[#A855F7] text-white text-xs sm:text-sm font-bold shadow-lg hover:opacity-95 transition-opacity flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <span>Launch Personalized Dashboard</span>
+                  <span>Continue to NeoMCQ</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -1490,7 +1490,7 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                   {isSubmitting ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>{isPreparingAI ? 'Initializing Curriculum...' : 'Creating Account...'}</span>
+                      <span>{isPreparingAI ? resolutionStage : 'Creating your account...'}</span>
                     </>
                   ) : (
                     <>
