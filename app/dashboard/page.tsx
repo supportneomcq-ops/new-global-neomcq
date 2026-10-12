@@ -97,6 +97,18 @@ export default function DashboardPage() {
           };
 
           setCurrentUser(fullUser);
+
+          // Ensure every selected exam has a persisted, exam-specific study plan.
+          // This also repairs older accounts whose curriculum was never generated.
+          void fetch('/api/study-plans/current', { method: 'GET', cache: 'no-store' })
+            .then(async (response) => {
+              if (!response.ok && response.status !== 202) {
+                console.warn('[Dashboard] Study plan setup is not ready yet:', response.status);
+              }
+            })
+            .catch((error) => {
+              console.warn('[Dashboard] Study plan setup could not start:', error);
+            });
         } else {
           // No user, middleware should catch but we double guard
           router.push('/auth/sign-in');
