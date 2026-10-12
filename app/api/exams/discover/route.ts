@@ -207,7 +207,7 @@ Return ONLY a valid JSON object matching this exact schema:
 Provide between 4 and 8 comprehensive core subjects, each containing 4 to 6 specific high-yield topics.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.6-flash',
       contents: researchPrompt,
     });
 
