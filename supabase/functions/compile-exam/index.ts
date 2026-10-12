@@ -38,7 +38,7 @@ serve(async (req) => {
     // Existing canonical exams may be looked up publicly, but enrollment and AI creation
     // must be tied to the verified caller rather than a client-supplied user ID.
     const authorization = req.headers.get("Authorization") || "";
-    const tokenMatch = authorization.match(/^Bearer\\s+(.+)$/i);
+    const tokenMatch = authorization.match(/^Bearer\s+(.+)$/i);
     let authenticatedUserId: string | null = null;
     if (tokenMatch && tokenMatch[1] !== supabaseAnonKey) {
       const caller = createClient(supabaseUrl, supabaseAnonKey, {
