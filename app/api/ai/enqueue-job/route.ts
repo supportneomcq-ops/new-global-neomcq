@@ -53,26 +53,10 @@ export async function POST(req: NextRequest) {
 
     const { jobType, inputParams } = validation.data
 
-    // 1. Check AI Content Cache first
-    const cacheKey = `${jobType}:${JSON.stringify(inputParams)}`
-    const { data: cached } = await (supabase as any)
-      .from('ai_content_cache')
-      .select('payload')
-      .eq('cache_key', cacheKey)
-      .gt('expires_at', new Date().toISOString())
-      .single()
-
-    if (cached) {
-      return NextResponse.json({
-        success: true,
-        cached: true,
-        jobId: null,
-        result: (cached as any).payload,
-        status: 'completed',
-      })
-    }
-
-    // 2. Atomically Create or Attach to AI Generation Job in database
+    // The deployed schema does not contain ai_content_cache. Avoid issuing a
+    // guaranteed-failing REST query here; GenerationJobManager performs the
+    // persisted deduplication/attach check against ai_jobs below.
+    // 1. Atomically Create or Attach to AI Generation Job in database
     const { job, isNew, resolutionType } = await GenerationJobManager.createOrAttachJob(
       {
         examId: inputParams.examId || '',
