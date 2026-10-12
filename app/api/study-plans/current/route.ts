@@ -76,12 +76,17 @@ export async function GET(req: NextRequest) {
     const dailyHours = preferences?.daily_hours || 2.5;
     const preferredTime = preferences?.preferred_time || 'morning';
 
-    const subjectList = subjects && subjects.length > 0 ? subjects : [
-      { name: 'Core Foundations', weight_percentage: 25 },
-      { name: 'High-Yield Clinical Concepts', weight_percentage: 25 },
-      { name: 'Diagnostics & Systems', weight_percentage: 25 },
-      { name: 'Pharmacology & Management', weight_percentage: 25 },
-    ];
+    // Never fabricate generic subject names when a selected exam has no curriculum.
+    // The resolver must prepare real exam-specific subjects before a study plan can be saved.
+    if (!subjects || subjects.length === 0) {
+      return NextResponse.json({
+        success: true,
+        plan: null,
+        message: 'Your verified exam curriculum is still being prepared. Your personalized study plan will appear as soon as its subjects are ready.',
+      }, { status: 202 });
+    }
+
+    const subjectList = subjects;
 
     // Build structured study plan
     const weeksCount = Math.max(1, Math.ceil(totalDays / 7));
