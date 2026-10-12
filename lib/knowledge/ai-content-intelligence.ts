@@ -384,9 +384,9 @@ async function executeMultiProviderGeneration(prompt: string, taskType: string):
   const availableModels = modelsRes.data || []
 
   const primaryProvider = routing?.primary_provider || 'gemini'
-  const primaryModel = routing?.primary_model || (taskType === 'FIRST_CANONICAL_CONTENT_CREATION' || taskType === 'FIRST_GENERATION' ? 'gemini-3.7-flash' : 'gemini-3.6-flash')
+  const primaryModel = routing?.primary_model || 'gemini-3.6-flash'
   const fallbackProvider = routing?.fallback_provider || 'openai'
-  const fallbackModel = routing?.fallback_model || 'gpt-5.4-mini'
+  const fallbackModel = routing?.fallback_model || 'gpt-4o'
 
   let rawPayload: any = null
   let providerUsed = primaryProvider
