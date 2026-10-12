@@ -166,7 +166,7 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
 
   // 2. Exam Discovery & Selection
   const [examSearchQuery, setExamSearchQuery] = useState('');
-  const [selectedExam, setSelectedExam] = useState('FMGE (Foreign Medical Graduate Examination)');
+  const [selectedExam, setSelectedExam] = useState('');
   const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
   const [selectedExamCountry, setSelectedExamCountry] = useState('India');
   const [selectedExamFlag, setSelectedExamFlag] = useState('🇮🇳');
@@ -175,6 +175,14 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearchingExams, setIsSearchingExams] = useState(false);
   const [fuzzyMatchProposal, setFuzzyMatchProposal] = useState<any | null>(null);
+  const [pendingExamConfirmation, setPendingExamConfirmation] = useState<{
+    id?: string;
+    name: string;
+    country?: string;
+    flag?: string;
+    category?: string;
+    in_database?: boolean;
+  } | null>(null);
   const [nameConfirmationProposal, setNameConfirmationProposal] = useState<{
     original: string;
     proposed: string;
@@ -353,11 +361,11 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
 
   const handleDirectResolve = async (queryToResolve: string) => {
     setIsResolvingExam(true);
-    setResolutionStage('Resolving canonical exam curriculum...');
+    setResolutionStage('Setting up your exam with the latest curriculum...');
 
-    const stageTimer1 = setTimeout(() => setResolutionStage('Checking database structure...'), 800);
-    const stageTimer2 = setTimeout(() => setResolutionStage('Loading canonical subjects & topics...'), 1800);
-    const stageTimer3 = setTimeout(() => setResolutionStage('Preparing learning environment...'), 2800);
+    const stageTimer1 = setTimeout(() => setResolutionStage('Checking exam requirements...'), 800);
+    const stageTimer2 = setTimeout(() => setResolutionStage('Organizing subjects, topics, and subtopics...'), 1800);
+    const stageTimer3 = setTimeout(() => setResolutionStage('Preparing your personalized study plan...'), 2800);
 
     try {
       const res = await fetch('/api/exams/resolve', {
@@ -416,7 +424,7 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
       // If user hasn't already confirmed a match proposal or name proposal, run verification first
       if (!fuzzyMatchProposal && !nameConfirmationProposal) {
         setIsResolvingExam(true);
-        setResolutionStage('Checking database exam registry...');
+        setResolutionStage('Checking your exam details...');
         try {
           const verifyRes = await fetch('/api/exams/verify-name', {
             method: 'POST',
@@ -496,54 +504,91 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
         },
       });
 
-      if (authError && !authError.message.includes('User already registered')) {
-        console.warn('Supabase auth signup note:', authError.message);
+      // Do not continue onboarding when Supabase rejected account creation.
+      // Previously this error was only logged, then the API received a missing authId
+      // and showed a misleading "verify your email or sign in again" message.
+      if (authError) {
+        throw new Error(
+          authError.message.includes('User already registered')
+            ? 'This email already has an account. Please sign in instead of registering again.'
+            : authError.message
+        );
+      }
+      if (!authData?.user?.id) {
+        throw new Error('Your account could not be created. Please check your details and try again.');
+      }
+      // Supabase may intentionally return an obfuscated user with no identities
+      // for an already-registered email. Do not proceed with a non-authenticated user.
+      if (Array.isArray(authData.user.identities) && authData.user.identities.length === 0) {
+        throw new Error('This email may already be registered. Please sign in, or use a different email address.');
       }
 
       setIsPreparingAI(true);
+      setResolutionStage('Setting up your exam with the latest curriculum...');
 
-      // Save onboarding preferences & link canonical exam
-      await fetch('/api/onboarding', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          authId: authData?.user?.id || null,
-          firstName,
-          lastName,
-          email,
-          phone: `${countryCode}${phone}`,
-          country,
-          language,
-          examName: activeExamName,
-          examId: selectedExamId,
-          examDate,
-          daysLeft,
-          weeksLeft,
-          monthsLeft,
-          learningStyle,
-          studyHours,
-          studyTime,
-          studyGoals,
-        }),
-      });
+      // Give users clear progress feedback while the canonical curriculum is resolved.
+      const progressStages = [
+        'Setting up your exam with the latest curriculum...',
+        'Organizing subjects, topics, and subtopics...',
+        'Preparing your personalized study plan...',
+        'Setting up your account...',
+      ];
+      let progressIndex = 0;
+      const progressTimer = setInterval(() => {
+        progressIndex = Math.min(progressIndex + 1, progressStages.length - 1);
+        setResolutionStage(progressStages[progressIndex]);
+      }, 2200);
 
-      // Ensure canonical exam resolution in background
-      fetch('/api/exams/resolve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          examQuery: activeExamName,
-          country: selectedExamCountry,
-          category: selectedExamCategory,
-          userId: authData?.user?.id || null,
-        }),
-      }).catch((e) => console.warn('Background exam resolve note:', e));
+      try {
+        const controller = new AbortController();
+        const requestTimeout = setTimeout(() => controller.abort(), 90000);
+        let onboardingResponse: Response;
+        try {
+          onboardingResponse = await fetch('/api/onboarding', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
+            body: JSON.stringify({
+              authId: authData.user.id,
+              firstName,
+              lastName,
+              email,
+              phone: `${countryCode}${phone}`,
+              country,
+              examCountry: selectedExamCountry,
+              examCategory: selectedExamCategory,
+              language,
+              examName: activeExamName,
+              examId: selectedExamId,
+              examDate,
+              daysLeft,
+              weeksLeft,
+              monthsLeft,
+              learningStyle,
+              studyHours,
+              studyTime,
+              studyGoals,
+            }),
+          });
+        } finally {
+          clearTimeout(requestTimeout);
+        }
+        const onboardingResult = await onboardingResponse.json().catch(() => ({}));
+        if (!onboardingResponse.ok || onboardingResult?.success !== true) {
+          throw new Error(
+            onboardingResult?.error ||
+            'We could not finish exam verification and curriculum setup. Please try again.'
+          );
+        }
 
-      setTimeout(() => {
+        setResolutionStage('Account setup complete. Preparing email verification...');
+        await new Promise((resolve) => setTimeout(resolve, 900));
+        setShowVerificationScreen(true);
+      } finally {
+        clearInterval(progressTimer);
         setIsSubmitting(false);
         setIsPreparingAI(false);
-        setShowVerificationScreen(true);
-      }, 900);
+      }
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : 'Account creation failed';
       setFormError(errMsg);
@@ -593,6 +638,41 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
         isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
       }`}
     >
+      {pendingExamConfirmation && (
+        <div className="absolute inset-0 z-[100000] flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="exam-confirm-title">
+          <div className="w-full max-w-md rounded-3xl border border-indigo-300/30 bg-white p-6 text-slate-900 shadow-2xl dark:bg-[#0E1324] dark:text-white space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl bg-indigo-100 p-3 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300"><ShieldCheck className="h-6 w-6" /></div>
+              <div><h2 id="exam-confirm-title" className="text-lg font-extrabold">Confirm your exam</h2><p className="text-xs text-slate-500 dark:text-slate-400">Please verify before continuing.</p></div>
+            </div>
+            <div className="rounded-2xl bg-slate-100 p-4 dark:bg-slate-800">
+              <p className="text-xl font-extrabold">{pendingExamConfirmation.name}</p>
+              {pendingExamConfirmation.country && <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">{pendingExamConfirmation.country}</p>}
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Is this exactly the examination you are preparing for?</p>
+            </div>
+            <button type="button" className="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white hover:bg-indigo-700" onClick={() => {
+              const ex = pendingExamConfirmation;
+              setSelectedExam(ex.name);
+              setSelectedExamId(ex.in_database ? (ex.id ?? null) : null);
+              setSelectedExamCountry(ex.country || 'Global');
+              setSelectedExamFlag(ex.flag || '🌐');
+              setSelectedExamCategory(ex.category || 'Professional Licensure');
+              setCustomExamInput('');
+              setExamSearchQuery(ex.name);
+              setPendingExamConfirmation(null);
+              setFormError('');
+            }}>Yes, this is my exam</button>
+            <button type="button" className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-bold hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800" onClick={() => {
+              setPendingExamConfirmation(null);
+              setSelectedExamId(null);
+              setSelectedExam('');
+              setCustomExamInput('');
+              setExamSearchQuery('');
+              setFormError('Please paste the exact official exam name or search again.');
+            }}>No, enter the exact exam name</button>
+          </div>
+        </div>
+      )}
       {/* Backdrop overlay click */}
       <div onClick={onClose} className="absolute inset-0 bg-transparent cursor-pointer" />
 
@@ -679,9 +759,9 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                 <span className="px-3.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
                   Global Curriculum Initialized
                 </span>
-                <h2 className="text-2xl sm:text-3xl font-heading font-extrabold">Welcome to NeoMCQ</h2>
+                <h2 className="text-2xl sm:text-3xl font-heading font-extrabold">Your study setup is ready</h2>
                 <p className="text-sm text-slate-600 dark:text-[#A6ADC8] max-w-md mx-auto">
-                  Configured personalized curriculum for <strong className="text-slate-900 dark:text-white">{activeExamName}</strong>.
+                  Your personalized curriculum for <strong className="text-slate-900 dark:text-white">{activeExamName}</strong> is prepared. Check your inbox to verify <strong className="text-slate-900 dark:text-white">{email}</strong> and secure your NeoMCQ account.
                 </p>
               </div>
 
@@ -701,7 +781,7 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                   onClick={handleCompleteAndDashboard}
                   className="w-full px-6 py-3.5 rounded-2xl bg-gradient-to-r from-[#6D5BFF] via-[#00D4FF] to-[#A855F7] text-white text-xs sm:text-sm font-bold shadow-lg hover:opacity-95 transition-opacity flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <span>Launch Personalized Dashboard</span>
+                  <span>Continue to NeoMCQ</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -1045,12 +1125,8 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                             key={ex.id || ex.slug || ex.name}
                             type="button"
                             onClick={() => {
-                              setSelectedExam(ex.name);
-                              setSelectedExamId(ex.in_database ? ex.id : null);
-                              setSelectedExamCountry(ex.country || 'Global');
-                              setSelectedExamFlag(flag);
-                              setSelectedExamCategory(ex.category || 'Professional Licensure');
-                              setCustomExamInput('');
+                              // Never silently select an exam: require explicit learner confirmation.
+                              setPendingExamConfirmation(ex);
                             }}
                             className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
                               isSelected
@@ -1414,7 +1490,7 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
                   {isSubmitting ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>{isPreparingAI ? 'Initializing Curriculum...' : 'Creating Account...'}</span>
+                      <span>{isPreparingAI ? resolutionStage : 'Creating your account...'}</span>
                     </>
                   ) : (
                     <>
