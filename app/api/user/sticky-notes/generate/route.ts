@@ -5,6 +5,8 @@ import { extractJsonFromAiResponse } from '@/lib/ai/json-cleaner';
 import { getExamStyleAndPattern } from '@/lib/server/content-engine/exam-style-helper';
 import { AIGateway } from '@/lib/ai-gateway';
 
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
