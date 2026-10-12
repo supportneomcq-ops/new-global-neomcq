@@ -184,7 +184,9 @@ serve(async (req) => {
         }
       } else if (openaiApiKey) {
         provider = "openai";
-        model = routingRule?.primary_model || "gpt-5.4-mini";
+        model = configuredProvider.includes("openai")
+          ? (routingRule?.primary_model || "gpt-5.4-mini")
+          : (routingRule?.fallback_model || "gpt-5.4-mini");
         const oaRes = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: {
