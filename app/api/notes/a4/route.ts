@@ -252,7 +252,7 @@ export async function POST(req: NextRequest) {
         idempotency_key: jobScopeKey,
         status: 'running',
         provider: 'Google Gemini AI',
-        model: 'gemini-3.5-flash',
+        model: 'gemini-3.6-flash',
         priority: 5,
         input_payload: {
           jobScopeKey,
