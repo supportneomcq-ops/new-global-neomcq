@@ -158,7 +158,7 @@ Do not use generic filler. Do not invent facts. Output JSON only.`;
       prompt,
       systemInstruction: 'Generate accurate, exam-specific study notes. Return a JSON array only, with no markdown fences.',
       preferredProvider: 'gemini',
-      preferredModel: 'gemini-3.5-flash',
+      preferredModel: 'gemini-3.6-flash',
       maxOutputTokens: 3000,
       responseMimeType: 'application/json',
     });
