@@ -110,7 +110,7 @@ serve(async (req) => {
     const prompt = job.input_payload?.prompt || `Generate learning material for task ${job.task}`;
     let resultText = "";
     let provider = "gemini";
-    let model = "gemini-2.0-flash";
+    let model = "gemini-3.6-flash";
 
     if (geminiApiKey) {
       const gRes = await fetch(
@@ -127,7 +127,7 @@ serve(async (req) => {
       }
     } else if (openaiApiKey) {
       provider = "openai";
-      model = "gpt-4o-mini";
+      model = "gpt-5.4-mini";
       const oRes = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${openaiApiKey}`, "Content-Type": "application/json" },
