@@ -1357,9 +1357,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
             {
               user_id: userId,
               exam_id: matchedExam.id,
-              is_primary: true,
-              status: 'active',
-              last_accessed_at: new Date().toISOString(),
+              status: 'in_progress',
             },
             { onConflict: 'user_id,exam_id' }
           )
@@ -1577,9 +1575,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
           {
             user_id: userId,
             exam_id: newExam.id,
-            is_primary: true,
-            status: 'active',
-            last_accessed_at: new Date().toISOString(),
+            status: 'in_progress',
           },
           { onConflict: 'user_id,exam_id' }
         )
