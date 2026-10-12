@@ -165,49 +165,34 @@ export class AIGateway {
       options.preferredModel
     );
 
-    const effectiveCreditCost = route.creditCost;
+    // Credit RPCs accept integer amounts; use the same rounded amount for reservation,
+    // consumption, ledger entries, and cost reporting.
+    const effectiveCreditCost = Math.max(0, Math.ceil(Number(route.creditCost) || 0));
     const userId = options.userId;
 
-    // 2. Reserve User Credits if userId provided
+    // 2. Reserve credits atomically through the authoritative database RPC.
+    // Never continue with unmetered execution when a user's wallet cannot be verified.
     let reservedCredits = 0;
-    if (userId) {
-      try {
-        const supabaseAdmin: any = supabase;
-        const { data: wallet } = await supabaseAdmin
-          .from('credit_accounts')
-          .select('balance, reserved_balance, frozen')
-          .eq('user_id', userId)
-          .maybeSingle();
+    if (userId && effectiveCreditCost > 0) {
+      const { data: reservationId, error: reserveError } = await (supabase as any).rpc('credit_reserve', {
+        p_user_id: userId,
+        p_amount: effectiveCreditCost,
+        p_task: taskType,
+        p_metadata: { description: `Reserved credits for AI task: ${taskType}` },
+      });
 
-        if (wallet) {
-          if (wallet.frozen) {
-            throw new Error('AI generation is paused on your account. Please contact support.');
-          }
-
-          const available = Number(wallet.balance) - Number(wallet.reserved_balance || 0);
-          if (available < effectiveCreditCost) {
-            throw new Error(
-              `Insufficient credits. Required: ${effectiveCreditCost}, Available: ${available.toFixed(1)}. Please top up your credits.`
-            );
-          }
-
-          // Atomic increment of reserved balance
-          await supabaseAdmin
-            .from('credit_accounts')
-            .update({
-              reserved_balance: Number(wallet.reserved_balance || 0) + effectiveCreditCost,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('user_id', userId);
-
-          reservedCredits = effectiveCreditCost;
+      if (reserveError || !reservationId) {
+        const detail = String(reserveError?.message || 'Credit reservation failed');
+        if (/INSUFFICIENT_CREDITS/i.test(detail)) {
+          throw new Error(`Insufficient credits. Required: ${effectiveCreditCost}. Please top up your credits.`);
         }
-      } catch (err: any) {
-        if (err.message.includes('Insufficient') || err.message.includes('paused')) {
-          throw err;
+        if (/frozen/i.test(detail)) {
+          throw new Error('AI generation is paused on your account. Please contact support.');
         }
-        console.warn('AIGateway: Could not access credit_accounts table, continuing with unmetered execution:', err);
+        console.error('AIGateway: Credit reservation failed:', detail);
+        throw new Error('Could not verify or reserve your AI credits. Please retry shortly.');
       }
+      reservedCredits = effectiveCreditCost;
     }
 
     // 3. Execution with Fallback Hierarchy
@@ -215,7 +200,7 @@ export class AIGateway {
     try {
       primaryAdapter = this.getAdapter(route.primaryProvider);
     } catch (providerErr) {
-      await this.releaseCreditReservation(userId, reservedCredits);
+      await this.releaseCreditReservation(userId, reservedCredits, taskType);
       const detail = providerErr instanceof Error ? providerErr.message : String(providerErr);
       throw new Error(`AI routing configuration error: ${detail}`);
     }
@@ -272,14 +257,14 @@ export class AIGateway {
         } catch (fallbackErr: any) {
           const fallbackMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
           // Release reservation
-          await this.releaseCreditReservation(userId, reservedCredits);
+          await this.releaseCreditReservation(userId, reservedCredits, taskType);
           throw new Error(
             `AIGateway Failover Error: All configured providers failed. Primary: ${primaryMsg}. Fallback: ${fallbackMsg}`
           );
         }
       } else {
         // Fallback not configured or failed
-        await this.releaseCreditReservation(userId, reservedCredits);
+        await this.releaseCreditReservation(userId, reservedCredits, taskType);
         throw new Error(`AIGateway Error: ${primaryMsg}`);
       }
     }
@@ -292,43 +277,20 @@ export class AIGateway {
       effectiveCreditCost
     );
 
-    // 5. Settle Credit Deduction & Record Audit Events in Database
+    // 5. Consume the reservation and write the authoritative ledger entry.
     if (userId && reservedCredits > 0) {
-      try {
-        const supabaseAdmin: any = supabase;
-        const { data: wallet } = await supabaseAdmin
-          .from('credit_accounts')
-          .select('balance, reserved_balance')
-          .eq('user_id', userId)
-          .maybeSingle();
+      const { error: consumeError } = await (supabase as any).rpc('credit_consume', {
+        p_user_id: userId,
+        p_amount: reservedCredits,
+        p_task: taskType,
+        p_job_id: options.jobId || null,
+        p_metadata: { description: `AI ${taskType} on ${finalProvider} (${finalModel})` },
+      });
 
-        if (wallet) {
-          const curBal = Number(wallet.balance);
-          const curRes = Number(wallet.reserved_balance || 0);
-          const newBal = Math.max(0, curBal - effectiveCreditCost);
-          const newRes = Math.max(0, curRes - reservedCredits);
-
-          await supabaseAdmin
-            .from('credit_accounts')
-            .update({
-              balance: newBal,
-              reserved_balance: newRes,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('user_id', userId);
-
-          await supabaseAdmin.from('credit_ledger').insert({
-            user_id: userId,
-            transaction_type: 'AI_USAGE',
-            credits: -effectiveCreditCost,
-            balance_before: curBal,
-            balance_after: newBal,
-            reference_type: 'ai_task',
-            description: `AI ${taskType} on ${finalProvider} (${finalModel})`,
-          });
-        }
-      } catch (err) {
-        console.warn('AIGateway: Could not finalize credit deduction in DB:', err);
+      if (consumeError) {
+        console.error('AIGateway: Credit consumption failed:', consumeError.message);
+        await this.releaseCreditReservation(userId, reservedCredits, taskType);
+        throw new Error('AI output could not be finalized against your credit balance. Please retry.');
       }
     }
 
@@ -371,28 +333,25 @@ export class AIGateway {
     };
   }
 
-  private static async releaseCreditReservation(userId?: string | null, amount = 0): Promise<void> {
+  private static async releaseCreditReservation(
+    userId?: string | null,
+    amount = 0,
+    task = 'ai-generation'
+  ): Promise<void> {
     if (!userId || amount <= 0) return;
     try {
       const supabaseAdmin: any = getSupabaseAdmin();
-      const { data: wallet } = await supabaseAdmin
-        .from('credit_accounts')
-        .select('reserved_balance')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (wallet) {
-        const curRes = Number(wallet.reserved_balance || 0);
-        await supabaseAdmin
-          .from('credit_accounts')
-          .update({
-            reserved_balance: Math.max(0, curRes - amount),
-            updated_at: new Date().toISOString(),
-          })
-          .eq('user_id', userId);
+      const { error } = await supabaseAdmin.rpc('credit_release', {
+        p_user_id: userId,
+        p_amount: amount,
+        p_task: task,
+        p_metadata: { description: `Released reserved credits after failed AI task: ${task}` },
+      });
+      if (error) {
+        console.error('AIGateway: Credit reservation release failed:', error.message);
       }
     } catch (err) {
-      console.warn('AIGateway: Failed to release credit reservation:', err);
+      console.error('AIGateway: Credit reservation release failed:', err);
     }
   }
 }
