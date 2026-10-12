@@ -173,7 +173,27 @@ export class AIGateway {
     // 2. Reserve credits atomically through the authoritative database RPC.
     // Never continue with unmetered execution when a user's wallet cannot be verified.
     let reservedCredits = 0;
-    if (userId && effectiveCreditCost > 0) {
+    let alreadyChargedForJob = false;
+
+    if (userId && options.jobId && effectiveCreditCost > 0) {
+      const { data: priorCharge, error: priorChargeError } = await (supabase as any)
+        .from('credit_ledger')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('transaction_type', 'AI_USAGE')
+        .eq('reference_type', 'ai_job')
+        .eq('reference_id', options.jobId)
+        .limit(1)
+        .maybeSingle();
+
+      if (priorChargeError) {
+        console.error('AIGateway: Could not verify prior job charge:', priorChargeError.message);
+        throw new Error('Could not verify your AI credit balance. Please retry shortly.');
+      }
+      alreadyChargedForJob = Boolean(priorCharge);
+    }
+
+    if (userId && effectiveCreditCost > 0 && !alreadyChargedForJob) {
       const { data: reservationId, error: reserveError } = await (supabase as any).rpc('credit_reserve', {
         p_user_id: userId,
         p_amount: effectiveCreditCost,
