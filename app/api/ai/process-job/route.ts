@@ -5,6 +5,8 @@ import { AIGateway } from '@/lib/ai-gateway';
 import { verifyAdminApiSession } from '@/lib/admin-auth';
 import crypto from 'crypto';
 
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   try {
     const { jobId } = await req.json();
