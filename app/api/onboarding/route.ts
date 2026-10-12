@@ -327,6 +327,11 @@ export async function POST(req: NextRequest) {
       studyPlanReady,
     })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Onboarding failed' }, { status: 500 })
+    // Keep database table names, SQL details, and provider internals out of the signup UI.
+    console.error('[Onboarding] Unexpected setup failure:', err)
+    return NextResponse.json({
+      success: false,
+      error: 'We could not finish setting up your account. Please retry. If the issue continues, contact support.',
+    }, { status: 500 })
   }
 }
