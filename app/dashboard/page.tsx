@@ -38,12 +38,26 @@ export default function DashboardPage() {
             profileCountry = countryRecord?.name || '';
           }
 
-          // 2. Fetch linked exams
-          const { data: userExam } = await supabase
+          let profileLanguage = 'English (US/UK)';
+          if (profile?.language_id) {
+            const { data: languageRecord } = await supabase
+              .from('languages')
+              .select('name')
+              .eq('id', profile.language_id)
+              .maybeSingle();
+            profileLanguage = languageRecord?.name || profileLanguage;
+          }
+
+          // 2. Fetch the user's selected exam. A user can have historical exam links,
+          // so never use maybeSingle() across all links without limiting/filtering.
+          let userExamQuery = supabase
             .from('user_exams')
             .select('*, exams(*)')
-            .eq('user_id', user.id)
-            .maybeSingle();
+            .eq('user_id', user.id);
+          if (profile?.current_exam_id) {
+            userExamQuery = userExamQuery.eq('exam_id', profile.current_exam_id);
+          }
+          const { data: userExam } = await userExamQuery.limit(1).maybeSingle();
 
           // 3. Fetch study preferences
           const { data: studyPref } = await supabase
@@ -70,7 +84,7 @@ export default function DashboardPage() {
             phone: profile?.phone || '',
             countryCode: '',
             country: profileCountry,
-            language: 'English',
+            language: profileLanguage,
             examName: (userExam as any)?.exams?.name || 'Not Selected',
             examDate: examDateStr,
             daysLeft: daysLeftVal,
