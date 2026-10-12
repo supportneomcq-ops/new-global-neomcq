@@ -104,7 +104,7 @@ serve(async (req) => {
     if (geminiApiKey) {
       try {
         const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${geminiApiKey}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -137,7 +137,7 @@ serve(async (req) => {
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${openaiApiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "gpt-4o-mini", messages, max_tokens: 1200, temperature: 0.35 }),
+        body: JSON.stringify({ model: "gpt-5.4-mini", messages, max_tokens: 1200, temperature: 0.35 }),
       });
       if (response.ok) {
         const data = await response.json();
