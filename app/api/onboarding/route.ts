@@ -5,6 +5,8 @@ import { z } from 'zod'
 import { resolveOrInitializeExamIntelligence } from '@/lib/server/exam-intelligence'
 import { ensureCurrentStudyPlan } from '@/lib/study-plans/ensure-current-plan'
 
+export const maxDuration = 60;
+
 const onboardingSchema = z.object({
   authId: z.string().optional(),
   firstName: z.string().min(1),
