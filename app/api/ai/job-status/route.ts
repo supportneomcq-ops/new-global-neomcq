@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getSupabaseAdmin } from '@/lib/supabase'
 
 export async function GET(req: NextRequest) {
   try {
@@ -11,11 +12,23 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = await createClient()
-    const { data: job, error } = await (supabase as any)
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Please sign in to check your AI job.' }, { status: 401 })
+    }
+
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(jobId)) {
+      return NextResponse.json({ error: 'Job not found' }, { status: 404 })
+    }
+
+    // Use the service client only after authenticating, and always scope the read to this user.
+    const admin = getSupabaseAdmin()
+    const { data: job, error } = await (admin as any)
       .from('ai_jobs')
       .select('*')
       .eq('id', jobId)
-      .single()
+      .eq('user_id', user.id)
+      .maybeSingle()
 
     if (error || !job) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 })
@@ -36,6 +49,7 @@ export async function GET(req: NextRequest) {
       },
     })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 })
+    console.error('[AI Job Status] Failed to load job status:', error)
+    return NextResponse.json({ error: 'Could not load AI job status. Please retry.' }, { status: 500 })
   }
 }
