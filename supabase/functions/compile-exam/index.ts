@@ -75,6 +75,9 @@ serve(async (req) => {
 
     const cleanQuery = examName.trim().toLowerCase();
     const cleanSlug = cleanQuery.replace(/[^a-z0-9]+/g, "-");
+    let existingExamId: string | null = null;
+    let existingExamName: string | null = null;
+    let existingExamSlug: string | null = null;
 
     // Step 1: Check existing canonical exam by slug or exact name
     if (!forceRegenerate) {
@@ -102,45 +105,76 @@ serve(async (req) => {
         .maybeSingle();
 
       if (existingExam) {
-        // Automatically enroll user if userId is provided
-        if (authenticatedUserId) {
-          await supabase
-            .from("user_exams")
-            .upsert({ user_id: authenticatedUserId, exam_id: existingExam.id, status: "in_progress" }, { onConflict: "user_id,exam_id" });
+        const existingSubjects = Array.isArray(existingExam.exam_subjects) ? existingExam.exam_subjects : [];
+        if (existingSubjects.length > 0) {
+          if (authenticatedUserId) {
+            await supabase
+              .from("user_exams")
+              .upsert({ user_id: authenticatedUserId, exam_id: existingExam.id, status: "in_progress" }, { onConflict: "user_id,exam_id" });
+          }
+
+          return new Response(
+            JSON.stringify({
+              status: "EXISTS",
+              message: "Reused existing canonical exam taxonomy",
+              exam: existingExam,
+            }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
         }
 
-        return new Response(
-          JSON.stringify({
-            status: "EXISTS",
-            message: "Reused existing canonical exam taxonomy",
-            exam: existingExam,
-          }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        // An existing canonical exam without subjects must be enriched, not treated
+        // as ready. Preserve its identity and populate the missing curriculum in place.
+        if (!authenticatedUserId) {
+          return new Response(JSON.stringify({ error: "Sign in before generating a missing exam curriculum." }), {
+            status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+        existingExamId = existingExam.id;
+        existingExamName = existingExam.name;
+        existingExamSlug = existingExam.slug;
       }
 
-      // Step 2: Check exam_aliases
-      const { data: aliasMatch } = await supabase
-        .from("exam_aliases")
-        .select("exam_id, exams (*)")
-        .ilike("alias", cleanQuery)
-        .maybeSingle();
+      // Step 2: Check exam aliases only when there was no canonical exam match.
+      if (!existingExamId) {
+        const { data: aliasMatch } = await supabase
+          .from("exam_aliases")
+          .select("exam_id, exams (*)")
+          .ilike("alias", cleanQuery)
+          .maybeSingle();
 
-      if (aliasMatch && aliasMatch.exams) {
-        if (authenticatedUserId) {
-          await supabase
-            .from("user_exams")
-            .upsert({ user_id: authenticatedUserId, exam_id: aliasMatch.exam_id, status: "in_progress" }, { onConflict: "user_id,exam_id" });
+        if (aliasMatch && aliasMatch.exams) {
+          const { count: aliasSubjectCount } = await supabase
+            .from("exam_subjects")
+            .select("id", { count: "exact", head: true })
+            .eq("exam_id", aliasMatch.exam_id);
+
+          if ((aliasSubjectCount || 0) > 0) {
+            if (authenticatedUserId) {
+              await supabase
+                .from("user_exams")
+                .upsert({ user_id: authenticatedUserId, exam_id: aliasMatch.exam_id, status: "in_progress" }, { onConflict: "user_id,exam_id" });
+            }
+
+            return new Response(
+              JSON.stringify({
+                status: "EXISTS",
+                message: "Resolved exam via alias dictionary",
+                exam: aliasMatch.exams,
+              }),
+              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+
+          if (!authenticatedUserId) {
+            return new Response(JSON.stringify({ error: "Sign in before generating a missing exam curriculum." }), {
+              status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" }
+            });
+          }
+          existingExamId = aliasMatch.exam_id;
+          existingExamName = aliasMatch.exams.name;
+          existingExamSlug = aliasMatch.exams.slug;
         }
-
-        return new Response(
-          JSON.stringify({
-            status: "EXISTS",
-            message: "Resolved exam via alias dictionary",
-            exam: aliasMatch.exams,
-          }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
       }
     }
 
@@ -205,28 +239,50 @@ Return ONLY a valid JSON object matching this schema:
     const compiledData = JSON.parse(rawJsonText);
 
     // Step 4: Persist newly compiled exam canonical structures safely
-    const examSlug = compiledData.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const examSlug = existingExamSlug || compiledData.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const examNameToPersist = existingExamName || compiledData.name;
 
-    const { data: insertedExam, error: examErr } = await supabase
-      .from("exams")
-      .insert({
-        name: compiledData.name,
-        slug: examSlug,
-        description: compiledData.description,
-        code: examSlug.toUpperCase().slice(0, 10),
-      })
-      .select()
-      .single();
-
-    if (examErr) {
-      throw examErr;
+    let insertedExam: any = null;
+    let examErr: any = null;
+    if (existingExamId) {
+      const { data, error } = await supabase
+        .from("exams")
+        .update({
+          description: compiledData.description,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existingExamId)
+        .select()
+        .single();
+      insertedExam = data;
+      examErr = error;
+    } else {
+      const { data, error } = await supabase
+        .from("exams")
+        .insert({
+          name: examNameToPersist,
+          slug: examSlug,
+          description: compiledData.description,
+          code: examSlug.toUpperCase().slice(0, 10),
+        })
+        .select()
+        .single();
+      insertedExam = data;
+      examErr = error;
     }
 
-    // Insert alias for original query string
-    await supabase
-      .from("exam_aliases")
-      .insert({ exam_id: insertedExam.id, alias: examName.toLowerCase() })
-      .maybeSingle();
+    if (examErr || !insertedExam) {
+      throw examErr || new Error("Could not save the canonical exam.");
+    }
+
+    // Insert an alias only for a newly created canonical exam. Existing aliases
+    // are preserved when enriching a previously registered exam.
+    if (!existingExamId) {
+      await supabase
+        .from("exam_aliases")
+        .insert({ exam_id: insertedExam.id, alias: examName.toLowerCase() })
+        .maybeSingle();
+    }
 
     // Insert subjects and topics
     if (Array.isArray(compiledData.subjects)) {
