@@ -155,12 +155,12 @@ export default function OnboardingPage() {
   // Step 5 Progress Animation Steps
   const [prepProgress, setPrepProgress] = useState<number>(0);
   const [prepStatuses, setPrepStatuses] = useState<string[]>([
-    'Preparing your exam curriculum...',
-    'Exam verified',
-    'Subjects prepared',
-    'Main topics prepared',
-    'Subtopics prepared where applicable',
-    'Curriculum saved',
+    'Setting up your exam with the latest curriculum...',
+    'Verifying your exam and syllabus...',
+    'Organizing subjects and core topics...',
+    'Preparing topic-wise learning material...',
+    'Building your personalized study plan...',
+    'Setting up your account...',
   ]);
   const [activePrepIndex, setActivePrepIndex] = useState<number>(0);
 
@@ -612,6 +612,8 @@ export default function OnboardingPage() {
           email: formData.email,
           phone: `${formData.countryCode}${formData.phone}`,
           country: formData.country,
+          examCountry: formData.selectedExamCountry,
+          examCategory: formData.selectedExamCategory,
           language: formData.language,
           examName: formData.selectedExamName,
           examId: formData.selectedExamId || null,
@@ -1274,10 +1276,10 @@ export default function OnboardingPage() {
                     <Sparkles className="w-7 h-7 text-white animate-spin" />
                   </div>
                   <h1 className="text-xl sm:text-2xl font-heading font-extrabold tracking-tight">
-                    Preparing Your Master Curriculum
+                    Setting Up Your Exam & Account
                   </h1>
                   <p className="text-xs sm:text-sm text-slate-500 dark:text-gray-400 max-w-md mx-auto">
-                    Synchronizing <strong className="text-[#00D4FF]">{formData.selectedExamName}</strong> with your personalized study plan...
+                    Setting up <strong className="text-[#00D4FF]">{formData.selectedExamName}</strong> with the latest curriculum, then preparing your account and personalized study plan...
                   </p>
                 </div>
 
@@ -1294,12 +1296,12 @@ export default function OnboardingPage() {
                 {/* Step Item Checklist */}
                 <div className="space-y-2.5 text-left max-w-md mx-auto pt-2">
                   {[
-                    'Exam recognized & canonical validity verified',
-                    'Curriculum framework resolved in database',
-                    'Core subjects prepared & synchronized',
-                    'Topics mapped to syllabus specifications',
-                    'Subtopics & modules verified',
-                    'Personalized study plan scheduled',
+                    'Exam identified and verified',
+                    'Setting up your exam with the latest curriculum',
+                    'Organizing subjects and core topics',
+                    'Preparing topic-wise learning material',
+                    'Building your personalized study plan',
+                    'Setting up your account',
                   ].map((label, idx) => {
                     const isDone = activePrepIndex > idx;
                     const isCurrent = activePrepIndex === idx;
@@ -1401,8 +1403,8 @@ export default function OnboardingPage() {
                   <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
                   <span>
                     {resolvingExamType === 'EXISTING'
-                      ? 'Validating Exam Intelligence'
-                      : 'Synthesizing Official Exam Pattern'}
+                      ? 'Checking your exam details'
+                      : 'Preparing your exam curriculum'}
                   </span>
                 </div>
 
@@ -1424,8 +1426,8 @@ export default function OnboardingPage() {
 
                 <h2 className="text-xl sm:text-2xl font-heading font-extrabold tracking-tight">
                   {resolvingExamType === 'EXISTING'
-                    ? 'Verifying Database Record'
-                    : 'Collecting Exam Blueprint & Patterns'}
+                    ? 'Verifying your exam'
+                    : 'Preparing your exam curriculum'}
                 </h2>
 
                 {/* Selected Exam Highlight Pill */}
@@ -1463,18 +1465,18 @@ export default function OnboardingPage() {
               <div className="space-y-2 text-left relative z-10 text-xs font-medium">
                 {(resolvingExamType === 'EXISTING'
                   ? [
-                      { title: 'Database Identity Check', desc: `Locating exam record & canonical slug in 'exams' table` },
-                      { title: 'Curriculum Hierarchy Audit', desc: `Validating 'exam_subjects', 'exam_topics' & 'exam_subtopics'` },
-                      { title: 'Pattern & Rule Config', desc: `Checking duration, question count & marking rules in 'exam_style_configurations'` },
-                      { title: 'Canonical Scope Guarantee', desc: `Verifying unique entity protection & active database status` },
-                      { title: 'Database Verification Confirmed', desc: `Exam verified & persistent in Supabase DB` },
+                      { title: 'Exam identity check', desc: 'Confirming the correct examination and official name' },
+                      { title: 'Curriculum review', desc: 'Checking subjects, topics, and subtopics for consistency' },
+                      { title: 'Exam pattern review', desc: 'Preparing duration, question format, and marking details' },
+                      { title: 'Duplicate protection', desc: 'Keeping the curriculum organized and avoiding duplicate entries' },
+                      { title: 'Exam setup complete', desc: 'Your exam is ready for a personalized study plan' },
                     ]
                   : [
-                      { title: 'AI Knowledge Engine Connection', desc: `Analyzing official syllabus specifications for '${formData.selectedExamName || formData.customExamInput}'` },
-                      { title: 'Collecting Exam Pattern & Duration', desc: `Structuring subject weightage, duration & marking parameters` },
-                      { title: 'Taxonomy Hierarchy Synthesis', desc: `Mapping main topics and high-yield cognitive subtopics` },
-                      { title: 'Saving to Supabase Database', desc: `Inserting records into 'exams', 'exam_subjects', 'exam_topics', 'exam_subtopics' & 'exam_style_configurations'` },
-                      { title: 'Syllabus Successfully Registered', desc: `Canonical exam structure stored & ready for study strategy` },
+                      { title: 'Preparing exam syllabus', desc: `Reviewing the available syllabus for '${formData.selectedExamName || formData.customExamInput}'` },
+                      { title: 'Organizing exam pattern', desc: 'Structuring subject weightage, duration, and marking details' },
+                      { title: 'Building the curriculum', desc: 'Mapping subjects, main topics, and relevant subtopics' },
+                      { title: 'Setting up your exam', desc: 'Saving the verified curriculum and preventing duplicates' },
+                      { title: 'Curriculum ready', desc: 'Your exam is prepared for your personalized study strategy' },
                     ]
                 ).map((item, idx) => {
                   const isDone = resolvingStage > idx;
@@ -1506,12 +1508,9 @@ export default function OnboardingPage() {
                 })}
               </div>
 
-              {/* Database Persistence Explicit Footnote */}
-              <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 text-[10px] text-slate-400 font-mono flex items-center gap-2 justify-center">
-                <Database className="w-3.5 h-3.5 text-[#00D4FF] shrink-0" />
-                <span>
-                  Persisting to Supabase DB: <strong className="text-slate-200">exams, exam_subjects, exam_topics, exam_subtopics, exam_style_configurations</strong>
-                </span>
+              <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 text-xs text-slate-300 flex items-center gap-2 justify-center">
+                <ShieldAlert className="w-4 h-4 text-[#00D4FF] shrink-0" />
+                <span>Your exam setup is being prepared securely. You can review your preferences after setup.</span>
               </div>
             </motion.div>
           </motion.div>
