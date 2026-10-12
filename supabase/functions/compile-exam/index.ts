@@ -14,19 +14,63 @@ serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY") || "";
 
+    if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
+      return new Response(JSON.stringify({ error: "Exam service is temporarily unavailable." }), {
+        status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const body: RequestBody = await req.json();
+    const { examName, userId: requestedUserId, forceRegenerate = false } = body;
 
-    const { examName, userId, forceRegenerate = false } = body;
-
-    if (!examName || typeof examName !== "string") {
+    if (!examName || typeof examName !== "string" || !examName.trim() || examName.trim().length > 160) {
       return new Response(
-        JSON.stringify({ error: "Missing required parameter: examName" }),
+        JSON.stringify({ error: "Enter an exam name between 1 and 160 characters." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Existing canonical exams may be looked up publicly, but enrollment and AI creation
+    // must be tied to the verified caller rather than a client-supplied user ID.
+    const authorization = req.headers.get("Authorization") || "";
+    const tokenMatch = authorization.match(/^Bearer\\s+(.+)$/i);
+    let authenticatedUserId: string | null = null;
+    if (tokenMatch && tokenMatch[1] !== supabaseAnonKey) {
+      const caller = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const { data: { user }, error: authError } = await caller.auth.getUser(tokenMatch[1]);
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: "Authentication required" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+      authenticatedUserId = user.id;
+    }
+
+    if (requestedUserId && (!authenticatedUserId || requestedUserId !== authenticatedUserId)) {
+      return new Response(JSON.stringify({ error: "The requested user does not match the signed-in account." }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    if (forceRegenerate) {
+      if (!authenticatedUserId) {
+        return new Response(JSON.stringify({ error: "Authentication required to regenerate curriculum." }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+      const { data: isAdmin, error: adminError } = await supabase.rpc("is_admin", { p_user_id: authenticatedUserId });
+      if (adminError || !isAdmin) {
+        return new Response(JSON.stringify({ error: "Only an administrator can force-regenerate a canonical exam." }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
     }
 
     const cleanQuery = examName.trim().toLowerCase();
@@ -59,10 +103,10 @@ serve(async (req) => {
 
       if (existingExam) {
         // Automatically enroll user if userId is provided
-        if (userId) {
+        if (authenticatedUserId) {
           await supabase
             .from("user_exams")
-            .upsert({ user_id: userId, exam_id: existingExam.id }, { onConflict: "user_id,exam_id" });
+            .upsert({ user_id: authenticatedUserId, exam_id: existingExam.id, status: "in_progress" }, { onConflict: "user_id,exam_id" });
         }
 
         return new Response(
@@ -83,10 +127,10 @@ serve(async (req) => {
         .maybeSingle();
 
       if (aliasMatch && aliasMatch.exams) {
-        if (userId) {
+        if (authenticatedUserId) {
           await supabase
             .from("user_exams")
-            .upsert({ user_id: userId, exam_id: aliasMatch.exam_id }, { onConflict: "user_id,exam_id" });
+            .upsert({ user_id: authenticatedUserId, exam_id: aliasMatch.exam_id, status: "in_progress" }, { onConflict: "user_id,exam_id" });
         }
 
         return new Response(
@@ -98,6 +142,13 @@ serve(async (req) => {
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+    }
+
+    // Step 3: Only a verified user may trigger paid AI curriculum generation.
+    if (!authenticatedUserId) {
+      return new Response(JSON.stringify({ error: "Sign in before generating a new exam curriculum." }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
     }
 
     // Step 3: Asynchronously compile exam via Gemini API
@@ -206,10 +257,10 @@ Return ONLY a valid JSON object matching this schema:
       }
     }
 
-    if (userId) {
+    if (authenticatedUserId) {
       await supabase
         .from("user_exams")
-        .upsert({ user_id: userId, exam_id: insertedExam.id }, { onConflict: "user_id,exam_id" });
+        .upsert({ user_id: authenticatedUserId, exam_id: insertedExam.id, status: "in_progress" }, { onConflict: "user_id,exam_id" });
     }
 
     return new Response(
