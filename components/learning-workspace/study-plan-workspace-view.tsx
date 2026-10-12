@@ -32,16 +32,21 @@ export function StudyPlanWorkspaceView({ user, onSelectTab }: StudyPlanWorkspace
   const [plan, setPlan] = useState<any>(null);
   const [activeWeek, setActiveWeek] = useState<number>(1);
   const [updatingDay, setUpdatingDay] = useState<number | null>(null);
+  const [planError, setPlanError] = useState('');
 
   const fetchPlan = async () => {
     try {
       setLoading(true);
+      setPlanError('');
       const res = await fetch('/api/study-plans/current');
-      const data = await res.json();
-      if (data.success && data.plan) {
-        setPlan(data.plan);
-      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Study plan could not be loaded. Please retry.');
+      setPlan(data.plan || null);
+      if (!data.plan) setPlanError(data.message || 'No active exam is linked to this account yet. Select your exam to create a study plan.');
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'Study plan could not be loaded.';
+      setPlanError(message);
+      setPlan(null);
       console.error('Error loading study plan:', err);
     } finally {
       setLoading(false);
@@ -53,12 +58,12 @@ export function StudyPlanWorkspaceView({ user, onSelectTab }: StudyPlanWorkspace
   }, [selection.exam?.id]);
 
   const toggleDayCompletion = async (dayNumber: number, currentCompleted: boolean) => {
-    if (!plan?.id) return;
+    if (!plan?.id || updatingDay !== null) return;
+    const previousPlan = plan;
+    const nextCompleted = !currentCompleted;
     try {
       setUpdatingDay(dayNumber);
-      const nextCompleted = !currentCompleted;
-
-      // Optimistic UI update
+      setPlanError('');
       setPlan((prev: any) => {
         if (!prev) return prev;
         const newPlanData = { ...prev.plan_data };
@@ -69,16 +74,18 @@ export function StudyPlanWorkspaceView({ user, onSelectTab }: StudyPlanWorkspace
         return { ...prev, plan_data: newPlanData };
       });
 
-      await fetch('/api/study-plans/current', {
+      const res = await fetch('/api/study-plans/current', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          planId: plan.id,
-          dayNumber,
-          isCompletedDay: nextCompleted,
-        }),
+        body: JSON.stringify({ planId: plan.id, dayNumber, isCompletedDay: nextCompleted }),
       });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok || !result.success) throw new Error(result.error || 'Progress could not be saved. Please try again.');
+      if (result.plan_data) setPlan((current: any) => current ? { ...current, plan_data: result.plan_data } : current);
     } catch (err) {
+      setPlan(previousPlan);
+      const message = err instanceof Error ? err.message : 'Progress could not be saved.';
+      setPlanError(message);
       console.error('Failed to toggle day completion:', err);
     } finally {
       setUpdatingDay(null);
@@ -91,6 +98,21 @@ export function StudyPlanWorkspaceView({ user, onSelectTab }: StudyPlanWorkspace
         <div className="w-12 h-12 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin mx-auto" />
         <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200">Generating Canonical Study Plan...</h3>
         <p className="text-sm text-slate-500">Aligning blueprint curriculum, 5-day lockout buffer, and daily target quotas.</p>
+      </div>
+    );
+  }
+
+  if (!plan) {
+    return (
+      <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 sm:p-12 text-center space-y-4">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-300">
+          <CalendarIcon className="h-6 w-6" />
+        </div>
+        <h3 className="text-lg font-bold text-slate-900 dark:text-white">Your study plan</h3>
+        <p role="status" className="mx-auto max-w-xl text-sm text-slate-500 dark:text-slate-400">{planError || 'Your study plan is not available yet.'}</p>
+        <button type="button" onClick={fetchPlan} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700">
+          <RefreshCw className="h-4 w-4" /> Retry
+        </button>
       </div>
     );
   }
@@ -115,6 +137,11 @@ export function StudyPlanWorkspaceView({ user, onSelectTab }: StudyPlanWorkspace
 
   return (
     <div className="space-y-8 pb-16">
+      {planError && (
+        <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300">
+          {planError}
+        </p>
+      )}
       {/* 1. Header Hero Card */}
       <section className="relative rounded-3xl bg-slate-900 dark:bg-slate-950 text-white p-6 sm:p-8 border border-slate-800 shadow-2xl overflow-hidden">
         <div className="absolute -top-24 -right-24 w-96 h-96 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
@@ -134,7 +161,7 @@ export function StudyPlanWorkspaceView({ user, onSelectTab }: StudyPlanWorkspace
               {planData.examName || selection.exam?.name || 'Target Examination'} Roadmap
             </h1>
             <p className="text-sm text-slate-300">
-              Personalized timeline calibrated for <span className="text-indigo-300 font-bold">{targetHours} hrs/day</span>. 
+              Personalized timeline calibrated for <span className="text-indigo-300 font-bold">{targetHours} hrs/day</span> using <span className="text-violet-300 font-bold">{user.learningStyle === 'Rapid Learning' ? 'Rapid Learning' : 'Regular Study'}</span> mode.
               Target Exam Date: <span className="font-bold text-white">{planData.targetDate || user.examDate || 'Scheduled'}</span> ({totalDays} total days).
             </p>
           </div>
