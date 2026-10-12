@@ -60,6 +60,36 @@ export async function POST(req: NextRequest) {
 
     const userName = `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || user.email?.split('@')[0] || 'Learner';
 
+    // Do not overwrite a currently paid subscription with a pending checkout.
+    // The schema stores one current subscription per user; replacing an active row here
+    // would revoke existing entitlements before the new payment is verified.
+    const { data: existingSubscription, error: existingSubscriptionError } = await admin
+      .from('subscriptions')
+      .select('plan_code, status, current_period_end')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (existingSubscriptionError) {
+      console.error('Could not check existing subscription before checkout:', existingSubscriptionError);
+      return NextResponse.json({ error: 'We could not safely initialize checkout. Please try again.' }, { status: 503 });
+    }
+
+    const periodEnd = existingSubscription?.current_period_end
+      ? new Date(existingSubscription.current_period_end).getTime()
+      : 0;
+    const existingPlanStillActive = existingSubscription?.status === 'active' &&
+      (!periodEnd || periodEnd > Date.now());
+
+    if (existingPlanStillActive) {
+      return NextResponse.json({
+        error: existingSubscription.plan_code === plan.code
+          ? 'You already have this plan active. Manage your current subscription from Billing.'
+          : 'You already have an active paid plan. Your current access has been preserved; contact support or use Billing to change plans.',
+        currentPlan: existingSubscription.plan_code,
+        alreadyActive: true,
+      }, { status: 409 });
+    }
+
     // Create Razorpay Order or Subscription server-side
     const rzpResult = await createSubscriptionRazorpayOrder({
       userId: user.id,
