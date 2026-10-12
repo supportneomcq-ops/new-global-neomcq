@@ -31,12 +31,23 @@ export async function POST(req: NextRequest) {
       userId: user?.id || undefined,
     })
 
+    const rawError = typeof result?.error === 'string' ? result.error : ''
+    const exposesInternals = /relation|column|schema|table|database|supabase|postgrest|sql|constraint|permission denied|does not exist|duplicate key|foreign key|PGRST\\d+/i.test(rawError)
+
+    if (result?.success === false && exposesInternals) {
+      console.error('[Exam Resolution] Internal curriculum failure:', rawError)
+      return NextResponse.json({
+        success: false,
+        error: 'We could not prepare this exam curriculum right now. Please retry in a moment.',
+      }, { status: 422 })
+    }
+
     return NextResponse.json(result)
   } catch (error: any) {
-    console.error('Exam Resolution API Error:', error)
+    console.error('[Exam Resolution API] Unexpected failure:', error)
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to resolve exam curriculum' },
-      { status: 400 }
+      { success: false, error: 'We could not prepare this exam curriculum right now. Please retry in a moment.' },
+      { status: 500 }
     )
   }
 }
