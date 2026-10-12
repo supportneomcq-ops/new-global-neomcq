@@ -130,8 +130,11 @@ export async function POST(req: NextRequest) {
         if (text.startsWith('```')) {
           text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
         }
-        const first = text.indexOf('{');
-        const last = text.lastIndexOf('}');
+        const objectStart = text.indexOf('{');
+        const arrayStart = text.indexOf('[');
+        const useArray = arrayStart >= 0 && (objectStart < 0 || arrayStart < objectStart);
+        const first = useArray ? arrayStart : objectStart;
+        const last = useArray ? text.lastIndexOf(']') : text.lastIndexOf('}');
         if (first < 0 || last <= first) return null;
         try {
           return JSON.parse(text.slice(first, last + 1));
