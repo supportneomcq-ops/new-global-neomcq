@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { TutorChatEngine } from '@/lib/server/content-engine/tutor-chat-engine';
 import { createClient } from '@/lib/supabase/server';
 
+export const maxDuration = 60;
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const lessonId = searchParams.get('lessonId');
