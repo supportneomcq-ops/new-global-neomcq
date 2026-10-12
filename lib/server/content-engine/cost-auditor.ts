@@ -226,7 +226,7 @@ export class ContentCostAuditor {
     // 3. Insert cost event into ai_cost_events with full metadata
     try {
       const { error: costErr } = await supabase.from('ai_cost_events').insert({
-        user_id: params.userId,
+        user_id: params.userId && params.userId !== 'system-user' ? params.userId : null,
         task_type: taskType,
         provider: params.provider,
         model: params.model,
