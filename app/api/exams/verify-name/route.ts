@@ -8,9 +8,9 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const { examQuery, country, category } = body || {};
 
-    if (!examQuery || typeof examQuery !== 'string' || !examQuery.trim()) {
+    if (!examQuery || typeof examQuery !== 'string' || !examQuery.trim() || examQuery.trim().length > 160) {
       return NextResponse.json(
-        { success: false, error: 'Exam name or search query is required.' },
+        { success: false, error: 'Enter an exam name between 1 and 160 characters.' },
         { status: 400 }
       );
     }
@@ -34,37 +34,43 @@ export async function POST(req: NextRequest) {
     const supabase = getSupabaseAdmin();
 
     // 2. Fetch all active exams and aliases from DB to check for existing match
-    let dbExams: any[] = [];
-    try {
-      const { data } = await (supabase as any)
-        .from('exams')
-        .select(`
-          id,
-          name,
-          slug,
-          short_name,
-          description,
-          difficulty,
-          question_count,
-          time_limit_mins,
-          countries (name, iso2, flag_emoji),
-          exam_categories (name, slug)
-        `)
-        .neq('status', 'archived');
-      dbExams = data || [];
-    } catch (err) {
-      console.warn('DB search error in verify-name:', err);
-    }
+    const { data: examRows, error: examLookupError } = await (supabase as any)
+      .from('exams')
+      .select(`
+        id,
+        name,
+        slug,
+        short_name,
+        description,
+        difficulty,
+        question_count,
+        time_limit_mins,
+        countries (name, iso2, flag_emoji),
+        exam_categories (name, slug)
+      `)
+      .neq('status', 'archived');
 
-    let dbAliases: any[] = [];
-    try {
-      const { data } = await (supabase as any)
-        .from('exam_aliases')
-        .select('exam_id, alias');
-      dbAliases = data || [];
-    } catch (err) {
-      console.warn('DB alias search error in verify-name:', err);
+    if (examLookupError) {
+      console.error('[Verify Name] Canonical exam lookup failed:', examLookupError.message);
+      return NextResponse.json(
+        { success: false, error: 'We could not check the existing exam list. Please retry in a moment.' },
+        { status: 503 }
+      );
     }
+    const dbExams: any[] = examRows || [];
+
+    const { data: aliasRows, error: aliasLookupError } = await (supabase as any)
+      .from('exam_aliases')
+      .select('exam_id, alias');
+
+    if (aliasLookupError) {
+      console.error('[Verify Name] Alias lookup failed:', aliasLookupError.message);
+      return NextResponse.json(
+        { success: false, error: 'We could not verify exam aliases. Please retry in a moment.' },
+        { status: 503 }
+      );
+    }
+    const dbAliases: any[] = aliasRows || [];
 
     // Build alias map
     const aliasMap = new Map<string, string[]>();
@@ -220,7 +226,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Verify Name Error:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to verify exam name.' },
+      { success: false, error: 'We could not verify this exam name right now. Please retry in a moment.' },
       { status: 500 }
     );
   }
