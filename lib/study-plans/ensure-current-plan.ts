@@ -12,8 +12,22 @@ export async function ensureCurrentStudyPlan(
     .maybeSingle();
 
   if (profileError) throw new Error('Could not load your study profile.');
-  const examId = requestedExamId || profile?.current_exam_id;
-  if (!profile || !examId) return { plan: null, message: 'No active exam selected.' };
+  if (!profile) return { plan: null, message: 'No active exam selected.' };
+
+  let examId = requestedExamId || profile.current_exam_id || null;
+  if (!examId) {
+    // Legacy profiles may have an exam link but no current_exam_id populated.
+    const { data: linkedExam, error: linkedExamError } = await admin
+      .from('user_exams')
+      .select('exam_id')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (linkedExamError) throw new Error('Could not resolve your selected exam.');
+    examId = linkedExam?.exam_id || null;
+  }
+  if (!examId) return { plan: null, message: 'No active exam selected.' };
 
   const { data: existingPlan, error: existingPlanError } = await admin
     .from('study_plans')
