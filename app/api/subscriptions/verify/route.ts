@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
     // Only verify a checkout that this authenticated user initiated for this exact plan.
     const { data: pendingSub, error: pendingSubError } = await admin
       .from('subscriptions')
-      .select('plan_code, status, currency, amount, razorpay_subscription_id')
+      .select('plan_code, status, currency, amount, razorpay_subscription_id, razorpay_payment_id')
       .eq('user_id', user.id)
       .maybeSingle();
 
@@ -88,9 +88,19 @@ export async function POST(req: NextRequest) {
     }
 
     const callbackCheckoutId = razorpay_subscription_id || razorpay_order_id;
+    // The Razorpay webhook can activate a subscription before the browser callback
+    // reaches this route. Accept that exact same payment idempotently, but never a
+    // different payment or checkout.
+    const alreadyActivatedByWebhook = Boolean(
+      pendingSub &&
+      pendingSub.status === 'active' &&
+      pendingSub.plan_code === plan.code &&
+      pendingSub.razorpay_subscription_id === callbackCheckoutId &&
+      pendingSub.razorpay_payment_id === razorpay_payment_id
+    );
     if (
       !pendingSub ||
-      pendingSub.status !== 'pending' ||
+      (pendingSub.status !== 'pending' && !alreadyActivatedByWebhook) ||
       pendingSub.plan_code !== plan.code ||
       !pendingSub.razorpay_subscription_id ||
       pendingSub.razorpay_subscription_id !== callbackCheckoutId
