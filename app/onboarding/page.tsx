@@ -567,7 +567,7 @@ export default function OnboardingPage() {
       });
 
       if (authError) {
-        console.warn('Auth notice:', authError.message);
+        console.warn('Account creation failed:', authError.message);
         const lowerMsg = authError.message.toLowerCase();
         if (lowerMsg.includes('already registered') || lowerMsg.includes('already in use') || lowerMsg.includes('user already exists')) {
           setFormError('An account with this email already exists. Please sign in or use a different email.');
@@ -586,7 +586,16 @@ export default function OnboardingPage() {
         return;
       }
 
-      // Progress Step 2: Curriculum framework resolved in database
+      if (!authData?.user?.id) {
+        throw new Error('Your account could not be created. Please check your details and try again.');
+      }
+      if (Array.isArray(authData.user.identities) && authData.user.identities.length === 0) {
+        setFormError('An account with this email may already exist. Please sign in instead.');
+        setStep(1);
+        return;
+      }
+
+      // Progress Step 2: Exam curriculum preparation
       setActivePrepIndex(2);
       setPrepProgress(50);
 
@@ -602,10 +611,15 @@ export default function OnboardingPage() {
       setPrepProgress(70);
 
       // 3. Sync all data server-side via the secure onboarding API
-      const onboardResponse = await fetch('/api/onboarding', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const onboardingController = new AbortController();
+      const onboardingTimeout = setTimeout(() => onboardingController.abort(), 90000);
+      let onboardResponse: Response;
+      try {
+        onboardResponse = await fetch('/api/onboarding', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: onboardingController.signal,
+          body: JSON.stringify({
           authId: authData?.user?.id || null,
           firstName: formData.firstName,
           lastName: formData.lastName,
@@ -623,8 +637,11 @@ export default function OnboardingPage() {
           studyHours: formData.studyHours,
           studyTime: dbPreferredTime,
           studyGoals: formData.studyGoals,
-        }),
-      });
+          }),
+        });
+      } finally {
+        clearTimeout(onboardingTimeout);
+      }
 
       const onboardData = await onboardResponse.json().catch(() => ({}));
       if (!onboardResponse.ok || onboardData.success === false) {
