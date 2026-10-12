@@ -52,6 +52,7 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile, initi
   const [lastName, setLastName] = useState(user.lastName || '');
   const [phone, setPhone] = useState(user.phone || '');
   const [country, setCountry] = useState(user.country || '');
+  const [language, setLanguage] = useState(user.language || 'English');
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -66,6 +67,7 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile, initi
       setLastName(user.lastName || '');
       setPhone(user.phone || '');
       if (user.country) setCountry(user.country);
+      setLanguage(user.language || 'English');
     }
   }, [user]);
 
@@ -134,6 +136,16 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile, initi
         countryId = countryRecord.id;
       }
 
+      const canonicalLanguageName = language.trim().replace(/\s*\([^)]*\)\s*/g, '').trim();
+      const { data: languageRecord, error: languageLookupError } = await supabase
+        .from('languages')
+        .select('id')
+        .ilike('name', canonicalLanguageName)
+        .maybeSingle();
+      if (languageLookupError) throw languageLookupError;
+      if (!languageRecord) throw new Error('Select a supported language before saving.');
+      const languageId = languageRecord.id;
+
       const { error } = await supabase
         .from('profiles')
         .update({
@@ -141,6 +153,7 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile, initi
           last_name: lastName.trim(),
           phone: phone.trim() || null,
           country_id: countryId,
+          language_id: languageId,
           updated_at: new Date().toISOString(),
         })
         .eq('id', authUser.id);
@@ -148,7 +161,7 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile, initi
       if (error) throw error;
 
       if (onUpdateProfile) {
-        onUpdateProfile({ firstName: firstName.trim(), lastName: lastName.trim(), phone: phone.trim(), country });
+        onUpdateProfile({ firstName: firstName.trim(), lastName: lastName.trim(), phone: phone.trim(), country, language: canonicalLanguageName });
       }
 
       setSuccessMessage('Profile updated successfully!');
@@ -355,6 +368,22 @@ export function UserProfileModal({ isOpen, onClose, user, onUpdateProfile, initi
                       className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-900 dark:text-white focus:outline-none focus:border-[#6D5BFF]"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-500 mb-1">Preferred Language</label>
+                  <select
+                    value={language}
+                    onChange={(e) => setLanguage(e.target.value)}
+                    className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-900 dark:text-white focus:outline-none focus:border-[#6D5BFF]"
+                  >
+                    {!['English', 'Hindi', 'Spanish', 'French', 'German'].includes(language) && (
+                      <option value={language}>{language}</option>
+                    )}
+                    {['English', 'Hindi', 'Spanish', 'French', 'German'].map((item) => (
+                      <option key={item} value={item} className="bg-white dark:bg-gray-900">{item}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="flex justify-end pt-2">
