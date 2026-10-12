@@ -15,13 +15,22 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // 1. Authentication
-    const authHeader = req.headers.get("authorization");
-    let userId: string | null = null;
-    if (authHeader) {
-      const token = authHeader.replace("Bearer ", "");
-      const { data: { user } } = await supabase.auth.getUser(token);
-      userId = user?.id || null;
+    const authHeader = req.headers.get("authorization") || "";
+    const tokenMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+    if (!tokenMatch) {
+      return new Response(JSON.stringify({ error: "Authentication required" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" }
+      });
     }
+    const { data: { user }, error: authError } = await supabase.auth.getUser(tokenMatch[1]);
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: "Authentication required" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" }
+      });
+    }
+    const userId = user.id;
 
     const body = await req.json();
     const {
@@ -41,13 +50,26 @@ serve(async (req) => {
       });
     }
 
-    const reqUserId = userId || body.user_id;
-    if (!reqUserId) {
-      return new Response(JSON.stringify({ error: "Unauthorized user" }), {
-        status: 401,
+    if (typeof prompt !== "string" || !prompt.trim()) {
+      return new Response(JSON.stringify({ error: "Prompt is required" }), {
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
+    if (prompt.length > 20000) {
+      return new Response(JSON.stringify({ error: "Prompt is too long. Please shorten it and try again." }), {
+        status: 413,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+    if (body.user_id && body.user_id !== userId) {
+      return new Response(JSON.stringify({ error: "The requested user does not match the signed-in account." }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+    const reqUserId = userId;
+    const maxOutputTokens = Math.max(128, Math.min(Number(max_tokens) || 1000, 3000));
 
     // 2. Determine Model from ai_task_routing
     const { data: routingRule } = await supabase
@@ -97,7 +119,7 @@ serve(async (req) => {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               contents: [{ parts: [{ text: prompt }] }],
-              generationConfig: { maxOutputTokens: max_tokens }
+              generationConfig: { maxOutputTokens }
             })
           }
         );
@@ -122,7 +144,7 @@ serve(async (req) => {
           body: JSON.stringify({
             model,
             messages: [{ role: "user", content: prompt }],
-            max_tokens
+            max_tokens: maxOutputTokens
           })
         });
 
