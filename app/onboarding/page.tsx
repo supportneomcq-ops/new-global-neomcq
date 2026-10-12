@@ -1424,7 +1424,7 @@ export default function OnboardingPage() {
 
                 <h2 className="text-xl sm:text-2xl font-heading font-extrabold tracking-tight">
                   {resolvingExamType === 'EXISTING'
-                    ? 'Verifying Database Record'
+                    ? 'Confirming Your Exam'
                     : 'Collecting Exam Blueprint & Patterns'}
                 </h2>
 
@@ -1463,18 +1463,18 @@ export default function OnboardingPage() {
               <div className="space-y-2 text-left relative z-10 text-xs font-medium">
                 {(resolvingExamType === 'EXISTING'
                   ? [
-                      { title: 'Database Identity Check', desc: `Locating exam record & canonical slug in 'exams' table` },
-                      { title: 'Curriculum Hierarchy Audit', desc: `Validating 'exam_subjects', 'exam_topics' & 'exam_subtopics'` },
-                      { title: 'Pattern & Rule Config', desc: `Checking duration, question count & marking rules in 'exam_style_configurations'` },
-                      { title: 'Canonical Scope Guarantee', desc: `Verifying unique entity protection & active database status` },
-                      { title: 'Database Verification Confirmed', desc: `Exam verified & persistent in Supabase DB` },
+                      { title: 'Exam Recognition', desc: `Confirming the correct exam and official name` },
+                      { title: 'Curriculum Coverage Check', desc: `Checking subjects, topics, and subtopics for your exam` },
+                      { title: 'Exam Format Check', desc: `Confirming exam duration, question count, and marking rules` },
+                      { title: 'Final Quality Check', desc: `Checking that your exam setup is consistent and ready` },
+                      { title: 'Exam Setup Confirmed', desc: `Your exam is ready for your study workspace` },
                     ]
                   : [
-                      { title: 'AI Knowledge Engine Connection', desc: `Analyzing official syllabus specifications for '${formData.selectedExamName || formData.customExamInput}'` },
-                      { title: 'Collecting Exam Pattern & Duration', desc: `Structuring subject weightage, duration & marking parameters` },
-                      { title: 'Taxonomy Hierarchy Synthesis', desc: `Mapping main topics and high-yield cognitive subtopics` },
-                      { title: 'Saving to Supabase Database', desc: `Inserting records into 'exams', 'exam_subjects', 'exam_topics', 'exam_subtopics' & 'exam_style_configurations'` },
-                      { title: 'Syllabus Successfully Registered', desc: `Canonical exam structure stored & ready for study strategy` },
+                      { title: 'Researching Your Exam', desc: `Analyzing official syllabus specifications for '${formData.selectedExamName || formData.customExamInput}'` },
+                      { title: 'Building Exam Blueprint', desc: `Structuring subject weightage, duration & marking parameters` },
+                      { title: 'Organizing Your Curriculum', desc: `Mapping main topics and high-yield cognitive subtopics` },
+                      { title: 'Saving Your Curriculum', desc: `Saving your exam, subjects, topics, and study structure securely` },
+                      { title: 'Curriculum Ready', desc: `Your curriculum is saved and ready for your study plan` },
                     ]
                 ).map((item, idx) => {
                   const isDone = resolvingStage > idx;
@@ -1510,7 +1510,7 @@ export default function OnboardingPage() {
               <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 text-[10px] text-slate-400 font-mono flex items-center gap-2 justify-center">
                 <Database className="w-3.5 h-3.5 text-[#00D4FF] shrink-0" />
                 <span>
-                  Persisting to Supabase DB: <strong className="text-slate-200">exams, exam_subjects, exam_topics, exam_subtopics, exam_style_configurations</strong>
+                  Your exam setup is being securely saved. This may take a moment.
                 </span>
               </div>
             </motion.div>
