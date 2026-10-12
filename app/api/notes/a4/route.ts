@@ -12,6 +12,7 @@ import {
 } from '@/lib/notes-a4/a4-notes-service';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 /**
  * GET /api/notes/a4
