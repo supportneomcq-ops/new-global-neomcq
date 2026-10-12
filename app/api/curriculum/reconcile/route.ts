@@ -1,3 +1,4 @@
+import { getSupabaseAdmin } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { reconcileCurriculum } from '@/lib/knowledge/reconciliation-service'
 
@@ -10,6 +11,19 @@ import { reconcileCurriculum } from '@/lib/knowledge/reconciliation-service'
  */
 export async function POST(req: NextRequest) {
   try {
+    const token = req.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1]
+    if (!token) {
+      return NextResponse.json({ success: false, error: 'Authentication required.' }, { status: 401 })
+    }
+    const adminClient = getSupabaseAdmin()
+    const { data: authData, error: authError } = await adminClient.auth.getUser(token)
+    if (authError || !authData.user) {
+      return NextResponse.json({ success: false, error: 'Authentication required.' }, { status: 401 })
+    }
+    const { data: isAdmin, error: adminError } = await adminClient.rpc('is_admin', { p_user_id: authData.user.id })
+    if (adminError || isAdmin !== true) {
+      return NextResponse.json({ success: false, error: 'Admin access required for curriculum maintenance.' }, { status: 403 })
+    }
     const body = await req.json()
     const { examInput, examId, country, category } = body
 
