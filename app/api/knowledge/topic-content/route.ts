@@ -136,12 +136,36 @@ export async function POST(req: NextRequest) {
       autoCreateEntities: true,
     })
 
-    if (!result.success && !result.content) {
+    // An idempotent request may find another worker generating this topic pack.
+    // Report a retryable pending state rather than turning that expected condition into a 500.
+    if (result.error_code === 'GENERATION_IN_PROGRESS') {
       return NextResponse.json(
-        { success: false, error: result.error || 'Failed to generate topic content' },
-        { status: 500 }
+        {
+          success: false,
+          pending: true,
+          status: 'generating',
+          jobId: result.job_id || null,
+          retryAfter: result.retry_after || 3,
+          error: result.error || 'This topic pack is already being prepared.',
+        },
+        { status: 202, headers: { 'Cache-Control': 'no-store, max-age=0' } }
       )
     }
+
+    if (!result.success || !result.content) {
+      return NextResponse.json(
+        { success: false, pending: false, status: 'failed', error: result.error || 'Failed to generate and save topic content' },
+        { status: 500, headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      )
+    }
+
+    // Never claim that an asset is ready unless the response actually contains it.
+    // This is an availability signal; persistence is confirmed by the content engine.
+    const hasMcqs = Array.isArray(result.content.mcqs) && result.content.mcqs.length > 0
+    const hasNotes = typeof result.content.notes === 'string' && result.content.notes.trim().length > 0
+    const hasFlashcards = Array.isArray(result.content.flashcards) && result.content.flashcards.length > 0
+    const hasTutorExplanation = typeof result.content.tutor_explanation === 'string' && result.content.tutor_explanation.trim().length > 0
+    const hasRevisionSheet = typeof result.content.revision_sheet === 'string' && result.content.revision_sheet.trim().length > 0
 
     const { exam, subject, topic } = result.hierarchy
 
@@ -158,7 +182,7 @@ export async function POST(req: NextRequest) {
         last_refreshed_at: result.created_at,
         next_refresh_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
         refresh_status: 'completed',
-        total_mcq_count: result.content?.mcqs?.length || 0,
+        total_mcq_count: hasMcqs ? result.content.mcqs.length : 0,
         content_version: result.version_number,
       },
       contentType,
@@ -173,11 +197,11 @@ export async function POST(req: NextRequest) {
       },
       content: result.content,
       assetStatus: {
-        mcqs: 'ready',
-        notes: 'ready',
-        flashcards: 'ready',
-        tutor_explanation: 'ready',
-        revision_sheet: 'ready',
+        mcqs: hasMcqs ? 'ready' : 'missing',
+        notes: hasNotes ? 'ready' : 'missing',
+        flashcards: hasFlashcards ? 'ready' : 'missing',
+        tutor_explanation: hasTutorExplanation ? 'ready' : 'missing',
+        revision_sheet: hasRevisionSheet ? 'ready' : 'missing',
       },
     })
   } catch (error: any) {
