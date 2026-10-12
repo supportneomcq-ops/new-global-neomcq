@@ -454,37 +454,88 @@ export async function syncOfficialAiPricing(changedBy = 'AUTO_SYNC', reason = '1
       if (!error) inserted++
     }
 
-    // 2. Also keep ai_model_pricing in sync for backward compatibility
-    const { data: legacyPricing } = await adminClient
+    // 2. Keep the effective-dated pricing table in sync. The deployed schema
+    // uses "model" (not model_id), and keeps historical rates as inactive rows.
+    const pricingSource = item.provider === 'gemini'
+      ? 'https://ai.google.dev/gemini-api/docs/pricing'
+      : 'https://developers.openai.com/api/docs/pricing';
+    const { data: activePricingRows, error: pricingReadError } = await adminClient
       .from('ai_model_pricing')
-      .select('id')
-      .eq('model_id', item.model_id)
-      .maybeSingle()
+      .select('id, input_cost_per_1m, cached_input_cost_per_1m, output_cost_per_1m, effective_from')
+      .eq('model', item.model_id)
+      .eq('active', true)
+      .order('effective_from', { ascending: false });
 
-    if (legacyPricing) {
-      await adminClient
+    if (pricingReadError) throw pricingReadError;
+    const activeRows = activePricingRows || [];
+    const currentPricing = activeRows[0];
+    const priceChanged = Boolean(currentPricing) && (
+      Math.abs(Number(currentPricing.input_cost_per_1m) - item.input_cost_per_1m) > 0.0001 ||
+      Math.abs(Number(currentPricing.cached_input_cost_per_1m) - item.cached_input_cost_per_1m) > 0.0001 ||
+      Math.abs(Number(currentPricing.output_cost_per_1m) - item.output_cost_per_1m) > 0.0001
+    );
+
+    // Repair any accidental duplicate active rows while preserving the newest row.
+    const duplicateActiveIds = activeRows.slice(1).map((row: any) => row.id);
+    if (duplicateActiveIds.length > 0) {
+      const { error } = await adminClient
         .from('ai_model_pricing')
-        .update({
+        .update({ active: false, effective_until: new Date().toISOString() })
+        .in('id', duplicateActiveIds);
+      if (error) throw error;
+    }
+
+    if (!item.enabled) {
+      if (activeRows.length > 0) {
+        const { error } = await adminClient
+          .from('ai_model_pricing')
+          .update({ active: false, effective_until: new Date().toISOString() })
+          .in('id', activeRows.map((row: any) => row.id));
+        if (error) throw error;
+      }
+    } else if (!currentPricing || priceChanged) {
+      if (currentPricing) {
+        changedPrices++;
+        await adminClient.from('ai_pricing_history').insert({
           provider: item.provider,
-          input_cost_per_1m: item.input_cost_per_1m,
-          cached_input_cost_per_1m: item.cached_input_cost_per_1m,
-          output_cost_per_1m: item.output_cost_per_1m,
-          context_window: item.context_window,
-          active: item.enabled,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', legacyPricing.id)
-    } else {
-      await adminClient.from('ai_model_pricing').insert({
+          model_id: item.model_id,
+          old_input_price: Number(currentPricing.input_cost_per_1m),
+          new_input_price: item.input_cost_per_1m,
+          old_output_price: Number(currentPricing.output_cost_per_1m),
+          new_output_price: item.output_cost_per_1m,
+          changed_by: changedBy,
+          reason,
+        });
+        const { error } = await adminClient
+          .from('ai_model_pricing')
+          .update({ active: false, effective_until: new Date().toISOString() })
+          .in('id', activeRows.map((row: any) => row.id));
+        if (error) throw error;
+        updated++;
+      } else {
+        inserted++;
+      }
+
+      const { error } = await adminClient.from('ai_model_pricing').insert({
         provider: item.provider,
-        model_id: item.model_id,
-        display_name: item.display_name,
+        model: item.model_id,
         input_cost_per_1m: item.input_cost_per_1m,
         cached_input_cost_per_1m: item.cached_input_cost_per_1m,
         output_cost_per_1m: item.output_cost_per_1m,
-        context_window: item.context_window,
-        active: item.enabled,
-      })
+        effective_from: new Date().toISOString(),
+        effective_until: null,
+        currency: 'USD',
+        source: pricingSource,
+        active: true,
+      });
+      if (error) throw error;
+    } else {
+      // Normalize provider/source metadata without changing effective rates.
+      const { error } = await adminClient
+        .from('ai_model_pricing')
+        .update({ provider: item.provider, source: pricingSource })
+        .eq('id', currentPricing.id);
+      if (error) throw error;
     }
   }
 
