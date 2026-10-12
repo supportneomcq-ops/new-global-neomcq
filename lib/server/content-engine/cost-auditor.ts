@@ -182,58 +182,56 @@ export class ContentCostAuditor {
       }
     }
 
-    // 2. Perform credit deduction from user's credit_accounts table
+    // 2. Reserve and consume user credits through atomic database RPCs.
+    // Fail closed: never return a successful tutor answer when its required credit charge fails.
     let actualDeducted = 0;
     if (params.creditsCharged > 0 && params.userId && params.userId !== 'system-user') {
-      try {
-        const { data: wallet, error: walletErr } = await supabase
-          .from('credit_accounts')
-          .select('credit_balance, lifetime_credits_used')
-          .eq('user_id', params.userId)
-          .maybeSingle();
+      const chargeAmount = Math.max(1, Math.ceil(params.creditsCharged));
+      const { data: reservationId, error: reserveError } = await supabase.rpc('credit_reserve', {
+        p_user_id: params.userId,
+        p_amount: chargeAmount,
+        p_task: taskType,
+        p_metadata: {
+          requestId: params.requestId || null,
+          idempotencyKey,
+          description: 'Reserved credits for a personalized AI tutor answer',
+        },
+      });
 
-        if (walletErr) {
-          console.error('[ContentCostAuditor] wallet fetch error:', walletErr);
+      if (reserveError || !reservationId) {
+        const detail = String(reserveError?.message || 'Credit reservation failed');
+        console.error('[ContentCostAuditor] Credit reservation failed:', detail);
+        if (/INSUFFICIENT_CREDITS/i.test(detail)) {
+          throw new Error('You do not have enough credits for a new AI tutor answer. Please top up your credits or use an approved FAQ.');
         }
-
-        if (wallet) {
-          const curBal = Number(wallet.credit_balance || 0);
-          const newBal = Math.max(0, curBal - params.creditsCharged);
-          actualDeducted = params.creditsCharged;
-
-          const { error: updateErr } = await supabase
-            .from('credit_accounts')
-            .update({
-              credit_balance: newBal,
-              lifetime_credits_used: Number(wallet.lifetime_credits_used || 0) + actualDeducted,
-              updated_at: timestamp,
-            })
-            .eq('user_id', params.userId);
-
-          if (updateErr) {
-            console.error('[ContentCostAuditor] wallet update error:', updateErr);
-          }
-
-          const { error: ledgerErr } = await supabase.from('credit_ledger').insert({
-            user_id: params.userId,
-            transaction_type: 'AI_USAGE',
-            credits: -actualDeducted,
-            balance_before: curBal,
-            balance_after: newBal,
-            reference_type: 'ai_tutor_doubt',
-            reference_id: params.requestId || null,
-            idempotency_key: idempotencyKey,
-            description: `AI Doubt Chat on ${params.provider} (${params.model})`,
-            created_at: timestamp,
-          });
-
-          if (ledgerErr) {
-            console.error('[ContentCostAuditor] credit_ledger insert error:', ledgerErr);
-          }
-        }
-      } catch (err) {
-        console.warn('[ContentCostAuditor] Error updating user credit account:', err);
+        throw new Error('We could not verify your credits for this tutor request. Please retry shortly.');
       }
+
+      const { error: consumeError } = await supabase.rpc('credit_consume', {
+        p_user_id: params.userId,
+        p_amount: chargeAmount,
+        p_task: taskType,
+        p_job_id: null,
+        p_metadata: {
+          requestId: params.requestId || null,
+          idempotencyKey,
+          description: `AI Doubt Chat on ${params.provider} (${params.model})`,
+        },
+      });
+
+      if (consumeError) {
+        console.error('[ContentCostAuditor] Credit consumption failed:', consumeError.message);
+        const { error: releaseError } = await supabase.rpc('credit_release', {
+          p_user_id: params.userId,
+          p_amount: chargeAmount,
+          p_task: taskType,
+          p_metadata: { description: 'Released tutor credits after failed consumption' },
+        });
+        if (releaseError) console.error('[ContentCostAuditor] Credit release failed:', releaseError.message);
+        throw new Error('We could not finalize the credits for this tutor answer. Please retry.');
+      }
+
+      actualDeducted = chargeAmount;
     }
 
     // 3. Insert cost event into ai_cost_events with full metadata
