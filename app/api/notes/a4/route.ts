@@ -287,6 +287,7 @@ export async function POST(req: NextRequest) {
     try {
       const generatedDocument = await generateA4NotesManuscript({
         userId: user.id,
+        jobId: jobRecord?.id,
         examId,
         examName: hierarchy.examName || '',
         subjectId,
@@ -310,6 +311,8 @@ export async function POST(req: NextRequest) {
           .from('ai_jobs')
           .update({
             status: 'completed',
+            progress_stage: 'Completed',
+            step_percentage: 100,
             completed_at: new Date().toISOString(),
           })
           .eq('id', jobRecord.id);
