@@ -111,10 +111,22 @@ export async function POST(req: NextRequest) {
         jobId: job.id,
       });
 
-      const finalOutput = genResult.parsedJson || { text: genResult.text };
+      const parsedOutput = genResult.parsedJson;
+      const parsedHasContent = parsedOutput !== null &&
+        parsedOutput !== undefined &&
+        (typeof parsedOutput !== 'object' || Object.keys(parsedOutput).length > 0);
+      const finalOutput = parsedHasContent
+        ? parsedOutput
+        : (typeof genResult.text === 'string' && genResult.text.trim()
+          ? { text: genResult.text.trim() }
+          : null);
+
+      if (finalOutput === null) {
+        throw new Error('AI provider returned an empty response');
+      }
 
       // 5. Update ai_jobs to completed
-      await adminClient
+      const { error: outputSaveError } = await adminClient
         .from('ai_jobs')
         .update({
           status: 'completed',
@@ -126,8 +138,13 @@ export async function POST(req: NextRequest) {
             generated_at: new Date().toISOString(),
           },
           completed_at: new Date().toISOString(),
+          error: null,
         })
         .eq('id', jobId);
+
+      if (outputSaveError) {
+        throw new Error('AI output was generated but could not be saved');
+      }
 
       // 6. Cache output for 7 days
       const expiresAt = new Date();
