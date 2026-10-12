@@ -292,7 +292,7 @@ export default function OnboardingPage() {
         if (savedState) {
           const parsed = JSON.parse(savedState);
           // Passwords must never be persisted in browser storage. Clear any legacy
-          // cached password too, then require re-entry if the learner resumes signup.
+          // cached password too, then require re-entry if signup had not created an account.
           try {
             delete parsed.password;
             localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
@@ -312,7 +312,13 @@ export default function OnboardingPage() {
         if (savedStep) {
           const stepNum = parseInt(savedStep, 10);
           if (stepNum >= 1 && stepNum <= 6) {
-            setStep(stepNum);
+            // Step 5 is an in-flight operation, not a resumable screen. Return to
+            // the study setup step; a saved pending auth ID lets the user resume
+            // without trying to register the same email a second time.
+            setStep(stepNum >= 5 ? 4 : stepNum);
+            if (stepNum >= 5 && localStorage.getItem('neomcq_pending_auth_id')) {
+              setFormError('Your account was started. Continue to finish setting up your exam; you will not need to register again.');
+            }
           }
         }
       } catch (e) {
@@ -330,8 +336,10 @@ export default function OnboardingPage() {
     if (!isMounted) return;
     try {
       // Keep onboarding resumable without storing credentials in localStorage.
-      const { password: _password, ...safeFormData } = formData;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(safeFormData));
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(formData, (key, value) => key === 'password' ? undefined : value)
+      );
       localStorage.setItem(CURRENT_STEP_KEY, step.toString());
     } catch (e) {
       // Ignore write errors
@@ -560,41 +568,57 @@ export default function OnboardingPage() {
       setActivePrepIndex(1);
       setPrepProgress(30);
 
-      // 1. SignUp via Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          data: {
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            phone: `${formData.countryCode}${formData.phone}`,
-            country: formData.country,
-            language: formData.language,
-            exam: formData.selectedExamName,
+      // 1. Create the account once, then persist only its non-secret ID so a
+      // failed curriculum/setup attempt can resume without a duplicate-signup error.
+      let authData: { user: { id: string; email_confirmed_at?: string | null } | null; session: unknown } | null = null;
+      const pendingAuthId = localStorage.getItem('neomcq_pending_auth_id');
+
+      if (pendingAuthId) {
+        authData = {
+          user: { id: pendingAuthId, email_confirmed_at: null },
+          session: null,
+        };
+      } else {
+        const { data: createdAuthData, error: authError } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: {
+            data: {
+              first_name: formData.firstName,
+              last_name: formData.lastName,
+              phone: `${formData.countryCode}${formData.phone}`,
+              country: formData.country,
+              language: formData.language,
+              exam: formData.selectedExamName,
+            },
+            emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback?next=/dashboard` : undefined,
           },
-          emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback?next=/dashboard` : undefined,
-        },
-      });
+        });
 
-      if (authError) {
-        console.warn('Auth notice:', authError.message);
-        const lowerMsg = authError.message.toLowerCase();
-        if (lowerMsg.includes('already registered') || lowerMsg.includes('already in use') || lowerMsg.includes('user already exists')) {
-          setFormError('An account with this email already exists. Please sign in or use a different email.');
+        if (authError) {
+          console.warn('Auth notice:', authError.message);
+          const lowerMsg = authError.message.toLowerCase();
+          if (lowerMsg.includes('already registered') || lowerMsg.includes('already in use') || lowerMsg.includes('user already exists')) {
+            setFormError('An account with this email already exists. Please sign in or use a different email.');
+            setStep(1);
+            return;
+          }
+          if (lowerMsg.includes('password')) {
+            setFormError('Password must be at least 8 characters long.');
+            setStep(1);
+            return;
+          }
+
+          // Do not continue onboarding when account creation failed for any other reason.
+          setFormError('We could not create your account right now. Please try again in a moment.');
           setStep(1);
           return;
         }
-        if (lowerMsg.includes('password')) {
-          setFormError('Password must be at least 8 characters long.');
-          setStep(1);
-          return;
-        }
 
-        // Do not continue onboarding when account creation failed for any other reason.
-        setFormError('We could not create your account right now. Please try again in a moment.');
-        setStep(1);
-        return;
+        authData = createdAuthData;
+        if (createdAuthData.user?.id && !createdAuthData.user.email_confirmed_at) {
+          localStorage.setItem('neomcq_pending_auth_id', createdAuthData.user.id);
+        }
       }
 
       // Progress Step 2: Checking the latest available curriculum
@@ -680,6 +704,7 @@ export default function OnboardingPage() {
         localStorage.setItem('neomcq_target_date', formData.examDate);
         localStorage.removeItem(STORAGE_KEY);
         localStorage.removeItem(CURRENT_STEP_KEY);
+        localStorage.removeItem('neomcq_pending_auth_id');
       } catch {
         // Safe to ignore
       }
