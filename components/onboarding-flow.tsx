@@ -524,47 +524,71 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
       }
 
       setIsPreparingAI(true);
+      setResolutionStage('Setting up your exam with the latest curriculum...');
 
-      // Registration waits for canonical exam resolution and curriculum completeness.
-      // Do not launch a second resolver in the background: it can duplicate AI work.
-      const onboardingResponse = await fetch('/api/onboarding', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          authId: authData?.user?.id || null,
-          firstName,
-          lastName,
-          email,
-          phone: `${countryCode}${phone}`,
-          country,
-          examCountry: selectedExamCountry,
-          examCategory: selectedExamCategory,
-          language,
-          examName: activeExamName,
-          examId: selectedExamId,
-          examDate,
-          daysLeft,
-          weeksLeft,
-          monthsLeft,
-          learningStyle,
-          studyHours,
-          studyTime,
-          studyGoals,
-        }),
-      });
-      const onboardingResult = await onboardingResponse.json().catch(() => ({}));
-      if (!onboardingResponse.ok || onboardingResult?.success !== true) {
-        throw new Error(
-          onboardingResult?.error ||
-          'We could not finish exam verification and curriculum setup. Please try again.'
-        );
-      }
+      // Give users clear progress feedback while the canonical curriculum is resolved.
+      const progressStages = [
+        'Setting up your exam with the latest curriculum...',
+        'Organizing subjects, topics, and subtopics...',
+        'Preparing your personalized study plan...',
+        'Setting up your account...',
+      ];
+      let progressIndex = 0;
+      const progressTimer = setInterval(() => {
+        progressIndex = Math.min(progressIndex + 1, progressStages.length - 1);
+        setResolutionStage(progressStages[progressIndex]);
+      }, 2200);
 
-      setTimeout(() => {
+      try {
+        const controller = new AbortController();
+        const requestTimeout = setTimeout(() => controller.abort(), 90000);
+        let onboardingResponse: Response;
+        try {
+          onboardingResponse = await fetch('/api/onboarding', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
+            body: JSON.stringify({
+              authId: authData.user.id,
+              firstName,
+              lastName,
+              email,
+              phone: `${countryCode}${phone}`,
+              country,
+              examCountry: selectedExamCountry,
+              examCategory: selectedExamCategory,
+              language,
+              examName: activeExamName,
+              examId: selectedExamId,
+              examDate,
+              daysLeft,
+              weeksLeft,
+              monthsLeft,
+              learningStyle,
+              studyHours,
+              studyTime,
+              studyGoals,
+            }),
+          });
+        } finally {
+          clearTimeout(requestTimeout);
+        }
+        const onboardingResult = await onboardingResponse.json().catch(() => ({}));
+        if (!onboardingResponse.ok || onboardingResult?.success !== true) {
+          throw new Error(
+            onboardingResult?.error ||
+            'We could not finish exam verification and curriculum setup. Please try again.'
+          );
+        }
+
+        setResolutionStage('Account setup complete. Preparing email verification...');
+        await new Promise((resolve) => setTimeout(resolve, 900));
+        setShowVerificationScreen(true);
+      } finally {
+        clearInterval(progressTimer);
         setIsSubmitting(false);
         setIsPreparingAI(false);
-        setShowVerificationScreen(true);
-      }, 900);
+      }
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : 'Account creation failed';
       setFormError(errMsg);
