@@ -1,23 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveOrInitializeExamIntelligence } from '@/lib/server/exam-intelligence'
+import { createClient } from '@/lib/supabase/server'
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { examQuery, country, category, userId } = body || {}
+    const { examQuery, country, category, userId: requestedUserId } = body || {}
 
-    if (!examQuery || typeof examQuery !== 'string' || !examQuery.trim()) {
+    if (!examQuery || typeof examQuery !== 'string' || !examQuery.trim() || examQuery.trim().length > 160) {
       return NextResponse.json(
-        { success: false, error: 'Exam search term or name is required' },
+        { success: false, error: 'Enter an exam name between 1 and 160 characters.' },
         { status: 400 }
+      )
+    }
+
+    // Never trust a user ID supplied by an unauthenticated client.
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (requestedUserId && (!user || requestedUserId !== user.id)) {
+      return NextResponse.json(
+        { success: false, error: 'The requested user does not match the signed-in account.' },
+        { status: 403 }
       )
     }
 
     const result = await resolveOrInitializeExamIntelligence({
       examQuery: examQuery.trim(),
-      country,
-      category,
-      userId,
+      country: typeof country === 'string' ? country.slice(0, 100) : undefined,
+      category: typeof category === 'string' ? category.slice(0, 100) : undefined,
+      userId: user?.id || undefined,
     })
 
     return NextResponse.json(result)
