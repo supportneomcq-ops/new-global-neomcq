@@ -4,6 +4,8 @@ import { getSupabaseAdmin } from '@/lib/supabase'
 import { z } from 'zod'
 import { GenerationJobManager } from '@/lib/server/content-engine/job-manager'
 
+export const maxDuration = 60;
+
 const inputParamsSchema = z.record(z.string(), z.any()).superRefine((value, ctx) => {
   if (JSON.stringify(value).length > 16_000) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Input parameters must be 16 KB or smaller.' });
