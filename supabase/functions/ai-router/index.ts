@@ -78,8 +78,16 @@ serve(async (req) => {
       .eq("task_type", task)
       .maybeSingle();
 
-    let provider = routingRule?.primary_provider || (geminiApiKey ? "gemini" : "openai");
-    let model = routingRule?.primary_model || (provider === "gemini" ? "gemini-2.0-flash" : "gpt-4o-mini");
+    // Normalize legacy display labels stored in ai_task_routing. The router's
+    // execution branches require canonical provider IDs ("gemini" / "openai").
+    const configuredProvider = String(routingRule?.primary_provider || "").toLowerCase();
+    let provider =
+      configuredProvider.includes("gemini") || configuredProvider.includes("google")
+        ? "gemini"
+        : configuredProvider.includes("openai")
+          ? "openai"
+          : (geminiApiKey ? "gemini" : "openai");
+    let model = routingRule?.primary_model || (provider === "gemini" ? "gemini-3.6-flash" : "gpt-4o-mini");
 
     // 3. Credit Reservation (10 credits default)
     const estimatedCredits = tier === "PREMIUM" ? 25 : tier === "LOW_COST" ? 5 : 10;
