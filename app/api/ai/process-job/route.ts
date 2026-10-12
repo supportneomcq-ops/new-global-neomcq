@@ -58,6 +58,8 @@ export async function POST(req: NextRequest) {
       .from('ai_jobs')
       .update({
         status: 'running',
+        progress_stage: 'Preparing AI generation',
+        step_percentage: 10,
         started_at: new Date().toISOString(),
         attempts: (job.attempts || 0) + 1,
       })
@@ -86,6 +88,8 @@ export async function POST(req: NextRequest) {
             completed_at: new Date().toISOString(),
           },
           completed_at: new Date().toISOString(),
+          progress_stage: 'Completed from cache',
+          step_percentage: 100,
         })
         .eq('id', jobId);
 
@@ -102,28 +106,51 @@ export async function POST(req: NextRequest) {
       const systemInstruction = `You are NeoMCQ AI Engine. Generate authoritative, high-yield academic, technical, or professional licensing content for task: ${taskType}. Always respond in strict, valid JSON format.`;
       const prompt = `Input details:\n${JSON.stringify(inputParams, null, 2)}`;
 
+      const providerHint = String(job.provider || '').toLowerCase();
+      const modelHint = String(job.model || '').toLowerCase();
+      const preferredProvider = providerHint.includes('openai') || providerHint.includes('open ai') ||
+        modelHint.startsWith('gpt-') || modelHint.startsWith('o1') || modelHint.startsWith('o3')
+        ? 'openai'
+        : 'gemini';
+
       const genResult = await AIGateway.generateContent({
         userId: job.user_id,
         taskType,
         prompt,
         systemInstruction,
+        preferredProvider,
         preferredModel: job.model || undefined,
+        maxOutputTokens: 5000,
+        responseMimeType: 'application/json',
         jobId: job.id,
       });
 
-      const parsedOutput = genResult.parsedJson;
+      const parseJsonText = (rawText: string): any | null => {
+        let text = (rawText || '').trim();
+        if (text.startsWith('```')) {
+          text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+        }
+        const first = text.indexOf('{');
+        const last = text.lastIndexOf('}');
+        if (first < 0 || last <= first) return null;
+        try {
+          return JSON.parse(text.slice(first, last + 1));
+        } catch {
+          return null;
+        }
+      };
+
+      const parsedOutput = genResult.parsedJson && typeof genResult.parsedJson === 'object'
+        ? genResult.parsedJson
+        : parseJsonText(genResult.text || '');
       const parsedHasContent = parsedOutput !== null &&
         parsedOutput !== undefined &&
         (typeof parsedOutput !== 'object' || Object.keys(parsedOutput).length > 0);
-      const finalOutput = parsedHasContent
-        ? parsedOutput
-        : (typeof genResult.text === 'string' && genResult.text.trim()
-          ? { text: genResult.text.trim() }
-          : null);
 
-      if (finalOutput === null) {
-        throw new Error('AI provider returned an empty response');
+      if (!parsedHasContent) {
+        throw new Error('The AI provider did not return complete structured content. The job was marked failed so it can be retried.');
       }
+      const finalOutput = parsedOutput;
 
       // 5. Update ai_jobs to completed
       const { error: outputSaveError } = await adminClient
@@ -138,6 +165,8 @@ export async function POST(req: NextRequest) {
             generated_at: new Date().toISOString(),
           },
           completed_at: new Date().toISOString(),
+          progress_stage: 'Completed',
+          step_percentage: 100,
           error: null,
         })
         .eq('id', jobId);
@@ -171,6 +200,8 @@ export async function POST(req: NextRequest) {
         .from('ai_jobs')
         .update({
           status: 'failed',
+          progress_stage: 'Failed',
+          step_percentage: 100,
           error: aiErr.message || 'AI generation processing failure',
         })
         .eq('id', jobId);
