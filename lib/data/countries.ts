@@ -50,6 +50,7 @@ export const GLOBAL_COUNTRIES: CountryInfo[] = [
   { name: 'Congo', iso2: 'CG', iso3: 'COG', phone_code: '+242', flag_emoji: '🇨🇬', currency_code: 'XAF', default_timezone: 'Africa/Brazzaville' },
   { name: 'Congo (DRC)', iso2: 'CD', iso3: 'COD', phone_code: '+243', flag_emoji: '🇨🇩', currency_code: 'CDF', default_timezone: 'Africa/Kinshasa' },
   { name: 'Costa Rica', iso2: 'CR', iso3: 'CRI', phone_code: '+506', flag_emoji: '🇨🇷', currency_code: 'CRC', default_timezone: 'America/Costa_Rica' },
+  { name: 'Côte d\'Ivoire', iso2: 'CI', iso3: 'CIV', phone_code: '+225', flag_emoji: '🇨🇮', currency_code: 'XOF', default_timezone: 'Africa/Abidjan' },
   { name: 'Croatia', iso2: 'HR', iso3: 'HRV', phone_code: '+385', flag_emoji: '🇭🇷', currency_code: 'EUR', default_timezone: 'Europe/Zagreb' },
   { name: 'Cuba', iso2: 'CU', iso3: 'CUB', phone_code: '+53', flag_emoji: '🇨🇺', currency_code: 'CUP', default_timezone: 'America/Havana' },
   { name: 'Cyprus', iso2: 'CY', iso3: 'CYP', phone_code: '+357', flag_emoji: '🇨🇾', currency_code: 'EUR', default_timezone: 'Asia/Nicosia' },
