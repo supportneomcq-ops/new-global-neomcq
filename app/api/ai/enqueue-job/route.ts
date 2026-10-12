@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { z } from 'zod'
@@ -93,16 +93,42 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to enqueue AI job' }, { status: 500 })
     }
 
-    // 3. Trigger asynchronous worker processing only if this is a newly created job
+    // 3. Trigger the worker after returning the queued response. A bare unawaited
+    // fetch can be frozen when the serverless request completes, leaving jobs stuck QUEUED.
     if (isNew && job.status === 'QUEUED') {
-      fetch(`${req.nextUrl.origin}/api/ai/process-job`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-internal-api-secret': process.env.INTERNAL_API_SECRET || '',
-        },
-        body: JSON.stringify({ jobId: job.id }),
-      }).catch((err) => console.error('Background AI job trigger error:', err))
+      after(async () => {
+        try {
+          const workerResponse = await fetch(`${req.nextUrl.origin}/api/ai/process-job`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-internal-api-secret': process.env.INTERNAL_API_SECRET || '',
+            },
+            body: JSON.stringify({ jobId: job.id }),
+          });
+
+          if (!workerResponse.ok) {
+            const workerText = await workerResponse.text();
+            console.error('[AI Enqueue] Worker rejected job:', job.id, workerResponse.status, workerText.slice(0, 400));
+            await (getSupabaseAdmin() as any).from('ai_jobs').update({
+              status: 'failed',
+              progress_stage: 'Failed to start',
+              step_percentage: 100,
+              error: 'The AI worker could not start this job. Please retry.',
+              completed_at: new Date().toISOString(),
+            }).eq('id', job.id).eq('user_id', user.id);
+          }
+        } catch (err) {
+          console.error('[AI Enqueue] Background worker trigger failed:', err);
+          await (getSupabaseAdmin() as any).from('ai_jobs').update({
+            status: 'failed',
+            progress_stage: 'Failed to start',
+            step_percentage: 100,
+            error: 'The AI worker could not start this job. Please retry.',
+            completed_at: new Date().toISOString(),
+          }).eq('id', job.id).eq('user_id', user.id);
+        }
+      });
     }
 
     return NextResponse.json({
