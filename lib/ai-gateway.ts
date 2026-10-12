@@ -122,7 +122,7 @@ export class AIGateway {
         id: 'gemini',
         name: 'Google Gemini API',
         isPrimary: true,
-        defaultModel: 'gemini-3.5-flash',
+        defaultModel: 'gemini-3.6-flash',
         supportedModels: geminiModels.map((m) => m.model_id),
         keysCount: envStatus.gemini.configured ? 1 : 0,
         activeKeysCount: envStatus.gemini.configured ? 1 : 0,
