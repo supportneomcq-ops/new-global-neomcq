@@ -49,7 +49,7 @@ export async function getPublicExamBySlug(examSlug: string): Promise<ExamSeoData
     if (examData) {
       const [subjRes, mcqRes] = await Promise.all([
         (supabase as any).from('exam_subjects').select('id', { count: 'exact', head: true }).eq('exam_id', examData.id),
-        (supabase as any).from('mcqs').select('id', { count: 'exact', head: true }).eq('exam_id', examData.id).eq('status', 'approved'),
+        (supabase as any).from('mcqs').select('id', { count: 'exact', head: true }).eq('exam_id', examData.id).eq('status', 'approved').in('visibility', ['PUBLIC_CANONICAL', 'PUBLIC_DISCOVERABLE']),
       ]);
 
       return {
@@ -58,8 +58,8 @@ export async function getPublicExamBySlug(examSlug: string): Promise<ExamSeoData
         slug: examData.slug,
         description: examData.description,
         difficulty: examData.difficulty || 'Advanced',
-        question_count: examData.question_count || 200,
-        time_limit_mins: examData.time_limit_mins || 180,
+        question_count: Number(examData.question_count) || 0,
+        time_limit_mins: Number(examData.time_limit_mins) || 0,
         subjects_count: subjRes.count || 0,
         mcqs_count: mcqRes.count || 0,
         created_at: examData.created_at,
@@ -79,7 +79,7 @@ export async function getPublicExamBySlug(examSlug: string): Promise<ExamSeoData
       const ex = aliasMatch.exams;
       const [subjRes, mcqRes] = await Promise.all([
         (supabase as any).from('exam_subjects').select('id', { count: 'exact', head: true }).eq('exam_id', ex.id),
-        (supabase as any).from('mcqs').select('id', { count: 'exact', head: true }).eq('exam_id', ex.id).eq('status', 'approved'),
+        (supabase as any).from('mcqs').select('id', { count: 'exact', head: true }).eq('exam_id', ex.id).eq('status', 'approved').in('visibility', ['PUBLIC_CANONICAL', 'PUBLIC_DISCOVERABLE']),
       ]);
 
       return {
@@ -88,8 +88,8 @@ export async function getPublicExamBySlug(examSlug: string): Promise<ExamSeoData
         slug: ex.slug,
         description: ex.description,
         difficulty: ex.difficulty || 'Advanced',
-        question_count: ex.question_count || 200,
-        time_limit_mins: ex.time_limit_mins || 180,
+        question_count: Number(ex.question_count) || 0,
+        time_limit_mins: Number(ex.time_limit_mins) || 0,
         subjects_count: subjRes.count || 0,
         mcqs_count: mcqRes.count || 0,
         created_at: ex.created_at,
@@ -124,10 +124,10 @@ export async function getAllPublicExams(): Promise<ExamSeoData[]> {
           id: e.id,
           name: e.name,
           slug: e.slug,
-          description: e.description,
+          description: typeof e.description === 'string' ? e.description.slice(0, 220) : null,
           difficulty: e.difficulty || 'Advanced',
-          question_count: e.question_count || 200,
-          time_limit_mins: e.time_limit_mins || 180,
+          question_count: Number(e.question_count) || 0,
+          time_limit_mins: Number(e.time_limit_mins) || 0,
           subjects_count: 0,
           mcqs_count: 0,
           created_at: e.created_at,
