@@ -43,7 +43,7 @@ export default async function ExamsDirectoryPage() {
             One AI. Every Exam. Every Country.
           </h1>
           <p className="text-slate-400 text-base md:text-lg">
-            Master high-yield concepts across medical, nursing, legal, engineering, and financial licensure exams with AI-verified practice content.
+            Explore global exams. NeoMCQ prepares a personalized syllabus and practice set for your confirmed exam during onboarding.
           </p>
         </div>
 
@@ -75,7 +75,7 @@ export default async function ExamsDirectoryPage() {
               <div className="pt-6 mt-4 border-t border-slate-800/80 flex items-center justify-between text-xs font-medium text-slate-400">
                 <span className="flex items-center gap-1.5">
                   <BookOpen className="w-4 h-4 text-indigo-400" />
-                  {exam.question_count || 100}+ Questions
+                  {exam.question_count > 0 ? `${exam.question_count} exam questions` : 'Exam format varies'}
                 </span>
                 <span className="text-indigo-400 group-hover:translate-x-1 transition-transform flex items-center gap-1 font-semibold">
                   Explore Exam
