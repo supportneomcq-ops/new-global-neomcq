@@ -361,11 +361,11 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
 
   const handleDirectResolve = async (queryToResolve: string) => {
     setIsResolvingExam(true);
-    setResolutionStage('Setting up your exam with the latest curriculum...');
+    setResolutionStage('Confirming your exam name...');
 
-    const stageTimer1 = setTimeout(() => setResolutionStage('Checking exam requirements...'), 800);
-    const stageTimer2 = setTimeout(() => setResolutionStage('Organizing subjects, topics, and subtopics...'), 1800);
-    const stageTimer3 = setTimeout(() => setResolutionStage('Preparing your personalized study plan...'), 2800);
+    const stageTimer1 = setTimeout(() => setResolutionStage('Checking the canonical exam list...'), 800);
+    const stageTimer2 = setTimeout(() => setResolutionStage('Matching your selected country and exam type...'), 1800);
+    const stageTimer3 = setTimeout(() => setResolutionStage('Preparing curriculum setup for account creation...'), 2800);
 
     try {
       const res = await fetch('/api/exams/resolve', {
@@ -559,7 +559,7 @@ export function OnboardingFlow({ isOpen, onClose, onComplete }: OnboardingFlowPr
               examCategory: selectedExamCategory,
               language,
               examName: activeExamName,
-              examId: selectedExamId,
+              examId: selectedExamId || undefined,
               examDate,
               daysLeft,
               weeksLeft,
