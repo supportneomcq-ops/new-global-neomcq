@@ -291,9 +291,18 @@ export default function OnboardingPage() {
 
         if (savedState) {
           const parsed = JSON.parse(savedState);
+          // Passwords must never be persisted in browser storage. Clear any legacy
+          // cached password too, then require re-entry if the learner resumes signup.
+          try {
+            delete parsed.password;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+          } catch {
+            // Continue with the in-memory form even if storage is unavailable.
+          }
           setFormData((prev) => ({
             ...prev,
             ...parsed,
+            password: '',
             examDate: parsed.examDate || defaultDate,
           }));
         } else {
@@ -320,7 +329,9 @@ export default function OnboardingPage() {
   useEffect(() => {
     if (!isMounted) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(formData));
+      // Keep onboarding resumable without storing credentials in localStorage.
+      const { password: _password, ...safeFormData } = formData;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(safeFormData));
       localStorage.setItem(CURRENT_STEP_KEY, step.toString());
     } catch (e) {
       // Ignore write errors
