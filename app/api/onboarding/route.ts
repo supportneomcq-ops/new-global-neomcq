@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
       const isRecentSignup = createdAt > 0 && Date.now() - createdAt <= 15 * 60 * 1000
       const emailMatches = pendingUser?.email?.toLowerCase() === email.toLowerCase()
 
-      if (authLookupError || !pendingUser || !emailMatches || pendingUser.email_confirmed_at || !isRecentSignup) {
+      if (authLookupError || !pendingUser || !emailMatches || !isRecentSignup) {
         return NextResponse.json(
           { error: 'Please verify your email or sign in again before finishing onboarding.' },
           { status: 401 }
@@ -216,8 +216,6 @@ export async function POST(req: NextRequest) {
             target_date: cleanTargetDate,
             target_score: 85.0,
             status: 'in_progress',
-            is_primary: true,
-            last_accessed_at: new Date().toISOString(),
           },
           { onConflict: 'user_id,exam_id' }
         )
