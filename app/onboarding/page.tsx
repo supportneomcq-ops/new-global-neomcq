@@ -450,17 +450,19 @@ export default function OnboardingPage() {
       });
 
       const data = await res.json();
-      if (!res.ok || !data.success || !data.exam?.id) {
+      if (!res.ok || !data.success || !data.exam?.name || (!data.exam?.id && data.status !== 'NEW_EXAM')) {
         throw new Error(data.error || 'We could not verify this exam. Please choose a listed exam or try again.');
       }
 
-      // Detect if server identified a new custom synthesis vs existing canonical record
-      const isNewExam = data.is_new || data.decision === 'NEW_EXAM_CREATED' || isCustom;
+      // A valid new exam is intentionally returned without an ID at this stage.
+      // The authenticated onboarding API creates/resolves its canonical record and
+      // curriculum after account creation. Do not block users on a null pre-creation ID.
+      const isNewExam = data.status === 'NEW_EXAM' || data.is_new || data.decision === 'NEW_EXAM_CREATED' || isCustom;
       setResolvingExamType(isNewExam ? 'NEW_SYNTHESIS' : 'EXISTING');
 
       if (data.exam) {
         const ex = data.exam;
-        updateField('selectedExamId', ex.id);
+        updateField('selectedExamId', ex.id || '');
         updateField('selectedExamName', ex.name);
         updateField('selectedExamShortName', ex.short_name || ex.name.split(' ')[0]);
         updateField('selectedExamCategory', ex.category || formData.selectedExamCategory);
