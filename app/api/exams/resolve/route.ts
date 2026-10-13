@@ -8,7 +8,7 @@ export const maxDuration = 60;
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { examQuery, country, category, userId: requestedUserId } = body || {}
+    const { examQuery, country, category, level, userId: requestedUserId } = body || {}
 
     if (!examQuery || typeof examQuery !== 'string' || !examQuery.trim() || examQuery.trim().length > 160) {
       return NextResponse.json(
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
       const admin = getSupabaseAdmin()
       const { data: exams, error: examsError } = await admin
         .from('exams')
-        .select('id, name, short_name, slug, countries(name, flag_emoji), exam_categories(name, slug)')
+        .select('id, name, short_name, slug, level, countries(name, flag_emoji), exam_categories(name, slug)')
         .neq('status', 'archived')
         .limit(500)
 
@@ -85,6 +85,7 @@ export async function POST(req: NextRequest) {
             country: matchedExam.countries?.name || 'Global',
             flag: matchedExam.countries?.flag_emoji || '🌐',
             category: matchedExam.exam_categories?.name || 'Professional Licensing',
+            level: matchedExam.level || null,
           },
           curriculumStatus: 'verified_during_signup',
         })
@@ -100,6 +101,7 @@ export async function POST(req: NextRequest) {
           country: typeof country === 'string' && country.trim() ? country.trim() : 'Global',
           flag: '🌐',
           category: typeof category === 'string' && category.trim() ? category.trim() : 'Professional Licensing',
+          level: typeof level === 'string' && level.trim() ? level.trim().slice(0, 80) : null,
         },
         curriculumStatus: 'prepared_during_signup',
       })
@@ -109,6 +111,7 @@ export async function POST(req: NextRequest) {
       examQuery: examQuery.trim(),
       country: typeof country === 'string' ? country.slice(0, 100) : undefined,
       category: typeof category === 'string' ? category.slice(0, 100) : undefined,
+      level: typeof level === 'string' ? level.slice(0, 80) : undefined,
       userId: user.id,
     })
 

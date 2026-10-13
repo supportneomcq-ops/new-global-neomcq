@@ -50,6 +50,7 @@ interface ExamInfo {
   flag: string;
   description?: string;
   difficulty?: string;
+  level?: string;
   question_count?: number;
   time_limit_mins?: number;
   in_database?: boolean;
@@ -73,6 +74,7 @@ interface OnboardingState {
   selectedExamShortName: string;
   selectedExamCategory: string;
   selectedExamCountry: string;
+  selectedExamLevel: string;
   selectedExamFlag: string;
   selectedExamDescription: string;
   customExamInput: string;
@@ -180,8 +182,9 @@ export default function OnboardingPage() {
     selectedExamName: '',
     selectedExamShortName: '',
     selectedExamCategory: '',
-    selectedExamCountry: 'India',
-    selectedExamFlag: '🇮🇳',
+    selectedExamCountry: 'Global',
+    selectedExamLevel: '',
+    selectedExamFlag: '🌐',
     selectedExamDescription: '',
     customExamInput: '',
     isCustomExam: false,
@@ -364,6 +367,12 @@ export default function OnboardingPage() {
 
   const { days: daysLeft, weeks: weeksLeft, months: monthsLeft } = calculateTimeLeft(formData.examDate);
   const learningPhaseDays = Math.max(1, daysLeft - 5);
+  const examCategoryOptions = Array.from(new Set([
+    ...dbExams.map((exam) => exam.category).filter((value): value is string => Boolean(value)),
+    'Medical & Healthcare', 'Nursing & Allied Health', 'Engineering & Technology',
+    'Finance & Business', 'Civil Services & Government', 'School & University Admissions',
+    'Language Certification', 'Professional Licensing', 'General Academics', 'Other',
+  ])).sort((a, b) => a.localeCompare(b));
 
   // Form validations per step
   const validateStep = (currentStep: number): boolean => {
@@ -390,6 +399,10 @@ export default function OnboardingPage() {
         setFormError('Please select or search for the exam you are preparing for.');
         return false;
       }
+      if ((formData.isCustomExam || formData.customExamInput.trim()) && !formData.selectedExamCategory.trim()) {
+        setFormError('Please choose the department or exam category for your custom exam.');
+        return false;
+      }
     } else if (currentStep === 4) {
       if (!formData.examDate || daysLeft <= 0) {
         setFormError('Please choose a valid future official exam date.');
@@ -410,6 +423,7 @@ export default function OnboardingPage() {
     updateField('selectedExamShortName', exam.short_name || exam.name.split(' ')[0]);
     updateField('selectedExamCategory', exam.category || 'Standard Exam Prep');
     updateField('selectedExamCountry', exam.country || 'Global');
+    updateField('selectedExamLevel', exam.level || exam.difficulty || '');
     updateField('selectedExamFlag', exam.flag || '🌐');
     updateField('selectedExamDescription', exam.description || `Official examination preparation for ${exam.name}.`);
     updateField('isCustomExam', false);
@@ -444,8 +458,9 @@ export default function OnboardingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           examQuery: targetInput,
-          country: formData.country,
+          country: formData.selectedExamCountry || 'Global',
           category: formData.selectedExamCategory,
+          level: formData.selectedExamLevel,
         }),
       });
 
@@ -466,7 +481,8 @@ export default function OnboardingPage() {
         updateField('selectedExamName', ex.name);
         updateField('selectedExamShortName', ex.short_name || ex.name.split(' ')[0]);
         updateField('selectedExamCategory', ex.category || formData.selectedExamCategory);
-        updateField('selectedExamCountry', ex.country || formData.country);
+        updateField('selectedExamCountry', ex.country || 'Global');
+        updateField('selectedExamLevel', ex.level || formData.selectedExamLevel || '');
         updateField('selectedExamFlag', ex.flag || '🌐');
         updateField('selectedExamDescription', ex.description || `Official curriculum for ${ex.name}`);
 
@@ -652,6 +668,9 @@ export default function OnboardingPage() {
           language: formData.language,
           examName: formData.selectedExamName,
           examId: formData.selectedExamId || null,
+          examCountry: formData.selectedExamCountry || 'Global',
+          examCategory: formData.selectedExamCategory,
+          examLevel: formData.selectedExamLevel,
           examDate: formData.examDate,
           daysLeft,
           learningStyle: formData.learningStyle === 'Rapid Learning' ? 'rapid' : formData.learningStyle === 'Regular Study' ? 'mastery' : 'balanced',
@@ -1079,17 +1098,52 @@ export default function OnboardingPage() {
                         type="text"
                         value={formData.customExamInput}
                         onChange={(e) => {
-                          updateField('customExamInput', e.target.value);
-                          if (e.target.value.trim()) {
+                          const value = e.target.value;
+                          if (value.trim() && !formData.isCustomExam && !formData.customExamInput.trim()) {
+                            updateField('selectedExamId', '');
+                            updateField('selectedExamCountry', 'Global');
+                            updateField('selectedExamCategory', '');
+                            updateField('selectedExamLevel', '');
+                          }
+                          updateField('customExamInput', value);
+                          if (value.trim()) {
                             updateField('isCustomExam', true);
-                            updateField('selectedExamName', e.target.value.trim());
-                            updateField('selectedExamShortName', e.target.value.trim().split(' ')[0]);
+                            updateField('selectedExamName', value.trim());
+                            updateField('selectedExamShortName', value.trim().split(' ')[0]);
+                          } else {
+                            updateField('isCustomExam', false);
+                            updateField('selectedExamId', '');
+                            updateField('selectedExamName', '');
+                            updateField('selectedExamShortName', '');
                           }
                         }}
                         placeholder="e.g. Royal College FRCS Part A, AWS Solutions Architect, MRCP..."
                         className="flex-1 px-4 py-3 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-inner text-slate-900 dark:text-white"
                       />
                     </div>
+                    {(formData.isCustomExam || formData.customExamInput.trim()) && (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                        <label className="block text-xs font-semibold text-slate-600 dark:text-gray-300">
+                          Exam country / jurisdiction
+                          <select value={formData.selectedExamCountry} onChange={(e) => updateField('selectedExamCountry', e.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-[#080C19] px-3 py-2.5 text-sm font-medium">
+                            <option value="Global">Global / International</option>
+                            {dbCountries.map((country: any) => <option key={country.id || country.name} value={country.name}>{country.name}</option>)}
+                            {COUNTRIES.filter((country) => country !== 'Other Global Location' && !dbCountries.some((dbCountry: any) => dbCountry.name === country)).map((country) => <option key={country} value={country}>{country}</option>)}
+                          </select>
+                        </label>
+                        <label className="block text-xs font-semibold text-slate-600 dark:text-gray-300">
+                          Department / exam category
+                          <select value={formData.selectedExamCategory} onChange={(e) => updateField('selectedExamCategory', e.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-[#080C19] px-3 py-2.5 text-sm font-medium">
+                            <option value="">Select category</option>
+                            {examCategoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}
+                          </select>
+                        </label>
+                        <label className="block text-xs font-semibold text-slate-600 dark:text-gray-300">
+                          Exam level / stage (optional)
+                          <input value={formData.selectedExamLevel} onChange={(e) => updateField('selectedExamLevel', e.target.value)} maxLength={80} placeholder="e.g. Step 1, Level II" className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-[#080C19] px-3 py-2.5 text-sm font-medium" />
+                        </label>
+                      </div>
+                    )}
                   </div>
                 </div>
               </motion.div>
@@ -1137,6 +1191,10 @@ export default function OnboardingPage() {
                       </h2>
                       <p className="text-xs text-slate-500 dark:text-gray-400 mt-1 leading-relaxed">
                         {formData.selectedExamDescription}
+                      </p>
+                      <p className="text-[11px] text-slate-500 dark:text-gray-400 mt-2">
+                        Jurisdiction: <span className="font-semibold">{formData.selectedExamCountry || 'Global'}</span>
+                        {' · '}Level: <span className="font-semibold">{formData.selectedExamLevel || 'Not specified'}</span>
                       </p>
                     </div>
                   </div>

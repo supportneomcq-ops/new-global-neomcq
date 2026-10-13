@@ -17,6 +17,9 @@ const onboardingSchema = z.object({
   language: z.string().optional(),
   examName: z.string().min(1),
   examId: z.string().nullable().optional(),
+  examCountry: z.string().max(100).optional(),
+  examCategory: z.string().max(100).optional(),
+  examLevel: z.string().max(80).optional(),
   examDate: z.string()
     .min(1, 'Exam date is required')
     .refine((value) => !Number.isNaN(Date.parse(value)), 'Enter a valid exam date'),
@@ -45,6 +48,9 @@ export async function POST(req: NextRequest) {
       country,
       language,
       examName,
+      examCountry,
+      examCategory,
+      examLevel,
       examDate,
       learningStyle,
       studyHours,
@@ -156,7 +162,9 @@ export async function POST(req: NextRequest) {
       try {
         const resolved = await resolveOrInitializeExamIntelligence({
           examQuery: examName,
-          country,
+          country: examCountry || country,
+          category: examCategory,
+          level: examLevel,
           userId: targetUserId,
         })
         if (!resolved?.success || !resolved.exam?.id) {

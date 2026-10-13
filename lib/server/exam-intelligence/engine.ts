@@ -660,7 +660,8 @@ export const VERIFIED_EXAM_TEMPLATES: Record<string, StandardCurriculumTemplate>
 export async function generateAIExamIntelligence(
   examQuery: string,
   countryHint?: string,
-  categoryHint?: string
+  categoryHint?: string,
+  levelHint?: string
 ): Promise<AIExamIntelligenceOutput | null> {
   if (!process.env.GEMINI_API_KEY) {
     console.warn('[Exam Intelligence] No GEMINI_API_KEY configured for AI synthesis.')
@@ -676,6 +677,7 @@ You MUST output strictly valid JSON conforming directly to the required schema. 
   const prompt = `Construct the official Exam Intelligence Profile and complete Curriculum Specification for the examination: "${cleanName}".
 ${countryHint ? `Country / Region Context: ${countryHint}` : ''}
 ${categoryHint ? `Discipline / Category Context: ${categoryHint}` : ''}
+${levelHint ? `Credential Level / Stage Context: ${levelHint}` : ''}
 
 CRITICAL ARCHITECTURAL DIRECTIVES:
 1. EXAM LEVEL:
@@ -1020,9 +1022,10 @@ export async function resolveOrInitializeExamIntelligence(options: {
   examQuery: string
   country?: string
   category?: string
+  level?: string
   userId?: string | null
 }): Promise<ExamResolutionResponse> {
-  const { examQuery, country, category, userId } = options
+  const { examQuery, country, category, level, userId } = options
   const supabase = getSupabaseAdmin()
 
   if (!examQuery || typeof examQuery !== 'string' || !examQuery.trim()) {
@@ -1044,7 +1047,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
   const querySlug = norm.slug.toLowerCase()
 
   // Concurrency deduplication: Coalesce concurrent requests for the exact same query
-  const idempotencyKey = `${cleanQuery}::${(country || '').toLowerCase()}::${(category || '').toLowerCase()}`
+  const idempotencyKey = `${cleanQuery}::${(country || '').toLowerCase()}::${(category || '').toLowerCase()}::${(level || '').toLowerCase()}`
   if (inFlightResolutions.has(idempotencyKey)) {
     console.log(`[Exam Intelligence] Concurrent resolution in flight for "${rawInput}". Joining existing Promise...`)
     return inFlightResolutions.get(idempotencyKey)!
@@ -1061,6 +1064,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
       slug,
       description,
       difficulty,
+      level,
       question_count,
       time_limit_mins,
       status,
@@ -1374,6 +1378,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
           name: matchedExam.name,
           slug: matchedExam.slug,
           short_name: matchedExam.short_name || matchedExam.name.split(' ')[0],
+          level: matchedExam.level || null,
           description: matchedExam.description || `Preparation curriculum for ${matchedExam.name}`,
           difficulty: matchedExam.difficulty || 'Intermediate',
           question_count: rulesResult.question_count,
@@ -1423,7 +1428,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
     if (catRow) categoryId = catRow.id
 
     // Generate Structured Exam Intelligence & Curriculum
-    const aiSpec = await generateAIExamIntelligence(rawInput, country, category)
+    const aiSpec = await generateAIExamIntelligence(rawInput, country, category, level)
     if (!aiSpec) {
       throw new Error(`AI could not produce a sufficiently complete exam-specific curriculum for "${rawInput}". No generic placeholder curriculum was saved; retry after the AI provider is available.`)
     }
@@ -1477,6 +1482,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
       time_limit_mins: intelligenceProfile.question_config.duration_minutes || 120,
       country_id: countryId,
       category_id: categoryId,
+      level: level?.trim() || null,
       status: 'active',
       is_featured: false,
       created_by_ai: !isVerifiedTemplate,
@@ -1592,6 +1598,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
         name: newExam.name,
         slug: newExam.slug,
         short_name: (newExam as any).short_name || newExam.name.split(' ')[0],
+        level: (newExam as any).level || level || null,
         description: newExam.description,
         difficulty: newExam.difficulty,
         question_count: rulesResult.question_count,

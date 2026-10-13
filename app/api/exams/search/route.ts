@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
             short_name,
             description,
             difficulty,
+            level,
             question_count,
             time_limit_mins,
             is_featured,
@@ -46,7 +47,7 @@ export async function GET(req: NextRequest) {
           // Fallback to simple select without joins if needed
           const flatRes = await (supabase as any)
             .from('exams')
-            .select('id, name, slug, short_name, description, difficulty, question_count, time_limit_mins, is_featured, official_url')
+            .select('id, name, slug, short_name, description, difficulty, level, question_count, time_limit_mins, is_featured, official_url')
             .neq('status', 'archived')
             .order('name', { ascending: true })
             .limit(50)
@@ -67,6 +68,7 @@ export async function GET(req: NextRequest) {
         flag: e.countries?.flag_emoji || '🇮🇳',
         description: e.description || '',
         difficulty: e.difficulty || 'Intermediate',
+        level: e.level || null,
         question_count: e.question_count || 100,
         time_limit_mins: e.time_limit_mins || 120,
         is_featured: e.is_featured,
@@ -105,6 +107,7 @@ export async function GET(req: NextRequest) {
           short_name,
           description,
           difficulty,
+          level,
           question_count,
           time_limit_mins,
           is_featured,
@@ -120,7 +123,7 @@ export async function GET(req: NextRequest) {
         // Fallback without joins
         const flatSearch = await (supabase as any)
           .from('exams')
-          .select('id, name, slug, short_name, description, difficulty, question_count, time_limit_mins, is_featured, status')
+          .select('id, name, slug, short_name, description, difficulty, level, question_count, time_limit_mins, is_featured, status')
           .neq('status', 'archived')
           .or(`short_name.ilike.${rawQuery}%,name.ilike.${rawQuery}%,short_name.ilike.%${rawQuery}%,name.ilike.%${rawQuery}%,slug.ilike.%${querySlug}%`)
           .limit(60)
@@ -148,6 +151,7 @@ export async function GET(req: NextRequest) {
             short_name,
             description,
             difficulty,
+            level,
             question_count,
             time_limit_mins,
             is_featured,
@@ -214,6 +218,7 @@ export async function GET(req: NextRequest) {
           flag: dbExam.countries?.flag_emoji || '🇮🇳',
           description: dbExam.description || '',
           difficulty: dbExam.difficulty || 'Intermediate',
+      level: dbExam.level || null,
           question_count: dbExam.question_count || 100,
           time_limit_mins: dbExam.time_limit_mins || 120,
           is_featured: dbExam.is_featured,

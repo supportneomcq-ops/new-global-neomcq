@@ -210,6 +210,7 @@ export interface ExamResolutionResponse {
     name: string
     slug: string
     short_name?: string
+    level?: string | null
     description: string
     difficulty: string
     question_count: number | null
