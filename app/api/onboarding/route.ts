@@ -8,7 +8,7 @@ import { ensureCurrentStudyPlan } from '@/lib/study-plans/ensure-current-plan'
 export const maxDuration = 60;
 
 const onboardingSchema = z.object({
-  authId: z.string().optional(),
+  authId: z.string().uuid().nullable().optional(),
   firstName: z.string().min(1),
   lastName: z.string().optional(),
   email: z.string().email(),
@@ -327,7 +327,7 @@ export async function POST(req: NextRequest) {
       if (!planResult.plan) {
         console.error('[Onboarding] Personalized study plan is not ready:', planResult.message)
         return NextResponse.json(
-          { success: false, error: planResult.message || 'Your personalized study plan is not ready yet. Please retry onboarding.' },
+          { success: false, error: 'Your personalized study plan is not ready yet. Please retry onboarding.' },
           { status: 422 }
         )
       }
