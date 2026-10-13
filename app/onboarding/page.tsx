@@ -399,10 +399,6 @@ export default function OnboardingPage() {
         setFormError('Please select or search for the exam you are preparing for.');
         return false;
       }
-      if ((formData.isCustomExam || formData.customExamInput.trim()) && !formData.selectedExamCategory.trim()) {
-        setFormError('Please choose the department or exam category for your custom exam.');
-        return false;
-      }
     } else if (currentStep === 4) {
       if (!formData.examDate || daysLeft <= 0) {
         setFormError('Please choose a valid future official exam date.');
@@ -468,12 +464,21 @@ export default function OnboardingPage() {
       if (!res.ok || !data.success || !data.exam?.name || (!data.exam?.id && data.status !== 'NEW_EXAM')) {
         throw new Error(data.error || 'We could not verify this exam. Please choose a listed exam or try again.');
       }
+      if (data.status === 'NEW_EXAM' && !formData.selectedExamCategory.trim()) {
+        setResolvingStage(0);
+        setFormError('This exam is not in the catalog yet. Please choose its department or category so we can prepare the right curriculum.');
+        return;
+      }
 
       // A valid new exam is intentionally returned without an ID at this stage.
       // The authenticated onboarding API creates/resolves its canonical record and
       // curriculum after account creation. Do not block users on a null pre-creation ID.
-      const isNewExam = data.status === 'NEW_EXAM' || data.is_new || data.decision === 'NEW_EXAM_CREATED' || isCustom;
+      const isNewExam = data.status === 'NEW_EXAM' || data.is_new || data.decision === 'NEW_EXAM_CREATED';
       setResolvingExamType(isNewExam ? 'NEW_SYNTHESIS' : 'EXISTING');
+      if (!isNewExam) {
+        updateField('isCustomExam', false);
+        updateField('customExamInput', '');
+      }
 
       if (data.exam) {
         const ex = data.exam;
@@ -1163,10 +1168,10 @@ export default function OnboardingPage() {
                     <BadgeCheck className="w-3.5 h-3.5" /> Step 3: Exam Confirmation
                   </div>
                   <h1 className="text-xl sm:text-2xl font-heading font-extrabold tracking-tight">
-                    Confirm your Recognized Curriculum
+                    Confirm your Exam Details
                   </h1>
                   <p className="text-xs sm:text-sm text-slate-500 dark:text-gray-400">
-                    NeoMCQ has recognized your target examination and aligned its official syllabus structure.
+                    Your exam selection is ready. After you enter your exam date and study hours, NeoMCQ will prepare and validate the latest available curriculum.
                   </p>
                 </div>
 
@@ -1199,34 +1204,17 @@ export default function OnboardingPage() {
                     </div>
                   </div>
 
-                  {/* Canonical Structure Summary */}
-                  <div className="grid grid-cols-3 gap-2.5 pt-2">
-                    <div className="p-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-100 dark:border-gray-800 text-center">
-                      <Layers className="w-4 h-4 text-[#6D5BFF] mx-auto mb-1" />
-                      <div className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
-                        {formData.resolvedCurriculumSummary?.subjectCount ?? 0}
-                      </div>
-                      <div className="text-[10px] text-slate-400 uppercase font-bold">Subjects</div>
-                    </div>
-                    <div className="p-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-100 dark:border-gray-800 text-center">
-                      <FileText className="w-4 h-4 text-[#00D4FF] mx-auto mb-1" />
-                      <div className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
-                        {formData.resolvedCurriculumSummary?.topicCount ?? 0}
-                      </div>
-                      <div className="text-[10px] text-slate-400 uppercase font-bold">Topics</div>
-                    </div>
-                    <div className="p-3 rounded-2xl bg-white dark:bg-gray-900 border border-slate-100 dark:border-gray-800 text-center">
-                      <BookmarkCheck className="w-4 h-4 text-emerald-500 mx-auto mb-1" />
-                      <div className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
-                        {formData.resolvedCurriculumSummary?.subtopicCount ?? 0}
-                      </div>
-                      <div className="text-[10px] text-slate-400 uppercase font-bold">Subtopics</div>
+                  <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-start gap-3">
+                    <Layers className="w-5 h-5 text-[#6D5BFF] shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">Curriculum preparation is the next step</p>
+                      <p className="text-xs leading-relaxed text-slate-600 dark:text-gray-300">After you confirm your exam date and daily study hours, NeoMCQ will prepare and validate the latest available curriculum before completing account setup.</p>
                     </div>
                   </div>
 
                   <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 shrink-0" />
-                    <span>✓ Database-verified canonical syllabus & zero duplicate entity protection</span>
+                    <span>Exam details recognized. Curriculum validation starts during account setup.</span>
                   </div>
                 </div>
               </motion.div>
