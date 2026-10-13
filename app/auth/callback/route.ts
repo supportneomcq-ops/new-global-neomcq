@@ -28,11 +28,12 @@ export async function GET(request: NextRequest) {
 
       // Email links can be clicked while the signup tab is still preparing the exam.
       // Only enter the dashboard after all required onboarding records are present.
-      const { data: profile } = await supabase
+      const profileResult = (await supabase
         .from('profiles')
         .select('current_exam_id')
         .eq('id', user.id)
-        .maybeSingle()
+        .maybeSingle()) as unknown as { data: { current_exam_id: string | null } | null }
+      const profile = profileResult.data
 
       let onboardingComplete = false
       if (profile?.current_exam_id) {
