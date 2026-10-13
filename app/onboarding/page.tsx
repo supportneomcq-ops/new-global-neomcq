@@ -146,6 +146,7 @@ export default function OnboardingPage() {
   const [resolvingExamType, setResolvingExamType] = useState<'EXISTING' | 'NEW_SYNTHESIS'>('EXISTING');
   const [showPassword, setShowPassword] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [isAuthenticatedResume, setIsAuthenticatedResume] = useState(false);
 
   // Live database states
   const [dbCountries, setDbCountries] = useState<any[]>([]);
@@ -334,6 +335,48 @@ export default function OnboardingPage() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Resume setup if the user verified their email before onboarding finished.
+  useEffect(() => {
+    if (typeof window === 'undefined' || new URLSearchParams(window.location.search).get('resume') !== '1') return;
+    let cancelled = false;
+
+    const resumeVerifiedSignup = async () => {
+      try {
+        const supabase = getSupabaseClient();
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (error || !user || !user.email_confirmed_at || cancelled) return;
+
+        setIsAuthenticatedResume(true);
+        const metadata = user.user_metadata || {};
+        const hasSavedState = Boolean(localStorage.getItem(STORAGE_KEY));
+        const savedStep = Number(localStorage.getItem(CURRENT_STEP_KEY) || '1');
+        const rawPhone = typeof metadata.phone === 'string' ? metadata.phone : '';
+        const matchingPhoneCode = COUNTRY_CODES.map((item) => item.code).sort((a, b) => b.length - a.length).find((code) => rawPhone.startsWith(code));
+        const recoveredPhone = matchingPhoneCode ? rawPhone.slice(matchingPhoneCode.length) : '';
+
+        setFormData((prev) => ({
+          ...prev,
+          email: user.email || prev.email,
+          firstName: prev.firstName || metadata.first_name || metadata.firstName || '',
+          lastName: prev.lastName || metadata.last_name || metadata.lastName || '',
+          phone: prev.phone || recoveredPhone,
+          countryCode: prev.phone ? prev.countryCode : (matchingPhoneCode || prev.countryCode),
+          country: hasSavedState ? prev.country : (metadata.country || prev.country),
+          language: hasSavedState ? prev.language : (metadata.language || prev.language),
+          examSearchQuery: prev.examSearchQuery || metadata.exam || '',
+          password: '',
+        }));
+
+        if (!hasSavedState || savedStep < 2) setStep(2);
+      } catch {
+        console.warn('Unable to resume verified signup.');
+      }
+    };
+
+    void resumeVerifiedSignup();
+    return () => { cancelled = true; };
+  }, []);
+
   // Save progress on state change
   useEffect(() => {
     if (!isMounted) return;
@@ -386,7 +429,7 @@ export default function OnboardingPage() {
         setFormError('Please enter a valid email address.');
         return false;
       }
-      if (!formData.password || formData.password.length < 8) {
+      if (!isAuthenticatedResume && (!formData.password || formData.password.length < 8)) {
         setFormError('Please create a secure password of at least 8 characters.');
         return false;
       }
@@ -595,8 +638,12 @@ export default function OnboardingPage() {
       // failed curriculum/setup attempt can resume without a duplicate-signup error.
       let authData: { user: { id: string; email_confirmed_at?: string | null } | null; session: unknown } | null = null;
       const pendingAuthId = localStorage.getItem('neomcq_pending_auth_id');
+      const { data: { user: currentAuthUser } } = await supabase.auth.getUser();
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
 
-      if (pendingAuthId) {
+      if (currentAuthUser && currentSession) {
+        authData = { user: currentAuthUser, session: currentSession };
+      } else if (pendingAuthId) {
         authData = {
           user: { id: pendingAuthId, email_confirmed_at: null },
           session: null,
@@ -668,7 +715,7 @@ export default function OnboardingPage() {
           firstName: formData.firstName,
           lastName: formData.lastName,
           email: formData.email,
-          phone: `${formData.countryCode}${formData.phone}`,
+          phone: formData.phone.trim() ? `${formData.countryCode}${formData.phone}` : '',
           country: formData.country,
           language: formData.language,
           examName: formData.selectedExamName,
@@ -883,6 +930,7 @@ export default function OnboardingPage() {
                         type="email"
                         required
                         value={formData.email}
+                        readOnly={isAuthenticatedResume}
                         onChange={(e) => updateField('email', e.target.value)}
                         placeholder="sarah.connor@university.edu"
                         className="w-full pl-11 pr-4 py-3 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-inner text-slate-900 dark:text-white"
@@ -890,6 +938,7 @@ export default function OnboardingPage() {
                     </div>
                   </div>
 
+                  {!isAuthenticatedResume && (
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">
                       Secure Password <span className="text-rose-500">*</span>
@@ -913,6 +962,7 @@ export default function OnboardingPage() {
                       </button>
                     </div>
                   </div>
+                  )}
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">

@@ -27,10 +27,14 @@ function VerifyEmailInner() {
     
     const interval = setInterval(async () => {
       try {
-        // Refresh session to get updated email_confirmed_at state from token
+        // Email-confirmation signup normally has no session until the link is opened.
+        // Check locally first so polling does not repeatedly trigger missing-session errors.
+        const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError || !currentSession) return;
+
         const { data: { session }, error } = await supabase.auth.refreshSession();
         if (error) {
-          console.warn('Session refresh during email verification polling:', error.message);
+          console.warn('Session refresh during email verification polling failed.');
           return;
         }
 
@@ -75,7 +79,10 @@ function VerifyEmailInner() {
 
       setResendMessage('A fresh verification link has been successfully dispatched.');
     } catch (err: any) {
-      setResendMessage(err?.message || 'Failed to dispatch verification email. Please retry.');
+      const message = String(err?.message || '').toLowerCase();
+      setResendMessage(message.includes('rate limit') || message.includes('too many')
+        ? 'Please wait a few minutes before requesting another verification email.'
+        : 'We could not resend the verification email right now. Please try again in a moment.');
     } finally {
       setResending(false);
     }
@@ -87,11 +94,15 @@ function VerifyEmailInner() {
 
     try {
       const supabase = getSupabaseClient();
-      const { data: { session }, error } = await supabase.auth.refreshSession();
-
-      if (error) {
-        throw error;
+      const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!currentSession) {
+        setCheckMessage('No active session is available in this browser. Open the latest verification link here, or sign in if you verified on another device.');
+        return;
       }
+
+      const { data: { session }, error } = await supabase.auth.refreshSession();
+      if (error) throw error;
 
       if (session?.user?.email_confirmed_at) {
         setIsVerified(true);
@@ -102,8 +113,8 @@ function VerifyEmailInner() {
       } else {
         setCheckMessage('Email is not confirmed yet. Please verify your inbox and spam folders.');
       }
-    } catch (err: any) {
-      setCheckMessage(err?.message || 'Could not verify status. Please ensure you clicked the link.');
+    } catch {
+      setCheckMessage('We could not check verification status right now. Please open the latest verification link or try again in a moment.');
     } finally {
       setChecking(false);
     }

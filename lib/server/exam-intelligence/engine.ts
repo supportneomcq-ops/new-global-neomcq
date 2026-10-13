@@ -1047,7 +1047,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
   const querySlug = norm.slug.toLowerCase()
 
   // Concurrency deduplication: Coalesce concurrent requests for the exact same query
-  const idempotencyKey = `${cleanQuery}::${(country || '').toLowerCase()}::${(category || '').toLowerCase()}::${(level || '').toLowerCase()}`
+  const idempotencyKey = `${cleanQuery}::${(country || '').toLowerCase()}::${(category || '').toLowerCase()}`
   if (inFlightResolutions.has(idempotencyKey)) {
     console.log(`[Exam Intelligence] Concurrent resolution in flight for "${rawInput}". Joining existing Promise...`)
     return inFlightResolutions.get(idempotencyKey)!
