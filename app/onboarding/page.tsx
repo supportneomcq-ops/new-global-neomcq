@@ -85,7 +85,7 @@ interface OnboardingState {
 
   // Step 4: Study Information
   examDate: string;
-  learningStyle: 'Rapid Learning' | 'Balanced Study';
+  learningStyle: 'Rapid Learning' | 'Regular Study' | 'Balanced Study';
   studyHours: number;
   studyTime: 'Morning' | 'Afternoon' | 'Evening' | 'Night' | 'Flexible';
   studyGoals: string[];
@@ -652,7 +652,7 @@ export default function OnboardingPage() {
           examId: formData.selectedExamId || null,
           examDate: formData.examDate,
           daysLeft,
-          learningStyle: formData.learningStyle === 'Rapid Learning' ? 'rapid' : 'balanced',
+          learningStyle: formData.learningStyle === 'Rapid Learning' ? 'rapid' : formData.learningStyle === 'Regular Study' ? 'mastery' : 'balanced',
           studyHours: formData.studyHours,
           studyTime: dbPreferredTime,
           studyGoals: formData.studyGoals,
@@ -1258,7 +1258,7 @@ export default function OnboardingPage() {
                   </div>
 
                   {/* Learning Mode */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <button
                       type="button"
                       onClick={() => updateField('learningStyle', 'Balanced Study')}
@@ -1273,6 +1273,23 @@ export default function OnboardingPage() {
                       </div>
                       <p className="text-[11px] text-slate-400 mt-1 leading-snug">
                         Spaced repetition & continuous concept mastery.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => updateField('learningStyle', 'Regular Study')}
+                      className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                        formData.learningStyle === 'Regular Study'
+                          ? 'border-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-500'
+                          : 'border-slate-200 dark:border-gray-800 bg-slate-50 dark:bg-gray-900'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold text-xs">
+                        <BookOpen className="w-3.5 h-3.5" /> Regular Study
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-1 leading-snug">
+                        A steady daily routine with structured practice and revision.
                       </p>
                     </button>
 
