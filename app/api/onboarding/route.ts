@@ -286,7 +286,12 @@ export async function POST(req: NextRequest) {
       }
 
       // Map learningStyle selection
-      const mappedLearningMode = (learningStyle === 'Rapid Learning' || learningStyle === 'rapid') ? 'rapid' : 'balanced'
+      const normalizedLearningStyle = (learningStyle || '').toLowerCase()
+      const mappedLearningMode = normalizedLearningStyle === 'rapid learning' || normalizedLearningStyle === 'rapid'
+        ? 'rapid'
+        : normalizedLearningStyle === 'regular study' || normalizedLearningStyle === 'regular' || normalizedLearningStyle === 'mastery'
+          ? 'mastery'
+          : 'balanced'
 
       // 4. Update Study Preferences
       const { error: preferencesError } = await (admin as any).from('study_preferences').upsert({
