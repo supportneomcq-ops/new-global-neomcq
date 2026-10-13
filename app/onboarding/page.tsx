@@ -761,10 +761,10 @@ export default function OnboardingPage() {
 
           <div className="flex items-center gap-3">
             <span className="text-xs font-heading font-extrabold px-3 py-1 rounded-full bg-[#6D5BFF]/10 text-[#6D5BFF] dark:text-[#00D4FF] border border-[#6D5BFF]/25">
-              Step {step} of 6
+              Step {Math.min(step, 5)} of 5
             </span>
             <span className="text-xs text-slate-400 font-semibold hidden sm:inline">
-              {Math.round((step / 6) * 100)}% Complete
+              {Math.round((Math.min(step, 5) / 5) * 100)}% Complete
             </span>
           </div>
         </div>
@@ -774,7 +774,7 @@ export default function OnboardingPage() {
           <motion.div
             className="h-full bg-gradient-to-r from-[#6D5BFF] via-[#00D4FF] to-[#A855F7]"
             initial={{ width: '16.6%' }}
-            animate={{ width: `${(step / 6) * 100}%` }}
+            animate={{ width: `${(Math.min(step, 5) / 5) * 100}%` }}
             transition={{ duration: 0.35, ease: 'easeInOut' }}
           />
         </div>
