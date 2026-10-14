@@ -60,10 +60,23 @@ export async function GET(request: NextRequest) {
             .maybeSingle(),
         ])
 
+        // The generated Supabase types for these legacy tables are incomplete.
+        // Narrow the response shapes explicitly so the production TypeScript build
+        // validates the onboarding checks instead of inferring the row as never.
+        const userExam = userExamResult as unknown as {
+          data: { target_date: string | null } | null
+        }
+        const preferences = preferencesResult as unknown as {
+          data: { user_id: string } | null
+        }
+        const activePlan = planResult as unknown as {
+          data: { id: string } | null
+        }
+
         onboardingComplete = Boolean(
-          userExamResult.data?.target_date &&
-          preferencesResult.data?.user_id &&
-          planResult.data?.id
+          userExam.data?.target_date &&
+          preferences.data?.user_id &&
+          activePlan.data?.id
         )
       }
 
