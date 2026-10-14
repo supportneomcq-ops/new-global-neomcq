@@ -685,8 +685,23 @@ export default function OnboardingPage() {
           return;
         }
 
+        // Supabase may intentionally return a successful-looking signup response with
+        // an empty identities array when this email already belongs to an account.
+        // Stop here instead of attempting onboarding with a missing/ambiguous user.
+        if (createdAuthData.user && Array.isArray(createdAuthData.user.identities) && createdAuthData.user.identities.length === 0) {
+          setFormError('An account may already exist with this email. Please sign in or reset your password.');
+          setStep(1);
+          return;
+        }
+
+        if (!createdAuthData.user?.id) {
+          setFormError('We could not create your account. Please try again, or sign in if you already registered.');
+          setStep(1);
+          return;
+        }
+
         authData = createdAuthData;
-        if (createdAuthData.user?.id && !createdAuthData.user.email_confirmed_at) {
+        if (createdAuthData.user.id && !createdAuthData.user.email_confirmed_at) {
           localStorage.setItem('neomcq_pending_auth_id', createdAuthData.user.id);
         }
       }
