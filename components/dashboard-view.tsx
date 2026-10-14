@@ -68,10 +68,11 @@ export function DashboardView({ user, onSignOut, onOpenPractice, onUpdateProfile
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#060914] text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#070B19] text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors">
       {/* 1. Unified Workspace Header */}
       <WorkspaceHeader
         user={user}
+        activeTab={activeTab}
         streakDays={streakDays}
         completedHours={completedHours}
         onSignOut={onSignOut}
@@ -79,13 +80,16 @@ export function DashboardView({ user, onSignOut, onOpenPractice, onUpdateProfile
           setProfileTab((tab as UserProfileTab) || 'profile');
           setIsProfileOpen(true);
         }}
+        onSelectTab={handleSelectTab}
+        onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        isSidebarCollapsed={isSidebarCollapsed}
         onOpenExamSwitch={() => setIsExamSwitchModalOpen(true)}
         onOpenAddTopic={() => setIsAddTopicModalOpen(true)}
         onOpenDiscoverExam={() => setIsCreateStudyModalOpen(true)}
       />
 
       {/* 2. Workspace Body (Sidebar + Content Canvas) */}
-      <div className="flex-1 flex w-full max-w-7xl mx-auto">
+      <div className="flex-1 flex w-full max-w-[1536px] mx-auto">
         {/* Desktop / Tablet Sidebar */}
         <WorkspaceSidebar
           activeTab={activeTab}
@@ -95,10 +99,12 @@ export function DashboardView({ user, onSignOut, onOpenPractice, onUpdateProfile
           questionCount={content?.mcqs?.length}
           quizCount={content?.quiz_a?.length}
           flashcardCount={content?.flashcards?.length}
+          user={user}
+          onOpenExamSwitch={() => setIsExamSwitchModalOpen(true)}
         />
 
         {/* Dynamic Main Workspace Content */}
-        <main className="flex-1 p-3.5 sm:p-5 lg:p-6 pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-6 min-w-0 space-y-4 sm:space-y-5">
+        <main className="flex-1 p-3.5 sm:p-5 lg:p-7 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-8 min-w-0 space-y-4 sm:space-y-6">
           {/* Unified Subject & Topic selection bar rendered across all learning tabs */}
           {activeTab !== 'dashboard' && activeTab !== 'radar' && activeTab !== 'plan' && activeTab !== 'saved' && (
             <LearningContextBar onShowClick={() => handleSelectTab('dashboard')} />

@@ -9,7 +9,6 @@ import {
   FileText,
   StickyNote,
   Puzzle,
-  Video,
   TrendingUp,
   Calendar,
   Bookmark,
@@ -17,27 +16,20 @@ import {
   ChevronRight,
   Sparkles,
 } from 'lucide-react';
-import { WorkspaceTab } from './types';
+import { WorkspaceTab, StudySubTab } from './types';
+import { useSelection } from '@/lib/context/selection-context';
+import { OnboardingData } from '@/components/onboarding-flow';
 
 interface WorkspaceSidebarProps {
   activeTab: WorkspaceTab;
-  onSelectTab: (tab: WorkspaceTab) => void;
+  onSelectTab: (tab: WorkspaceTab, subTab?: StudySubTab) => void;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   questionCount?: number;
   quizCount?: number;
   flashcardCount?: number;
-}
-
-interface NavSection {
-  label: string;
-  items: Array<{
-    id: WorkspaceTab;
-    label: string;
-    icon: React.ComponentType<{ className?: string }>;
-    badge?: string | number | null;
-    badgeStyle?: string;
-  }>;
+  user?: OnboardingData;
+  onOpenExamSwitch?: () => void;
 }
 
 export function WorkspaceSidebar({
@@ -45,190 +37,170 @@ export function WorkspaceSidebar({
   onSelectTab,
   isCollapsed,
   onToggleCollapse,
-  questionCount,
-  quizCount,
-  flashcardCount,
+  user,
+  onOpenExamSwitch,
 }: WorkspaceSidebarProps) {
-  const sections: NavSection[] = [
+  const { selection } = useSelection();
+
+  const navItems = [
     {
-      label: 'Core Workspace',
-      items: [
-        {
-          id: 'dashboard',
-          label: 'Dashboard',
-          icon: LayoutDashboard,
-          badge: null,
-        },
-        {
-          id: 'practice',
-          label: 'MCQ Practice',
-          icon: BrainCircuit,
-          badge: questionCount && questionCount > 0 ? questionCount : null,
-          badgeStyle: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
-        },
-        {
-          id: 'quizzes',
-          label: 'Formal Quizzes',
-          icon: Target,
-          badge: quizCount && quizCount > 0 ? quizCount : null,
-          badgeStyle: 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
-        },
-      ],
+      id: 'dashboard' as WorkspaceTab,
+      label: 'Dashboard',
+      icon: LayoutDashboard,
     },
     {
-      label: 'Active Recall & Notes',
-      items: [
-        {
-          id: 'flashcards',
-          label: 'Flashcards',
-          icon: Layers,
-          badge: flashcardCount && flashcardCount > 0 ? flashcardCount : null,
-          badgeStyle: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-        },
-        {
-          id: 'notes',
-          label: 'Notes (A4)',
-          icon: FileText,
-          badge: null,
-        },
-        {
-          id: 'sticky',
-          label: 'Sticky Board',
-          icon: StickyNote,
-          badge: null,
-        },
-        {
-          id: 'blanks',
-          label: 'Fill in Blanks',
-          icon: Puzzle,
-          badge: null,
-        },
-      ],
+      id: 'practice' as WorkspaceTab,
+      label: 'Practice MCQs',
+      icon: BrainCircuit,
     },
     {
-      label: 'Performance & Plan',
-      items: [
-        {
-          id: 'tutor',
-          label: 'AI Tutor',
-          icon: Video,
-          badge: 'Interactive',
-          badgeStyle: 'bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold',
-        },
-        {
-          id: 'radar',
-          label: 'Weakness Radar',
-          icon: TrendingUp,
-          badge: null,
-        },
-        {
-          id: 'plan',
-          label: 'Study Plan',
-          icon: Calendar,
-          badge: null,
-        },
-        {
-          id: 'saved',
-          label: 'Saved Bookmarks',
-          icon: Bookmark,
-          badge: null,
-        },
-      ],
+      id: 'quizzes' as WorkspaceTab,
+      label: 'Quizzes',
+      icon: Target,
+    },
+    {
+      id: 'flashcards' as WorkspaceTab,
+      label: 'Flashcards',
+      icon: Layers,
+    },
+    {
+      id: 'notes' as WorkspaceTab,
+      label: 'Study Notes',
+      icon: FileText,
+    },
+    {
+      id: 'sticky' as WorkspaceTab,
+      label: 'Sticky Notes',
+      icon: StickyNote,
+    },
+    {
+      id: 'blanks' as WorkspaceTab,
+      label: 'Fill in the Blanks',
+      icon: Puzzle,
+    },
+    {
+      id: 'tutor' as WorkspaceTab,
+      label: 'AI Tutor',
+      icon: Sparkles,
+      hasAiBadge: true,
+    },
+    {
+      id: 'plan' as WorkspaceTab,
+      label: 'Study Plan',
+      icon: Calendar,
+    },
+    {
+      id: 'radar' as WorkspaceTab,
+      label: 'Analytics',
+      icon: TrendingUp,
+    },
+    {
+      id: 'saved' as WorkspaceTab,
+      label: 'Bookmarks',
+      icon: Bookmark,
     },
   ];
 
+  const examName = selection.exam?.name || user?.examName || 'AWS Certified Solutions Architect Associate';
+
   return (
     <aside
-      className={`hidden md:flex flex-col justify-between border-r border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-[#070b18] transition-all duration-300 ${
+      className={`hidden lg:flex flex-col justify-between border-r border-slate-200/80 dark:border-slate-800 bg-white dark:bg-[#0E1324] transition-all duration-300 ${
         isCollapsed ? 'w-20' : 'w-64'
-      } shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto neo-scrollbar`}
+      } shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto neo-scrollbar select-none z-30`}
     >
       {/* Top Nav List */}
-      <div className="p-3 space-y-5">
-        {/* Collapse toggle row */}
-        <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} px-2 py-1`}>
-          {!isCollapsed && (
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-              Workspace
-            </span>
-          )}
+      <div className="p-3 space-y-1">
+        {/* Collapse button row */}
+        <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-end'} px-1 pb-1`}>
           <button
             type="button"
             onClick={onToggleCollapse}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors cursor-pointer"
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
         </div>
 
-        {/* Navigation Sections */}
-        {sections.map((section, sIdx) => (
-          <div key={sIdx} className="space-y-1">
-            {!isCollapsed && (
-              <div className="px-2.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                {section.label}
-              </div>
-            )}
-            <div className="space-y-0.5">
-              {section.items.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeTab === item.id;
+        {/* Primary 11 Navigation Items */}
+        <div className="space-y-1">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
 
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => onSelectTab(item.id)}
-                    className={`w-full flex items-center ${
-                      isCollapsed ? 'justify-center px-2' : 'justify-between px-3'
-                    } py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer relative group ${
-                      isActive
-                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/25'
-                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900/80 hover:text-slate-900 dark:hover:text-white'
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onSelectTab(item.id)}
+                className={`w-full flex items-center ${
+                  isCollapsed ? 'justify-center px-2' : 'justify-between px-3.5'
+                } py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer relative group ${
+                  isActive
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title={isCollapsed ? item.label : undefined}
+              >
+                <div className="flex items-center gap-3 truncate">
+                  <Icon
+                    className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-105 ${
+                      isActive ? 'text-white' : 'text-slate-400 dark:text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200'
                     }`}
-                    title={isCollapsed ? item.label : undefined}
-                  >
-                    <div className="flex items-center gap-3 truncate">
-                      <Icon
-                        className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-105 ${
-                          isActive ? 'text-white' : 'text-slate-400 dark:text-slate-500'
-                        }`}
-                      />
-                      {!isCollapsed && (
-                        <span className="truncate font-semibold tracking-tight">{item.label}</span>
-                      )}
-                    </div>
+                  />
+                  {!isCollapsed && (
+                    <span className="truncate tracking-tight">{item.label}</span>
+                  )}
+                </div>
 
-                    {!isCollapsed && item.badge && (
-                      <span
-                        className={`text-[10px] px-2 py-0.5 rounded-md font-extrabold shrink-0 ${
-                          isActive
-                            ? 'bg-white/20 text-white'
-                            : item.badgeStyle || 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                        }`}
-                      >
-                        {item.badge}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+                {!isCollapsed && item.hasAiBadge && (
+                  <span
+                    className={`text-[9px] px-1.5 py-0.5 rounded-md font-bold uppercase shrink-0 ${
+                      isActive
+                        ? 'bg-white/20 text-white'
+                        : 'bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-800/50'
+                    }`}
+                  >
+                    AI
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Footer info in sidebar */}
-      {!isCollapsed && (
-        <div className="p-3.5 m-3 rounded-2xl bg-gradient-to-br from-indigo-50 to-slate-100 dark:from-slate-900/90 dark:to-indigo-950/30 border border-slate-200/80 dark:border-slate-800/80 text-xs">
-          <div className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-bold">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>High-Yield Engine</span>
+      {/* Bottom Section: My Exam Card with Change Button */}
+      {!isCollapsed ? (
+        <div className="p-3 border-t border-slate-200/80 dark:border-slate-800">
+          <div className="p-3.5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400 block">
+              My Exam
+            </span>
+            <p className="text-xs font-bold text-slate-900 dark:text-white mt-1 leading-snug line-clamp-2">
+              {examName}
+            </p>
+            <button
+              type="button"
+              onClick={onOpenExamSwitch}
+              className="mt-3 w-full py-1.5 px-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-slate-700 transition-colors cursor-pointer text-center block shadow-2xs"
+            >
+              Change
+            </button>
           </div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
-            Adaptive active recall with syllabus-synced blueprint.
-          </p>
+        </div>
+      ) : (
+        <div className="p-2 border-t border-slate-200/80 dark:border-slate-800 flex justify-center">
+          <button
+            type="button"
+            onClick={onOpenExamSwitch}
+            className="p-2 rounded-xl text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+            title={`Active Exam: ${examName} (Click to change)`}
+          >
+            <BrainCircuit className="w-5 h-5" />
+          </button>
         </div>
       )}
     </aside>

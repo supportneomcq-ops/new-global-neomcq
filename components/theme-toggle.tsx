@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useTheme } from 'next-themes';
-import { Sun, Moon, Sparkles, LucideIcon } from 'lucide-react';
+import { Sun, Moon } from 'lucide-react';
 import { motion } from 'motion/react';
 
 const emptySubscribe = () => () => {};
@@ -15,59 +15,48 @@ function useMounted() {
   );
 }
 
-interface ThemeOption {
-  id: 'light' | 'dark' | 'system';
-  label: string;
-  icon: LucideIcon;
-}
-
-export function ThemeToggle() {
-  const { theme, setTheme } = useTheme();
+export function ThemeToggle({ className = '' }: { className?: string }) {
+  const { resolvedTheme, setTheme } = useTheme();
   const mounted = useMounted();
 
   if (!mounted) {
     return (
-      <div className="w-24 h-8 rounded-full bg-slate-200/50 dark:bg-gray-800/50 border border-slate-300/40 dark:border-gray-700/40 animate-pulse" />
+      <div className={`w-14 h-7 rounded-full bg-slate-200/60 dark:bg-slate-800/60 animate-pulse ${className}`} />
     );
   }
 
-  const options: ThemeOption[] = [
-    { id: 'light', label: 'Light', icon: Sun },
-    { id: 'dark', label: 'Dark', icon: Moon },
-    { id: 'system', label: 'Auto', icon: Sparkles },
-  ];
+  const isDark = resolvedTheme === 'dark';
+
+  const toggleTheme = () => {
+    setTheme(isDark ? 'light' : 'dark');
+  };
 
   return (
-    <div className="relative flex items-center p-1 rounded-full bg-slate-200/80 dark:bg-[#0E1324]/90 border border-slate-300/80 dark:border-[#6D5BFF]/30 backdrop-blur-md shadow-inner">
-      {options.map((option) => {
-        const isActive = theme === option.id;
-        const Icon = option.icon;
+    <button
+      type="button"
+      onClick={toggleTheme}
+      className={`relative flex items-center justify-between w-14 h-7 p-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer select-none ${className}`}
+      title={isDark ? 'Switch to Light mode' : 'Switch to Dark mode'}
+      aria-label="Toggle visual theme"
+    >
+      {/* Sun icon on left */}
+      <span className="flex items-center justify-center w-6 h-6 text-amber-500 z-10 transition-opacity">
+        <Sun className="w-3.5 h-3.5" />
+      </span>
 
-        return (
-          <button
-            key={option.id}
-            onClick={() => setTheme(option.id)}
-            className={`relative flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full transition-colors duration-200 z-10 cursor-pointer ${
-              isActive
-                ? 'text-slate-900 dark:text-white font-bold'
-                : 'text-slate-600 hover:text-slate-900 dark:text-gray-400 dark:hover:text-gray-200'
-            }`}
-            title={`Switch to ${option.label} theme`}
-            aria-label={`Switch to ${option.label} theme`}
-          >
-            <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+      {/* Moon icon on right */}
+      <span className="flex items-center justify-center w-6 h-6 text-indigo-400 z-10 transition-opacity">
+        <Moon className="w-3.5 h-3.5" />
+      </span>
 
-            {isActive && (
-              <motion.div
-                layoutId="theme-active-indicator"
-                className="absolute inset-0 bg-white dark:bg-[#6D5BFF] rounded-full shadow-md -z-10"
-                transition={{ type: 'spring', stiffness: 450, damping: 32 }}
-              />
-            )}
-          </button>
-        );
-      })}
-    </div>
+      {/* Sliding purple thumb */}
+      <motion.div
+        layout
+        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+        className={`absolute top-0.5 bottom-0.5 w-6 h-6 rounded-full bg-indigo-600 shadow-sm ${
+          isDark ? 'right-0.5' : 'left-0.5'
+        }`}
+      />
+    </button>
   );
 }
-

@@ -482,3 +482,16 @@ body { background-image:radial-gradient(ellipse at 5% 0%,rgba(109,91,255,.075),t
   background: rgba(255, 255, 255, 0.25);
 }
 
+@keyframes bounce-subtle {
+  0%, 100% {
+    transform: translateY(0) rotate(2deg);
+  }
+  50% {
+    transform: translateY(-4px) rotate(2.5deg);
+  }
+}
+
+.animate-bounce-subtle {
+  animation: bounce-subtle 3s ease-in-out infinite;
+}
+
