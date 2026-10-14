@@ -8,58 +8,45 @@ import React from 'react';
  */
 export function StudentBannerIllustration({ className = '' }: { className?: string }) {
   return (
-    <div className={`relative select-none flex items-end justify-center ${className}`}>
-      {/* Speech bubble: "Small Steps Big Results!" */}
-      <div className="absolute -top-3 sm:-top-5 right-2 sm:right-6 z-20 animate-bounce-subtle pointer-events-none">
-        <div className="relative bg-white/95 dark:bg-slate-800/95 shadow-md border border-indigo-100 dark:border-indigo-900/60 rounded-2xl px-3 py-1.5 sm:px-4 sm:py-2 transform rotate-2">
-          <span className="font-heading font-extrabold text-[11px] sm:text-xs text-indigo-700 dark:text-indigo-300 tracking-tight block leading-tight">
-            Small Steps
-          </span>
-          <span className="font-heading font-black text-xs sm:text-sm text-indigo-900 dark:text-white tracking-tight block leading-tight">
-            Big Results! ✨
-          </span>
-          {/* Speech bubble tail pointer */}
-          <div className="absolute -bottom-1.5 left-4 w-3 h-3 bg-white/95 dark:bg-slate-800/95 border-b border-r border-indigo-100 dark:border-indigo-900/60 transform rotate-45" />
-        </div>
-      </div>
-
+    <div className={`relative select-none flex items-center justify-center shrink-0 ${className}`}>
       <svg
-        viewBox="0 0 320 260"
+        viewBox="0 0 270 145"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
-        className="w-full h-auto max-h-[220px] drop-shadow-lg"
+        className="w-full h-auto max-h-[140px] drop-shadow-sm select-none"
       >
         <defs>
           <linearGradient id="hoodieGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#7C3AED" />
-            <stop offset="60%" stopColor="#6366F1" />
-            <stop offset="100%" stopColor="#4F46E5" />
+            <stop offset="0%" stopColor="#8B5CF6" />
+            <stop offset="50%" stopColor="#7C3AED" />
+            <stop offset="100%" stopColor="#6366F1" />
           </linearGradient>
 
           <linearGradient id="laptopGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#E2E8F0" />
+            <stop offset="0%" stopColor="#F1F5F9" />
             <stop offset="100%" stopColor="#94A3B8" />
           </linearGradient>
 
           <linearGradient id="skinGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#FBD5B5" />
-            <stop offset="100%" stopColor="#F5B98A" />
+            <stop offset="0%" stopColor="#FCD34D" />
+            <stop offset="60%" stopColor="#FDBA74" />
+            <stop offset="100%" stopColor="#F59E0B" />
           </linearGradient>
 
           <linearGradient id="hairGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#37271E" />
+            <stop offset="0%" stopColor="#3E2723" />
             <stop offset="100%" stopColor="#1E1713" />
           </linearGradient>
 
           <linearGradient id="deskGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#CBD5E1" />
-            <stop offset="50%" stopColor="#E2E8F0" />
-            <stop offset="100%" stopColor="#CBD5E1" />
+            <stop offset="0%" stopColor="#E2E8F0" />
+            <stop offset="50%" stopColor="#F8FAFC" />
+            <stop offset="100%" stopColor="#E2E8F0" />
           </linearGradient>
 
           <linearGradient id="book1Grad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#EF4444" />
-            <stop offset="100%" stopColor="#DC2626" />
+            <stop offset="0%" stopColor="#F43F5E" />
+            <stop offset="100%" stopColor="#E11D48" />
           </linearGradient>
 
           <linearGradient id="book2Grad" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -67,138 +54,198 @@ export function StudentBannerIllustration({ className = '' }: { className?: stri
             <stop offset="100%" stopColor="#2563EB" />
           </linearGradient>
 
-          <linearGradient id="plantGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <linearGradient id="book3Grad" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="#10B981" />
             <stop offset="100%" stopColor="#059669" />
           </linearGradient>
 
-          <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="6" result="blur" />
+          <linearGradient id="plantGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#34D399" />
+            <stop offset="100%" stopColor="#059669" />
+          </linearGradient>
+
+          <filter id="softAmbient" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="8" result="blur" />
             <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+
+          <filter id="bubbleDrop" x="-15%" y="-20%" width="130%" height="150%">
+            <feDropShadow dx="0" dy="2" stdDeviation="2.5" floodColor="#312E81" floodOpacity="0.08" />
           </filter>
         </defs>
 
-        {/* Ambient Back Glow */}
-        <circle cx="190" cy="120" r="85" fill="#6366F1" opacity="0.14" filter="url(#softGlow)" />
+        {/* Ambient Back Glow for depth */}
+        <circle cx="140" cy="78" r="54" fill="#818CF8" opacity="0.16" filter="url(#softAmbient)" />
 
         {/* Study Desk surface */}
-        <rect x="20" y="220" width="280" height="14" rx="7" fill="url(#deskGrad)" />
-        <rect x="25" y="234" width="270" height="4" rx="2" fill="#94A3B8" opacity="0.4" />
+        <rect x="10" y="128" width="250" height="9" rx="4.5" fill="url(#deskGrad)" stroke="#CBD5E1" strokeWidth="0.8" />
+        <rect x="18" y="137" width="234" height="2.5" rx="1.25" fill="#94A3B8" opacity="0.3" />
 
-        {/* Stack of Books on Desk (Right side) */}
-        <g transform="translate(225, 175)">
-          {/* Bottom Book */}
-          <rect x="0" y="32" width="60" height="12" rx="3" fill="url(#book1Grad)" />
-          <rect x="4" y="35" width="52" height="6" rx="1.5" fill="#FEE2E2" />
-          {/* Middle Book */}
-          <rect x="4" y="20" width="54" height="11" rx="3" fill="url(#book2Grad)" />
-          <rect x="8" y="23" width="46" height="5" rx="1.5" fill="#DBEAFE" />
-          {/* Top Book (open/angled) */}
-          <rect x="8" y="9" width="48" height="10" rx="3" fill="#10B981" />
-          <rect x="12" y="12" width="40" height="4" rx="1" fill="#D1FAE5" />
+        {/* Stack of 3 Books on Desk (Right side) */}
+        <g transform="translate(176, 96)">
+          {/* Bottom Book (Rose) */}
+          <rect x="0" y="21" width="46" height="10" rx="2" fill="url(#book1Grad)" />
+          <rect x="3" y="23" width="40" height="6" rx="1" fill="#FFE4E6" />
+          {/* Middle Book (Blue) */}
+          <rect x="3" y="11" width="42" height="9" rx="2" fill="url(#book2Grad)" />
+          <rect x="6" y="13" width="36" height="5" rx="1" fill="#DBEAFE" />
+          {/* Top Book (Emerald) */}
+          <rect x="6" y="2" width="38" height="8.5" rx="1.5" fill="url(#book3Grad)" />
+          <rect x="9" y="4" width="32" height="4.5" rx="0.8" fill="#D1FAE5" />
         </g>
 
-        {/* Potted Plant behind books */}
-        <g transform="translate(270, 140)">
-          {/* Pot */}
-          <path d="M6 35 L24 35 L21 54 L9 54 Z" fill="#F97316" />
-          <rect x="4" y="32" width="22" height="4" rx="2" fill="#EA580C" />
-          {/* Plant Leaves */}
-          <path d="M15 32 C12 22 2 24 6 12 C14 16 16 26 15 32 Z" fill="url(#plantGrad)" />
-          <path d="M15 32 C18 20 28 22 24 10 C16 14 14 24 15 32 Z" fill="#34D399" />
-          <path d="M15 32 C15 16 10 8 15 2 C20 8 16 18 15 32 Z" fill="url(#plantGrad)" />
+        {/* Small Potted Plant next to books */}
+        <g transform="translate(228, 92)">
+          {/* Terracotta Pot */}
+          <path d="M4 22 L20 22 L18 36 L6 36 Z" fill="#F97316" />
+          <rect x="2" y="20" width="20" height="3" rx="1.2" fill="#EA580C" />
+          {/* Fresh Green Succulent Leaves */}
+          <path d="M12 20 C9 13 1 15 4 6 C10 9 12 16 12 20 Z" fill="url(#plantGrad)" />
+          <path d="M12 20 C15 12 23 14 20 5 C14 8 12 15 12 20 Z" fill="#34D399" />
+          <path d="M12 20 C12 8 8 3 12 0 C16 3 13 9 12 20 Z" fill="url(#plantGrad)" />
         </g>
 
         {/* Student Body (Purple Hoodie) */}
-        <g transform="translate(100, 70)">
+        <g transform="translate(90, 36)">
           {/* Torso & Shoulders */}
           <path
-            d="M20 150 C20 115 42 100 80 100 C118 100 140 115 140 150 Z"
+            d="M8 92 C8 62 26 48 50 48 C74 48 92 62 92 92 Z"
             fill="url(#hoodieGrad)"
           />
 
-          {/* Hoodie Collar & Drawstrings */}
+          {/* Hoodie Cowl / Collar */}
           <path
-            d="M58 100 C68 118 92 118 102 100 Z"
-            fill="#4338CA"
+            d="M34 50 C40 64 60 64 66 50 Z"
+            fill="#5B21B6"
           />
-          <line x1="72" y1="108" x2="70" y2="128" stroke="#E0E7FF" strokeWidth="2.5" strokeLinecap="round" />
-          <line x1="88" y1="108" x2="90" y2="128" stroke="#E0E7FF" strokeWidth="2.5" strokeLinecap="round" />
+          {/* White Drawstrings */}
+          <line x1="43" y1="54" x2="41" y2="70" stroke="#FFFFFF" strokeWidth="1.8" strokeLinecap="round" />
+          <line x1="57" y1="54" x2="59" y2="70" stroke="#FFFFFF" strokeWidth="1.8" strokeLinecap="round" />
 
           {/* Neck */}
-          <rect x="68" y="82" width="24" height="24" rx="6" fill="url(#skinGrad)" />
+          <rect x="42" y="38" width="16" height="15" rx="4" fill="url(#skinGrad)" />
 
           {/* Head & Face */}
-          <rect x="52" y="30" width="56" height="62" rx="28" fill="url(#skinGrad)" />
+          <rect x="31" y="4" width="38" height="42" rx="19" fill="url(#skinGrad)" />
 
           {/* Ears */}
-          <circle cx="49" cy="62" r="7" fill="url(#skinGrad)" />
-          <circle cx="111" cy="62" r="7" fill="url(#skinGrad)" />
+          <circle cx="29" cy="25" r="4.5" fill="url(#skinGrad)" />
+          <circle cx="71" cy="25" r="4.5" fill="url(#skinGrad)" />
 
-          {/* Hair (Modern styled brown hair) */}
+          {/* Modern Styled Hair */}
           <path
-            d="M48 46 C48 20 70 12 90 14 C106 16 114 26 114 42 C114 46 108 42 100 40 C85 36 68 44 48 46 Z"
+            d="M28 17 C28 4 44 -1 58 1 C70 3 74 10 74 20 C74 23 69 19 63 18 C52 16 41 20 28 17 Z"
             fill="url(#hairGrad)"
           />
           <path
-            d="M48 46 C46 54 48 60 52 64 C53 54 55 48 60 44 Z"
+            d="M28 17 C26 23 27 28 30 31 C31 24 33 20 37 17 Z"
             fill="url(#hairGrad)"
           />
 
-          {/* Eyes (Happy, engaged) */}
-          <ellipse cx="68" cy="58" rx="4" ry="4.5" fill="#1E293B" />
-          <ellipse cx="92" cy="58" rx="4" ry="4.5" fill="#1E293B" />
-          <circle cx="70" cy="56" r="1.5" fill="#FFFFFF" />
-          <circle cx="94" cy="56" r="1.5" fill="#FFFFFF" />
-
-          {/* Eyebrows */}
-          <path d="M63 50 Q69 47 75 50" stroke="#37271E" strokeWidth="2" strokeLinecap="round" />
-          <path d="M85 50 Q91 47 97 50" stroke="#37271E" strokeWidth="2" strokeLinecap="round" />
+          {/* Eyes (Friendly curved smile eyes) */}
+          <path d="M38 23 Q42 19 46 23" stroke="#1E293B" strokeWidth="1.8" strokeLinecap="round" fill="none" />
+          <path d="M54 23 Q58 19 62 23" stroke="#1E293B" strokeWidth="1.8" strokeLinecap="round" fill="none" />
 
           {/* Cheerful Smile */}
-          <path d="M72 70 Q80 77 88 70" stroke="#C2410C" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+          <path d="M45 32 Q50 37 55 32" stroke="#BE185D" strokeWidth="1.6" strokeLinecap="round" fill="none" />
           {/* Subtle blush */}
-          <circle cx="62" cy="66" r="4.5" fill="#FDA4AF" opacity="0.5" />
-          <circle cx="98" cy="66" r="4.5" fill="#FDA4AF" opacity="0.5" />
+          <circle cx="37" cy="28" r="3" fill="#FDA4AF" opacity="0.6" />
+          <circle cx="63" cy="28" r="3" fill="#FDA4AF" opacity="0.6" />
 
-          {/* Left Arm on Laptop keyboard */}
+          {/* Left Arm to Laptop */}
           <path
-            d="M30 140 C35 155 45 165 70 162"
+            d="M14 85 C18 96 26 99 41 97"
             stroke="url(#hoodieGrad)"
-            strokeWidth="20"
+            strokeWidth="13"
             strokeLinecap="round"
           />
           {/* Right Arm */}
           <path
-            d="M130 140 C125 155 115 165 95 162"
+            d="M86 85 C82 96 74 99 59 97"
             stroke="url(#hoodieGrad)"
-            strokeWidth="20"
+            strokeWidth="13"
             strokeLinecap="round"
           />
+          {/* Hands */}
+          <circle cx="35" cy="94" r="4" fill="url(#skinGrad)" />
+          <circle cx="65" cy="94" r="4" fill="url(#skinGrad)" />
         </g>
 
-        {/* Laptop on Desk */}
-        <g transform="translate(60, 160)">
-          {/* Laptop Screen (Back view angled toward student) */}
+        {/* Laptop on Desk (in front of student) */}
+        <g transform="translate(56, 78)">
+          {/* Laptop Screen Lid (Angled towards student) */}
           <path
-            d="M35 10 L105 10 L115 65 L25 65 Z"
+            d="M22 6 L68 6 L75 48 L15 48 Z"
             fill="url(#laptopGrad)"
-            stroke="#64748B"
-            strokeWidth="1.5"
-          />
-          {/* Glowing NeoMCQ Logo on back of Laptop Screen */}
-          <circle cx="70" cy="38" r="8" fill="#6366F1" opacity="0.9" />
-          <circle cx="70" cy="38" r="4" fill="#FFFFFF" />
-
-          {/* Laptop Base/Keyboard resting on desk */}
-          <path
-            d="M15 65 L125 65 L135 74 L5 74 Z"
-            fill="#CBD5E1"
             stroke="#64748B"
             strokeWidth="1"
           />
+          {/* Glowing NeoMCQ Logo on back of Laptop Screen */}
+          <circle cx="45" cy="26" r="5.5" fill="#7C3AED" opacity="0.95" />
+          <circle cx="45" cy="26" r="2.5" fill="#FFFFFF" />
+
+          {/* Laptop Base / Keyboard on desk */}
+          <path
+            d="M8 48 L82 48 L88 54 L2 54 Z"
+            fill="#CBD5E1"
+            stroke="#64748B"
+            strokeWidth="0.8"
+          />
           {/* Trackpad area */}
-          <rect x="58" y="67" width="24" height="5" rx="1.5" fill="#94A3B8" opacity="0.6" />
+          <rect x="38" y="49" width="16" height="3" rx="1" fill="#94A3B8" opacity="0.7" />
+        </g>
+
+        {/* Cohesive Floating Speech Bubble: "Small Steps Big Results! ✨" */}
+        <g transform="translate(62, 5)" filter="url(#bubbleDrop)">
+          {/* Bubble Pill Container */}
+          <rect
+            x="0"
+            y="0"
+            width="156"
+            height="23"
+            rx="11.5"
+            fill="#FFFFFF"
+            stroke="#E0E7FF"
+            strokeWidth="1"
+            className="dark:fill-slate-800 dark:stroke-indigo-900/60"
+          />
+          {/* Speech bubble tail pointing towards student's head */}
+          <path
+            d="M74 22 L78 28 L82 22 Z"
+            fill="#FFFFFF"
+            className="dark:fill-slate-800"
+          />
+          <path
+            d="M74 22 L78 28 L82 22"
+            stroke="#E0E7FF"
+            strokeWidth="1"
+            strokeLinecap="round"
+            className="dark:stroke-indigo-900/60"
+          />
+          <line
+            x1="74.5"
+            y1="22"
+            x2="81.5"
+            y2="22"
+            stroke="#FFFFFF"
+            strokeWidth="1.5"
+            className="dark:stroke-slate-800"
+          />
+
+          {/* Text inside bubble */}
+          <text
+            x="78"
+            y="15"
+            textAnchor="middle"
+            fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            fontSize="9.5"
+            fontWeight="700"
+            fill="#4338CA"
+            className="dark:fill-indigo-300"
+            letterSpacing="-0.2px"
+          >
+            Small Steps Big Results! ✨
+          </text>
         </g>
       </svg>
     </div>

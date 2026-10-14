@@ -6,6 +6,7 @@ import { getSupabaseClient } from '@/lib/supabase';
 import { OnboardingData } from '@/components/onboarding-flow';
 import { DashboardView } from '@/components/dashboard-view';
 import { FuturisticLoader } from '@/components/futuristic-loader';
+import { stopGlobalLoading } from '@/components/global-loading-provider';
 
 const STORAGE_KEY = 'neomcq_user_session';
 
@@ -107,6 +108,7 @@ export default function DashboardPage() {
         router.push('/auth/sign-in');
       } finally {
         setLoading(false);
+        stopGlobalLoading();
       }
     };
 
