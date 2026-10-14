@@ -182,6 +182,14 @@ export function DashboardHomeView({
       
       {/* 1. Welcome Banner Card */}
       <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-r from-[#EFF6FF] via-[#EEF2FF] to-[#F5F3FF] dark:from-[#0F172A] dark:via-[#1E1B4B]/50 dark:to-[#111827] border border-indigo-100/70 dark:border-indigo-900/40 px-4 py-3.5 sm:px-6 sm:py-4.5 lg:px-7 lg:py-4.5 shadow-xs">
+        {/* Exact uploaded wide 3D student artwork; keep text as live HTML over the left side. */}
+        <img
+          src="/assets/student-welcome-banner.webp"
+          alt=""
+          aria-hidden="true"
+          className="pointer-events-none absolute right-0 bottom-0 z-0 hidden md:block h-full w-[64%] max-w-none object-cover object-right-bottom select-none"
+          draggable={false}
+        />
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6 relative z-10">
           
           {/* Left Text & Chips */}
@@ -240,9 +248,9 @@ export function DashboardHomeView({
 
           </div>
 
-          {/* Right Side 3D Student Illustration */}
-          <div className="w-full md:w-[35%] lg:w-[38%] max-w-[340px] shrink-0 flex justify-center md:justify-end items-end self-center md:self-end pt-2 md:pt-0">
-            <StudentBannerIllustration className="w-full max-w-[280px] sm:max-w-[310px] md:max-w-[340px]" />
+          {/* Mobile uses the same uploaded artwork as a compact illustration below the details. */}
+          <div className="md:hidden w-full flex justify-end pt-1">
+            <StudentBannerIllustration className="w-full max-w-[250px]" />
           </div>
 
         </div>
