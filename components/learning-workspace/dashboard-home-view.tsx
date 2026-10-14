@@ -240,9 +240,9 @@ export function DashboardHomeView({
 
           </div>
 
-          {/* Right Side 3D Student Illustration with "Small Steps Big Results!" */}
-          <div className="w-full md:w-auto shrink-0 flex justify-center md:justify-end self-center md:self-end">
-            <StudentBannerIllustration className="w-48 sm:w-56 md:w-60 lg:w-64 max-h-[135px]" />
+          {/* Right Side 3D Student Illustration */}
+          <div className="w-full md:w-[35%] lg:w-[38%] max-w-[340px] shrink-0 flex justify-center md:justify-end items-end self-center md:self-end pt-2 md:pt-0">
+            <StudentBannerIllustration className="w-full max-w-[280px] sm:max-w-[310px] md:max-w-[340px]" />
           </div>
 
         </div>
