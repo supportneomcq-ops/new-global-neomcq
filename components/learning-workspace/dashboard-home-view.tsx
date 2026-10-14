@@ -187,7 +187,7 @@ export function DashboardHomeView({
           src="/assets/student-welcome-banner.webp"
           alt=""
           aria-hidden="true"
-          className="pointer-events-none absolute right-0 bottom-0 z-0 hidden md:block h-full w-[64%] max-w-none object-cover object-right-bottom select-none"
+          className="pointer-events-none absolute right-0 bottom-0 z-0 hidden xl:block h-auto w-[64%] max-w-none object-contain object-right-bottom select-none"
           draggable={false}
         />
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6 relative z-10">
@@ -249,7 +249,7 @@ export function DashboardHomeView({
           </div>
 
           {/* Mobile uses the same uploaded artwork as a compact illustration below the details. */}
-          <div className="md:hidden w-full flex justify-end pt-1">
+          <div className="xl:hidden w-full flex justify-end pt-1">
             <StudentBannerIllustration className="w-full max-w-[250px]" />
           </div>
 
