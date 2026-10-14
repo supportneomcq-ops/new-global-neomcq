@@ -187,13 +187,13 @@ export function DashboardHomeView({
           src="/assets/student-welcome-banner.webp"
           alt=""
           aria-hidden="true"
-          className="pointer-events-none absolute right-0 bottom-0 z-0 hidden xl:block h-auto w-[64%] max-w-none object-contain object-right-bottom select-none"
+          className="pointer-events-none absolute right-0 bottom-0 z-0 hidden lg:block h-full w-auto max-w-[42%] object-contain object-right-bottom select-none"
           draggable={false}
         />
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6 relative z-10">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 sm:gap-6 relative z-10">
           
           {/* Left Text & Chips */}
-          <div className="flex flex-col justify-center space-y-2 sm:space-y-2.5 max-w-xl lg:max-w-2xl py-0.5">
+          <div className="flex flex-col justify-center space-y-2 sm:space-y-2.5 max-w-xl lg:max-w-[58%] py-0.5">
             {/* Uppercase Date */}
             <p className="text-[10px] sm:text-[11px] font-bold tracking-wider text-violet-600 dark:text-violet-400 uppercase leading-none">
               {getFormattedDate()}
@@ -249,7 +249,7 @@ export function DashboardHomeView({
           </div>
 
           {/* Mobile uses the same uploaded artwork as a compact illustration below the details. */}
-          <div className="xl:hidden w-full flex justify-end pt-1">
+          <div className="lg:hidden w-full flex justify-end pt-1">
             <StudentBannerIllustration className="w-full max-w-[250px]" />
           </div>
 
