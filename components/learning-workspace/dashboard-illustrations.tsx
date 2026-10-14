@@ -17,7 +17,7 @@ export function StudentBannerIllustration({ className = '' }: { className?: stri
 
       {/* 3D Student with Laptop Image Asset */}
       <img
-        src="/assets/student-welcome-banner.png"
+        src="/assets/student-welcome-banner.webp"
         alt="Student studying with laptop"
         className="w-full h-auto object-contain object-bottom max-h-[145px] sm:max-h-[160px] md:max-h-[175px] drop-shadow-xs"
         loading="eager"
