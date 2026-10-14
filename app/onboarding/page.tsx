@@ -711,9 +711,9 @@ export default function OnboardingPage() {
       setPrepProgress(50);
 
       // 2. Map preferred time to DB Check constraint values ('morning', 'afternoon', 'evening', 'night')
-      let dbPreferredTime: 'morning' | 'afternoon' | 'evening' | 'night' = 'morning';
+      let dbPreferredTime: 'morning' | 'afternoon' | 'evening' | 'night' | 'flexible' = 'morning';
       const uiTimeLower = formData.studyTime.toLowerCase();
-      if (['morning', 'afternoon', 'evening', 'night'].includes(uiTimeLower)) {
+      if (['morning', 'afternoon', 'evening', 'night', 'flexible'].includes(uiTimeLower)) {
         dbPreferredTime = uiTimeLower as any;
       }
 
