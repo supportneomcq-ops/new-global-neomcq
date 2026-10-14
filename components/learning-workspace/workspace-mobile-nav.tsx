@@ -24,34 +24,43 @@ export function WorkspaceMobileNav({
 }: WorkspaceMobileNavProps) {
   const items = [
     {
-      id: 'dashboard' as WorkspaceTab,
+      id: 'dashboard',
       label: 'Home',
       icon: House,
       action: () => onSelectTab('dashboard'),
+      isActive: activeTab === 'dashboard',
     },
     {
-      id: 'practice' as WorkspaceTab,
+      id: 'practice',
       label: 'Practice',
       icon: ClipboardList,
       action: () => onSelectTab('practice'),
+      isActive: activeTab === 'practice',
     },
     {
-      id: 'notes' as WorkspaceTab,
+      id: 'notes',
       label: 'Notes',
       icon: BookOpen,
       action: () => onSelectTab('notes', 'notes'),
+      isActive:
+        activeTab === 'notes' ||
+        activeTab === 'sticky' ||
+        activeTab === 'blanks' ||
+        activeTab === 'flashcards',
     },
     {
-      id: 'radar' as WorkspaceTab,
+      id: 'radar',
       label: 'Analytics',
       icon: BarChart3,
       action: () => onSelectTab('radar'),
+      isActive: activeTab === 'radar',
     },
     {
-      id: 'profile' as WorkspaceTab,
+      id: 'profile',
       label: 'Profile',
       icon: User,
       action: () => onOpenSettings?.(),
+      isActive: false,
     },
   ];
 
@@ -64,11 +73,7 @@ export function WorkspaceMobileNav({
       <div className="flex items-center justify-around max-w-md mx-auto">
         {items.map((item) => {
           const Icon = item.icon;
-          const isActive =
-            item.id === 'profile'
-              ? false
-              : activeTab === item.id ||
-                (item.id === 'notes' && (activeTab === 'notes' || activeTab === 'sticky' || activeTab === 'blanks' || activeTab === 'flashcards'));
+          const isActive = item.isActive;
 
           return (
             <button
