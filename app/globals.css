@@ -381,3 +381,104 @@ body { background-image:radial-gradient(ellipse at 5% 0%,rgba(109,91,255,.075),t
 .dark .neo-path-step [class*="absolute"] { box-shadow:0 20px 60px rgba(0,0,0,.42); }
 @media (max-width:640px) { .neo-learning-path-controls { display:grid; grid-template-columns:1fr; width:100%; } .neo-path-step { max-width:none; min-width:0; width:100%; } }
 @media (prefers-reduced-motion:reduce) { .neo-path-step > button { transition:none; } .neo-path-step > button:hover { transform:none; } }
+
+/* ========================================================================= */
+/* Modern High-Impact Dashboard Theme Utilities                              */
+/* ========================================================================= */
+.neo-glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.04), 0 2px 6px -1px rgba(15, 23, 42, 0.02);
+}
+.dark .neo-glass-card {
+  background: rgba(13, 19, 39, 0.82);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 30px -4px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.neo-glass-card-hover {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s ease;
+}
+.neo-glass-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 36px -6px rgba(109, 91, 255, 0.12), 0 4px 12px -2px rgba(15, 23, 42, 0.04);
+}
+.dark .neo-glass-card-hover:hover {
+  box-shadow: 0 20px 40px -8px rgba(0, 0, 0, 0.6), 0 0 24px -4px rgba(109, 91, 255, 0.2);
+}
+
+/* Modality Card Ambient Accents */
+.neo-modality-indigo {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.04) 0%, rgba(255, 255, 255, 0.9) 100%);
+}
+.dark .neo-modality-indigo {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(13, 19, 39, 0.9) 100%);
+}
+
+.neo-modality-sky {
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.04) 0%, rgba(255, 255, 255, 0.9) 100%);
+}
+.dark .neo-modality-sky {
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.1) 0%, rgba(13, 19, 39, 0.9) 100%);
+}
+
+.neo-modality-emerald {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.04) 0%, rgba(255, 255, 255, 0.9) 100%);
+}
+.dark .neo-modality-emerald {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(13, 19, 39, 0.9) 100%);
+}
+
+.neo-modality-amber {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.04) 0%, rgba(255, 255, 255, 0.9) 100%);
+}
+.dark .neo-modality-amber {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(13, 19, 39, 0.9) 100%);
+}
+
+.neo-modality-purple {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.04) 0%, rgba(255, 255, 255, 0.9) 100%);
+}
+.dark .neo-modality-purple {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.1) 0%, rgba(13, 19, 39, 0.9) 100%);
+}
+
+.neo-modality-rose {
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.04) 0%, rgba(255, 255, 255, 0.9) 100%);
+}
+.dark .neo-modality-rose {
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.1) 0%, rgba(13, 19, 39, 0.9) 100%);
+}
+
+/* Tabular Numerals standard */
+.neo-tabular {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Subtle clean scrollbars */
+.neo-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.neo-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.neo-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 9999px;
+}
+.neo-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+.dark .neo-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+.dark .neo-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
