@@ -306,6 +306,7 @@ export async function POST(req: NextRequest) {
         user_id: targetUserId,
         daily_hours: studyHours || 2.0,
         preferred_time: (studyTime?.toLowerCase() as any) || 'morning',
+        study_goals: Array.isArray(studyGoals) ? studyGoals.filter((goal) => typeof goal === 'string').slice(0, 10) : [],
         learning_mode: mappedLearningMode,
         reminders_enabled: true,
         language_id: resolvedLanguageId,
