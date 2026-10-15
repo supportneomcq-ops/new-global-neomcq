@@ -65,10 +65,10 @@ export default function PricingPage() {
             Clear, Transparent Pricing
           </div>
           <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white mb-4">
-            Invest in your clinical mastery.
+            Find the right plan for your exam goals.
           </h1>
           <p className="text-base sm:text-lg text-slate-600 dark:text-slate-400 font-normal">
-            Choose the plan that matches your study pace. From adaptive question banks to unlimited multi-exam mastery.
+            Compare real usage limits, AI study tools, and exam-switching costs. Choose the level of support that fits your preparation routine.
           </p>
         </div>
 
@@ -129,8 +129,11 @@ export default function PricingPage() {
               </div>
 
               <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">Pro</h2>
-              <p className="text-xs text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
+              <p className="text-xs text-slate-600 dark:text-slate-400 mb-2 leading-relaxed">
                 {AUTHORITATIVE_PLANS.PRO.tagline}
+              </p>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-6">
+                Best for: steady practice and revision
               </p>
 
               <div className="flex items-baseline gap-1.5 mb-6">
@@ -175,8 +178,11 @@ export default function PricingPage() {
               </div>
 
               <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">Max</h2>
-              <p className="text-xs text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
+              <p className="text-xs text-slate-600 dark:text-slate-400 mb-2 leading-relaxed">
                 {AUTHORITATIVE_PLANS.MAX.tagline}
+              </p>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-6">
+                Best for: higher daily limits and deeper AI support
               </p>
 
               <div className="flex items-baseline gap-1.5 mb-6">
@@ -226,8 +232,11 @@ export default function PricingPage() {
                 Elite
                 <InfinityIcon className="w-5 h-5 text-amber-500" />
               </h2>
-              <p className="text-xs text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
+              <p className="text-xs text-slate-600 dark:text-slate-400 mb-2 leading-relaxed">
                 {AUTHORITATIVE_PLANS.ELITE.tagline}
+              </p>
+              <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 mb-6">
+                Best for: annual access with the highest configured limits
               </p>
 
               <div className="flex items-baseline gap-1.5 mb-2">
@@ -283,82 +292,97 @@ export default function PricingPage() {
         </div>
 
         {/* Feature Comparison Table */}
-        <div className="rounded-3xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-slate-800 p-6 sm:p-10 mb-20 overflow-hidden shadow-sm">
-          <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white mb-6 text-center">
-            Compare Plan Capabilities
-          </h3>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs sm:text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800">
-                  <th className="pb-4 font-bold text-slate-500 dark:text-slate-400">Capability</th>
-                  <th className="pb-4 font-bold text-slate-800 dark:text-slate-200 text-center">Pro ({proPrice.displayPrice}{proPrice.periodShort})</th>
-                  <th className="pb-4 font-bold text-[#6D5BFF] dark:text-[#8E7CFF] text-center">Max ({maxPrice.displayPrice}{maxPrice.periodShort})</th>
-                  <th className="pb-4 font-bold text-amber-600 dark:text-amber-400 text-center">Elite ({elitePrice.displayPrice}{elitePrice.periodShort})</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-700 dark:text-slate-300">
-                <tr>
-                  <td className="py-3.5 font-medium">Exam Switching Policy</td>
-                  <td className="py-3.5 text-center text-slate-500">{proPrice.switchFee} per switch</td>
-                  <td className="py-3.5 text-center text-slate-500">{maxPrice.switchFee} per switch</td>
-                  <td className="py-3.5 text-center font-bold text-emerald-600 dark:text-emerald-400">
-                    FREE Unlimited (Zero Fees)
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-3.5 font-medium">Daily Question Limit</td>
-                  <td className="py-3.5 text-center">100 / day</td>
-                  <td className="py-3.5 text-center">350 / day</td>
-                  <td className="py-3.5 text-center font-bold text-amber-600 dark:text-amber-400">
-                    Unlimited
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-3.5 font-medium">Interactive AI Tutor Whiteboard</td>
-                  <td className="py-3.5 text-center">30 sessions / mo</td>
-                  <td className="py-3.5 text-center">120 sessions / mo</td>
-                  <td className="py-3.5 text-center font-bold text-amber-600 dark:text-amber-400">
-                    Unlimited
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-3.5 font-medium">Neural Audio (TTS) Explanations</td>
-                  <td className="py-3.5 text-center text-slate-400">—</td>
-                  <td className="py-3.5 text-center text-emerald-500">
-                    <Check className="w-4 h-4 mx-auto" />
-                  </td>
-                  <td className="py-3.5 text-center font-bold text-amber-600 dark:text-amber-400">
-                    <Check className="w-4 h-4 mx-auto" />
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-3.5 font-medium">Priority AI Generation Queue</td>
-                  <td className="py-3.5 text-center text-slate-400">—</td>
-                  <td className="py-3.5 text-center text-emerald-500">
-                    <Check className="w-4 h-4 mx-auto" />
-                  </td>
-                  <td className="py-3.5 text-center font-bold text-amber-600 dark:text-amber-400">
-                    VIP Dedicated
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-3.5 font-medium">180+ Country Syllabus Access</td>
-                  <td className="py-3.5 text-center text-emerald-500">
-                    <Check className="w-4 h-4 mx-auto" />
-                  </td>
-                  <td className="py-3.5 text-center text-emerald-500">
-                    <Check className="w-4 h-4 mx-auto" />
-                  </td>
-                  <td className="py-3.5 text-center text-emerald-500">
-                    <Check className="w-4 h-4 mx-auto" />
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+        <section aria-labelledby="plan-comparison-heading" className="mb-20">
+          <div className="text-center max-w-2xl mx-auto mb-7">
+            <h3 id="plan-comparison-heading" className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white mb-2">
+              Compare Plan Capabilities
+            </h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Compare the current plan limits and included learning tools before you choose.
+            </p>
           </div>
-        </div>
+
+          <div className="rounded-3xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-slate-800 p-4 sm:p-8 overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] text-left text-xs sm:text-sm">
+                <caption className="sr-only">Feature and usage-limit comparison for Pro, Max, and Elite subscriptions</caption>
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-800">
+                    <th scope="col" className="pb-4 pr-4 font-bold text-slate-500 dark:text-slate-400">Capability</th>
+                    <th scope="col" className="pb-4 px-3 font-bold text-slate-800 dark:text-slate-200 text-center">Pro <span className="block mt-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">{proPrice.displayPrice}{proPrice.periodShort}</span></th>
+                    <th scope="col" className="pb-4 px-3 font-bold text-[#6D5BFF] dark:text-[#A99CFF] text-center">Max <span className="block mt-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">{maxPrice.displayPrice}{maxPrice.periodShort}</span></th>
+                    <th scope="col" className="pb-4 pl-3 font-bold text-amber-600 dark:text-amber-400 text-center">Elite <span className="block mt-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">{elitePrice.displayPrice}{elitePrice.periodShort}</span></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/70 text-slate-700 dark:text-slate-300">
+                  <tr>
+                    <th scope="row" className="py-4 pr-4 font-semibold">Daily AI question limit</th>
+                    <td className="py-4 px-3 text-center">100 / day</td>
+                    <td className="py-4 px-3 text-center">350 / day</td>
+                    <td className="py-4 pl-3 text-center font-bold text-amber-600 dark:text-amber-400">Unlimited*</td>
+                  </tr>
+                  <tr>
+                    <th scope="row" className="py-4 pr-4 font-semibold">AI Tutor sessions</th>
+                    <td className="py-4 px-3 text-center">30 / month</td>
+                    <td className="py-4 px-3 text-center">120 / month</td>
+                    <td className="py-4 pl-3 text-center font-bold text-amber-600 dark:text-amber-400">Unlimited*</td>
+                  </tr>
+                  <tr>
+                    <th scope="row" className="py-4 pr-4 font-semibold">Neural audio explanations (TTS)</th>
+                    <td className="py-4 px-3 text-center">Up to 15 / day</td>
+                    <td className="py-4 px-3 text-center">Up to 50 / day</td>
+                    <td className="py-4 pl-3 text-center font-bold text-amber-600 dark:text-amber-400">Unlimited*</td>
+                  </tr>
+                  <tr>
+                    <th scope="row" className="py-4 pr-4 font-semibold">Interactive AI Tutor whiteboard</th>
+                    <td className="py-4 px-3 text-center text-slate-400">—</td>
+                    <td className="py-4 px-3 text-center"><Check aria-label="Included" className="w-4 h-4 mx-auto text-emerald-500" /></td>
+                    <td className="py-4 pl-3 text-center"><Check aria-label="Included" className="w-4 h-4 mx-auto text-emerald-500" /></td>
+                  </tr>
+                  <tr>
+                    <th scope="row" className="py-4 pr-4 font-semibold">AI content generation queue</th>
+                    <td className="py-4 px-3 text-center">Standard</td>
+                    <td className="py-4 px-3 text-center font-semibold text-[#6D5BFF] dark:text-[#A99CFF]">Priority fast-track</td>
+                    <td className="py-4 pl-3 text-center font-semibold text-amber-600 dark:text-amber-400">Dedicated tier*</td>
+                  </tr>
+                  <tr>
+                    <th scope="row" className="py-4 pr-4 font-semibold">MCQ practice and mock exams</th>
+                    <td className="py-4 px-3 text-center"><Check aria-label="Included" className="w-4 h-4 mx-auto text-emerald-500" /></td>
+                    <td className="py-4 px-3 text-center"><Check aria-label="Included" className="w-4 h-4 mx-auto text-emerald-500" /></td>
+                    <td className="py-4 pl-3 text-center"><Check aria-label="Included" className="w-4 h-4 mx-auto text-emerald-500" /></td>
+                  </tr>
+                  <tr>
+                    <th scope="row" className="py-4 pr-4 font-semibold">Study notes and revision sheets</th>
+                    <td className="py-4 px-3 text-center"><Check aria-label="Included" className="w-4 h-4 mx-auto text-emerald-500" /></td>
+                    <td className="py-4 px-3 text-center"><Check aria-label="Included" className="w-4 h-4 mx-auto text-emerald-500" /></td>
+                    <td className="py-4 pl-3 text-center"><Check aria-label="Included" className="w-4 h-4 mx-auto text-emerald-500" /></td>
+                  </tr>
+                  <tr>
+                    <th scope="row" className="py-4 pr-4 font-semibold">Flashcards and active recall</th>
+                    <td className="py-4 px-3 text-center"><Check aria-label="Included" className="w-4 h-4 mx-auto text-emerald-500" /></td>
+                    <td className="py-4 px-3 text-center"><Check aria-label="Included" className="w-4 h-4 mx-auto text-emerald-500" /></td>
+                    <td className="py-4 pl-3 text-center"><Check aria-label="Included" className="w-4 h-4 mx-auto text-emerald-500" /></td>
+                  </tr>
+                  <tr>
+                    <th scope="row" className="py-4 pr-4 font-semibold">Exam curriculum switching</th>
+                    <td className="py-4 px-3 text-center">{proPrice.switchFee} / switch</td>
+                    <td className="py-4 px-3 text-center">{maxPrice.switchFee} / switch</td>
+                    <td className="py-4 pl-3 text-center font-bold text-emerald-600 dark:text-emerald-400">No switching fee</td>
+                  </tr>
+                  <tr>
+                    <th scope="row" className="py-4 pr-4 font-semibold">Curriculum and exam blueprints</th>
+                    <td className="py-4 px-3 text-center"><Check aria-label="Included" className="w-4 h-4 mx-auto text-emerald-500" /></td>
+                    <td className="py-4 px-3 text-center"><Check aria-label="Included" className="w-4 h-4 mx-auto text-emerald-500" /></td>
+                    <td className="py-4 pl-3 text-center"><Check aria-label="Included" className="w-4 h-4 mx-auto text-emerald-500" /></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+              *Unlimited usage and priority processing follow the published plan configuration and service availability. Audio limits and plan entitlements are based on NeoMCQ’s current plan settings. Review the applicable policies before checkout.
+            </p>
+          </div>
+        </section>
 
         {/* FAQs */}
         <div className="max-w-3xl mx-auto">
@@ -373,7 +397,7 @@ export default function PricingPage() {
                 How does the Exam Switching Policy work?
               </h4>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                When you enroll in NeoMCQ, your account is configured to your primary curriculum (e.g. USMLE, PLAB, NCLEX, NEET-PG). Pro ($9.99/mo) and Max ($19.99/mo) members can switch their primary curriculum anytime for a one-time fee of <strong>$2.00 USD</strong>. <strong>Elite ($499/year) members enjoy unlimited FREE exam switches</strong> with zero fees.
+                Your account is configured to a primary exam curriculum. Pro and Max members pay {proPrice.switchFee} per curriculum switch; Elite includes curriculum switching with no switching fee. The plan price and billing period are shown above in your selected currency.
               </p>
             </div>
 
@@ -394,6 +418,15 @@ export default function PricingPage() {
               </h4>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
                 Yes. You can cancel your subscription anytime in one click from your Billing Portal. Your benefits will remain active until the conclusion of your current paid billing period.
+              </p>
+            </div>
+            <div className="p-5 rounded-2xl bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-slate-800">
+              <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white mb-1.5 flex items-center gap-2">
+                <HelpCircle className="w-4 h-4 text-[#6D5BFF]" />
+                Which plan should I choose?
+              </h4>
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                Choose Pro for regular practice and revision, Max if you need higher daily question limits and more AI Tutor sessions, or Elite if you prefer annual access with the highest configured limits and no exam-switching fee. Compare the limits above before subscribing.
               </p>
             </div>
           </div>
