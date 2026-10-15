@@ -1744,7 +1744,8 @@ export async function enrichCurriculumProcess(
 
     await persistCurriculumHierarchy(examId, aiSpec, supabase)
 
-    // Re-query refreshed complete hierarchy    const { data: refreshedSubjects } = await supabase
+    // Re-query refreshed complete hierarchy
+    const { data: refreshedSubjects } = await supabase
       .from('exam_subjects')
       .select(`
         id,
@@ -2243,7 +2244,8 @@ async function persistCurriculumHierarchy(
             continue
           }
 
-          const existingMatch = findMatchingSubtopicInList(stItem.name, existingSubtopics)          if (!existingMatch) {
+          const existingMatch = findMatchingSubtopicInList(stItem.name, existingSubtopics)
+          if (!existingMatch) {
             subtopicInserts.push({
               topic_id: topicId,
               name: stItem.name,
