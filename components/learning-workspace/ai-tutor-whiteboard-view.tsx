@@ -31,20 +31,37 @@ export function AiTutorWhiteboardView({ user }: AiTutorWhiteboardViewProps) {
     }
   }, [resolvedUserId]);
 
-  const examId = selection.exam?.id || '8d30e3bb-d55a-4b9d-83ff-1d1ebc96f241';
-  const subjectId = selection.subject?.id || '7e4b9d12-1f8a-4c90-9f2d-888888888888';
-  const topicId = selection.topic?.id || 'a1b2c3d4-e5f6-7890-abcd-111111111111';
+  const examId = selection.exam?.id;
+  const subjectId = selection.subject?.id;
+  const topicId = selection.topic?.id;
+
+  if (!resolvedUserId) {
+    return (
+      <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-slate-800 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-100">
+        <h2 className="text-lg font-bold">Verify your account to use AI Tutor</h2>
+        <p className="mt-2 text-sm">We could not confirm your signed-in session. Please sign in again before starting a tutor session.</p>
+      </section>
+    );
+  }
+
+  if (!examId || !subjectId || !topicId) {
+    return (
+      <section className="rounded-2xl border border-violet-200 bg-white p-6 text-slate-900 dark:border-violet-800/70 dark:bg-slate-900 dark:text-slate-100">
+        <h2 className="text-lg font-bold">Choose a topic for your AI Tutor</h2>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Select your exam, subject, and topic in the learning context bar above. The tutor will use that exact curriculum context and will not substitute unrelated content.</p>
+      </section>
+    );
+  }
 
   return (
     <TutorInteractiveWorkspace
       examId={examId}
       subjectId={subjectId}
       topicId={topicId}
-      userId={resolvedUserId || user.userId || ''}
-      topicName={selection.topic?.name || 'High-Yield Exam Concepts'}
-      subjectName={selection.subject?.name || 'Core Curriculum Subject'}
-      examName={selection.exam?.name || user.examName || 'Examination'}
-    />
-  );
+      userId={resolvedUserId}
+      topicName={selection.topic?.name || ''}
+      subjectName={selection.subject?.name || ''}
+      examName={selection.exam?.name || ''}
+    )
 }
 
