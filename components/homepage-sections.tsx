@@ -18,7 +18,7 @@ const tools = [
 const steps = [
   { number: '1', title: 'Choose Your Exam', description: 'Select from available exams or add your own.', icon: Globe2 },
   { number: '2', title: 'Get Your Personalized Plan', description: 'Build a study routine around your goals and curriculum.', icon: Settings2 },
-  { number: '3', title: 'Practice and Track Progress', description: 'Learn with practice, revision tools, and progress insights.', icon: ChartNoAxesColumnIncreasing },
+  { number: '3', title: 'Practice and Track Progress', description: 'Learn with practice, revision tools, and progress insights.', icon: BarChart3 },
 ];
 
 const examCategories = [
@@ -142,7 +142,7 @@ export function HomepageSections({ onStartFree }: { onStartFree: () => void }) {
               </div>
             </div>
           </div>
-          <div className="hidden text-center font-caveat text-2xl font-bold text-violet-600 lg:block">Track your progress <ChartNoAxesColumnIncreasing className="mx-auto mt-3 h-8 w-8" /></div>
+          <div className="hidden text-center font-caveat text-2xl font-bold text-violet-600 lg:block">Track your progress <BarChart3 className="mx-auto mt-3 h-8 w-8" /></div>
         </div>
       </section>
 
