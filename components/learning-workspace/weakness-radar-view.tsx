@@ -54,7 +54,7 @@ export function WeaknessRadarView({ user, onSelectTab }: WeaknessRadarViewProps)
     loadStats();
   }, [loadStats]);
 
-  const examName = selection.exam?.name || user.examName || 'Board Examination';
+  const examName = selection.exam?.name || user.examName || 'No exam selected';
 
   // Resolved Subject Mastery list
   const subjectList = (stats?.subjectMastery && stats.subjectMastery.length > 0)
