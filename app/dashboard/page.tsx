@@ -14,6 +14,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<OnboardingData | null>(null);
+  const [curriculumStatus, setCurriculumStatus] = useState<'pending' | 'needs_retry' | null>(null);
 
   useEffect(() => {
     const fetchSessionAndProfile = async () => {
@@ -22,6 +23,14 @@ export default function DashboardPage() {
         const { data: { user } } = await supabase.auth.getUser();
 
         if (user) {
+          const initialCurriculumStatus = user.user_metadata?.neo_curriculum_status;
+          if (initialCurriculumStatus === 'pending' || initialCurriculumStatus === 'needs_retry') {
+            setCurriculumStatus(initialCurriculumStatus);
+            setLoading(false);
+            stopGlobalLoading();
+            return;
+          }
+
           // 1. Fetch profile details
           const { data: profile } = await supabase
             .from('profiles')
@@ -115,6 +124,30 @@ export default function DashboardPage() {
     fetchSessionAndProfile();
   }, [router]);
 
+  useEffect(() => {
+    if (!curriculumStatus) return;
+
+    const checkCurriculumStatus = async () => {
+      try {
+        const supabase = getSupabaseClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        const status = user?.user_metadata?.neo_curriculum_status;
+        if (status === 'ready') {
+          window.location.reload();
+          return;
+        }
+        if (status === 'needs_retry') setCurriculumStatus('needs_retry');
+        if (status === 'pending') setCurriculumStatus('pending');
+      } catch (error) {
+        console.warn('Could not refresh curriculum validation status:', error);
+      }
+    };
+
+    const intervalId = window.setInterval(() => { void checkCurriculumStatus(); }, 4000);
+    void checkCurriculumStatus();
+    return () => window.clearInterval(intervalId);
+  }, [curriculumStatus]);
+
   const handleSignOut = async () => {
     try {
       const supabase = getSupabaseClient();
@@ -128,6 +161,37 @@ export default function DashboardPage() {
 
   if (loading) {
     return <FuturisticLoader onComplete={() => {}} />;
+  }
+
+  if (curriculumStatus) {
+    const needsRetry = curriculumStatus === 'needs_retry';
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-slate-50 px-5 text-slate-900 dark:bg-[#060914] dark:text-slate-100">
+        <section className="w-full max-w-xl rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-xl dark:border-white/10 dark:bg-[#0E1324] sm:p-10">
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-100 text-violet-600 dark:bg-violet-500/15 dark:text-violet-300">
+            {needsRetry ? <span className="text-2xl">!</span> : <span className="h-8 w-8 animate-spin rounded-full border-4 border-violet-200 border-t-violet-600 dark:border-violet-900 dark:border-t-violet-300" />}
+          </div>
+          <h1 className="text-2xl font-extrabold tracking-tight">
+            {needsRetry ? 'Curriculum validation needs another attempt' : 'Validating your exam curriculum'}
+          </h1>
+          <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-600 dark:text-slate-300">
+            {needsRetry
+              ? 'Your account is saved, but we could not finish validating the syllabus yet. Your study workspace will open once the curriculum is successfully checked.'
+              : 'Your account is ready. NeoMCQ is checking the exam-specific subjects, topics, and subtopics in the background. This page will update automatically when validation is complete.'}
+          </p>
+          {!needsRetry && <p className="mt-5 text-xs text-slate-500 dark:text-slate-400">You can keep this page open; there is no need to start setup again.</p>}
+          {needsRetry && (
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-6 rounded-xl bg-violet-600 px-5 py-3 text-sm font-semibold text-white hover:bg-violet-700"
+            >
+              Check status again
+            </button>
+          )}
+        </section>
+      </main>
+    );
   }
 
   if (!currentUser) {
