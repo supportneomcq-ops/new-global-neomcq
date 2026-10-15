@@ -32,6 +32,10 @@ export function A4NotebookViewer({ onBookmark }: A4NotebookViewerProps) {
   const [isPreparing, setIsPreparing] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [isBookmarking, setIsBookmarking] = useState(false);
+  const [bookmarkError, setBookmarkError] = useState('');
+  const bookmarkItemId = selection.subtopic?.id || selection.topic?.id || '';
 
   // Poll timer reference
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -136,6 +140,57 @@ export function A4NotebookViewer({ onBookmark }: A4NotebookViewerProps) {
       }
     };
   }, [selection.exam?.id, selection.subject?.id, selection.topic?.id, selection.subtopic?.id, fetchNote]);
+
+  // Keep bookmark state synchronized with the signed-in user's saved library.
+  useEffect(() => {
+    let active = true;
+    setIsBookmarked(false);
+    setBookmarkError('');
+    if (!bookmarkItemId) return () => { active = false; };
+
+    const loadBookmark = async () => {
+      try {
+        const params = new URLSearchParams({ item_type: 'a4_note', item_id: bookmarkItemId });
+        const response = await fetch(`/api/user/bookmarks?${params.toString()}`, { cache: 'no-store' });
+        const result = await response.json().catch(() => null);
+        if (!response.ok || !result?.success) throw new Error(result?.error || 'Could not check saved status.');
+        const saved = Array.isArray(result.bookmarks) && result.bookmarks.length > 0;
+        if (active) {
+          setIsBookmarked(saved);
+          onBookmark?.(saved);
+        }
+      } catch (err) {
+        console.warn('[A4NotebookViewer] Bookmark status unavailable:', err);
+        if (active) setBookmarkError('Bookmark status could not be checked.');
+      }
+    };
+    void loadBookmark();
+    return () => { active = false; };
+  }, [bookmarkItemId, onBookmark]);
+
+  const handleToggleBookmark = async () => {
+    if (!document || !bookmarkItemId || isBookmarking) return;
+    setIsBookmarking(true);
+    setBookmarkError('');
+    try {
+      const response = await fetch('/api/user/bookmarks', {
+        method: isBookmarked ? 'DELETE' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(isBookmarked
+          ? { item_type: 'a4_note', item_id: bookmarkItemId }
+          : { item_type: 'a4_note', item_id: bookmarkItemId, notes: document.documentTitle }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) throw new Error(result?.error || 'Could not update bookmark.');
+      const next = !isBookmarked;
+      setIsBookmarked(next);
+      onBookmark?.(next);
+    } catch (err) {
+      setBookmarkError(err instanceof Error ? err.message : 'This note could not be saved.');
+    } finally {
+      setIsBookmarking(false);
+    }
+  };
 
   // Handle Manual Force Refresh
   const handleForceRefresh = () => {
@@ -257,6 +312,10 @@ export function A4NotebookViewer({ onBookmark }: A4NotebookViewerProps) {
       onReadNotes={() => setViewMode('reader')}
       onRefresh={handleForceRefresh}
       isRefreshing={isRefreshing}
+      isBookmarked={isBookmarked}
+      isBookmarking={isBookmarking}
+      bookmarkError={bookmarkError}
+      onBookmark={handleToggleBookmark}
     />
   );
 }
