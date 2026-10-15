@@ -32,11 +32,13 @@ export function getSupabaseAdmin(): SupabaseClient {
   }
   if (!supabaseAdminClient) {
     const { url } = getPublicSupabaseConfig();
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!serviceRoleKey) {
-      throw new Error('SUPABASE_SERVICE_ROLE_KEY is not configured. Refusing to run privileged database operations with the anonymous key.');
+    // Supabase's newer server-side secret key is a valid alternative to the legacy service-role key.
+    // Prefer the explicitly named service-role key when both are configured.
+    const adminKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
+    if (!adminKey) {
+      throw new Error('Configure SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEY for privileged server-side database operations. Refusing to use the anonymous key.');
     }
-    supabaseAdminClient = createClient(url, serviceRoleKey, {
+    supabaseAdminClient = createClient(url, adminKey, {
       auth: { persistSession: false },
     });
   }

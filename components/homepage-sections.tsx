@@ -9,10 +9,10 @@ import {
 } from 'lucide-react';
 
 const tools = [
-  { title: 'Practice MCQs', description: 'Topic-wise questions with detailed explanations and AI feedback.', action: 'Start Practicing', href: '/dashboard', icon: ClipboardList, tone: 'violet' },
-  { title: 'Smart Study Notes', description: 'AI-generated concise notes for quick and effective learning.', action: 'Open Study Notes', href: '/dashboard', icon: BookOpen, tone: 'teal' },
-  { title: 'Flashcards', description: 'Revise with active recall flashcards and spaced repetition.', action: 'Start Revising', href: '/dashboard', icon: Layers3, tone: 'orange' },
-  { title: 'AI Tutor', description: 'Ask questions and get clear explanations and learning guidance.', action: 'Chat with AI', href: '/dashboard', icon: BrainCircuit, tone: 'pink' },
+  { title: 'Practice MCQs', description: 'Topic-wise questions with detailed explanations and AI feedback.', action: 'Start Practicing', href: '/dashboard?tab=practice', icon: ClipboardList, tone: 'violet' },
+  { title: 'Smart Study Notes', description: 'AI-generated concise notes for quick and effective learning.', action: 'Open Study Notes', href: '/dashboard?tab=notes', icon: BookOpen, tone: 'teal' },
+  { title: 'Flashcards', description: 'Revise with active recall flashcards and spaced repetition.', action: 'Start Revising', href: '/dashboard?tab=flashcards', icon: Layers3, tone: 'orange' },
+  { title: 'AI Tutor', description: 'Ask questions and get clear explanations and learning guidance.', action: 'Chat with AI', href: '/dashboard?tab=tutor', icon: BrainCircuit, tone: 'pink' },
 ];
 
 const steps = [
@@ -99,7 +99,7 @@ export function HomepageSections({ onStartFree }: { onStartFree: () => void }) {
         <div className="mx-auto max-w-6xl">
           <div className="flex flex-col items-center justify-between gap-3 sm:flex-row sm:items-end">
             <div className="flex-1"><SectionHeading eyebrow="Prepare for any exam" title="Trusted by Learners Across the World" description="Explore exam categories and build a preparation path around your goals." /></div>
-            <Link href="/onboarding" className="mb-7 inline-flex shrink-0 items-center gap-2 rounded-xl border border-violet-200 bg-white px-4 py-2.5 text-xs font-bold text-violet-700 shadow-sm transition hover:border-violet-400 hover:bg-violet-50 dark:border-violet-700 dark:bg-slate-900 dark:text-violet-300 dark:hover:bg-violet-950/60 sm:mb-9">View All Exams <ArrowUpRight className="h-4 w-4" /></Link>
+            <Link href="/exams" className="mb-7 inline-flex shrink-0 items-center gap-2 rounded-xl border border-violet-200 bg-white px-4 py-2.5 text-xs font-bold text-violet-700 shadow-sm transition hover:border-violet-400 hover:bg-violet-50 dark:border-violet-700 dark:bg-slate-900 dark:text-violet-300 dark:hover:bg-violet-950/60 sm:mb-9">View All Exams <ArrowUpRight className="h-4 w-4" /></Link>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {examCategories.map(({ title, examples, icon: Icon, tone }) => (

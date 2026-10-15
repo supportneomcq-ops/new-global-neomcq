@@ -151,6 +151,23 @@ export function DashboardView({ user, onSignOut, onOpenPractice, onUpdateProfile
   const [streakDays, setStreakDays] = useState<number>(0);
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('dashboard');
   const [studySubTab, setStudySubTab] = useState<StudySubTab>('notes');
+
+  // Homepage feature cards can deep-link directly to the requested workspace tool.
+  // Read the query only after mount to keep server/client initial rendering identical.
+  useEffect(() => {
+    const requestedTab = new URLSearchParams(window.location.search).get('tab');
+    const validTabs: WorkspaceTab[] = [
+      'dashboard', 'practice', 'quizzes', 'flashcards', 'notes',
+      'sticky', 'blanks', 'tutor', 'radar', 'plan', 'saved',
+    ];
+
+    if (!requestedTab || !validTabs.includes(requestedTab as WorkspaceTab)) return;
+
+    const tab = requestedTab as WorkspaceTab;
+    setActiveTab(tab);
+    if (tab === 'sticky') setStudySubTab('sticky');
+    else if (tab === 'notes') setStudySubTab('notes');
+  }, []);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Modals
