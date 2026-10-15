@@ -1778,6 +1778,8 @@ export async function enrichCurriculumProcess(
     comparisonReport = compareCurricula(examId, examName, aiSpec, refreshedSubjects || [])
   }
 
+  await deactivateGenericCurriculumNodes(examId, supabase)
+
   // Acceptance gate: every expected subject must exist; at least 80% of each
   // subject's expected topics must exist; every matched topic must have at least
   // one meaningful subtopic and at least 80% subtopic coverage.
@@ -2041,6 +2043,70 @@ const GENERIC_FILLER_SUBTOPIC_REGEX = /^(introduction|basics|overview|general co
 
 function isGenericFillerSubtopic(name: string): boolean {
   return GENERIC_FILLER_SUBTOPIC_REGEX.test(name.trim())
+}
+
+// Legacy onboarding created generic pseudo-subjects/topics for some exams.
+// Hide only known non-curricular filler labels; keep rows for audit/history and
+// avoid destructive deletes that could break foreign-key references.
+const GENERIC_FILLER_NODE_REGEX = /^(core practice(?: q-bank)?|advanced applied practice(?: and| &)? analysis|applied analysis(?: and| &)? problem solving|complex problem analysis|applied problem solving|general applied practice|advanced practice applications|applied analysis|complex problem solving)$/i
+
+async function deactivateGenericCurriculumNodes(examId: string, supabase: any) {
+  const { data: subjects, error: subjectError } = await supabase
+    .from('exam_subjects')
+    .select('id, name')
+    .eq('exam_id', examId)
+
+  if (subjectError || !subjects?.length) {
+    if (subjectError) console.warn('[Curriculum Cleanup] Could not inspect subjects:', subjectError.message)
+    return
+  }
+
+  const subjectIds = subjects.map((subject: any) => subject.id)
+  const genericSubjectIds = subjects
+    .filter((subject: any) => GENERIC_FILLER_NODE_REGEX.test((subject.name || '').trim()))
+    .map((subject: any) => subject.id)
+
+  for (const subjectId of genericSubjectIds) {
+    const { error } = await supabase.from('exam_subjects').update({ is_active: false }).eq('id', subjectId)
+    if (error) console.warn('[Curriculum Cleanup] Could not deactivate generic subject:', error.message)
+  }
+
+  const { data: topics, error: topicError } = await supabase
+    .from('exam_topics')
+    .select('id, name, subject_id')
+    .in('subject_id', subjectIds)
+
+  if (topicError || !topics?.length) {
+    if (topicError) console.warn('[Curriculum Cleanup] Could not inspect topics:', topicError.message)
+    return
+  }
+
+  const genericTopicIds = topics
+    .filter((topic: any) => GENERIC_FILLER_NODE_REGEX.test((topic.name || '').trim()))
+    .map((topic: any) => topic.id)
+
+  for (const topicId of genericTopicIds) {
+    const { error } = await supabase.from('exam_topics').update({ is_active: false }).eq('id', topicId)
+    if (error) console.warn('[Curriculum Cleanup] Could not deactivate generic topic:', error.message)
+  }
+
+  const topicIds = topics.map((topic: any) => topic.id)
+  if (topicIds.length > 0) {
+    const { data: subtopics, error: subtopicError } = await supabase
+      .from('exam_subtopics')
+      .select('id, name')
+      .in('topic_id', topicIds)
+
+    if (subtopicError) {
+      console.warn('[Curriculum Cleanup] Could not inspect subtopics:', subtopicError.message)
+      return
+    }
+
+    for (const subtopic of (subtopics || []).filter((item: any) => GENERIC_FILLER_NODE_REGEX.test((item.name || '').trim()))) {
+      const { error } = await supabase.from('exam_subtopics').update({ is_active: false }).eq('id', subtopic.id)
+      if (error) console.warn('[Curriculum Cleanup] Could not deactivate generic subtopic:', error.message)
+    }
+  }
 }
 
 async function persistCurriculumHierarchy(
