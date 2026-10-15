@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from 'react';
 import { Bookmark, Trash2, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
-import { getSupabaseClient } from '@/lib/supabase';
 import { OnboardingData } from './onboarding-flow';
 import { UserProfileModal, type UserProfileTab } from './user-profile-modal';
 import { ExamSwitchModal } from './exam-switch-modal';
@@ -57,15 +56,10 @@ function SavedBookmarksView({ userId }: { userId?: string }) {
         return;
       }
       try {
-        const supabase = getSupabaseClient();
-        const { data, error: queryError } = await supabase
-          .from('bookmarks')
-          .select('id, item_type, item_id, notes, created_at')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(100);
-        if (queryError) throw queryError;
-        if (active) setItems((data || []) as SavedBookmark[]);
+        const response = await fetch('/api/user/bookmarks?limit=100', { cache: 'no-store' });
+        const result = await response.json().catch(() => null);
+        if (!response.ok || !result?.success) throw new Error(result?.error || 'Could not load saved items.');
+        if (active) setItems((result.bookmarks || []) as SavedBookmark[]);
       } catch (err) {
         console.error('Unable to load saved bookmarks:', err);
         if (active) setError('Saved items could not be loaded. Please retry.');
@@ -82,13 +76,13 @@ function SavedBookmarksView({ userId }: { userId?: string }) {
     setDeletingId(id);
     setError('');
     try {
-      const supabase = getSupabaseClient();
-      const { error: deleteError } = await supabase
-        .from('bookmarks')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', userId);
-      if (deleteError) throw deleteError;
+      const response = await fetch('/api/user/bookmarks', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) throw new Error(result?.error || 'Could not remove saved item.');
       setItems((current) => current.filter((item) => item.id !== id));
     } catch (err) {
       console.error('Unable to remove saved bookmark:', err);
