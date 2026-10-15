@@ -152,7 +152,7 @@ export function DashboardHomeView({
   };
 
   const displayName = user.firstName || 'Inus';
-  const examTitle = selection.exam?.name || user.examName || 'AWS Certified Solutions Architect – Associate';
+  const examTitle = selection.exam?.name || user.examName || 'No exam selected';
   const targetHours = user.studyHours || dbStats?.targetHours || 2;
   const daysLeft = user.daysLeft || 90;
   const examDateFormatted = user.examDate
