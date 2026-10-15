@@ -82,17 +82,15 @@ export function HomepageSections({ onStartFree }: { onStartFree: () => void }) {
       <section id="how-it-works" className="scroll-mt-24 px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
         <div className="mx-auto max-w-6xl">
           <SectionHeading eyebrow="Get started in 3 simple steps" title="Your Exam Preparation Journey" description="From exam selection to steady progress, with tools that support your routine." />
-          <div className="grid grid-cols-1 items-center gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             {steps.map(({ number, title, description, icon: Icon }, index) => (
-              <React.Fragment key={number}>
-                <article className="relative flex min-h-[170px] flex-col items-center justify-center rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50/70 to-white px-5 py-6 text-center shadow-sm">
-                  <span className="absolute -top-3 left-5 flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-blue-500 text-sm font-black text-white shadow-md">{number}</span>
-                  <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-violet-100 text-violet-600"><Icon className="h-6 w-6" /></div>
-                  <h3 className="text-sm font-extrabold">{title}</h3>
-                  <p className="mt-1.5 max-w-xs text-xs sm:text-sm leading-relaxed text-slate-500">{description}</p>
-                </article>
-                {index < steps.length - 1 && <ArrowRight className="mx-auto hidden h-6 w-6 text-violet-500 md:block" />}
-              </React.Fragment>
+              <article key={number} className="relative flex min-h-[170px] flex-col items-center justify-center rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50/70 to-white px-5 py-6 text-center shadow-sm">
+                <span className="absolute -top-3 left-5 flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-blue-500 text-sm font-black text-white shadow-md">{number}</span>
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-violet-100 text-violet-600"><Icon className="h-6 w-6" /></div>
+                <h3 className="text-sm font-extrabold">{title}</h3>
+                <p className="mt-1.5 max-w-xs text-xs sm:text-sm leading-relaxed text-slate-500">{description}</p>
+                {index < steps.length - 1 && <ArrowRight className="absolute -right-3 top-1/2 z-10 hidden h-6 w-6 -translate-y-1/2 text-violet-500 md:block" />}
+              </article>
             ))}
           </div>
         </div>
