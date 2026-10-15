@@ -1131,6 +1131,7 @@ export default function OnboardingPage() {
                       value={formData.examSearchQuery}
                       onChange={(e) => {
                         const value = e.target.value;
+                        setSearchResults([]);
                         updateField('examSearchQuery', value);
                         updateField('selectedExamId', '');
                         updateField('selectedExamName', '');
