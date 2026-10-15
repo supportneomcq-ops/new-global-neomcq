@@ -674,3 +674,119 @@ html.dark { color-scheme: dark; }
 .dark [class~="to-slate-50"][class*="bg-gradient"] {
   background-image: linear-gradient(135deg, var(--card), var(--background)) !important;
 }
+
+
+/* ==========================================================================
+   NeoMCQ theme consistency patch — accessible dark surfaces
+   Keeps the light theme unchanged while ensuring legacy light utility classes
+   and pastel gradient sections remain readable when html.dark is active.
+   ========================================================================== */
+.dark [class*="bg-white"] {
+  background-color: var(--card) !important;
+}
+.dark [class*="bg-slate-50"],
+.dark [class*="bg-gray-50"],
+.dark [class*="bg-zinc-50"],
+.dark [class*="bg-neutral-50"] {
+  background-color: var(--background) !important;
+}
+.dark [class*="bg-slate-100"],
+.dark [class*="bg-slate-200"],
+.dark [class*="bg-gray-100"],
+.dark [class*="bg-gray-200"],
+.dark [class*="bg-zinc-100"],
+.dark [class*="bg-zinc-200"],
+.dark [class*="bg-neutral-100"],
+.dark [class*="bg-neutral-200"] {
+  background-color: var(--muted) !important;
+}
+
+/* Replace light pastel card gradients with dark navy surfaces, not pale cards
+   with white text. Brand CTA gradients (violet-500/600 and above) are untouched. */
+.dark [class*="bg-gradient-to-br"][class*="from-violet-50"],
+.dark [class*="bg-gradient-to-br"][class*="from-indigo-50"],
+.dark [class*="bg-gradient-to-br"][class*="from-blue-50"],
+.dark [class*="bg-gradient-to-br"][class*="from-sky-50"],
+.dark [class*="bg-gradient-to-br"][class*="from-teal-50"],
+.dark [class*="bg-gradient-to-br"][class*="from-emerald-50"],
+.dark [class*="bg-gradient-to-br"][class*="from-orange-50"],
+.dark [class*="bg-gradient-to-br"][class*="from-pink-50"],
+.dark [class*="bg-gradient-to-br"][class*="from-rose-50"],
+.dark [class*="bg-gradient-to-br"][class*="from-white"][class*="to-\[#"],
+.dark [class*="bg-gradient-to-br"][class*="via-white"][class*="to-sky-50"] {
+  background-image: linear-gradient(135deg, var(--card), var(--background)) !important;
+}
+
+/* Keep colored feature icons legible while softening light-mode icon tiles. */
+.dark [class~="bg-violet-100"],
+.dark [class~="bg-violet-100/80"],
+.dark [class~="bg-purple-100"],
+.dark [class~="bg-indigo-100"] {
+  background-color: rgba(109, 91, 255, 0.2) !important;
+}
+.dark [class~="bg-teal-100"],
+.dark [class~="bg-emerald-100"],
+.dark [class~="bg-green-100"] {
+  background-color: rgba(16, 185, 129, 0.18) !important;
+}
+.dark [class~="bg-sky-100"],
+.dark [class~="bg-blue-100"] {
+  background-color: rgba(14, 165, 233, 0.18) !important;
+}
+.dark [class~="bg-orange-100"],
+.dark [class~="bg-amber-100"] {
+  background-color: rgba(245, 158, 11, 0.18) !important;
+}
+.dark [class~="bg-pink-100"],
+.dark [class~="bg-rose-100"] {
+  background-color: rgba(236, 72, 153, 0.18) !important;
+}
+
+/* Raise saturated utility text to accessible tones on dark surfaces. */
+.dark [class~="text-violet-600"],
+.dark [class~="text-violet-700"],
+.dark [class~="text-purple-600"],
+.dark [class~="text-purple-700"],
+.dark [class~="text-indigo-600"],
+.dark [class~="text-indigo-700"] {
+  color: #b5a8ff !important;
+}
+.dark [class~="text-sky-600"],
+.dark [class~="text-blue-600"],
+.dark [class~="text-cyan-600"] {
+  color: #7dd3fc !important;
+}
+.dark [class~="text-teal-600"],
+.dark [class~="text-emerald-600"],
+.dark [class~="text-green-600"] {
+  color: #5eead4 !important;
+}
+.dark [class~="text-orange-600"],
+.dark [class~="text-amber-600"] {
+  color: #fdba74 !important;
+}
+.dark [class~="text-pink-600"],
+.dark [class~="text-rose-600"] {
+  color: #f9a8d4 !important;
+}
+
+/* Ensure section text inherits the active theme unless a component deliberately
+   uses white text on a saturated primary button. */
+.dark main,
+.dark main > section {
+  color: var(--foreground);
+}
+.dark main [class~="text-slate-500"],
+.dark main [class~="text-slate-600"],
+.dark main [class~="text-gray-500"],
+.dark main [class~="text-gray-600"] {
+  color: var(--muted-foreground) !important;
+}
+
+/* Native form controls follow the active palette across routes. */
+html.dark {
+  color-scheme: dark;
+}
+html:not(.dark) {
+  color-scheme: light;
+}
