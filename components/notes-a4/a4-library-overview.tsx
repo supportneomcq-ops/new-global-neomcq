@@ -11,6 +11,7 @@ import {
   RotateCw,
   CheckCircle2,
   Bookmark,
+  BookmarkCheck,
   ShieldCheck,
   ListTree,
 } from 'lucide-react';
@@ -21,6 +22,10 @@ interface A4LibraryOverviewProps {
   onReadNotes: () => void;
   onRefresh: () => void;
   isRefreshing?: boolean;
+  isBookmarked: boolean;
+  isBookmarking: boolean;
+  bookmarkError?: string;
+  onBookmark: () => void;
 }
 
 export function A4LibraryOverview({
@@ -28,6 +33,10 @@ export function A4LibraryOverview({
   onReadNotes,
   onRefresh,
   isRefreshing = false,
+  isBookmarked,
+  isBookmarking,
+  bookmarkError,
+  onBookmark,
 }: A4LibraryOverviewProps) {
   const isSubtopicScope = document.contentScope === 'SUBTOPIC' && !!document.subtopicName;
 
@@ -115,6 +124,16 @@ export function A4LibraryOverview({
             <div className="shrink-0 flex flex-col sm:flex-row md:flex-col gap-2">
               <button
                 type="button"
+                onClick={onBookmark}
+                disabled={isBookmarking}
+                aria-pressed={isBookmarked}
+                className="px-4 py-2.5 rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-200 font-extrabold text-xs transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                {isBookmarking ? <RotateCw className="w-4 h-4 animate-spin" /> : isBookmarked ? <BookmarkCheck className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
+                <span>{isBookmarked ? 'Saved to Bookmarks' : 'Save Note'}</span>
+              </button>
+              <button
+                type="button"
                 onClick={onReadNotes}
                 className="px-6 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-sm shadow-lg shadow-indigo-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer group hover:scale-[1.02] active:scale-[0.98]"
               >
@@ -133,6 +152,7 @@ export function A4LibraryOverview({
                 <RotateCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
                 <span>{isRefreshing ? 'Refreshing…' : 'Force Refresh'}</span>
               </button>
+              {bookmarkError && <p role="alert" className="max-w-[220px] text-xs text-rose-600 dark:text-rose-300">{bookmarkError}</p>}
             </div>
           </div>
 
