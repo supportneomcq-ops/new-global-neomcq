@@ -2062,9 +2062,14 @@ async function deactivateGenericCurriculumNodes(examId: string, supabase: any) {
   }
 
   const subjectIds = subjects.map((subject: any) => subject.id)
-  const genericSubjectIds = subjects
-    .filter((subject: any) => GENERIC_FILLER_NODE_REGEX.test((subject.name || '').trim()))
-    .map((subject: any) => subject.id)
+  const hasLegacyGenericPair =
+    subjects.some((subject: any) => /^core foundations(?: and| &)? principles$/i.test((subject.name || '').trim())) &&
+    subjects.some((subject: any) => /^advanced applied practice(?: and| &)? analysis$/i.test((subject.name || '').trim()))
+  const genericSubjectIds = hasLegacyGenericPair
+    ? subjects
+        .filter((subject: any) => GENERIC_FILLER_NODE_REGEX.test((subject.name || '').trim()))
+        .map((subject: any) => subject.id)
+    : []
 
   for (const subjectId of genericSubjectIds) {
     const { error } = await supabase.from('exam_subjects').update({ is_active: false }).eq('id', subjectId)
