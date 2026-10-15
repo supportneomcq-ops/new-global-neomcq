@@ -8,7 +8,7 @@ import { ShieldCheck, Lock, Mail, HelpCircle, FileText, Scale, RefreshCw, Truck,
 
 export function Footer() {
   return (
-    <footer className="w-full bg-slate-900 text-slate-300 dark:bg-[#030612] dark:text-slate-400 border-t border-slate-800 dark:border-slate-800/80 pt-12 pb-8 px-4 sm:px-6 lg:px-8 z-20">
+    <footer id="site-footer" className="w-full bg-slate-900 text-slate-300 dark:bg-[#030612] dark:text-slate-400 border-t border-slate-800 dark:border-slate-800/80 pt-12 pb-8 px-4 sm:px-6 lg:px-8 z-20">
       <div className="max-w-7xl mx-auto">
         {/* Top Section: Brand & Quick Links */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 pb-12 border-b border-slate-800">
