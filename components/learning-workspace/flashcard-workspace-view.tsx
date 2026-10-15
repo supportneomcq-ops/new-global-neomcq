@@ -81,11 +81,35 @@ export function FlashcardWorkspaceView() {
   const [gameState, setGameState] = useState<'overview' | 'studying' | 'summary'>('overview');
   const [userRatings, setUserRatings] = useState<Record<string, 'again' | 'good' | 'easy'>>({});
   const [direction, setDirection] = useState<'next' | 'prev'>('next');
+  const bookmarkItemId = selection.subtopic?.id || selection.topic?.id || '';
+  const [isDeckBookmarked, setIsDeckBookmarked] = useState(false);
+  const [isBookmarkBusy, setIsBookmarkBusy] = useState(false);
+  const [bookmarkError, setBookmarkError] = useState('');
 
   const examName = (selection.exam as any)?.shortName || selection.exam?.name || '';
   const subjectName = selection.subject?.name || '';
   const topicName = selection.topic?.name || '';
   const subtopicName = selection.subtopic?.name;
+
+  useEffect(() => {
+    let active = true;
+    setIsDeckBookmarked(false);
+    setBookmarkError('');
+    if (!bookmarkItemId) return () => { active = false; };
+    const loadBookmark = async () => {
+      try {
+        const params = new URLSearchParams({ item_type: 'flashcard', item_id: bookmarkItemId });
+        const response = await fetch(`/api/user/bookmarks?${params.toString()}`, { cache: 'no-store' });
+        const result = await response.json().catch(() => null);
+        if (!response.ok || !result?.success) throw new Error(result?.error || 'Could not check saved status.');
+        if (active) setIsDeckBookmarked(Array.isArray(result.bookmarks) && result.bookmarks.length > 0);
+      } catch (err) {
+        console.warn('[FlashcardWorkspaceView] Bookmark status unavailable:', err);
+      }
+    };
+    void loadBookmark();
+    return () => { active = false; };
+  }, [bookmarkItemId]);
 
   // Initialize only from real persisted/generated cards for the selected curriculum context.
   useEffect(() => {
@@ -235,6 +259,28 @@ export function FlashcardWorkspaceView() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [gameState, activeCardIndex, deck]);
 
+  const toggleDeckBookmark = async () => {
+    if (!deck || !bookmarkItemId || isBookmarkBusy) return;
+    setIsBookmarkBusy(true);
+    setBookmarkError('');
+    try {
+      const response = await fetch('/api/user/bookmarks', {
+        method: isDeckBookmarked ? 'DELETE' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(isDeckBookmarked
+          ? { item_type: 'flashcard', item_id: bookmarkItemId }
+          : { item_type: 'flashcard', item_id: bookmarkItemId, notes: deck.title }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) throw new Error(result?.error || 'Could not update bookmark.');
+      setIsDeckBookmarked(!isDeckBookmarked);
+    } catch (err) {
+      setBookmarkError(err instanceof Error ? err.message : 'This deck could not be saved.');
+    } finally {
+      setIsBookmarkBusy(false);
+    }
+  };
+
   if (!deck) {
     if (!selection.exam?.id || !selection.subject?.id || !selection.topic?.id) {
       return (
@@ -341,21 +387,31 @@ export function FlashcardWorkspaceView() {
               <div className="w-full h-3 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden flex">
                 <div
                   className="bg-emerald-500 transition-all duration-500 h-full"
-                  style={{ width: `${(deck.masteredCount / 30) * 100}%` }}
+                  style={{ width: `${(deck.masteredCount / deck.totalCards) * 100}%` }}
                 />
                 <div
                   className="bg-amber-400 transition-all duration-500 h-full"
-                  style={{ width: `${(deck.learningCount / 30) * 100}%` }}
+                  style={{ width: `${(deck.learningCount / deck.totalCards) * 100}%` }}
                 />
                 <div
                   className="bg-rose-500 transition-all duration-500 h-full"
-                  style={{ width: `${(deck.againCount / 30) * 100}%` }}
+                  style={{ width: `${(deck.againCount / deck.totalCards) * 100}%` }}
                 />
               </div>
             </div>
 
             {/* CTA Controls */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => void toggleDeckBookmark()}
+                disabled={isBookmarkBusy}
+                aria-pressed={isDeckBookmarked}
+                className="w-full sm:w-auto px-5 py-3.5 rounded-2xl border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-200 font-extrabold text-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
+              >
+                {isBookmarkBusy ? <RotateCw className="w-4 h-4 animate-spin" /> : isDeckBookmarked ? <BookmarkCheck className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
+                <span>{isDeckBookmarked ? 'Saved' : 'Save Deck'}</span>
+              </button>
               <button
                 type="button"
                 onClick={() => {
