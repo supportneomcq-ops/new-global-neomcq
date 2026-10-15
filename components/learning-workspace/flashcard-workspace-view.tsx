@@ -335,7 +335,7 @@ export function FlashcardWorkspaceView() {
 
               <div className="text-left sm:text-right shrink-0">
                 <div className="text-3xl font-black text-indigo-600 dark:text-indigo-400">
-                  30
+                  {deck.totalCards}
                 </div>
                 <div className="text-xs text-slate-400 font-bold uppercase tracking-wider">
                   Total Cards
@@ -440,6 +440,7 @@ export function FlashcardWorkspaceView() {
                 <span>Shuffle & Practice</span>
               </button>
             </div>
+            {bookmarkError && <p role="alert" className="text-xs text-rose-600 dark:text-rose-300">{bookmarkError}</p>}
           </div>
         </div>
       )}
