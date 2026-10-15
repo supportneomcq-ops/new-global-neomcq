@@ -14,9 +14,6 @@ export default function DashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<OnboardingData | null>(null);
-  const [curriculumStatus, setCurriculumStatus] = useState<'pending' | 'needs_retry' | null>(null);
-  const [retryingCurriculum, setRetryingCurriculum] = useState(false);
-  const [curriculumRetryError, setCurriculumRetryError] = useState('');
 
   useEffect(() => {
     const fetchSessionAndProfile = async () => {
@@ -25,14 +22,9 @@ export default function DashboardPage() {
         const { data: { user } } = await supabase.auth.getUser();
 
         if (user) {
-          const initialCurriculumStatus = user.user_metadata?.neo_curriculum_status;
-          if (initialCurriculumStatus === 'pending' || initialCurriculumStatus === 'needs_retry') {
-            setCurriculumStatus(initialCurriculumStatus);
-            setLoading(false);
-            stopGlobalLoading();
-            return;
-          }
-
+          // Do not block dashboard access on asynchronous curriculum validation.
+          // Curriculum repair can run independently; signup must not leave users
+          // stuck on a permanent validation screen.
           // 1. Fetch profile details
           const { data: profile } = await supabase
             .from('profiles')
@@ -71,48 +63,10 @@ export default function DashboardPage() {
           }
           const { data: userExam } = await userExamQuery.limit(1).maybeSingle();
 
-          // Repair legacy accounts too: if their selected exam has no successful
-          // curriculum validation marker, show the validation screen and trigger
-          // the same cached, idempotent repair flow used after signup.
           const selectedExam = (userExam as any)?.exams;
           const selectedExamMetadata = selectedExam?.metadata || {};
-          if (
-            selectedExam?.id &&
-            !(
-              selectedExamMetadata.curriculum_validation_version === 2 &&
-              selectedExamMetadata.curriculum_validation_passed === true
-            )
-          ) {
-            const pendingMetadata = {
-              ...(user.user_metadata || {}),
-              neo_curriculum_status: 'pending',
-              neo_exam_id: selectedExam.id,
-              neo_exam_name: selectedExam.name,
-              neo_exam_level: selectedExam.level || user.user_metadata?.neo_exam_level || null,
-              neo_curriculum_requested_at: new Date().toISOString(),
-            };
-            await supabase.auth.updateUser({ user_metadata: pendingMetadata });
-            setCurriculumStatus('pending');
-            setLoading(false);
-            stopGlobalLoading();
-
-            void fetch('/api/curriculum/retry', { method: 'POST' })
-              .then(async (response) => {
-                const result = await response.json().catch(() => null);
-                if (!response.ok || !result?.success) {
-                  await supabase.auth.updateUser({
-                    user_metadata: { ...pendingMetadata, neo_curriculum_status: 'needs_retry' },
-                  });
-                }
-              })
-              .catch(async () => {
-                await supabase.auth.updateUser({
-                  user_metadata: { ...pendingMetadata, neo_curriculum_status: 'needs_retry' },
-                });
-              });
-            return;
-          }
-
+          // Validation status is informational, not a dashboard access gate.
+          // Never redirect users into an indefinite spinner because metadata is missing.
           // 3. Fetch study preferences
           const { data: studyPref } = await supabase
             .from('study_preferences')
@@ -168,48 +122,6 @@ export default function DashboardPage() {
     fetchSessionAndProfile();
   }, [router]);
 
-  useEffect(() => {
-    if (!curriculumStatus) return;
-
-    const checkCurriculumStatus = async () => {
-      try {
-        const supabase = getSupabaseClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        const status = user?.user_metadata?.neo_curriculum_status;
-        if (status === 'ready') {
-          window.location.reload();
-          return;
-        }
-        if (status === 'needs_retry') setCurriculumStatus('needs_retry');
-        if (status === 'pending') setCurriculumStatus('pending');
-      } catch (error) {
-        console.warn('Could not refresh curriculum validation status:', error);
-      }
-    };
-
-    const intervalId = window.setInterval(() => { void checkCurriculumStatus(); }, 4000);
-    void checkCurriculumStatus();
-    return () => window.clearInterval(intervalId);
-  }, [curriculumStatus]);
-
-  const handleRetryCurriculum = async () => {
-    setRetryingCurriculum(true);
-    setCurriculumRetryError('');
-    try {
-      const response = await fetch('/api/curriculum/retry', { method: 'POST' });
-      const result = await response.json().catch(() => null);
-      if (!response.ok || !result?.success) {
-        setCurriculumRetryError(result?.error || 'We could not retry curriculum validation right now.');
-        return;
-      }
-      window.location.reload();
-    } catch {
-      setCurriculumRetryError('We could not connect to curriculum validation. Please try again.');
-    } finally {
-      setRetryingCurriculum(false);
-    }
-  };
-
   const handleSignOut = async () => {
     try {
       const supabase = getSupabaseClient();
@@ -223,41 +135,6 @@ export default function DashboardPage() {
 
   if (loading) {
     return <FuturisticLoader onComplete={() => {}} />;
-  }
-
-  if (curriculumStatus) {
-    const needsRetry = curriculumStatus === 'needs_retry';
-    return (
-      <main className="min-h-screen flex items-center justify-center bg-slate-50 px-5 text-slate-900 dark:bg-[#060914] dark:text-slate-100">
-        <section className="w-full max-w-xl rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-xl dark:border-white/10 dark:bg-[#0E1324] sm:p-10">
-          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-100 text-violet-600 dark:bg-violet-500/15 dark:text-violet-300">
-            {needsRetry ? <span className="text-2xl">!</span> : <span className="h-8 w-8 animate-spin rounded-full border-4 border-violet-200 border-t-violet-600 dark:border-violet-900 dark:border-t-violet-300" />}
-          </div>
-          <h1 className="text-2xl font-extrabold tracking-tight">
-            {needsRetry ? 'Curriculum validation needs another attempt' : 'Validating your exam curriculum'}
-          </h1>
-          <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-600 dark:text-slate-300">
-            {needsRetry
-              ? 'Your account is saved, but we could not finish validating the syllabus yet. Your study workspace will open once the curriculum is successfully checked.'
-              : 'Your account is ready. NeoMCQ is checking the exam-specific subjects, topics, and subtopics in the background. This page will update automatically when validation is complete.'}
-          </p>
-          {!needsRetry && <p className="mt-5 text-xs text-slate-500 dark:text-slate-400">You can keep this page open; there is no need to start setup again.</p>}
-          {needsRetry && (
-            <>
-              {curriculumRetryError && <p role="alert" className="mt-4 text-sm text-red-600 dark:text-red-300">{curriculumRetryError}</p>}
-              <button
-                type="button"
-                disabled={retryingCurriculum}
-                onClick={() => { void handleRetryCurriculum(); }}
-                className="mt-6 rounded-xl bg-violet-600 px-5 py-3 text-sm font-semibold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {retryingCurriculum ? 'Retrying validation…' : 'Retry curriculum validation'}
-              </button>
-            </>
-          )}
-        </section>
-      </main>
-    );
   }
 
   if (!currentUser) {
