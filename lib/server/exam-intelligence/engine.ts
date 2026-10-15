@@ -1798,7 +1798,7 @@ export async function enrichCurriculumProcess(
     )
 
   // Calculate actual row counts
-  const finalSubjects = comparisonReport.subjects.length > 0 ? (await supabase
+  const finalSubjectsRaw = comparisonReport.subjects.length > 0 ? (await supabase
     .from('exam_subjects')
     .select(`
       id,
@@ -1807,22 +1807,37 @@ export async function enrichCurriculumProcess(
       description,
       weight_percentage,
       display_order,
+      is_active,
       exam_topics (
         id,
         name,
         slug,
         description,
         display_order,
+        is_active,
         exam_subtopics (
           id,
           name,
           slug,
-          display_order
+          display_order,
+          is_active
         )
       )
     `)
     .eq('exam_id', examId)
     .order('display_order', { ascending: true })).data || [] : []
+
+  const finalSubjects = (finalSubjectsRaw as any[])
+    .filter((subject: any) => subject.is_active !== false)
+    .map((subject: any) => ({
+      ...subject,
+      exam_topics: (subject.exam_topics || [])
+        .filter((topic: any) => topic.is_active !== false)
+        .map((topic: any) => ({
+          ...topic,
+          exam_subtopics: (topic.exam_subtopics || []).filter((subtopic: any) => subtopic.is_active !== false),
+        })),
+    }))
 
   let finalTopicCount = 0
   let finalSubtopicCount = 0
