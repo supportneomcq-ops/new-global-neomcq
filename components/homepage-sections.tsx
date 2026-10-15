@@ -59,7 +59,7 @@ function SectionHeading({ eyebrow, title, description }: { eyebrow: string; titl
 
 export function HomepageSections({ onStartFree }: { onStartFree: () => void }) {
   return (
-    <main className="relative z-10 bg-white text-slate-900">
+    <main className="relative z-10 bg-background text-foreground">
       <section id="features" className="scroll-mt-24 px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
         <div className="mx-auto max-w-6xl">
           <SectionHeading eyebrow="Everything you need" title="Powerful Tools for Smarter Learning" description="AI + proven learning methods to help you achieve your exam goals." />
@@ -112,7 +112,7 @@ export function HomepageSections({ onStartFree }: { onStartFree: () => void }) {
         </div>
       </section>
 
-      <section className="relative overflow-hidden bg-gradient-to-br from-violet-50 via-white to-sky-50 px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
+      <section className="relative overflow-hidden bg-gradient-to-br from-violet-50 via-white to-sky-50 px-4 py-10 sm:px-6 sm:py-14 lg:px-8 dark:from-[#0b1228] dark:via-[#10162d] dark:to-[#0d1b31]">
         <div className="pointer-events-none absolute -left-16 top-10 h-52 w-52 rounded-full bg-violet-200/40 blur-3xl" />
         <div className="pointer-events-none absolute -right-12 bottom-0 h-56 w-56 rounded-full bg-sky-200/40 blur-3xl" />
         <div className="relative mx-auto grid max-w-6xl items-center gap-7 lg:grid-cols-[.7fr_2fr_.7fr]">
