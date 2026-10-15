@@ -607,46 +607,41 @@ export function DashboardHomeView({
               <button type="button" onClick={onOpenExamSwitch} className="mt-4 rounded-xl bg-violet-600 px-4 py-2 text-xs font-bold text-white hover:bg-violet-700">Manage Exam</button>
             </div>
           ) : (
-            subjectsToDisplay.map((sub: any, idx: number) => {{subjectsToDisplay.map((sub: any, idx: number) => {
-            const IconComponent = sub.icon || (idx === 0 ? Server : idx === 1 ? Shield : Database);
+            subjectsToDisplay.map((sub: any, idx: number) => {
+              const IconComponent = sub.icon || (idx === 0 ? Server : idx === 1 ? Shield : Database);
+              const colorConfig = [
+                { bg: 'bg-[#F5F3FF] dark:bg-indigo-950/20', iconBg: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/60 dark:text-indigo-400' },
+                { bg: 'bg-[#ECFDF5] dark:bg-emerald-950/20', iconBg: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/60 dark:text-emerald-400' },
+                { bg: 'bg-[#FDF2F8] dark:bg-pink-950/20', iconBg: 'bg-pink-100 text-pink-600 dark:bg-pink-900/60 dark:text-pink-400' },
+              ][idx % 3];
 
-            const colorConfig = [
-              { bg: 'bg-[#F5F3FF] dark:bg-indigo-950/20', iconBg: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/60 dark:text-indigo-400', bar: 'bg-indigo-600' },
-              { bg: 'bg-[#ECFDF5] dark:bg-emerald-950/20', iconBg: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/60 dark:text-emerald-400', bar: 'bg-emerald-600' },
-              { bg: 'bg-[#FDF2F8] dark:bg-pink-950/20', iconBg: 'bg-pink-100 text-pink-600 dark:bg-pink-900/60 dark:text-pink-400', bar: 'bg-rose-500' },
-            ][idx % 3];
-
-            return (
-              <div
-                key={sub.id || idx}
-                onClick={() => {
-                  if (sub.id && availableSubjects.some((s) => s.id === sub.id)) {
-                    setSubject(sub);
-                  }
-                  onSelectTab('practice');
-                }}
-                className={`p-4 rounded-2xl ${colorConfig.bg} border border-slate-200/70 dark:border-slate-800 space-y-3 cursor-pointer hover:shadow-xs transition-all`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-9 h-9 rounded-xl ${colorConfig.iconBg} flex items-center justify-center shrink-0`}>
-                      <IconComponent className="w-4 h-4" />
+              return (
+                <button
+                  type="button"
+                  key={sub.id || idx}
+                  onClick={() => {
+                    if (sub.id && availableSubjects.some((subject) => subject.id === sub.id)) {
+                      setSubject(sub);
+                    }
+                    onSelectTab('practice');
+                  }}
+                  className={`w-full rounded-2xl ${colorConfig.bg} border border-slate-200/70 p-4 text-left space-y-3 transition-all hover:shadow-sm dark:border-slate-800`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${colorConfig.iconBg}`}>
+                        <IconComponent className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <h4 className="line-clamp-1 text-xs font-bold text-slate-900 dark:text-white sm:text-sm">{sub.name}</h4>
+                        <p className="text-[11px] text-slate-600 dark:text-slate-400">Explore topics for this subject</p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white leading-tight line-clamp-1">
-                        {sub.name}
-                      </h4>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        Explore topics for this subject
-                      </p>
-                    </div>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
                   </div>
-                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-                </div>
-
-
-              </div>
-            );
+                </button>
+              );
+            })
           )}
         </div>
       </div>
