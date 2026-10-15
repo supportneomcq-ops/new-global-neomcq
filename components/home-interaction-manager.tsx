@@ -20,19 +20,8 @@ export function HomeInteractionManager() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
 
-  const [currentUser, setCurrentUser] = useState<OnboardingData | null>(() => {
-    if (typeof window === 'undefined') return null;
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && parsed.email) return parsed;
-      }
-    } catch {
-      // Ignore storage read error.
-    }
-    return null;
-  });
+  // Never treat editable localStorage data as an authenticated session.
+  const [currentUser, setCurrentUser] = useState<OnboardingData | null>(null);
 
   useEffect(() => {
     const checkRedirect = async () => {
@@ -48,15 +37,13 @@ export function HomeInteractionManager() {
           if (roleNames.includes('admin') || roleNames.includes('super_admin')) router.push('/admin');
           else if (roleNames.includes('support')) router.push('/support');
           else router.push('/dashboard');
-        } else if (currentUser) {
-          router.push('/dashboard');
         }
       } catch (err) {
         console.error('Error verifying active session on landing page:', err);
       }
     };
     checkRedirect();
-  }, [router, currentUser]);
+  }, [router]);
 
   const handleStartOnboarding = () => {
     setActiveModal(null);
