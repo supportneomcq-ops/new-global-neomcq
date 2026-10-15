@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { planCode, preferredCurrency } = body;
+    const { planCode } = body;
 
     if (!isValidPlanCode(planCode)) {
       return NextResponse.json(
