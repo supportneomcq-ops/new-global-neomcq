@@ -44,7 +44,7 @@ export function A4NotebookViewer({ onBookmark }: A4NotebookViewerProps) {
   // Fetch or generate A4 notes from canonical API
   const fetchNote = useCallback(
     async (forceRefresh = false) => {
-      if (!selection.topic?.id) {
+      if (!selection.exam?.id || !selection.subject?.id || !selection.topic?.id) {
         setIsLoading(false);
         return;
       }
@@ -58,14 +58,14 @@ export function A4NotebookViewer({ onBookmark }: A4NotebookViewerProps) {
 
       try {
         const payload = {
-          examId: selection.exam?.id || 'default_exam',
-          subjectId: selection.subject?.id || 'default_subject',
+          examId: selection.exam.id,
+          subjectId: selection.subject.id,
           topicId: selection.topic.id,
           subtopicId: selection.subtopic?.id || null,
           contentScope,
-          examName: selection.exam?.name || 'Examination',
-          subjectName: selection.subject?.name || 'Subject',
-          topicName: selection.topic.name || 'Main Topic',
+          examName: selection.exam.name,
+          subjectName: selection.subject.name,
+          topicName: selection.topic.name,
           subtopicName: selection.subtopic?.name || null,
           forceRefresh,
         };
