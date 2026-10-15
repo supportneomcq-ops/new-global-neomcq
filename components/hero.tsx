@@ -35,7 +35,7 @@ export function Hero({ onStartFree, onExploreFeatures }: HeroProps) {
   ];
 
   return (
-    <section className="relative isolate overflow-hidden border-b border-violet-100 bg-gradient-to-r from-sky-50 via-white to-violet-100 px-4 sm:px-6 lg:px-8">
+    <section className="relative isolate overflow-hidden border-b border-violet-100 bg-gradient-to-r from-sky-50 via-white to-violet-100 px-4 sm:px-6 lg:px-8 dark:border-violet-900/60 dark:from-[#0b1228] dark:via-[#10162d] dark:to-[#211b45]">
       <div className="pointer-events-none absolute -left-24 top-0 h-80 w-80 rounded-full bg-sky-200/40 blur-3xl" />
       <div className="pointer-events-none absolute right-0 top-0 h-96 w-96 rounded-full bg-violet-300/40 blur-3xl" />
       <div className="relative mx-auto grid min-h-[490px] max-w-6xl items-center gap-3 py-9 sm:py-12 lg:min-h-[520px] lg:grid-cols-[.95fr_1.05fr] lg:py-8">
