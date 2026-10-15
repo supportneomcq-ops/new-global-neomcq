@@ -56,61 +56,24 @@ export interface FlashcardDeck {
   cards: Flashcard[];
 }
 
-// Helper generator to ensure a full 30-card deck per topic/subtopic if API returns partials
-function ensureThirtyFlashcards(
-  rawCards: any[],
-  exam: string,
-  subject: string,
-  topic: string,
-  subtopic?: string
-): Flashcard[] {
-  const baseCards: Flashcard[] = rawCards.map((c, idx) => ({
-    id: c.id || `fc_${idx + 1}`,
-    front: c.front,
-    back: c.back,
-    category: c.category || subject || 'High Yield',
-    difficulty: c.difficulty || 'High Yield',
-    explanation: c.explanation || `Key high-yield concept for ${topic} on ${exam}.`,
-    clinical_pearl: c.clinical_pearl || `frequently tested board association for ${topic}.`,
+// Use only persisted or generated flashcards for the selected topic. Never pad a deck with generic sample questions.
+function mapTopicFlashcards(rawCards: any[], subject: string): Flashcard[] {
+  return rawCards.slice(0, 30).map((card, index) => ({
+    id: card.id || `fc_${index + 1}`,
+    front: card.front,
+    back: card.back,
+    category: card.category || subject || 'Uncategorized',
+    difficulty: card.difficulty || 'Unrated',
+    explanation: card.explanation || '',
+    clinical_pearl: card.clinical_pearl || '',
     status: 'unseen',
     bookmarked: false,
   }));
-
-  // Standard medical high-yield concepts to pad up to 30 if needed
-  const highYieldTemplates = [
-    { f: 'What is the Gold Standard diagnostic test for {topic}?', b: 'Definitive imaging / tissue biopsy as per clinical guideline.', e: 'High sensitivity & specificity test.', p: 'Always stabilize patient before invasive diagnostics.' },
-    { f: 'What is the first-line pharmacotherapy for acute {topic}?', b: 'Primary evidence-based drug regimen according to current board guidelines.', e: 'Immediate symptomatic and disease-modifying control.', p: 'Check contraindications and renal clearance before administering.' },
-    { f: 'What classic clinical triad or hallmark is pathognomonic for {topic}?', b: 'Key characteristic presentation triad.', e: 'Classic vignette presentation tested on examinations.', p: 'Presence of all 3 features yields >90% diagnostic specificity.' },
-    { f: 'What key histological or laboratory finding confirms {topic}?', b: 'Specific cellular alteration, biomarker elevation, or pathological staining.', e: 'Key laboratory differentiator.', p: 'Distinguishes from closely related differential diagnoses.' },
-    { f: 'What is the most common high-yield complication of untreated {topic}?', b: 'Primary long-term adverse sequel or organ system dysfunction.', e: 'Requires proactive screening and early intervention.', p: 'Monitored routinely during follow-up visits.' },
-  ];
-
-  let currentCount = baseCards.length;
-  let templateIdx = 0;
-
-  while (currentCount < 30) {
-    const tmpl = highYieldTemplates[templateIdx % highYieldTemplates.length];
-    baseCards.push({
-      id: `fc_gen_${currentCount + 1}`,
-      front: tmpl.f.replace('{topic}', subtopic || topic),
-      back: tmpl.b,
-      category: subject,
-      difficulty: 'High Yield',
-      explanation: tmpl.e,
-      clinical_pearl: tmpl.p,
-      status: 'unseen',
-      bookmarked: false,
-    });
-    currentCount++;
-    templateIdx++;
-  }
-
-  return baseCards.slice(0, 30);
 }
 
 export function FlashcardWorkspaceView() {
   const { selection } = useSelection();
-  const { content } = useTopicContent();
+  const { content, isLoading, isOrchestrating, error, refreshTopicContent } = useTopicContent();
 
   const [deck, setDeck] = useState<FlashcardDeck | null>(null);
   const [activeCardIndex, setActiveCardIndex] = useState<number>(0);
@@ -119,56 +82,67 @@ export function FlashcardWorkspaceView() {
   const [userRatings, setUserRatings] = useState<Record<string, 'again' | 'good' | 'easy'>>({});
   const [direction, setDirection] = useState<'next' | 'prev'>('next');
 
-  const examName = (selection.exam as any)?.shortName || selection.exam?.name || 'Board Exam';
-  const subjectName = selection.subject?.name || 'Core Subject';
-  const topicName = selection.topic?.name || 'Main Topic';
+  const examName = (selection.exam as any)?.shortName || selection.exam?.name || '';
+  const subjectName = selection.subject?.name || '';
+  const topicName = selection.topic?.name || '';
   const subtopicName = selection.subtopic?.name;
 
-  // Initialize or reload user progress & 30-card canonical deck
+  // Initialize only from real persisted/generated cards for the selected curriculum context.
   useEffect(() => {
-    const rawCards = content?.flashcards && content.flashcards.length > 0 ? content.flashcards : [];
-    const thirtyCards = ensureThirtyFlashcards(rawCards, examName, subjectName, topicName, subtopicName);
+    if (!selection.exam?.id || !selection.subject?.id || !selection.topic?.id) {
+      setDeck(null);
+      setActiveCardIndex(0);
+      setGameState('overview');
+      return;
+    }
 
-    // Load user mastery from local persistence
+    const rawCards = Array.isArray(content?.flashcards) ? content.flashcards : [];
+    const topicCards = mapTopicFlashcards(rawCards, subjectName);
+    if (topicCards.length === 0) {
+      setDeck(null);
+      setActiveCardIndex(0);
+      setGameState('overview');
+      return;
+    }
+
     const storageKey = `neo_flashcards_${examName}_${subjectName}_${topicName}_${subtopicName || 'main'}`;
     let savedRatings: Record<string, 'again' | 'good' | 'easy'> = {};
     try {
       const stored = localStorage.getItem(storageKey);
-      if (stored) {
-        savedRatings = JSON.parse(stored);
-      }
+      if (stored) savedRatings = JSON.parse(stored);
     } catch {
-      // ignore
+      // Ignore invalid local progress and start this deck cleanly.
     }
     setUserRatings(savedRatings);
 
-    // Apply saved status to cards
-    const updatedCards = thirtyCards.map((c) => ({
-      ...c,
-      status: savedRatings[c.id] || 'unseen',
+    const updatedCards = topicCards.map((card) => ({
+      ...card,
+      status: savedRatings[card.id] || 'unseen',
     }));
-
-    const easyCount = updatedCards.filter((c) => c.status === 'easy').length;
-    const goodCount = updatedCards.filter((c) => c.status === 'good').length;
-    const againCount = updatedCards.filter((c) => c.status === 'again').length;
+    const easyCount = updatedCards.filter((card) => card.status === 'easy').length;
+    const goodCount = updatedCards.filter((card) => card.status === 'good').length;
+    const againCount = updatedCards.filter((card) => card.status === 'again').length;
 
     setDeck({
       id: `deck_${examName}_${topicName}`,
-      title: `${subtopicName || topicName} — 30 High-Yield Flashcards`,
-      description: `Exam-specific active recall cards crafted according to ${examName} guidelines.`,
+      title: `${subtopicName || topicName} — ${updatedCards.length} Flashcards`,
+      description: `Flashcards generated or saved for ${examName}.`,
       examName,
       subjectName,
       topicName,
       subtopicName,
-      totalCards: 30,
-      lastStudied: 'Today',
+      totalCards: updatedCards.length,
+      lastStudied: undefined,
       masteredCount: easyCount,
       learningCount: goodCount,
-      againCount: againCount,
+      againCount,
       version: 1,
       cards: updatedCards,
     });
-  }, [content?.flashcards, examName, subjectName, topicName, subtopicName]);
+    setActiveCardIndex(0);
+    setIsFlipped(false);
+    setGameState('overview');
+  }, [content?.flashcards, examName, subjectName, topicName, subtopicName, selection.exam?.id, selection.subject?.id, selection.topic?.id]);
 
   const saveRating = (cardId: string, rating: 'again' | 'good' | 'easy') => {
     const updatedRatings = { ...userRatings, [cardId]: rating };
@@ -262,14 +236,31 @@ export function FlashcardWorkspaceView() {
   }, [gameState, activeCardIndex, deck]);
 
   if (!deck) {
-    return (
-      <div className="p-12 text-center rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
-        <div className="w-10 h-10 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-600 flex items-center justify-center mx-auto animate-spin">
-          <RotateCw className="w-5 h-5" />
+    if (!selection.exam?.id || !selection.subject?.id || !selection.topic?.id) {
+      return (
+        <div className="rounded-3xl border border-violet-200 bg-white p-8 text-center shadow-sm dark:border-violet-800/70 dark:bg-slate-900">
+          <Layers className="mx-auto h-9 w-9 text-violet-600 dark:text-violet-300" />
+          <h2 className="mt-3 text-lg font-bold text-slate-900 dark:text-slate-100">Choose a topic first</h2>
+          <p className="mx-auto mt-2 max-w-lg text-sm text-slate-600 dark:text-slate-300">Select an exam, subject, and topic in the learning context bar to see flashcards for the correct curriculum.</p>
         </div>
-        <p className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
-          Preparing your 30 high-yield flashcards for {examName}...
-        </p>
+      );
+    }
+    if (isLoading || isOrchestrating) {
+      return (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-3xl border border-slate-200 bg-white p-12 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <RotateCw className="h-8 w-8 animate-spin text-indigo-600 dark:text-indigo-400" />
+          <p className="text-sm font-extrabold text-slate-700 dark:text-slate-200">Loading real flashcards for {topicName}…</p>
+        </div>
+      );
+    }
+    return (
+      <div className="rounded-3xl border border-dashed border-violet-300 bg-white p-8 text-center shadow-sm dark:border-violet-800/70 dark:bg-slate-900">
+        <Layers className="mx-auto h-9 w-9 text-violet-600 dark:text-violet-300" />
+        <h2 className="mt-3 text-lg font-bold text-slate-900 dark:text-slate-100">No saved flashcards for this topic yet</h2>
+        <p className="mx-auto mt-2 max-w-lg text-sm text-slate-600 dark:text-slate-300">{error || 'Generate or save topic-specific learning content before starting a flashcard review.'}</p>
+        <button type="button" onClick={() => void refreshTopicContent(true)} disabled={isLoading || isOrchestrating} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-500 px-4 py-2.5 text-sm font-extrabold text-white shadow-md disabled:opacity-60">
+          {isLoading || isOrchestrating ? <RotateCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} Generate topic content
+        </button>
       </div>
     );
   }
@@ -314,7 +305,7 @@ export function FlashcardWorkspaceView() {
                   {deck.masteredCount}
                 </div>
                 <div className="text-[10px] text-emerald-600/70 font-semibold mt-0.5">
-                  {Math.round((deck.masteredCount / 30) * 100)}% of deck
+                  {Math.round((deck.masteredCount / deck.totalCards) * 100)}% of deck
                 </div>
               </div>
 
@@ -324,7 +315,7 @@ export function FlashcardWorkspaceView() {
                   {deck.learningCount}
                 </div>
                 <div className="text-[10px] text-amber-600/70 font-semibold mt-0.5">
-                  {Math.round((deck.learningCount / 30) * 100)}% of deck
+                  {Math.round((deck.learningCount / deck.totalCards) * 100)}% of deck
                 </div>
               </div>
 
@@ -334,7 +325,7 @@ export function FlashcardWorkspaceView() {
                   {deck.againCount}
                 </div>
                 <div className="text-[10px] text-rose-600/70 font-semibold mt-0.5">
-                  {Math.round((deck.againCount / 30) * 100)}% of deck
+                  {Math.round((deck.againCount / deck.totalCards) * 100)}% of deck
                 </div>
               </div>
             </div>
@@ -344,7 +335,7 @@ export function FlashcardWorkspaceView() {
               <div className="flex justify-between text-xs font-bold">
                 <span className="text-slate-500">Overall Mastery Progress</span>
                 <span className="text-indigo-600 dark:text-indigo-400">
-                  {Math.round((deck.masteredCount / 30) * 100)}% Complete
+                  {Math.round((deck.masteredCount / deck.totalCards) * 100)}% Complete
                 </span>
               </div>
               <div className="w-full h-3 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden flex">
@@ -375,7 +366,7 @@ export function FlashcardWorkspaceView() {
                 className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md hover:shadow-indigo-500/20"
               >
                 <BookOpen className="w-4 h-4" />
-                <span>Start Active Review (30 Cards)</span>
+                <span>Start Active Review ({deck.totalCards} Cards)</span>
               </button>
 
               <button
@@ -414,12 +405,12 @@ export function FlashcardWorkspaceView() {
             {/* Smooth Progress Bar */}
             <div className="flex items-center gap-3">
               <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">
-                {activeCardIndex + 1} / 30
+                {activeCardIndex + 1} / {deck.totalCards}
               </span>
               <div className="w-24 sm:w-32 h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
                 <motion.div
                   className="h-full bg-indigo-600 rounded-full"
-                  animate={{ width: `${((activeCardIndex + 1) / 30) * 100}%` }}
+                  animate={{ width: `${((activeCardIndex + 1) / deck.totalCards) * 100}%` }}
                   transition={{ duration: 0.2 }}
                 />
               </div>
@@ -512,7 +503,7 @@ export function FlashcardWorkspaceView() {
 
                 {/* Card Bottom Tag */}
                 <div className="flex items-center justify-between text-[11px] border-t border-slate-100 dark:border-slate-800 pt-3 text-slate-400 font-medium">
-                  <span>Card {activeCardIndex + 1} of 30</span>
+                  <span>Card {activeCardIndex + 1} of {deck.totalCards}</span>
                   <span className="font-black text-indigo-500 uppercase">
                     {isFlipped ? 'BACK (ANSWER)' : 'FRONT (PROMPT)'}
                   </span>
@@ -592,7 +583,7 @@ export function FlashcardWorkspaceView() {
 
           <div className="space-y-2">
             <h2 className="text-2xl font-black text-slate-900 dark:text-white">
-              30-Card Flashcard Review Complete!
+              {deck.totalCards}-Card Flashcard Review Complete!
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Your personalized active recall mastery data has been saved for {deck.topicName}.
