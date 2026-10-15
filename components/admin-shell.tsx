@@ -55,6 +55,7 @@ import {
   HeartPulse,
   Server,
   Coins,
+  Monitor,
 } from 'lucide-react';
 import { Logo } from '@/components/logo';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -152,6 +153,12 @@ export function AdminShell({ userEmail, roles, children }: AdminShellProps) {
       items: [
         { label: 'Dashboard', href: '/admin', icon: BarChart3 },
         { label: 'System Overview', href: '/admin/system-health', icon: Activity },
+      ],
+    },
+    {
+      title: 'WEBSITE',
+      items: [
+        { label: 'Homepage Customization', href: '/admin/homepage', icon: Monitor },
       ],
     },
     {
