@@ -171,16 +171,16 @@ export const AUTHORITATIVE_PLANS: Record<PlanCode, PlanDefinition> = {
   },
 };
 
-export type SupportedCurrency = 'INR' | 'USD' | 'EUR';
+export type SupportedCurrency = 'INR' | 'USD';
 
 export function getFormattedPlanPrice(planCode: PlanCode, currency: SupportedCurrency = 'USD') {
   const plan = AUTHORITATIVE_PLANS[planCode];
-  if (!plan) return { symbol: '$', displayPrice: '$0', rawPrice: 0, period: '/mo', switchFee: '$2.00 USD' };
+  if (!plan) return { symbol: '$', displayPrice: '$0', rawPrice: 0, period: '/mo', periodShort: '/ mo', switchFee: '$2.00 USD' };
 
   if (currency === 'INR') {
     const formatted = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(plan.price_inr);
     return {
-      symbol: '₹',
+      symbol: '₹' as const,
       displayPrice: `₹${formatted}`,
       rawPrice: plan.price_inr,
       period: plan.annual ? '/ year' : '/ month',
@@ -189,97 +189,24 @@ export function getFormattedPlanPrice(planCode: PlanCode, currency: SupportedCur
     };
   }
 
-  const symbol = currency === 'EUR' ? '€' : '
-}
-
-/**
- * Returns plan definition by code
- */
-export function getPlanByCode(code?: string | null): PlanDefinition | null {
-  if (!code) return null;
-  const upper = code.toUpperCase() as PlanCode;
-  return AUTHORITATIVE_PLANS[upper] || null;
-}
-
-/**
- * Returns plan definition by slug
- */
-export function getPlanBySlug(slug?: string | null): PlanDefinition | null {
-  if (!slug) return null;
-  const lower = slug.toLowerCase();
-  for (const plan of Object.values(AUTHORITATIVE_PLANS)) {
-    if (plan.slug === lower) return plan;
-  }
-  return null;
-}
-
-/**
- * Validates whether a code is one of the 3 canonical plans
- */
-export function isValidPlanCode(code?: string | null): code is PlanCode {
-  if (!code) return false;
-  return ['PRO', 'MAX', 'ELITE'].includes(code.toUpperCase());
-}
-
-/**
- * Returns all active plan definitions in canonical order
- */
-export function getAllActivePlans(): PlanDefinition[] {
-  return [AUTHORITATIVE_PLANS.PRO, AUTHORITATIVE_PLANS.MAX, AUTHORITATIVE_PLANS.ELITE];
-}
-
-/**
- * Returns client-safe plan list (excluding server-only metadata)
- */
-export function getPublicPlansConfig() {
-  return getAllActivePlans().map((plan) => ({
-    code: plan.code,
-    name: plan.name,
-    slug: plan.slug,
-    price_usd: plan.price_usd,
-    price_inr: plan.price_inr,
-    billing_interval: plan.billing_interval,
-    annual: plan.annual,
-    duration_days: plan.duration_days,
-    period_label: plan.period_label,
-    tagline: plan.tagline,
-    description: plan.description,
-    popular: plan.popular,
-    highlight: plan.highlight,
-    exam_switch_fee_usd: plan.exam_switch_fee_usd,
-    is_unlimited: plan.is_unlimited,
-    features: plan.features,
-    limits: {
-      audio_tts_enabled: plan.limits.audio_tts_enabled,
-      priority_queue: plan.limits.priority_queue,
-      unlimited_exam_switches: plan.limits.unlimited_exam_switches,
-      show_credit_caps: plan.limits.show_credit_caps,
-    },
-  }));
-}
-;
   return {
-    symbol,
-    displayPrice: `${symbol}${plan.price_usd.toFixed(2)}`,
+    symbol: '$' as const,
+    displayPrice: `$${plan.price_usd.toFixed(2)}`,
     rawPrice: plan.price_usd,
     period: plan.annual ? '/ year' : '/ month',
     periodShort: plan.annual ? '/ yr' : '/ mo',
-    switchFee: currency === 'EUR' ? '€2.00 EUR' : '$2.00 USD',
+    switchFee: plan.exam_switch_fee_usd === 0 ? '$0.00 USD' : '$2.00 USD',
   };
 }
 
-/**
- * Returns plan definition by code
- */
+/** Returns plan definition by code. */
 export function getPlanByCode(code?: string | null): PlanDefinition | null {
   if (!code) return null;
   const upper = code.toUpperCase() as PlanCode;
   return AUTHORITATIVE_PLANS[upper] || null;
 }
 
-/**
- * Returns plan definition by slug
- */
+/** Returns plan definition by slug. */
 export function getPlanBySlug(slug?: string | null): PlanDefinition | null {
   if (!slug) return null;
   const lower = slug.toLowerCase();
@@ -289,24 +216,18 @@ export function getPlanBySlug(slug?: string | null): PlanDefinition | null {
   return null;
 }
 
-/**
- * Validates whether a code is one of the 3 canonical plans
- */
+/** Validates whether a code is one of the three canonical plans. */
 export function isValidPlanCode(code?: string | null): code is PlanCode {
   if (!code) return false;
   return ['PRO', 'MAX', 'ELITE'].includes(code.toUpperCase());
 }
 
-/**
- * Returns all active plan definitions in canonical order
- */
+/** Returns all active plan definitions in canonical order. */
 export function getAllActivePlans(): PlanDefinition[] {
   return [AUTHORITATIVE_PLANS.PRO, AUTHORITATIVE_PLANS.MAX, AUTHORITATIVE_PLANS.ELITE];
 }
 
-/**
- * Returns client-safe plan list (excluding server-only metadata)
- */
+/** Returns client-safe plan list (excluding server-only metadata). */
 export function getPublicPlansConfig() {
   return getAllActivePlans().map((plan) => ({
     code: plan.code,
