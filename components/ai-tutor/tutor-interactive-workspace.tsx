@@ -295,6 +295,24 @@ export function TutorInteractiveWorkspace({
   const scenes = session?.scenes || [];
   const currentScene = scenes[activeSceneIndex] || scenes[0];
 
+  if (!activeUserId) {
+    return (
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-slate-800 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-100">
+        <h2 className="text-lg font-bold">Sign in to use AI Tutor</h2>
+        <p className="mt-2 text-sm">Your account could not be verified. Please sign in again.</p>
+      </div>
+    );
+  }
+
+  if (!examId || !subjectId || !topicId) {
+    return (
+      <div className="rounded-2xl border border-violet-200 bg-white p-6 text-slate-900 dark:border-violet-800/70 dark:bg-slate-900 dark:text-slate-100">
+        <h2 className="text-lg font-bold">Choose a topic for your AI Tutor</h2>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Select an exam, subject, and topic before starting a tutor session.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* 1. Top Hierarchy Status & Master Controls */}
