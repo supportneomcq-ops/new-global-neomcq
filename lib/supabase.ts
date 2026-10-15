@@ -32,11 +32,11 @@ export function getSupabaseAdmin(): SupabaseClient {
   }
   if (!supabaseAdminClient) {
     const { url } = getPublicSupabaseConfig();
-    // Supabase's newer server-side secret key is a valid alternative to the legacy service-role key.
-    // Prefer the explicitly named service-role key when both are configured.
-    const adminKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
+    // Prefer Supabase's modern server-side secret key. The legacy service-role JWT may be
+    // revoked, so it must only be used as a compatibility fallback when no secret key exists.
+    const adminKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!adminKey) {
-      throw new Error('Configure SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEY for privileged server-side database operations. Refusing to use the anonymous key.');
+      throw new Error('Configure SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY for privileged server-side database operations. Refusing to use the anonymous key.');
     }
     supabaseAdminClient = createClient(url, adminKey, {
       auth: { persistSession: false },
