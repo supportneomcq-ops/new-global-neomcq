@@ -97,7 +97,7 @@ export function HomeInteractionManager() {
   }
 
   return (
-    <div className={`relative min-h-svh w-full max-w-full overflow-x-hidden bg-white text-slate-900 ${isAnyModalActive ? 'h-screen max-h-screen overflow-hidden' : ''}`}>
+    <div className={`relative min-h-svh w-full max-w-full overflow-x-hidden bg-background text-foreground ${isAnyModalActive ? 'h-screen max-h-screen overflow-hidden' : ''}`}>
       <Header
         onOpenModal={(modal) => {
           if (modal === 'signin') handleSignIn();
