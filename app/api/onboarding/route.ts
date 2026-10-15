@@ -202,54 +202,9 @@ export async function POST(req: NextRequest) {
       // account and preferences first; the background task will reconcile this exam.
       curriculumPending = !curriculumReady
 
-      // Final integrity check before persisting the profile.
-      if (!curriculumPending) {
-      if (!finalExamId) {
-        return NextResponse.json(
-          { success: false, error: 'We could not verify your selected exam. Please return to exam selection and try again.' },
-          { status: 422 }
-        )
-      }
-
-      const { data: curriculumSubjects, error: subjectsError } = await (admin as any)
-        .from('exam_subjects')
-        .select('id')
-        .eq('exam_id', finalExamId)
-        .limit(200)
-
-      if (subjectsError) {
-        console.error('[Onboarding] Curriculum subject verification failed:', subjectsError.message)
-        return NextResponse.json(
-          { success: false, error: 'We could not verify the saved exam curriculum. Please retry in a moment.' },
-          { status: 503 }
-        )
-      }
-
-      const subjectIds = (curriculumSubjects || []).map((subject: { id: string }) => subject.id)
-      if (subjectIds.length === 0) {
-        return NextResponse.json(
-          { success: false, error: 'The selected exam curriculum is not ready yet. Please retry exam setup in a moment.' },
-          { status: 422 }
-        )
-      }
-
-      const { data: curriculumTopics, error: topicsError } = await (admin as any)
-        .from('exam_topics')
-        .select('id')
-        .in('subject_id', subjectIds)
-        .limit(1)
-
-      if (topicsError) {
-        console.error('[Onboarding] Curriculum topic verification failed:', topicsError.message)
-        return NextResponse.json(
-          { success: false, error: 'We could not verify the saved exam topics. Please retry in a moment.' },
-          { status: 503 }
-        )
-      }
-      if (!curriculumTopics || curriculumTopics.length === 0) {
-        curriculumPending = true
-      }
-      }
+      // The versioned validation marker is the authoritative curriculum gate.
+      // Do not make account creation depend on extra curriculum queries; the
+      // background worker performs the full persisted-hierarchy verification.
 
       // Update Profile and fail visibly if persistence fails.
       const { data: updatedProfile, error: profileError } = await (admin as any)
