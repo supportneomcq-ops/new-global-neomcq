@@ -30,7 +30,7 @@ export async function createSubscriptionRazorpayOrder(params: {
   planCode: PlanCode;
   userEmail?: string;
   userName?: string;
-  preferredCurrency?: 'USD' | 'INR';
+  preferredCurrency?: 'USD' | 'INR' | 'EUR';
 }): Promise<RazorpayOrderResult> {
   const plan = AUTHORITATIVE_PLANS[params.planCode];
   if (!plan) {
@@ -40,7 +40,7 @@ export async function createSubscriptionRazorpayOrder(params: {
   const keyId = process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || '';
   const keySecret = process.env.RAZORPAY_KEY_SECRET || '';
 
-  const currency = params.preferredCurrency === 'INR' ? 'INR' : 'USD';
+  const currency = params.preferredCurrency === 'INR' ? 'INR' : params.preferredCurrency === 'EUR' ? 'EUR' : 'USD';
   const amount = currency === 'INR' ? plan.amount_paise : plan.amount_cents;
   const receipt = `sub_${params.planCode.toLowerCase()}_${params.userId.slice(0, 8)}_${Date.now()}`;
 
@@ -57,7 +57,7 @@ export async function createSubscriptionRazorpayOrder(params: {
         : process.env.RAZORPAY_ELITE_PLAN_ID;
 
     // If recurring subscription plan ID is available in environment
-    if (envPlanId) {
+    if (envPlanId && currency !== 'EUR') {
       try {
         const subResponse = await fetch('https://api.razorpay.com/v1/subscriptions', {
           method: 'POST',
@@ -208,7 +208,7 @@ export async function createExamSwitchRazorpayOrder(params: {
   const keyId = process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || '';
   const keySecret = process.env.RAZORPAY_KEY_SECRET || '';
 
-  const currency = params.preferredCurrency === 'INR' ? EXAM_SWITCH_CONFIG.CURRENCY_INR : EXAM_SWITCH_CONFIG.CURRENCY_USD;
+  const currency = params.preferredCurrency === 'INR' ? EXAM_SWITCH_CONFIG.CURRENCY_INR : params.preferredCurrency === 'EUR' ? 'EUR' : EXAM_SWITCH_CONFIG.CURRENCY_USD;
   const amount = currency === 'INR' ? EXAM_SWITCH_CONFIG.AMOUNT_INR_PAISE : EXAM_SWITCH_CONFIG.AMOUNT_USD_CENTS;
   const receipt = `sw_${params.userId.slice(0, 8)}_${Date.now()}`;
 
