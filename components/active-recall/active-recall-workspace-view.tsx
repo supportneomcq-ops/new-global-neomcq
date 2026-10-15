@@ -413,7 +413,7 @@ export function ActiveRecallWorkspaceView({ user }: ActiveRecallWorkspaceViewPro
           sets={sets}
           topicName={activeTopic?.name || 'Topic'}
           subjectName={activeSubject?.name || ''}
-          examName={activeExam?.name || 'Exam'}
+          examName={activeExam?.name || ''}
           subtopicName={activeSubtopic?.name}
           isGenerating={isGenerating}
           generationStage={generationStage}
