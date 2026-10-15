@@ -22,85 +22,11 @@ interface StudyHubViewProps {
   initialSubTab?: StudySubTab;
 }
 
-const DEFAULT_FLASHCARDS: FlashcardItem[] = [
-  {
-    id: 'fc1',
-    front: 'What is the most common electrocardiographic finding in acute pulmonary embolism?',
-    back: 'Sinus tachycardia (most common overall). The classic S1Q3T3 pattern (prominent S wave in lead I, Q wave in lead III, inverted T wave in lead III) is specific but only present in <20% of patients.',
-    category: 'Cardiopulmonary',
-    difficulty: 'High Yield',
-    status: 'unseen',
-  },
-  {
-    id: 'fc2',
-    front: 'Which cardiac enzyme rises first in acute myocardial infarction, and which remains elevated longest?',
-    back: 'Myoglobin / Troponin I rises first (2-4 hours). Troponin I remains elevated longest (7-10 days). CK-MB returns to baseline in 48-72 hours, making it ideal to diagnose reinfarction.',
-    category: 'Pathology',
-    difficulty: 'Board Classic',
-    status: 'unseen',
-  },
-  {
-    id: 'fc3',
-    front: 'What is Beck’s Triad, and what condition does it indicate?',
-    back: '1. Hypotension\n2. Distended neck veins (elevated JVP)\n3. Muffled heart sounds\n\nIndicates Cardiac Tamponade. Pulsus paradoxus (>10 mmHg drop in SBP during inspiration) is also hallmark.',
-    category: 'Clinical Triads',
-    difficulty: 'High Yield',
-    status: 'unseen',
-  },
-  {
-    id: 'fc4',
-    front: 'What is the first-line medication for rate control in atrial fibrillation with rapid ventricular response in patients with preserved ejection fraction?',
-    back: 'Non-dihydropyridine Calcium Channel Blockers (Diltiazem, Verapamil) or Beta-blockers (Metoprolol). Note: Avoid in pre-excited AF (Wolff-Parkinson-White).',
-    category: 'Pharmacology',
-    difficulty: 'Core High Yield',
-    status: 'unseen',
-  },
-];
+const DEFAULT_FLASHCARDS: FlashcardItem[] = [];
 
-const DEFAULT_STICKY_NOTES: StickyNoteItem[] = [
-  {
-    id: 'sn1',
-    text: '💡 High Yield Rule: Inferior STEMI (II, III, aVF) -> RCA. Check V4R before nitrates!',
-    color: 'bg-amber-100 dark:bg-amber-950/80 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-100',
-    pinned: true,
-  },
-  {
-    id: 'sn2',
-    text: '⚡ Cardiac Enzymes: CK-MB for re-infarction (48-72h normalizes), Troponin stays for 10 days.',
-    color: 'bg-emerald-100 dark:bg-emerald-950/80 border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-100',
-    pinned: true,
-  },
-  {
-    id: 'sn3',
-    text: '🎯 Beck Triad: Hypotension + JVD + Muffled heart sounds -> Tamponade.',
-    color: 'bg-indigo-100 dark:bg-indigo-950/80 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-100',
-    pinned: false,
-  },
-];
+const DEFAULT_STICKY_NOTES: StickyNoteItem[] = [];
 
-const DEFAULT_REVISION_ITEMS = [
-  {
-    id: 'rev1',
-    title: 'Acute Coronary Syndromes Triad',
-    concept: 'STEMI requires immediate PCI within 90 minutes of door-to-balloon time. Thrombolysis is indicated if PCI is unavailable within 120 minutes.',
-    blanks: ['90 minutes', 'Thrombolysis', '120 minutes'],
-    pearl: 'Antiplatelet dual therapy (Aspirin + P2Y12 inhibitor) + Heparin is standard of care.',
-  },
-  {
-    id: 'rev2',
-    title: 'Heart Failure Diagnostic Biomarkers',
-    concept: 'Elevated BNP and NT-proBNP reflect ventricular wall stress and distinguish cardiac dyspnea from pulmonary causes.',
-    blanks: ['BNP', 'NT-proBNP', 'ventricular wall stress'],
-    pearl: 'Neprilysin inhibitors (Sacubitril) increase BNP; use NT-proBNP for monitoring when patient is on ARNI.',
-  },
-  {
-    id: 'rev3',
-    title: 'Infective Endocarditis Duke Criteria',
-    concept: 'Major criteria include bacteremia with typical organisms in 2 separate blood cultures and echocardiographic evidence of endocardial involvement (vegetation/abscess).',
-    blanks: ['bacteremia', 'blood cultures', 'echocardiographic evidence', 'vegetation'],
-    pearl: 'Staph aureus is most common acute cause; Strep viridans is most common subacute cause on damaged native valves.',
-  },
-];
+const DEFAULT_REVISION_ITEMS = [];
 
 export function StudyHubView({ user, initialSubTab = 'notes' }: StudyHubViewProps) {
   const { selection } = useSelection();
@@ -120,13 +46,13 @@ export function StudyHubView({ user, initialSubTab = 'notes' }: StudyHubViewProp
   const [isBookmarked, setIsBookmarked] = useState(false);
 
   // Flashcards State
-  const [flashcards, setFlashcards] = useState<FlashcardItem[]>(DEFAULT_FLASHCARDS);
+  const [flashcards, setFlashcards] = useState<FlashcardItem[]>([]);
   const [fcIndex, setFcIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [fcFilter, setFcFilter] = useState<'all' | 'revision' | 'mastered'>('all');
 
   // Sticky Notes State
-  const [stickyNotes, setStickyNotes] = useState<StickyNoteItem[]>(DEFAULT_STICKY_NOTES);
+  const [stickyNotes, setStickyNotes] = useState<StickyNoteItem[]>([]);
   const [newStickyText, setNewStickyText] = useState('');
   const [newStickyColor, setNewStickyColor] = useState('amber');
 
@@ -250,7 +176,7 @@ export function StudyHubView({ user, initialSubTab = 'notes' }: StudyHubViewProp
               <span>Study Suite & Active Recall</span>
             </h2>
             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-              {selection.topic?.name || 'Coronary Artery Disease'}
+              {selection.topic?.name || 'Select a topic'}
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
