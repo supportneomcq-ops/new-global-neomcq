@@ -160,6 +160,24 @@ export function HomepageSections({ onStartFree }: { onStartFree: () => void }) {
         </div>
       </section>
 
+      <section className="px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+        <div className="mx-auto max-w-6xl">
+          <SectionHeading eyebrow="Made for your study routine" title="Small Steps. Meaningful Progress." description="Build a steady preparation habit with tools that help you plan, practise, and review." />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            {[
+              { title: 'Plan with purpose', description: 'Organize your study time around your exam goals and curriculum.', icon: ClipboardList, tone: 'violet' },
+              { title: 'Learn from every answer', description: 'Use clear explanations to understand concepts, not just memorize options.', icon: Lightbulb, tone: 'teal' },
+              { title: 'See your progress', description: 'Review study activity and decide what to focus on next.', icon: Activity, tone: 'blue' },
+            ].map(({ title, description, icon: Icon, tone }) => (
+              <article key={title} className="flex items-start gap-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${toneClasses[tone].icon}`}><Icon className="h-5 w-5" /></div>
+                <div><h3 className="text-sm font-extrabold">{title}</h3><p className="mt-1.5 text-xs leading-relaxed text-slate-500">{description}</p></div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section className="px-4 pb-10 sm:px-6 sm:pb-12 lg:px-8">
         <div className="mx-auto max-w-6xl rounded-3xl border border-violet-100 bg-gradient-to-r from-violet-500 via-indigo-600 to-purple-500 px-5 py-8 text-center text-white shadow-xl shadow-violet-200/60 sm:px-10 sm:py-10">
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15"><GraduationCap className="h-7 w-7" /></div>
