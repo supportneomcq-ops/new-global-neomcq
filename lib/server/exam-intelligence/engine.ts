@@ -1571,7 +1571,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
 
     // Run Process A (Curriculum Enrichment) and Process B (Rules Collection) in parallel
     const [curriculumResult, rulesResult] = await Promise.all([
-      enrichCurriculumProcess(newExam.id, rawInput, country, category, supabase),
+      enrichCurriculumProcess(newExam.id, rawInput, country, category, supabase, aiSpec),
       collectExamRulesProcess(newExam.id, rawInput, country, category, supabase),
     ])
 
@@ -1640,7 +1640,8 @@ export async function enrichCurriculumProcess(
   examName: string,
   countryHint?: string,
   categoryHint?: string,
-  supabaseClient?: any
+  supabaseClient?: any,
+  specOverride?: AIExamIntelligenceOutput
 ): Promise<{
   subjectCount: number
   topicCount: number
@@ -1695,7 +1696,16 @@ export async function enrichCurriculumProcess(
   }
 
   // 3. Obtain expected syllabus specification
-  const generatedSpec = await generateAIExamIntelligence(examName, countryHint, categoryHint)
+  // Reuse the exam-scoped syllabus specification saved on the exam record.
+  // Subsequent signups can reconcile from this cache without another model call.
+  const cachedSpecResult = AIExamIntelligenceOutputSchema.safeParse(
+    (examRow?.metadata as any)?.curriculum_spec_cache
+  )
+  const generatedSpec = specOverride || (
+    cachedSpecResult.success
+      ? cachedSpecResult.data
+      : await generateAIExamIntelligence(examName, countryHint, categoryHint)
+  )
   if (!generatedSpec) {
     const subjects = existingSubjects || []
     const topicCount = subjects.reduce((n: number, s: any) => n + (s.exam_topics || []).length, 0)
@@ -1704,6 +1714,25 @@ export async function enrichCurriculumProcess(
     return { subjectCount: subjects.length, topicCount, subtopicCount, subjects, curriculumStatus: 'needs_enrichment', verificationStatus: 'needs_review', coveragePercentage: 0, evidenceScope: 'AI syllabus generation incomplete; official curriculum verification required', authorityName: null }
   }
   const aiSpec = generatedSpec
+
+  // Cache before reconciliation so a failed DB write can be retried without
+  // paying to synthesize the same syllabus again.
+  if (!cachedSpecResult.success || specOverride) {
+    const { error: cacheError } = await supabase
+      .from('exams')
+      .update({
+        metadata: {
+          ...(examRow?.metadata || {}),
+          curriculum_spec_cache: aiSpec,
+          curriculum_spec_cached_at: new Date().toISOString(),
+        },
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', examId)
+    if (cacheError) {
+      console.warn('[Curriculum Intelligence] Could not cache generated syllabus:', cacheError.message)
+    }
+  }
 
   const isVerifiedTemplate = aiSpec.confidence.overall > 0.98
 
@@ -1748,6 +1777,23 @@ export async function enrichCurriculumProcess(
     // Re-run comparison against refreshed database tree
     comparisonReport = compareCurricula(examId, examName, aiSpec, refreshedSubjects || [])
   }
+
+  // Acceptance gate: every expected subject must exist; at least 80% of each
+  // subject's expected topics must exist; every matched topic must have at least
+  // one meaningful subtopic and at least 80% subtopic coverage.
+  const hierarchyTargetsMet =
+    comparisonReport.totalExpectedSubjects > 0 &&
+    comparisonReport.subjects.length === comparisonReport.totalExpectedSubjects &&
+    comparisonReport.subjects.every((subject: any) =>
+      subject.status === 'matched' &&
+      subject.topics.length > 0 &&
+      subject.topics.filter((topic: any) => topic.status === 'matched').length / subject.topics.length >= 0.8 &&
+      subject.topics.filter((topic: any) => topic.status === 'matched').every((topic: any) =>
+        topic.subtopics.length > 0 &&
+        topic.subtopics.some((subtopic: any) => subtopic.status === 'matched') &&
+        topic.subtopics.filter((subtopic: any) => subtopic.status === 'matched').length / topic.subtopics.length >= 0.8
+      )
+    )
 
   // Calculate actual row counts
   const finalSubjects = comparisonReport.subjects.length > 0 ? (await supabase
@@ -1864,7 +1910,12 @@ export async function enrichCurriculumProcess(
       },
       metadata: {
         ...(examRow?.metadata || {}),
-        curriculum_status: evalResult.curriculumStatus,
+        curriculum_status: hierarchyTargetsMet ? evalResult.curriculumStatus : 'needs_enrichment',
+        curriculum_validation_version: 2,
+        curriculum_validation_passed: hierarchyTargetsMet,
+        curriculum_validation_checked_at: new Date().toISOString(),
+        curriculum_spec_cache: aiSpec,
+        curriculum_spec_cached_at: (examRow?.metadata as any)?.curriculum_spec_cached_at || new Date().toISOString(),
         rules_status: (examRow?.metadata || {}).rules_status || 'needs_review',
         verification_status: evalResult.verificationStatus,
         coverage_percentage: evalResult.coveragePercentage,
