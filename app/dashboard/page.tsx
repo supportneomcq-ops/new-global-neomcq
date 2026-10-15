@@ -71,6 +71,48 @@ export default function DashboardPage() {
           }
           const { data: userExam } = await userExamQuery.limit(1).maybeSingle();
 
+          // Repair legacy accounts too: if their selected exam has no successful
+          // curriculum validation marker, show the validation screen and trigger
+          // the same cached, idempotent repair flow used after signup.
+          const selectedExam = (userExam as any)?.exams;
+          const selectedExamMetadata = selectedExam?.metadata || {};
+          if (
+            selectedExam?.id &&
+            !(
+              selectedExamMetadata.curriculum_validation_version === 2 &&
+              selectedExamMetadata.curriculum_validation_passed === true
+            )
+          ) {
+            const pendingMetadata = {
+              ...(user.user_metadata || {}),
+              neo_curriculum_status: 'pending',
+              neo_exam_id: selectedExam.id,
+              neo_exam_name: selectedExam.name,
+              neo_exam_level: selectedExam.level || user.user_metadata?.neo_exam_level || null,
+              neo_curriculum_requested_at: new Date().toISOString(),
+            };
+            await supabase.auth.updateUser({ user_metadata: pendingMetadata });
+            setCurriculumStatus('pending');
+            setLoading(false);
+            stopGlobalLoading();
+
+            void fetch('/api/curriculum/retry', { method: 'POST' })
+              .then(async (response) => {
+                const result = await response.json().catch(() => null);
+                if (!response.ok || !result?.success) {
+                  await supabase.auth.updateUser({
+                    user_metadata: { ...pendingMetadata, neo_curriculum_status: 'needs_retry' },
+                  });
+                }
+              })
+              .catch(async () => {
+                await supabase.auth.updateUser({
+                  user_metadata: { ...pendingMetadata, neo_curriculum_status: 'needs_retry' },
+                });
+              });
+            return;
+          }
+
           // 3. Fetch study preferences
           const { data: studyPref } = await supabase
             .from('study_preferences')
