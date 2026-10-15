@@ -10,18 +10,18 @@ import {
   Accessibility, Sparkles, GraduationCap, LifeBuoy, Compass
 } from 'lucide-react';
 
-const linkClass = 'group inline-flex items-center gap-2 text-sm text-slate-300 transition-colors hover:text-cyan-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 rounded-sm';
-const iconClass = 'h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover:text-cyan-300';
+const linkClass = 'group inline-flex items-center gap-2 text-sm text-slate-600 transition-colors hover:text-violet-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 rounded-sm';
+const iconClass = 'h-3.5 w-3.5 shrink-0 text-slate-600 transition-colors group-hover:text-violet-600';
 
 export function Footer() {
   return (
     <footer
       id="site-footer"
-      className="relative isolate w-full overflow-hidden border-t border-violet-400/30 bg-[#10152f] text-slate-200 before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-violet-500 before:via-blue-500 before:to-cyan-400"
+      className="relative isolate w-full overflow-hidden border-t border-violet-200 bg-gradient-to-br from-white via-[#f7f7ff] to-[#edfaff] text-slate-700 before:absolute before:inset-x-0 before:top-0 before:h-1 before:bg-gradient-to-r before:from-violet-500 before:via-blue-400 before:to-cyan-400"
     >
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <div className="absolute -top-36 left-[12%] h-72 w-72 rounded-full bg-violet-500/15 blur-3xl" />
-        <div className="absolute -top-40 right-[8%] h-72 w-72 rounded-full bg-cyan-400/15 blur-3xl" />
+        <div className="absolute -top-36 left-[12%] h-72 w-72 rounded-full bg-violet-400/20 blur-3xl" />
+        <div className="absolute -top-40 right-[8%] h-72 w-72 rounded-full bg-cyan-300/25 blur-3xl" />
       </div>
 
       <div className="mx-auto max-w-7xl px-5 pb-6 pt-12 sm:px-8 sm:pt-14 lg:px-10">
@@ -31,15 +31,15 @@ export function Footer() {
             <Link href="/" aria-label="NeoMCQ home" className="inline-flex items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400">
               <Logo size="sm" />
             </Link>
-            <p className="max-w-sm text-sm leading-6 text-slate-400">
+            <p className="max-w-sm text-sm leading-6 text-slate-600">
               AI-powered exam preparation with practice questions, structured notes, flashcards, study tools, and personalized learning support.
             </p>
             <div className="flex flex-wrap gap-2">
-              <span className="inline-flex items-center gap-2 rounded-lg border border-violet-300/20 bg-gradient-to-r from-violet-400/10 to-cyan-400/10 px-3 py-2 text-xs font-medium text-slate-200">
+              <span className="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-gradient-to-r from-white via-violet-50 to-cyan-50 px-3 py-2 text-xs font-medium text-slate-700 shadow-sm shadow-violet-100/70">
                 <ShieldCheck className="h-4 w-4 text-emerald-400" />
                 Secure learning
               </span>
-              <span className="inline-flex items-center gap-2 rounded-lg border border-violet-300/20 bg-gradient-to-r from-violet-400/10 to-cyan-400/10 px-3 py-2 text-xs font-medium text-slate-200">
+              <span className="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-gradient-to-r from-white via-violet-50 to-cyan-50 px-3 py-2 text-xs font-medium text-slate-700 shadow-sm shadow-violet-100/70">
                 <Lock className="h-4 w-4 text-cyan-300" />
                 Secure payments
               </span>
@@ -48,7 +48,7 @@ export function Footer() {
 
           {/* Product */}
           <nav aria-label="Product links" className="space-y-4 lg:col-span-2">
-            <h2 className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.14em] text-white">
+            <h2 className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.14em] text-slate-900">
               <BookOpen className="h-4 w-4 text-violet-400" /> Product
             </h2>
             <ul className="space-y-3">
@@ -62,7 +62,7 @@ export function Footer() {
 
           {/* Support */}
           <nav aria-label="Support links" className="space-y-4 lg:col-span-2">
-            <h2 className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.14em] text-white">
+            <h2 className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.14em] text-slate-900">
               <LifeBuoy className="h-4 w-4 text-cyan-300" /> Support
             </h2>
             <ul className="space-y-3">
@@ -74,7 +74,7 @@ export function Footer() {
 
           {/* Legal */}
           <nav aria-label="Legal links" className="space-y-4 lg:col-span-2">
-            <h2 className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.14em] text-white">
+            <h2 className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.14em] text-slate-900">
               <Scale className="h-4 w-4 text-violet-400" /> Legal
             </h2>
             <ul className="space-y-3">
@@ -91,43 +91,43 @@ export function Footer() {
 
           {/* Updates */}
           <div className="space-y-4 lg:col-span-2">
-            <h2 className="text-xs font-extrabold uppercase tracking-[0.14em] text-white">Stay in the loop</h2>
-            <p className="text-sm leading-6 text-slate-400">
+            <h2 className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-900">Stay in the loop</h2>
+            <p className="text-sm leading-6 text-slate-600">
               Have a question or want to hear about NeoMCQ updates? Get in touch with our team.
             </p>
             <Link
               href="/contact-us"
-              className="inline-flex w-full items-center justify-between gap-3 rounded-xl border border-violet-300/30 bg-gradient-to-r from-violet-500/20 via-blue-500/15 to-cyan-500/15 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-violet-950/20 transition hover:border-cyan-300/60 hover:from-violet-500/30 hover:to-cyan-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+              className="inline-flex w-full items-center justify-between gap-3 rounded-xl border border-violet-200 bg-gradient-to-r from-violet-100 via-blue-50 to-cyan-100 px-4 py-3 text-sm font-semibold text-slate-800 shadow-sm shadow-violet-200/50 transition hover:border-violet-300 hover:from-violet-200 hover:to-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
             >
               Contact the team
-              <ArrowRight className="h-4 w-4 text-violet-300" />
+              <ArrowRight className="h-4 w-4 text-violet-600" />
             </Link>
             <a
               href={`mailto:${LEGAL_CONFIG.supportEmail}`}
-              className="inline-flex items-center gap-2 break-all text-xs text-slate-300 underline decoration-violet-300/50 underline-offset-4 transition hover:text-cyan-200"
+              className="inline-flex items-center gap-2 break-all text-xs text-slate-600 underline decoration-violet-300/70 underline-offset-4 transition hover:text-violet-700"
             >
               {LEGAL_CONFIG.supportEmail}
             </a>
           </div>
         </div>
 
-        <div className="mt-10 border-t border-white/10 pt-6">
-          <div className="flex flex-col gap-4 text-xs text-slate-400 md:flex-row md:items-start md:justify-between">
+        <div className="mt-10 border-t border-violet-200/80 pt-6">
+          <div className="flex flex-col gap-4 text-xs text-slate-600 md:flex-row md:items-start md:justify-between">
             <div className="max-w-3xl space-y-2 leading-5">
-              <p className="font-medium text-slate-400">© {new Date().getFullYear()} {LEGAL_CONFIG.brandName}. All rights reserved.</p>
+              <p className="font-medium text-slate-600">© {new Date().getFullYear()} {LEGAL_CONFIG.brandName}. All rights reserved.</p>
               <p>
                 NeoMCQ is an independent educational technology platform. Examination names (USMLE, PLAB, NCLEX, NEET-PG, etc.) are trademarks of their respective owners. NeoMCQ is not affiliated with or endorsed by those examination bodies.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 md:justify-end md:text-right">
               <span>Effective: {LEGAL_CONFIG.effectiveDate}</span>
-              <span aria-hidden="true" className="text-violet-400">•</span>
+              <span aria-hidden="true" className="text-violet-600">•</span>
               <span>Updated: {LEGAL_CONFIG.lastUpdated}</span>
             </div>
           </div>
-          <div className="mt-5 flex flex-col gap-2 border-t border-violet-300/15 pt-4 text-[11px] text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-5 flex flex-col gap-2 border-t border-violet-200/80 pt-4 text-[11px] text-slate-500 sm:flex-row sm:items-center sm:justify-between">
             <span>Made for focused learning and better preparation.</span>
-            <Link href="/" className="inline-flex items-center gap-1 transition hover:text-cyan-200">
+            <Link href="/" className="inline-flex items-center gap-1 transition hover:text-violet-700">
               NeoMCQ <ArrowUpRight className="h-3 w-3" />
             </Link>
           </div>
