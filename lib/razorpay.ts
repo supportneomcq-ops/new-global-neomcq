@@ -197,7 +197,7 @@ export async function createExamSwitchRazorpayOrder(params: {
   fromExamName: string;
   toExamName: string;
   userEmail?: string;
-  preferredCurrency?: 'USD' | 'INR';
+  preferredCurrency?: 'USD' | 'INR' | 'EUR';
 }): Promise<{
   orderId: string;
   amount: number;
