@@ -143,7 +143,7 @@ export function A4NotebookViewer({ onBookmark }: A4NotebookViewerProps) {
   };
 
   // 1. NO SELECTION STATE
-  if (!selection.topic?.id) {
+  if (!selection.exam?.id || !selection.subject?.id || !selection.topic?.id) {
     return (
       <div className="w-full max-w-4xl mx-auto my-12 p-8 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-4 shadow-sm">
         <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto">
