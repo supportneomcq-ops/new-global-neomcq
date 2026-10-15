@@ -151,14 +151,16 @@ export function DashboardHomeView({
     onSelectTab('practice');
   };
 
-  const displayName = user.firstName || 'Inus';
+  const displayName = user.firstName || 'there';
   const examTitle = selection.exam?.name || user.examName || 'No exam selected';
   const targetHours = user.studyHours || dbStats?.targetHours || 2;
-  const daysLeft = user.daysLeft || 90;
-  const examDateFormatted = user.examDate
-    ? new Date(user.examDate).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
-    : '12 Jan 2027';
-  const studyTimePreference = user.studyTime || 'Morning';
+  const examDateValue = user.examDate ? new Date(user.examDate) : null;
+  const hasValidExamDate = !!examDateValue && !Number.isNaN(examDateValue.getTime());
+  const examDateFormatted = hasValidExamDate
+    ? examDateValue!.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+    : 'Not set';
+  const daysLeft = hasValidExamDate ? Math.max(0, Math.ceil((examDateValue!.getTime() - Date.now()) / 86400000)) : null;
+  const studyTimePreference = user.studyTime || 'Not set';
 
   const questionsCount = dbStats?.questionsSolved ?? 0;
   const accuracyRate = dbStats?.overallAccuracy ?? 0;
@@ -167,15 +169,11 @@ export function DashboardHomeView({
   const goalProgressPercentage = Math.min(100, Math.round((completedHoursToday / targetHours) * 100));
 
   // Active topic for "Continue from where you left"
-  const currentTopicName = selection.topic?.name || availableTopics[0]?.name || 'Amazon EC2 and Auto Scaling';
-  const currentSubjectName = selection.subject?.name || availableSubjects[0]?.name || 'Compute and Containerization';
+  const currentTopicName = selection.topic?.name || availableTopics[0]?.name || 'Select a topic';
+  const currentSubjectName = selection.subject?.name || availableSubjects[0]?.name || 'Select a subject';
 
-  // Fallback subjects if database hierarchy is loading
-  const subjectsToDisplay = availableSubjects.length > 0 ? availableSubjects.slice(0, 3) : [
-    { id: 'sub-1', name: 'Compute and Containerization', count: 12, progress: 40, icon: Server, color: 'indigo' },
-    { id: 'sub-2', name: 'Security and Identity', count: 10, progress: 20, icon: Shield, color: 'emerald' },
-    { id: 'sub-3', name: 'Storage and Database', count: 8, progress: 0, icon: Database, color: 'rose' },
-  ];
+  // Display only subjects loaded from the selected exam's canonical curriculum.
+  const subjectsToDisplay = availableSubjects.slice(0, 3);
 
   return (
     <div className="space-y-6 sm:space-y-8 select-none">
@@ -230,7 +228,7 @@ export function DashboardHomeView({
               {/* Chip 1: Exam Date */}
               <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/85 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700/60 text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 shadow-2xs whitespace-nowrap">
                 <CalendarIcon className="w-3.5 h-3.5 text-violet-500 shrink-0" />
-                <span>Exam Date: <strong className="text-slate-900 dark:text-white font-semibold">{examDateFormatted} ({daysLeft} days left)</strong></span>
+                <span>Exam Date: <strong className="text-slate-900 dark:text-white font-semibold">{examDateFormatted}{daysLeft !== null ? ` (${daysLeft} days left)` : ''}</strong></span>
               </div>
 
               {/* Chip 2: Daily Goal */}
@@ -602,9 +600,14 @@ export function DashboardHomeView({
 
         {/* 3 Subject Cards Grid (Desktop: 3 cols, Tablet: 2/3 cols, Mobile: stacked) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-          {subjectsToDisplay.map((sub: any, idx: number) => {
-            const topicCount = sub.count || (sub.topics ? sub.topics.length : 10 - idx * 2);
-            const progressVal = sub.progress !== undefined ? sub.progress : (idx === 0 ? 40 : idx === 1 ? 20 : 0);
+          {subjectsToDisplay.length === 0 ? (
+            <div className="col-span-full rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center dark:border-slate-700 dark:bg-slate-900">
+              <h3 className="font-bold text-slate-900 dark:text-slate-100">No subjects loaded yet</h3>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Choose or set up an exam to load its real curriculum. NeoMCQ will not show unrelated sample subjects.</p>
+              <button type="button" onClick={onOpenExamSwitch} className="mt-4 rounded-xl bg-violet-600 px-4 py-2 text-xs font-bold text-white hover:bg-violet-700">Manage Exam</button>
+            </div>
+          ) : (
+            subjectsToDisplay.map((sub: any, idx: number) => {{subjectsToDisplay.map((sub: any, idx: number) => {
             const IconComponent = sub.icon || (idx === 0 ? Server : idx === 1 ? Shield : Database);
 
             const colorConfig = [
@@ -634,28 +637,17 @@ export function DashboardHomeView({
                         {sub.name}
                       </h4>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        {topicCount} topics
+                        Explore topics for this subject
                       </p>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
                 </div>
 
-                {/* Progress bar */}
-                <div className="space-y-1 pt-1">
-                  <div className="w-full h-1.5 rounded-full bg-slate-200/60 dark:bg-slate-800 overflow-hidden">
-                    <div
-                      className={`h-full ${colorConfig.bar} rounded-full transition-all duration-300`}
-                      style={{ width: `${progressVal}%` }}
-                    />
-                  </div>
-                  <div className="text-right text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                    {progressVal}%
-                  </div>
-                </div>
+
               </div>
             );
-          })}
+          )}
         </div>
       </div>
 
