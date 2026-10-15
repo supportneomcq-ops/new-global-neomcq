@@ -1912,7 +1912,7 @@ export async function enrichCurriculumProcess(
       },
       metadata: {
         ...(examRow?.metadata || {}),
-        curriculum_status: hierarchyTargetsMet ? evalResult.curriculumStatus : 'needs_enrichment',
+        curriculum_status: hierarchyTargetsMet ? 'ready' : 'needs_enrichment',
         curriculum_validation_version: 2,
         curriculum_validation_passed: hierarchyTargetsMet,
         curriculum_validation_checked_at: new Date().toISOString(),
