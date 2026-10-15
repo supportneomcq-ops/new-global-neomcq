@@ -97,10 +97,10 @@ export function Footer() {
             </p>
             <Link
               href="/contact-us"
-              className="inline-flex w-full items-center justify-between gap-3 rounded-xl border border-violet-200 bg-gradient-to-r from-violet-100 via-blue-50 to-cyan-100 px-4 py-3 text-sm font-semibold text-slate-800 shadow-sm shadow-violet-200/50 transition hover:border-violet-300 hover:from-violet-200 hover:to-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+              className="footer-contact-cta inline-flex w-full items-center justify-between gap-3 rounded-xl border border-violet-200 bg-gradient-to-r from-violet-100 via-blue-50 to-cyan-100 px-4 py-3 text-sm font-semibold text-slate-800 shadow-sm shadow-violet-200/50 transition hover:border-violet-300 hover:from-violet-200 hover:to-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 dark:border-violet-500/60 dark:from-violet-600 dark:via-blue-600 dark:to-cyan-600 dark:text-white dark:shadow-violet-950/40 dark:hover:from-violet-500 dark:hover:to-cyan-500"
             >
               Contact the team
-              <ArrowRight className="h-4 w-4 text-violet-600" />
+              <ArrowRight className="h-4 w-4 text-violet-600 dark:text-white" />
             </Link>
             <a
               href={`mailto:${LEGAL_CONFIG.supportEmail}`}
