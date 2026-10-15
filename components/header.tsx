@@ -3,7 +3,7 @@
 import React from 'react';
 import { Logo } from './logo';
 import { ThemeToggle } from './theme-toggle';
-import { Menu, LogIn, Sparkles, ArrowRight } from 'lucide-react';
+import { Menu, LogIn, ArrowRight } from 'lucide-react';
 import { ModalType } from './interactive-modals';
 import { useRouter } from 'next/navigation';
 
@@ -18,7 +18,7 @@ export function Header({ onOpenModal, onOpenMobileMenu, onStartFree }: HeaderPro
   const scrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
-  const startFree = onStartFree || (() => router.push('/onboarding'));
+  const startFree = onStartFree || (() => onOpenModal('start'));
 
   return (
     <header className="sticky top-0 z-40 w-full px-3 pt-3 sm:px-6 sm:pt-4">
