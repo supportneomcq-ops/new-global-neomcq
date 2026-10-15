@@ -56,7 +56,7 @@ export function Hero({ onStartFree, onExploreFeatures }: HeroProps) {
           </div>
           <div className="mt-6 flex w-full flex-col justify-center gap-3 sm:w-auto sm:flex-row lg:justify-start">
             <button onClick={onStartFree} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-purple-500 px-6 py-3 text-sm font-extrabold text-white shadow-lg shadow-violet-300/50 transition hover:-translate-y-0.5 hover:shadow-xl">
-              Start Free <ArrowRight className="h-4 w-4" />
+              {homepageContent.primaryCtaLabel} <ArrowRight className="h-4 w-4" />
             </button>
             <button onClick={onExploreFeatures} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-800 shadow-sm transition hover:border-violet-300 hover:bg-violet-50">
               <PlayCircle className="h-4 w-4 text-violet-600" /> See How It Works
