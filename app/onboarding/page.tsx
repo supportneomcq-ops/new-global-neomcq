@@ -438,8 +438,21 @@ export default function OnboardingPage() {
         return false;
       }
     } else if (currentStep === 2) {
-      if (!formData.selectedExamName && !formData.customExamInput.trim()) {
-        setFormError('Please select or search for the exam you are preparing for.');
+      if (formData.isCustomExam) {
+        if (!formData.customExamInput.trim()) {
+          setFormError('Enter the exam name you want us to verify.');
+          return false;
+        }
+        if (!formData.selectedExamCountry.trim()) {
+          setFormError('Choose the exam country or jurisdiction.');
+          return false;
+        }
+        if (!formData.selectedExamCategory.trim()) {
+          setFormError('Choose the exam category so we can verify the correct curriculum.');
+          return false;
+        }
+      } else if (!formData.selectedExamId || !formData.selectedExamName) {
+        setFormError('Select a verified exam from the search results, or choose “Add a new exam” if it is not listed.');
         return false;
       }
     } else if (currentStep === 4) {
@@ -457,6 +470,7 @@ export default function OnboardingPage() {
 
   // Exam Selection Handler
   const handleSelectExamItem = (exam: ExamInfo) => {
+    updateField('examSearchQuery', exam.name);
     updateField('selectedExamId', exam.id || '');
     updateField('selectedExamName', exam.name);
     updateField('selectedExamShortName', exam.short_name || exam.name.split(' ')[0]);
@@ -1087,7 +1101,7 @@ export default function OnboardingPage() {
               </motion.div>
             )}
 
-            {/* STEP 2: SELECT / SEARCH EXAM */}
+            {/* STEP 2: SINGLE-SEARCH EXAM FINDER */}
             {step === 2 && (
               <motion.div
                 key="step-2"
@@ -1098,13 +1112,13 @@ export default function OnboardingPage() {
               >
                 <div className="space-y-1.5 text-left">
                   <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full text-[11px] font-bold bg-[#00D4FF]/10 text-[#00D4FF] border border-[#00D4FF]/20">
-                    <BookOpen className="w-3.5 h-3.5" /> Step 2: Select / Search Exam
+                    <BookOpen className="w-3.5 h-3.5" /> Step 2: Find Your Exam
                   </div>
                   <h1 className="text-xl sm:text-2xl font-heading font-extrabold tracking-tight">
-                    What exam are you preparing for?
+                    Which exam are you preparing for?
                   </h1>
                   <p className="text-xs sm:text-sm text-slate-500 dark:text-gray-400">
-                    Search from 180+ verified global exams or enter any custom certification to resolve instantly.
+                    Search by exam name, abbreviation, or code. We’ll match it to the official exam record before continuing.
                   </p>
                 </div>
 
@@ -1113,88 +1127,166 @@ export default function OnboardingPage() {
                     <Search className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
                     <input
                       type="text"
+                      autoComplete="off"
                       value={formData.examSearchQuery}
-                      onChange={(e) => updateField('examSearchQuery', e.target.value)}
-                      placeholder="Type exam code or name (e.g. FMGE, USMLE, NEET PG, UPSC, CFA, PLAB)..."
-                      className="w-full pl-11 pr-10 py-3 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-inner text-slate-900 dark:text-white"
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        updateField('examSearchQuery', value);
+                        updateField('selectedExamId', '');
+                        updateField('selectedExamName', '');
+                        updateField('selectedExamShortName', '');
+                        updateField('selectedExamDescription', '');
+                        updateField('customExamInput', '');
+                        updateField('isCustomExam', false);
+                        updateField('selectedExamCategory', '');
+                        updateField('selectedExamLevel', '');
+                        updateField('selectedExamCountry', 'Global');
+                        updateField('resolvedCurriculumSummary', { subjectCount: 0, topicCount: 0, subtopicCount: 0 });
+                        setFormError('');
+                      }}
+                      placeholder="e.g. FMGE, NEET PG, USMLE, UPSC, CFA, PLAB..."
+                      className="w-full pl-11 pr-10 py-3.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-inner text-slate-900 dark:text-white"
                     />
                     {isSearchingExams && (
                       <Loader2 className="absolute right-4 top-3.5 w-4 h-4 text-[#6D5BFF] animate-spin" />
                     )}
                   </div>
 
-                  {/* Instant Selection Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-60 overflow-y-auto pr-1">
-                    {searchResults.map((ex) => {
-                      const isSelected = formData.selectedExamId === ex.id || formData.selectedExamName === ex.name;
-                      return (
-                        <button
-                          key={ex.id || ex.name}
-                          type="button"
-                          onClick={() => handleSelectExamItem(ex)}
-                          className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-start gap-2.5 ${
-                            isSelected
-                              ? 'border-[#6D5BFF] bg-[#6D5BFF]/10 ring-1 ring-[#6D5BFF] font-bold text-slate-900 dark:text-white'
-                              : 'border-slate-200 dark:border-gray-800 bg-slate-50/50 dark:bg-gray-900/40 text-slate-600 dark:text-gray-300 hover:border-slate-300'
-                          }`}
-                        >
-                          <span className="text-lg shrink-0 mt-0.5">{ex.flag || '🌐'}</span>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] text-[#6D5BFF] dark:text-[#00D4FF] font-extrabold uppercase truncate">
-                                {ex.category || 'Exam Prep'}
-                              </span>
-                              {ex.short_name && (
-                                <span className="text-[9px] px-1.5 py-0.2 bg-slate-200 dark:bg-gray-800 rounded font-mono font-bold text-slate-600 dark:text-gray-300">
-                                  {ex.short_name}
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-xs font-heading font-bold truncate mt-0.5">{ex.name}</div>
-                          </div>
-                          {isSelected && <CheckCircle2 className="w-4 h-4 text-[#6D5BFF] shrink-0 mt-1" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Custom Exam Input */}
-                  <div className="pt-3 border-t border-slate-100 dark:border-gray-800/80 space-y-2">
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                      Can&apos;t find your exam? Type custom exam name:
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={formData.customExamInput}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          if (value.trim() && !formData.isCustomExam && !formData.customExamInput.trim()) {
-                            updateField('selectedExamId', '');
-                            updateField('selectedExamCountry', 'Global');
-                            updateField('selectedExamCategory', '');
-                            updateField('selectedExamLevel', '');
-                          }
-                          updateField('customExamInput', value);
-                          if (value.trim()) {
-                            updateField('isCustomExam', true);
-                            updateField('selectedExamName', value.trim());
-                            updateField('selectedExamShortName', value.trim().split(' ')[0]);
-                          } else {
-                            updateField('isCustomExam', false);
-                            updateField('selectedExamId', '');
-                            updateField('selectedExamName', '');
-                            updateField('selectedExamShortName', '');
-                          }
-                        }}
-                        placeholder="e.g. Royal College FRCS Part A, AWS Solutions Architect, MRCP..."
-                        className="flex-1 px-4 py-3 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 focus:outline-none focus:border-[#6D5BFF] text-sm shadow-inner text-slate-900 dark:text-white"
-                      />
+                  {!formData.examSearchQuery.trim() && (
+                    <div className="rounded-2xl border border-slate-200 dark:border-gray-800 bg-slate-50/70 dark:bg-gray-900/40 p-4">
+                      <div className="flex items-start gap-3">
+                        <Globe className="w-5 h-5 text-[#6D5BFF] shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-bold">One search for every exam</p>
+                          <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">Try an exam’s full name, short name, or abbreviation. Select the verified result to continue.</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        {['FMGE', 'NEET PG', 'USMLE', 'UPSC', 'PLAB'].map((example) => (
+                          <button
+                            key={example}
+                            type="button"
+                            onClick={() => {
+                              updateField('examSearchQuery', example);
+                              updateField('selectedExamId', '');
+                              updateField('selectedExamName', '');
+                              updateField('customExamInput', '');
+                              updateField('isCustomExam', false);
+                            }}
+                            className="px-3 py-1.5 rounded-full text-xs font-semibold border border-slate-200 dark:border-gray-700 hover:border-[#6D5BFF] hover:text-[#6D5BFF] transition-colors"
+                          >
+                            {example}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                    {(formData.isCustomExam || formData.customExamInput.trim()) && (
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                  )}
+
+                  {formData.examSearchQuery.trim() && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-gray-400">
+                          {isSearchingExams ? 'Searching verified exams…' : searchResults.length ? 'Matching exams' : 'No matching exam found'}
+                        </p>
+                        {!isSearchingExams && searchResults.length > 0 && (
+                          <span className="text-[11px] text-slate-400">{searchResults.length} results</span>
+                        )}
+                      </div>
+
+                      {searchResults.length > 0 && (
+                        <div className="grid grid-cols-1 gap-2 max-h-64 overflow-y-auto pr-1">
+                          {searchResults.map((ex) => {
+                            const isSelected = formData.selectedExamId === ex.id;
+                            return (
+                              <button
+                                key={ex.id || ex.name}
+                                type="button"
+                                onClick={() => handleSelectExamItem(ex)}
+                                className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-3 ${
+                                  isSelected
+                                    ? 'border-[#6D5BFF] bg-[#6D5BFF]/10 ring-1 ring-[#6D5BFF] text-slate-900 dark:text-white'
+                                    : 'border-slate-200 dark:border-gray-800 bg-slate-50/50 dark:bg-gray-900/40 text-slate-700 dark:text-gray-300 hover:border-[#6D5BFF]/60'
+                                }`}
+                              >
+                                <span className="text-2xl shrink-0">{ex.flag || '🌐'}</span>
+                                <span className="flex-1 min-w-0">
+                                  <span className="flex items-center flex-wrap gap-2">
+                                    <span className="text-sm font-bold">{ex.name}</span>
+                                    {ex.short_name && ex.short_name.toLowerCase() !== ex.name.toLowerCase() && (
+                                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 dark:bg-gray-800 font-mono">{ex.short_name}</span>
+                                    )}
+                                  </span>
+                                  <span className="block text-xs text-slate-500 dark:text-gray-400 mt-1">{ex.country || 'Global'} · {ex.category || 'Exam preparation'}</span>
+                                  {ex.description && <span className="block text-xs text-slate-400 mt-1 line-clamp-2">{ex.description}</span>}
+                                </span>
+                                {isSelected ? <CheckCircle2 className="w-5 h-5 text-[#6D5BFF] shrink-0" /> : <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {!isSearchingExams && searchResults.length === 0 && !formData.isCustomExam && (
+                        <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 space-y-3">
+                          <div className="flex items-start gap-3">
+                            <Search className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-sm font-bold">Can’t find “{formData.examSearchQuery.trim()}”?</p>
+                              <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">We’ll check whether it exists under another name. If it’s genuinely new, you can submit it for verification.</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const query = formData.examSearchQuery.trim();
+                              updateField('customExamInput', query);
+                              updateField('selectedExamName', query);
+                              updateField('selectedExamShortName', query.split(/\s+/)[0] || query);
+                              updateField('selectedExamId', '');
+                              updateField('selectedExamCategory', '');
+                              updateField('selectedExamLevel', '');
+                              updateField('selectedExamCountry', formData.country || 'Global');
+                              updateField('isCustomExam', true);
+                              setFormError('');
+                            }}
+                            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-[#6D5BFF] hover:bg-[#5a48ef] text-white text-sm font-bold transition-colors"
+                          >
+                            <span className="inline-flex items-center gap-2"><span>+</span> Add a new exam</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {formData.isCustomExam && (
+                    <div className="rounded-2xl border border-[#6D5BFF]/30 bg-[#6D5BFF]/5 p-4 space-y-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-bold">Submit exam for verification</p>
+                          <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">We’ll check the canonical catalog again before creating anything, so duplicate exams are avoided.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateField('isCustomExam', false);
+                            updateField('customExamInput', '');
+                            updateField('selectedExamName', '');
+                            updateField('selectedExamId', '');
+                          }}
+                          className="text-xs font-semibold text-slate-500 hover:text-[#6D5BFF]"
+                        >
+                          Back to results
+                        </button>
+                      </div>
+
+                      <div className="rounded-xl bg-white/70 dark:bg-gray-950/50 border border-slate-200 dark:border-gray-800 p-3">
+                        <p className="text-[10px] uppercase tracking-wide text-slate-400 font-bold">Exam name to verify</p>
+                        <p className="text-sm font-bold mt-1">{formData.customExamInput}</p>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <label className="block text-xs font-semibold text-slate-600 dark:text-gray-300">
-                          Exam country / jurisdiction
+                          Country / jurisdiction <span className="text-rose-500">*</span>
                           <select value={formData.selectedExamCountry} onChange={(e) => updateField('selectedExamCountry', e.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-[#080C19] px-3 py-2.5 text-sm font-medium">
                             <option value="Global">Global / International</option>
                             {dbCountries.map((country: any) => <option key={country.id || country.name} value={country.name}>{country.name}</option>)}
@@ -1202,19 +1294,19 @@ export default function OnboardingPage() {
                           </select>
                         </label>
                         <label className="block text-xs font-semibold text-slate-600 dark:text-gray-300">
-                          Department / exam category
+                          Exam category <span className="text-rose-500">*</span>
                           <select value={formData.selectedExamCategory} onChange={(e) => updateField('selectedExamCategory', e.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-[#080C19] px-3 py-2.5 text-sm font-medium">
-                            <option value="">Select category</option>
+                            <option value="">Choose a category</option>
                             {examCategoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}
                           </select>
                         </label>
-                        <label className="block text-xs font-semibold text-slate-600 dark:text-gray-300">
+                        <label className="block text-xs font-semibold text-slate-600 dark:text-gray-300 sm:col-span-2">
                           Exam level / stage (optional)
                           <input value={formData.selectedExamLevel} onChange={(e) => updateField('selectedExamLevel', e.target.value)} maxLength={80} placeholder="e.g. Step 1, Level II" className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-[#080C19] px-3 py-2.5 text-sm font-medium" />
                         </label>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             )}
