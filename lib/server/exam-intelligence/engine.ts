@@ -247,8 +247,7 @@ export const VERIFIED_EXAM_TEMPLATES: Record<string, StandardCurriculumTemplate>
   fmge: {
     name: 'FMGE',
     official_name: 'Foreign Medical Graduate Examination (Screening Test)',
-    code: 'FMGE',
-    country: 'India',
+    code: 'FMGE',    country: 'India',
     category: 'medical-healthcare',
     type: 'Medical Licensing Examination',
     difficulty_level: 'Advanced',
@@ -497,8 +496,7 @@ export const VERIFIED_EXAM_TEMPLATES: Record<string, StandardCurriculumTemplate>
       has_negative_marking: false,
       positive_mark: 1,
       negative_mark: 0,
-      duration_minutes: 300,
-      has_clinical_vignettes: true,
+      duration_minutes: 300,      has_clinical_vignettes: true,
       has_case_based_questions: true,
       has_image_questions: false,
       has_calculation_questions: true,
@@ -747,8 +745,7 @@ Output schema:
       ]
     }
   ],
-  "content_generation_rules": {
-    "mcq": { "stem_style": "clinical_or_conceptual", "distractor_plausibility": "high" },
+  "content_generation_rules": {    "mcq": { "stem_style": "clinical_or_conceptual", "distractor_plausibility": "high" },
     "quiz": { "pre_test_slots": 20, "post_test_slots": 20 },
     "flashcard": { "target_count_per_topic": 40 },
     "ai_tutor": { "socratic_mode": true },
@@ -997,8 +994,7 @@ export function buildFallbackCurriculum(
               { name: 'Complex Problem Solving & Decision Trees', description: 'Complex problem solving principles.', order: 1 },
               { name: 'High-Frequency Exam Pitfalls', description: 'High-frequency exam pitfalls.', order: 2 },
             ],
-          },
-        ],
+          },        ],
       },
     ],
     content_generation_rules: {
@@ -1247,8 +1243,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
               let score = 0
               const eName = e.name.toLowerCase()
               const eShort = e.short_name?.toLowerCase() || ''
-              const countryName = (e.countries as any)?.name?.toLowerCase() || ''
-              const categoryName = (e.exam_categories as any)?.name?.toLowerCase() || ''
+              const countryName = (e.countries as any)?.name?.toLowerCase() || ''              const categoryName = (e.exam_categories as any)?.name?.toLowerCase() || ''
               const categorySlug = (e.exam_categories as any)?.slug?.toLowerCase() || ''
 
               for (const token of tokens) {
@@ -1352,8 +1347,11 @@ export async function resolveOrInitializeExamIntelligence(options: {
 
       // These processes both update exams.metadata. Run sequentially so the
       // second write reads the first process's latest metadata instead of overwriting it.
-      const curriculumResult = await enrichCurriculumProcess(matchedExam.id, matchedExam.name, country, category, supabase)
+      // Validate exam rules and existing evidence BEFORE reconciling or writing curriculum rows.
+      // Missing or conflicting rules are recorded for review; they must not be silently
+      // treated as official facts.
       const rulesResult = await collectExamRulesProcess(matchedExam.id, matchedExam.name, country, category, supabase)
+      const curriculumResult = await enrichCurriculumProcess(matchedExam.id, matchedExam.name, country, category, supabase)
 
       if (userId) {
         try {
@@ -1497,8 +1495,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
       question_types: intelligenceProfile.question_config.question_types,
       metadata: {
         exam_intelligence: intelligenceProfile,
-        content_generation_rules: intelligenceProfile.content_generation_rules,
-      },
+        content_generation_rules: intelligenceProfile.content_generation_rules,      },
       syllabus_info: {
         source: intelligenceProfile.syllabus_source,
         confidence: intelligenceProfile.syllabus_confidence,
@@ -1569,11 +1566,10 @@ export async function resolveOrInitializeExamIntelligence(options: {
       console.warn('[Exam Intelligence] Alias registration note:', aliasErr)
     }
 
-    // Run Process A (Curriculum Enrichment) and Process B (Rules Collection) in parallel
-    const [curriculumResult, rulesResult] = await Promise.all([
-      enrichCurriculumProcess(newExam.id, rawInput, country, category, supabase, aiSpec),
-      collectExamRulesProcess(newExam.id, rawInput, country, category, supabase),
-    ])
+    // Run Process B first so question format, timing, scoring and evidence conflicts
+    // are checked and persisted before Process A reconciles the curriculum hierarchy.
+    const rulesResult = await collectExamRulesProcess(newExam.id, rawInput, country, category, supabase)
+    const curriculumResult = await enrichCurriculumProcess(newExam.id, rawInput, country, category, supabase, aiSpec)
 
     if (userId) {
       try {
@@ -1747,8 +1743,7 @@ export async function enrichCurriculumProcess(
 
     await persistCurriculumHierarchy(examId, aiSpec, supabase)
 
-    // Re-query refreshed complete hierarchy
-    const { data: refreshedSubjects } = await supabase
+    // Re-query refreshed complete hierarchy    const { data: refreshedSubjects } = await supabase
       .from('exam_subjects')
       .select(`
         id,
@@ -1997,8 +1992,7 @@ export async function collectExamRulesProcess(
   const currentYear = new Date().getFullYear()
   const existingCurrentVersion = (versionRows || []).find((v: any) => v.is_current)
 
-  // Save rules to `exams` row
-  try {
+  // Save rules to `exams` row  try {
     await supabase
       .from('exams')
       .update({
@@ -2247,8 +2241,7 @@ async function persistCurriculumHierarchy(
             continue
           }
 
-          const existingMatch = findMatchingSubtopicInList(stItem.name, existingSubtopics)
-          if (!existingMatch) {
+          const existingMatch = findMatchingSubtopicInList(stItem.name, existingSubtopics)          if (!existingMatch) {
             subtopicInserts.push({
               topic_id: topicId,
               name: stItem.name,
@@ -2271,4 +2264,3 @@ async function persistCurriculumHierarchy(
     }
   }
 }
-
