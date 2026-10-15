@@ -272,7 +272,7 @@ export function DashboardView({ user, onSignOut, onOpenPractice, onUpdateProfile
           )}
 
           {(activeTab === 'notes' || activeTab === 'sticky') && (
-            <StudyHubView user={user} initialSubTab={studySubTab} />
+            <StudyHubView user={user} initialSubTab={activeTab === 'sticky' ? 'sticky' : studySubTab} />
           )}
 
           {activeTab === 'tutor' && (
