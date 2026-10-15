@@ -1936,7 +1936,7 @@ export async function enrichCurriculumProcess(
     topicCount: finalTopicCount,
     subtopicCount: finalSubtopicCount,
     subjects: finalSubjects,
-    curriculumStatus: evalResult.curriculumStatus,
+    curriculumStatus: hierarchyTargetsMet ? 'ready' : 'needs_enrichment',
     verificationStatus: evalResult.verificationStatus,
     coveragePercentage: evalResult.coveragePercentage,
     evidenceScope: evalResult.evidenceScope,
