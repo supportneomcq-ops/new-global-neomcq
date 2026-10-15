@@ -4,7 +4,7 @@ import Link from 'next/link';
 import {
   Activity, ArrowRight, ArrowUpRight, BookOpen, BrainCircuit, Briefcase,
   CheckCircle2, ClipboardList, GraduationCap, Globe2, HeartHandshake, Layers3,
-  Landmark, Lightbulb, LineChart, PlayCircle, Scale, ShieldCheck, Stethoscope,
+  Landmark, Lightbulb, LineChart, Scale, ShieldCheck, Stethoscope,
   Settings2, BarChart3
 } from 'lucide-react';
 
