@@ -101,7 +101,7 @@ export function WorkspaceSidebar({
     },
   ];
 
-  const examName = selection.exam?.name || user?.examName || 'AWS Certified Solutions Architect Associate';
+  const examName = selection.exam?.name || user?.examName || 'No exam selected';
 
   return (
     <aside
