@@ -62,6 +62,7 @@ export function AiTutorWhiteboardView({ user }: AiTutorWhiteboardViewProps) {
       topicName={selection.topic?.name || ''}
       subjectName={selection.subject?.name || ''}
       examName={selection.exam?.name || ''}
-    )
+    />
+  );
 }
 
