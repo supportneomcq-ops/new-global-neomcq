@@ -790,3 +790,40 @@ html.dark {
 html:not(.dark) {
   color-scheme: light;
 }
+
+
+/* Admin console surfaces follow the global light/dark theme as well. */
+html:not(.dark) .neo-admin-root [class*="bg-[#090d1a]"],
+html:not(.dark) .neo-admin-root [class*="bg-[#050816]"],
+html:not(.dark) .neo-admin-root [class*="bg-[#0B0F19]"],
+html:not(.dark) .neo-admin-root [class*="bg-[#111827]"],
+html:not(.dark) .neo-admin-root [class*="bg-[#0E1324]"] {
+  background-color: #ffffff !important;
+}
+html:not(.dark) .neo-admin-root [class*="bg-slate-800"],
+html:not(.dark) .neo-admin-root [class*="bg-gray-800"],
+html:not(.dark) .neo-admin-root [class*="bg-zinc-800"] {
+  background-color: #f1f5f9 !important;
+}
+html:not(.dark) .neo-admin-root [class*="border-slate-800"],
+html:not(.dark) .neo-admin-root [class*="border-gray-800"],
+html:not(.dark) .neo-admin-root [class*="border-zinc-800"] {
+  border-color: #e2e8f0 !important;
+}
+html:not(.dark) .neo-admin-root [class~="text-slate-300"],
+html:not(.dark) .neo-admin-root [class~="text-gray-300"],
+html:not(.dark) .neo-admin-root [class~="text-slate-400"],
+html:not(.dark) .neo-admin-root [class~="text-gray-400"],
+html:not(.dark) .neo-admin-root [class~="text-slate-500"],
+html:not(.dark) .neo-admin-root [class~="text-gray-500"] {
+  color: #475569 !important;
+}
+html:not(.dark) .neo-admin-root [class~="text-white"]:not([class*="bg-"]):not([class*="bg-gradient"]) {
+  color: #0f172a !important;
+}
+html:not(.dark) .neo-admin-root [class*="bg-[#090d1a]"][class~="text-white"],
+html:not(.dark) .neo-admin-root [class*="bg-[#050816]"][class~="text-white"],
+html:not(.dark) .neo-admin-root [class*="bg-[#0B0F19]"][class~="text-white"],
+html:not(.dark) .neo-admin-root [class*="bg-[#111827]"][class~="text-white"] {
+  color: #0f172a !important;
+}
