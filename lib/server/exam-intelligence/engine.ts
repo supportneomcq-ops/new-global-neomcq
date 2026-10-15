@@ -2048,7 +2048,7 @@ function isGenericFillerSubtopic(name: string): boolean {
 // Legacy onboarding created generic pseudo-subjects/topics for some exams.
 // Hide only known non-curricular filler labels; keep rows for audit/history and
 // avoid destructive deletes that could break foreign-key references.
-const GENERIC_FILLER_NODE_REGEX = /^(core practice(?: q-bank)?|advanced applied practice(?: and| &)? analysis|applied analysis(?: and| &)? problem solving|complex problem analysis|applied problem solving|general applied practice|advanced practice applications|applied analysis|complex problem solving)$/i
+const GENERIC_FILLER_NODE_REGEX = /^(core foundations(?: and| &)? principles|core practice(?: q-bank)?|advanced applied practice(?: and| &)? analysis|applied analysis(?: and| &)? problem solving|complex problem analysis|applied problem solving|general applied practice|advanced practice applications|applied analysis|complex problem solving)$/i
 
 async function deactivateGenericCurriculumNodes(examId: string, supabase: any) {
   const { data: subjects, error: subjectError } = await supabase
@@ -2082,7 +2082,10 @@ async function deactivateGenericCurriculumNodes(examId: string, supabase: any) {
   }
 
   const genericTopicIds = topics
-    .filter((topic: any) => GENERIC_FILLER_NODE_REGEX.test((topic.name || '').trim()))
+    .filter((topic: any) =>
+      genericSubjectIds.includes(topic.subject_id) ||
+      GENERIC_FILLER_NODE_REGEX.test((topic.name || '').trim())
+    )
     .map((topic: any) => topic.id)
 
   for (const topicId of genericTopicIds) {
@@ -2094,7 +2097,7 @@ async function deactivateGenericCurriculumNodes(examId: string, supabase: any) {
   if (topicIds.length > 0) {
     const { data: subtopics, error: subtopicError } = await supabase
       .from('exam_subtopics')
-      .select('id, name')
+      .select('id, name, topic_id')
       .in('topic_id', topicIds)
 
     if (subtopicError) {
@@ -2102,7 +2105,10 @@ async function deactivateGenericCurriculumNodes(examId: string, supabase: any) {
       return
     }
 
-    for (const subtopic of (subtopics || []).filter((item: any) => GENERIC_FILLER_NODE_REGEX.test((item.name || '').trim()))) {
+    for (const subtopic of (subtopics || []).filter((item: any) =>
+      genericTopicIds.includes(item.topic_id) ||
+      GENERIC_FILLER_NODE_REGEX.test((item.name || '').trim())
+    )) {
       const { error } = await supabase.from('exam_subtopics').update({ is_active: false }).eq('id', subtopic.id)
       if (error) console.warn('[Curriculum Cleanup] Could not deactivate generic subtopic:', error.message)
     }
