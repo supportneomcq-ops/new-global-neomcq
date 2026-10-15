@@ -1243,7 +1243,8 @@ export async function resolveOrInitializeExamIntelligence(options: {
               let score = 0
               const eName = e.name.toLowerCase()
               const eShort = e.short_name?.toLowerCase() || ''
-              const countryName = (e.countries as any)?.name?.toLowerCase() || ''              const categoryName = (e.exam_categories as any)?.name?.toLowerCase() || ''
+              const countryName = (e.countries as any)?.name?.toLowerCase() || ''
+              const categoryName = (e.exam_categories as any)?.name?.toLowerCase() || ''
               const categorySlug = (e.exam_categories as any)?.slug?.toLowerCase() || ''
 
               for (const token of tokens) {
@@ -1992,7 +1993,8 @@ export async function collectExamRulesProcess(
   const currentYear = new Date().getFullYear()
   const existingCurrentVersion = (versionRows || []).find((v: any) => v.is_current)
 
-  // Save rules to `exams` row  try {
+  // Save rules to `exams` row
+  try {
     await supabase
       .from('exams')
       .update({
