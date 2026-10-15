@@ -63,10 +63,7 @@ export default function DashboardPage() {
           }
           const { data: userExam } = await userExamQuery.limit(1).maybeSingle();
 
-          const selectedExam = (userExam as any)?.exams;
-          const selectedExamMetadata = selectedExam?.metadata || {};
-          // Validation status is informational, not a dashboard access gate.
-          // Never redirect users into an indefinite spinner because metadata is missing.
+          // Curriculum validation is asynchronous and must never block dashboard access.
           // 3. Fetch study preferences
           const { data: studyPref } = await supabase
             .from('study_preferences')
