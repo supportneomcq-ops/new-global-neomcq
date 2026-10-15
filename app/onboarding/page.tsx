@@ -154,6 +154,7 @@ export default function OnboardingPage() {
   const [dbExams, setDbExams] = useState<ExamInfo[]>([]);
   const [searchResults, setSearchResults] = useState<ExamInfo[]>([]);
   const [isSearchingExams, setIsSearchingExams] = useState(false);
+  const [examSearchError, setExamSearchError] = useState('');
 
   // Step 5 Progress Animation Steps
   const [prepProgress, setPrepProgress] = useState<number>(0);
@@ -247,40 +248,47 @@ export default function OnboardingPage() {
     loadReferenceData();
   }, []);
 
-  // Search debounce
+  // Search debounce: cancel stale requests so results always match the current query.
   useEffect(() => {
-    if (!formData.examSearchQuery.trim()) {
-      setSearchResults(dbExams);
+    const query = formData.examSearchQuery.trim();
+    if (!query) {
+      setSearchResults([]);
+      setIsSearchingExams(false);
+      setExamSearchError('');
       return;
     }
 
+    const controller = new AbortController();
+    setIsSearchingExams(true);
     const timer = setTimeout(async () => {
-      setIsSearchingExams(true);
       try {
-        const res = await fetch(`/api/exams/search?q=${encodeURIComponent(formData.examSearchQuery)}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && Array.isArray(data.exams)) {
-            setSearchResults(data.exams);
-          }
+        const res = await fetch(`/api/exams/search?q=${encodeURIComponent(query)}`, {
+          signal: controller.signal,
+          cache: 'no-store',
+        });
+        if (!res.ok) throw new Error('Exam search request failed');
+        const data = await res.json();
+        if (!data.success || !Array.isArray(data.exams)) throw new Error('Exam search returned an invalid response');
+        if (!controller.signal.aborted) {
+          setSearchResults(data.exams);
+          setExamSearchError('');
         }
-      } catch (err) {
-        console.warn('Search request fallback to client filter:', err);
-        const q = formData.examSearchQuery.toLowerCase();
-        const list = dbExams.filter(
-          (e) =>
-            e.name.toLowerCase().includes(q) ||
-            e.category?.toLowerCase().includes(q) ||
-            e.short_name?.toLowerCase().includes(q)
-        );
-        setSearchResults(list);
+      } catch (err: any) {
+        if (err?.name !== 'AbortError' && !controller.signal.aborted) {
+          console.error('Exam search failed:', err);
+          setSearchResults([]);
+          setExamSearchError('Exam search is temporarily unavailable. Please retry before adding a new exam.');
+        }
       } finally {
-        setIsSearchingExams(false);
+        if (!controller.signal.aborted) setIsSearchingExams(false);
       }
     }, 250);
 
-    return () => clearTimeout(timer);
-  }, [formData.examSearchQuery, dbExams]);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [formData.examSearchQuery]);
 
   // Set default date on mount if not loaded from cache
   useEffect(() => {
@@ -1132,6 +1140,8 @@ export default function OnboardingPage() {
                       onChange={(e) => {
                         const value = e.target.value;
                         setSearchResults([]);
+                        setExamSearchError('');
+                        setIsSearchingExams(Boolean(value.trim()));
                         updateField('examSearchQuery', value);
                         updateField('selectedExamId', '');
                         updateField('selectedExamName', '');
@@ -1187,7 +1197,7 @@ export default function OnboardingPage() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-gray-400">
-                          {isSearchingExams ? 'Searching verified exams…' : searchResults.length ? 'Matching exams' : 'No matching exam found'}
+                          {isSearchingExams ? 'Searching verified exams…' : examSearchError ? 'Search temporarily unavailable' : searchResults.length ? 'Matching exams' : 'No matching exam found'}
                         </p>
                         {!isSearchingExams && searchResults.length > 0 && (
                           <span className="text-[11px] text-slate-400">{searchResults.length} results</span>
@@ -1227,7 +1237,13 @@ export default function OnboardingPage() {
                         </div>
                       )}
 
-                      {!isSearchingExams && searchResults.length === 0 && !formData.isCustomExam && (
+                      {examSearchError && !isSearchingExams && (
+                        <div className="rounded-2xl border border-rose-500/25 bg-rose-500/5 p-3 text-xs text-rose-600 dark:text-rose-400">
+                          {examSearchError}
+                        </div>
+                      )}
+
+                      {!isSearchingExams && !examSearchError && searchResults.length === 0 && !formData.isCustomExam && (
                         <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 space-y-3">
                           <div className="flex items-start gap-3">
                             <Search className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
