@@ -110,7 +110,7 @@ export function WorkspaceHeader({
   };
 
   const displayName = user.firstName || 'Inus';
-  const examTitle = selection.exam?.name || user.examName || 'AWS Certified Solutions Architect Associate';
+  const examTitle = selection.exam?.name || user.examName || 'No exam selected';
 
   // Quick search filtering across subjects and topics
   const filteredTopics = searchQuery.trim()
