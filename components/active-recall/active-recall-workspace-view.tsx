@@ -369,7 +369,7 @@ export function ActiveRecallWorkspaceView({ user }: ActiveRecallWorkspaceViewPro
                 <Brain className="w-3 h-3" /> Active Recall
               </span>
               <span className="text-xs text-slate-400 font-mono hidden md:inline">
-                {activeExam?.name || 'Board Exam'} • {activeSubject?.name || 'Subject'}
+                {activeExam?.name || 'No exam selected'} • {activeSubject?.name || 'No subject selected'}
               </span>
             </div>
             <h1 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight">
