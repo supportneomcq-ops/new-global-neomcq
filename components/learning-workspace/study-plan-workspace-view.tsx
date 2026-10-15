@@ -118,10 +118,21 @@ export function StudyPlanWorkspaceView({ user, onSelectTab }: StudyPlanWorkspace
   }
 
   const planData = plan?.plan_data || {};
-  const schedule = planData.schedule || [];
-  const totalDays = planData.totalDays || 90;
-  const learningDays = planData.learningDays || (totalDays - 5);
-  const targetHours = planData.dailyHours || user.studyHours || 2.5;
+  if (!Array.isArray(planData.schedule) || planData.schedule.length === 0) {
+    return (
+      <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center dark:border-slate-700 dark:bg-slate-900">
+        <CalendarIcon className="mx-auto h-8 w-8 text-violet-600 dark:text-violet-300" />
+        <h3 className="mt-3 text-lg font-bold text-slate-900 dark:text-slate-100">Study plan needs a schedule</h3>
+        <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600 dark:text-slate-300">The saved plan does not contain scheduled study days yet. Retry loading it or finish exam setup so a curriculum-specific plan can be created.</p>
+        <button type="button" onClick={fetchPlan} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-violet-700"><RefreshCw className="h-4 w-4" /> Retry</button>
+      </div>
+    );
+  }
+  const schedule = Array.isArray(planData.schedule) ? planData.schedule : [];
+  const scheduledDayCount = schedule.reduce((sum: number, week: any) => sum + (Array.isArray(week.days) ? week.days.length : 0), 0);
+  const totalDays = Number(planData.totalDays) > 0 ? Number(planData.totalDays) : scheduledDayCount;
+  const learningDays = Number(planData.learningDays) > 0 ? Number(planData.learningDays) : Math.max(0, totalDays - (totalDays > 5 ? 5 : 0));
+  const targetHours = Number(planData.dailyHours ?? user.studyHours ?? 0);
 
   let totalCompletedDays = 0;
   let totalScheduledDays = 0;
@@ -158,11 +169,11 @@ export function StudyPlanWorkspaceView({ user, onSelectTab }: StudyPlanWorkspace
             </div>
 
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white">
-              {planData.examName || selection.exam?.name || 'Target Examination'} Roadmap
+              {planData.examName || selection.exam?.name || user.examName || 'No exam selected'} Roadmap
             </h1>
             <p className="text-sm text-slate-300">
               Personalized timeline calibrated for <span className="text-indigo-300 font-bold">{targetHours} hrs/day</span> using <span className="text-violet-300 font-bold">{user.learningStyle === 'Rapid Learning' ? 'Rapid Learning' : 'Regular Study'}</span> mode.
-              Target Exam Date: <span className="font-bold text-white">{planData.targetDate || user.examDate || 'Scheduled'}</span> ({totalDays} total days).
+              Target Exam Date: <span className="font-bold text-white">{planData.targetDate || user.examDate || 'Not set'}</span> ({totalDays} total days).
             </p>
           </div>
 
