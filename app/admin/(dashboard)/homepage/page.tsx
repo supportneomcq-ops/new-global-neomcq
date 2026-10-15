@@ -35,7 +35,7 @@ export default function HomepageCustomizationPage() {
   useEffect(() => { void loadSettings(); }, []);
 
   const update = (key: Exclude<keyof HomepageContent, 'banners'>, value: string) => {
-    setContent((current) => ({ ...current, [key]: value }));
+    setContent((current) => ({ ...current, [key]: value } as HomepageContent));
     setNotice('');
   };
 
