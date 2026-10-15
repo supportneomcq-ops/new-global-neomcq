@@ -6,7 +6,7 @@ import {
   Activity, ArrowRight, ArrowUpRight, BookOpen, BrainCircuit, BriefcaseBusiness,
   CheckCircle2, ClipboardList, GraduationCap, Globe2, HeartHandshake, Layers3,
   Landmark, Lightbulb, LineChart, PlayCircle, Scale, ShieldCheck, Stethoscope,
-  Target, Zap, Settings2, Sparkles, LibraryBig, NotebookPen, ChartNoAxesColumnIncreasing
+  Settings2, ChartNoAxesColumnIncreasing
 } from 'lucide-react';
 
 const tools = [
