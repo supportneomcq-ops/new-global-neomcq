@@ -27,7 +27,7 @@ import Link from 'next/link';
 export default function PricingPage() {
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [currency, setCurrency] = useState<'USD' | 'INR'>('USD');
+  const [currency, setCurrency] = useState<'USD' | 'INR' | 'EUR'>('USD');
   const { checkoutPlan, isProcessing, activePlanCode, statusMessage, errorMessage, successMessage } =
     usePlanCheckout();
 
@@ -35,8 +35,8 @@ export default function PricingPage() {
     fetch('/api/geo/country')
       .then((res) => res.json())
       .then((data) => {
-        if (data.currency === 'INR') {
-          setCurrency('INR');
+        if (data.currency === 'INR' || data.currency === 'EUR' || data.currency === 'USD') {
+          setCurrency(data.currency);
         }
       })
       .catch(() => null);
@@ -72,31 +72,8 @@ export default function PricingPage() {
           </p>
         </div>
 
-        {/* Currency Switcher Toggle */}
-        <div className="flex items-center justify-center mb-10">
-          <div className="p-1 rounded-2xl bg-slate-200 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700/80 flex items-center gap-1 shadow-inner">
-            <button
-              onClick={() => setCurrency('INR')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                currency === 'INR'
-                  ? 'bg-white dark:bg-[#0E1324] text-[#6D5BFF] dark:text-[#8E7CFF] shadow-md border border-slate-200 dark:border-slate-700'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <span>🇮🇳</span> India (INR ₹)
-            </button>
-            <button
-              onClick={() => setCurrency('USD')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                currency === 'USD'
-                  ? 'bg-white dark:bg-[#0E1324] text-[#6D5BFF] dark:text-[#8E7CFF] shadow-md border border-slate-200 dark:border-slate-700'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <span>🌐</span> International (USD $)
-            </button>
-          </div>
-        </div>
+        {/* Currency is detected automatically from the visitor's country. */}
+        <p className="text-center text-xs text-slate-500 dark:text-slate-400 -mt-6 mb-10">Prices shown in {currency === 'INR' ? 'INR (₹)' : currency === 'EUR' ? 'EUR (€)' : 'USD ($)'}</p>
 
         {/* Global Status / Alert Banners */}
         {errorMessage && (
@@ -280,7 +257,7 @@ export default function PricingPage() {
             Payment & Subscription Terms Disclosures:
           </p>
           <p className="leading-relaxed max-w-3xl mx-auto">
-            All subscriptions are processed via Razorpay 256-bit SSL encrypted payment processing in {currency === 'INR' ? 'Indian Rupees (INR ₹)' : 'US Dollars (USD $)'}. By completing a transaction, you agree to NeoMCQ’s{' '}
+            All subscriptions are processed via Razorpay 256-bit SSL encrypted payment processing in {currency === 'INR' ? 'Indian Rupees (INR ₹)' : currency === 'EUR' ? 'Euros (EUR €)' : 'US Dollars (USD $)' }. By completing a transaction, you agree to NeoMCQ’s{' '}
             <Link href="/terms-and-conditions" className="text-[#6D5BFF] dark:text-[#00D4FF] underline font-medium">Terms & Conditions</Link>,{' '}
             <Link href="/privacy-policy" className="text-[#6D5BFF] dark:text-[#00D4FF] underline font-medium">Privacy Policy</Link>,{' '}
             <Link href="/refund-and-cancellation-policy" className="text-[#6D5BFF] dark:text-[#00D4FF] underline font-medium">Refund & Cancellation Policy</Link>, and{' '}
