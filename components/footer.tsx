@@ -10,18 +10,18 @@ import {
   Accessibility, Sparkles, GraduationCap, LifeBuoy, Compass
 } from 'lucide-react';
 
-const linkClass = 'group inline-flex items-center gap-2 text-sm text-slate-400 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 rounded-sm';
-const iconClass = 'h-3.5 w-3.5 shrink-0 text-slate-500 transition-colors group-hover:text-violet-300';
+const linkClass = 'group inline-flex items-center gap-2 text-sm text-slate-300 transition-colors hover:text-cyan-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 rounded-sm';
+const iconClass = 'h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover:text-cyan-300';
 
 export function Footer() {
   return (
     <footer
       id="site-footer"
-      className="relative isolate w-full overflow-hidden border-t border-white/10 bg-[#0b1224] text-slate-300"
+      className="relative isolate w-full overflow-hidden border-t border-violet-400/30 bg-[#10152f] text-slate-200 before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-violet-500 before:via-blue-500 before:to-cyan-400"
     >
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <div className="absolute -top-36 left-[12%] h-72 w-72 rounded-full bg-violet-600/10 blur-3xl" />
-        <div className="absolute -top-40 right-[8%] h-72 w-72 rounded-full bg-cyan-500/10 blur-3xl" />
+        <div className="absolute -top-36 left-[12%] h-72 w-72 rounded-full bg-violet-500/15 blur-3xl" />
+        <div className="absolute -top-40 right-[8%] h-72 w-72 rounded-full bg-cyan-400/15 blur-3xl" />
       </div>
 
       <div className="mx-auto max-w-7xl px-5 pb-6 pt-12 sm:px-8 sm:pt-14 lg:px-10">
@@ -35,11 +35,11 @@ export function Footer() {
               AI-powered exam preparation with practice questions, structured notes, flashcards, study tools, and personalized learning support.
             </p>
             <div className="flex flex-wrap gap-2">
-              <span className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-medium text-slate-300">
+              <span className="inline-flex items-center gap-2 rounded-lg border border-violet-300/20 bg-gradient-to-r from-violet-400/10 to-cyan-400/10 px-3 py-2 text-xs font-medium text-slate-200">
                 <ShieldCheck className="h-4 w-4 text-emerald-400" />
                 Secure learning
               </span>
-              <span className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-medium text-slate-300">
+              <span className="inline-flex items-center gap-2 rounded-lg border border-violet-300/20 bg-gradient-to-r from-violet-400/10 to-cyan-400/10 px-3 py-2 text-xs font-medium text-slate-200">
                 <Lock className="h-4 w-4 text-cyan-300" />
                 Secure payments
               </span>
@@ -97,14 +97,14 @@ export function Footer() {
             </p>
             <Link
               href="/contact-us"
-              className="inline-flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:border-violet-400/60 hover:bg-white/[0.09] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+              className="inline-flex w-full items-center justify-between gap-3 rounded-xl border border-violet-300/30 bg-gradient-to-r from-violet-500/20 via-blue-500/15 to-cyan-500/15 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-violet-950/20 transition hover:border-cyan-300/60 hover:from-violet-500/30 hover:to-cyan-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
             >
               Contact the team
               <ArrowRight className="h-4 w-4 text-violet-300" />
             </Link>
             <a
               href={`mailto:${LEGAL_CONFIG.supportEmail}`}
-              className="inline-flex items-center gap-2 break-all text-xs text-slate-400 underline decoration-slate-600 underline-offset-4 transition hover:text-white"
+              className="inline-flex items-center gap-2 break-all text-xs text-slate-300 underline decoration-violet-300/50 underline-offset-4 transition hover:text-cyan-200"
             >
               {LEGAL_CONFIG.supportEmail}
             </a>
@@ -112,7 +112,7 @@ export function Footer() {
         </div>
 
         <div className="mt-10 border-t border-white/10 pt-6">
-          <div className="flex flex-col gap-4 text-xs text-slate-500 md:flex-row md:items-start md:justify-between">
+          <div className="flex flex-col gap-4 text-xs text-slate-400 md:flex-row md:items-start md:justify-between">
             <div className="max-w-3xl space-y-2 leading-5">
               <p className="font-medium text-slate-400">© {new Date().getFullYear()} {LEGAL_CONFIG.brandName}. All rights reserved.</p>
               <p>
@@ -125,9 +125,9 @@ export function Footer() {
               <span>Updated: {LEGAL_CONFIG.lastUpdated}</span>
             </div>
           </div>
-          <div className="mt-5 flex flex-col gap-2 border-t border-white/[0.07] pt-4 text-[11px] text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-5 flex flex-col gap-2 border-t border-violet-300/15 pt-4 text-[11px] text-slate-400 sm:flex-row sm:items-center sm:justify-between">
             <span>Made for focused learning and better preparation.</span>
-            <Link href="/" className="inline-flex items-center gap-1 transition hover:text-slate-300">
+            <Link href="/" className="inline-flex items-center gap-1 transition hover:text-cyan-200">
               NeoMCQ <ArrowUpRight className="h-3 w-3" />
             </Link>
           </div>
