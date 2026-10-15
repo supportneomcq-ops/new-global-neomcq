@@ -1,12 +1,11 @@
 'use client';
 
-import React from 'react';
 import Link from 'next/link';
 import {
-  Activity, ArrowRight, ArrowUpRight, BookOpen, BrainCircuit, BriefcaseBusiness,
+  Activity, ArrowRight, ArrowUpRight, BookOpen, BrainCircuit, Briefcase,
   CheckCircle2, ClipboardList, GraduationCap, Globe2, HeartHandshake, Layers3,
   Landmark, Lightbulb, LineChart, PlayCircle, Scale, ShieldCheck, Stethoscope,
-  Settings2, ChartNoAxesColumnIncreasing
+  Settings2, BarChart3
 } from 'lucide-react';
 
 const tools = [
@@ -29,7 +28,7 @@ const examCategories = [
   { title: 'Law Exams', examples: 'CLAT, AILET and more', icon: Scale, tone: 'orange' },
   { title: 'Teaching Exams', examples: 'CTET, UGC NET and more', icon: GraduationCap, tone: 'violet' },
   { title: 'Management Exams', examples: 'CAT, MAT, XAT and more', icon: LineChart, tone: 'pink' },
-  { title: 'Professional Exams', examples: 'CA, CS, CMA and more', icon: BriefcaseBusiness, tone: 'orange' },
+  { title: 'Professional Exams', examples: 'CA, CS, CMA and more', icon: Briefcase, tone: 'orange' },
   { title: 'International Exams', examples: 'GRE, GMAT, IELTS and more', icon: Globe2, tone: 'blue' },
 ];
 
