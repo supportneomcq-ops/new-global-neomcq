@@ -117,7 +117,7 @@ export function HomepageSections({ onStartFree }: { onStartFree: () => void }) {
         <div className="pointer-events-none absolute -right-12 bottom-0 h-56 w-56 rounded-full bg-sky-200/40 blur-3xl" />
         <div className="relative mx-auto grid max-w-6xl items-center gap-7 lg:grid-cols-[.7fr_2fr_.7fr]">
           <div className="hidden text-center font-caveat text-2xl font-bold text-violet-600 lg:block">Clean &amp; modern interface <ArrowRight className="mx-auto mt-3 h-7 w-7 rotate-45" /></div>
-          <div className="overflow-hidden rounded-2xl border border-white bg-white p-2 shadow-[0_20px_60px_rgba(86,78,180,.18)] sm:p-3">
+          <div className="overflow-hidden rounded-2xl border border-white bg-white p-2 shadow-[0_20px_60px_rgba(86,78,180,.18)] sm:p-3 dark:border-violet-800/80 dark:shadow-[0_20px_60px_rgba(0,0,0,.4)]">
             <div className="overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
               <div className="flex h-9 items-center gap-2 border-b border-slate-100 bg-white px-3">
                 <div className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-rose-300" /><span className="h-2 w-2 rounded-full bg-amber-300" /><span className="h-2 w-2 rounded-full bg-emerald-300" /></div>
@@ -129,7 +129,7 @@ export function HomepageSections({ onStartFree }: { onStartFree: () => void }) {
                   {['Dashboard','Practice MCQs','Quizzes','Flashcards','Study Notes','AI Tutor','Study Plan','Analytics'].map((item, i) => <div key={item} className={`rounded-md px-2 py-1.5 text-[8px] font-semibold ${i === 0 ? 'bg-violet-600 text-white' : 'text-slate-500'}`}>{item}</div>)}
                 </aside>
                 <div className="min-w-0 space-y-3 bg-slate-50 p-3 sm:p-4">
-                  <div className="rounded-xl border border-violet-100 bg-gradient-to-r from-violet-100 via-white to-sky-100 p-3 sm:p-4">
+                  <div className="rounded-xl border border-violet-100 bg-gradient-to-r from-violet-100 via-white to-sky-100 p-3 sm:p-4 dark:border-violet-800/80 dark:from-[#211b45] dark:via-[#111a32] dark:to-[#10283a]">
                     <div className="flex items-center justify-between gap-2">
                       <div><p className="text-[8px] font-bold uppercase tracking-wide text-violet-600">Your personal dashboard</p><h3 className="mt-1 text-sm font-black sm:text-lg">Good afternoon! <span aria-hidden="true">👋</span></h3><p className="mt-1 text-[10px] text-slate-500">Let’s make today’s study session count.</p></div>
                       <img src="/assets/student-welcome-banner.webp" alt="3D student studying with a laptop" className="h-[88px] w-[120px] object-contain sm:h-[112px] sm:w-[155px]" loading="lazy" />
