@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { after, NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { z } from 'zod'
@@ -120,6 +120,7 @@ export async function POST(req: NextRequest) {
     // The ID is never trusted without a server-side lookup.
     let finalExamId: string | null = null
     let studyPlanReady = false
+    let curriculumPending = false
 
     if (targetUserId) {
       let resolvedCountryId: string | null = null
@@ -161,7 +162,7 @@ export async function POST(req: NextRequest) {
       if (validation.data.examId) {
         const { data: selectedExam, error: selectedExamError } = await (admin as any)
           .from('exams')
-          .select('id, name, short_name, slug, status')
+          .select('id, name, short_name, slug, status, metadata')
           .eq('id', validation.data.examId)
           .maybeSingle()
 
@@ -188,73 +189,21 @@ export async function POST(req: NextRequest) {
           }
 
           finalExamId = selectedExam.id
-          const { data: existingSubjects, error: existingSubjectsError } = await (admin as any)
-            .from('exam_subjects')
-            .select('id')
-            .eq('exam_id', finalExamId)
-            .limit(200)
-
-          if (existingSubjectsError) {
-            console.error('[Onboarding] Existing curriculum lookup failed:', existingSubjectsError.message)
-            return NextResponse.json(
-              { success: false, error: 'We could not check your saved curriculum. Please retry in a moment.' },
-              { status: 503 }
-            )
-          }
-
-          const subjectIds = (existingSubjects || []).map((subject: { id: string }) => subject.id)
-          if (subjectIds.length > 0) {
-            const { data: existingTopics, error: existingTopicsError } = await (admin as any)
-              .from('exam_topics')
-              .select('id')
-              .in('subject_id', subjectIds)
-              .limit(1)
-
-            if (existingTopicsError) {
-              console.error('[Onboarding] Existing topic lookup failed:', existingTopicsError.message)
-              return NextResponse.json(
-                { success: false, error: 'We could not verify your saved exam topics. Please retry in a moment.' },
-                { status: 503 }
-              )
-            }
-            curriculumReady = Boolean(existingTopics && existingTopics.length > 0)
-          }
+          // Only trust a curriculum that passed the current hierarchy quality gate.
+          // A single topic or a generic placeholder is not proof of a complete syllabus.
+          const examMetadata = selectedExam.metadata || {}
+          curriculumReady =
+            examMetadata.curriculum_validation_version === 2 &&
+            examMetadata.curriculum_validation_passed === true
         }
       }
 
-      // Only run the AI resolver when there is no verified existing curriculum.
-      // Existing exams must not trigger a second full AI synthesis during signup.
-      if (!curriculumReady) {
-        try {
-          const resolved = await resolveOrInitializeExamIntelligence({
-            examQuery: examName,
-            country: examCountry || country,
-            category: examCategory,
-            level: examLevel,
-            userId: targetUserId,
-          })
-          if (!resolved?.success || !resolved.exam?.id) {
-            console.error('[Onboarding] Exam resolution returned no canonical exam:', {
-              examName,
-              success: resolved?.success,
-              hasExam: Boolean(resolved?.exam?.id),
-            })
-            return NextResponse.json(
-              { success: false, error: 'We could not verify this exam and its curriculum. Please return to exam selection and try again.' },
-              { status: 422 }
-            )
-          }
-          finalExamId = resolved.exam.id
-        } catch (examErr) {
-          console.error('[Onboarding] Error resolving exam intelligence:', examErr)
-          return NextResponse.json(
-            { success: false, error: 'We could not verify this exam and its curriculum. Your study profile has not been saved. Please try again.' },
-            { status: 422 }
-          )
-        }
-      }
+      // Curriculum work is intentionally asynchronous. Signup persists the learner's
+      // account and preferences first; the background task will reconcile this exam.
+      curriculumPending = !curriculumReady
 
       // Final integrity check before persisting the profile.
+      if (!curriculumPending) {
       if (!finalExamId) {
         return NextResponse.json(
           { success: false, error: 'We could not verify your selected exam. Please return to exam selection and try again.' },
@@ -298,10 +247,8 @@ export async function POST(req: NextRequest) {
         )
       }
       if (!curriculumTopics || curriculumTopics.length === 0) {
-        return NextResponse.json(
-          { success: false, error: 'The selected exam has no saved topics yet. Please retry exam setup in a moment.' },
-          { status: 422 }
-        )
+        curriculumPending = true
+      }
       }
 
       // Update Profile and fail visibly if persistence fails.
@@ -344,26 +291,29 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // 3. User Exam Link
-      const { error: userExamError } = await (admin as any)
-        .from('user_exams')
-        .upsert(
-          {
-            user_id: targetUserId,
-            exam_id: finalExamId,
-            target_date: cleanTargetDate,
-            target_score: 85.0,
-            status: 'in_progress',
-          },
-          { onConflict: 'user_id,exam_id' }
-        )
+      // Link the exam immediately only when its canonical ID is already known.
+      // New exams are linked by the background curriculum task after resolution.
+      if (finalExamId) {
+        const { error: userExamError } = await (admin as any)
+          .from('user_exams')
+          .upsert(
+            {
+              user_id: targetUserId,
+              exam_id: finalExamId,
+              target_date: cleanTargetDate,
+              target_score: 85.0,
+              status: 'in_progress',
+            },
+            { onConflict: 'user_id,exam_id' }
+          )
 
-      if (userExamError) {
-        console.error('[Onboarding] User exam link failed:', userExamError)
-        return NextResponse.json(
-          { success: false, error: 'Your exam was verified, but we could not link it to your account. Please retry onboarding.' },
-          { status: 500 }
-        )
+        if (userExamError) {
+          console.error('[Onboarding] User exam link failed:', userExamError)
+          return NextResponse.json(
+            { success: false, error: 'We could not save your exam preferences. Please retry onboarding.' },
+            { status: 500 }
+          )
+        }
       }
 
       // Map learningStyle selection
@@ -394,26 +344,147 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      // 5. Persist the personalized plan from the verified exam curriculum before
-      // completing onboarding. This avoids an unawaited AI job that could leave the
-      // account looking ready while no plan exists.
-      const planResult = await ensureCurrentStudyPlan(admin, targetUserId, finalExamId)
-      if (!planResult.plan) {
-        console.error('[Onboarding] Personalized study plan is not ready:', planResult.message)
-        return NextResponse.json(
-          { success: false, error: 'Your personalized study plan is not ready yet. Please retry onboarding.' },
-          { status: 422 }
-        )
+      // A study plan is downstream of the curriculum. Do not block signup on it
+      // while the curriculum is being validated in the background.
+      if (!curriculumPending && finalExamId) {
+        const planResult = await ensureCurrentStudyPlan(admin, targetUserId, finalExamId)
+        studyPlanReady = Boolean(planResult.plan)
+        if (!planResult.plan) {
+          console.warn('[Onboarding] Study plan will need a later retry:', planResult.message)
+        }
       }
-      studyPlanReady = true
+
+      if (curriculumPending) {
+        // Store durable status on the auth user so the dashboard can display the
+        // validation screen after redirect or a later sign-in.
+        const { data: authRecord } = await admin.auth.admin.getUserById(targetUserId)
+        const pendingMetadata = {
+          ...(authRecord?.user?.user_metadata || user?.user_metadata || {}),
+          neo_curriculum_status: 'pending',
+          neo_exam_name: examName,
+          neo_exam_country: examCountry || country || null,
+          neo_exam_category: examCategory || null,
+          neo_exam_level: examLevel || null,
+          neo_exam_date: cleanTargetDate,
+          neo_curriculum_requested_at: new Date().toISOString(),
+        }
+        const { error: pendingMetadataError } = await admin.auth.admin.updateUserById(targetUserId, {
+          user_metadata: pendingMetadata,
+        })
+        if (pendingMetadataError) {
+          console.warn('[Onboarding] Could not persist pending curriculum status:', pendingMetadataError.message)
+        }
+
+        after(async () => {
+          try {
+            const resolved = await resolveOrInitializeExamIntelligence({
+              examQuery: examName,
+              country: examCountry || country,
+              category: examCategory,
+              level: examLevel,
+              userId: targetUserId,
+            })
+
+            if (!resolved?.success || !resolved.exam?.id) {
+              throw new Error('Exam resolution did not return a canonical exam.')
+            }
+
+            const resolvedExamId = resolved.exam.id
+            const { data: persistedExam, error: persistedExamError } = await (admin as any)
+              .from('exams')
+              .select('id, name, metadata')
+              .eq('id', resolvedExamId)
+              .maybeSingle()
+
+            if (persistedExamError || !persistedExam) {
+              throw new Error('The resolved exam could not be reloaded.')
+            }
+
+            const metadata = persistedExam.metadata || {}
+            if (metadata.curriculum_validation_version !== 2 || metadata.curriculum_validation_passed !== true) {
+              const { data: latestAuth } = await admin.auth.admin.getUserById(targetUserId)
+              await admin.auth.admin.updateUserById(targetUserId, {
+                user_metadata: {
+                  ...(latestAuth?.user?.user_metadata || pendingMetadata),
+                  neo_curriculum_status: 'needs_retry',
+                  neo_exam_id: resolvedExamId,
+                  neo_exam_name: persistedExam.name,
+                },
+              })
+              return
+            }
+
+            const { error: profileAttachError } = await (admin as any)
+              .from('profiles')
+              .update({
+                current_exam_id: resolvedExamId,
+                exam_locked: true,
+                exam_selected_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', targetUserId)
+
+            if (profileAttachError) throw new Error('The curriculum could not be attached to the learner profile.')
+
+            const { error: userExamLinkError } = await (admin as any)
+              .from('user_exams')
+              .upsert({
+                user_id: targetUserId,
+                exam_id: resolvedExamId,
+                target_date: cleanTargetDate,
+                target_score: 85.0,
+                status: 'in_progress',
+              }, { onConflict: 'user_id,exam_id' })
+
+            if (userExamLinkError) throw new Error('The curriculum could not be linked to the learner account.')
+
+            const { data: latestAuth } = await admin.auth.admin.getUserById(targetUserId)
+            await admin.auth.admin.updateUserById(targetUserId, {
+              user_metadata: {
+                ...(latestAuth?.user?.user_metadata || pendingMetadata),
+                neo_curriculum_status: 'ready',
+                neo_exam_id: resolvedExamId,
+                neo_exam_name: persistedExam.name,
+                neo_curriculum_ready_at: new Date().toISOString(),
+              },
+            })
+
+            // The curriculum is ready independently of optional study-plan setup.
+            try {
+              const planResult = await ensureCurrentStudyPlan(admin, targetUserId, resolvedExamId)
+              if (!planResult.plan) {
+                console.warn('[Onboarding] Curriculum is ready; study plan will need retry:', planResult.message)
+              }
+            } catch (planError) {
+              console.warn('[Onboarding] Curriculum is ready; study plan setup failed:', planError)
+            }
+          } catch (backgroundError) {
+            console.error('[Onboarding] Background curriculum validation failed:', backgroundError)
+            try {
+              const { data: latestAuth } = await admin.auth.admin.getUserById(targetUserId)
+              await admin.auth.admin.updateUserById(targetUserId, {
+                user_metadata: {
+                  ...(latestAuth?.user?.user_metadata || pendingMetadata),
+                  neo_curriculum_status: 'needs_retry',
+                },
+              })
+            } catch (statusError) {
+              console.error('[Onboarding] Could not persist curriculum retry status:', statusError)
+            }
+          }
+        })
+      }
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Onboarding preferences saved',
+      message: curriculumPending
+        ? 'Account saved. Your exam curriculum is being validated in the background.'
+        : 'Onboarding preferences saved',
       userId: targetUserId,
       examId: finalExamId,
       studyPlanReady,
+      curriculumStatus: curriculumPending ? 'pending' : 'ready',
     })
   } catch (err: any) {
     // Keep database table names, SQL details, and provider internals out of the signup UI.
