@@ -37,7 +37,7 @@ interface TutorInteractiveWorkspaceProps {
 }
 
 export function TutorInteractiveWorkspace({
-  userId = 'system-user',
+  userId,
   examId: propExamId,
   subjectId: propSubjectId,
   topicId: propTopicId,
@@ -50,7 +50,7 @@ export function TutorInteractiveWorkspace({
   const [resolvedUserId, setResolvedUserId] = useState<string>(userId || '');
 
   useEffect(() => {
-    if (!resolvedUserId || resolvedUserId === 'system-user') {
+    if (!resolvedUserId) {
       const fetchAuthUser = async () => {
         try {
           const supabase = getSupabaseClient();
@@ -59,23 +59,23 @@ export function TutorInteractiveWorkspace({
             setResolvedUserId(authUser.id);
           }
         } catch {
-          // Fallback to system-user
+          // Keep the tutor unavailable until a real authenticated user is resolved.
         }
       };
       fetchAuthUser();
     }
   }, [userId, resolvedUserId]);
 
-  const activeUserId = resolvedUserId || userId || 'system-user';
+  const activeUserId = resolvedUserId || userId || '';
 
-  const examId = propExamId || selection.exam?.id || 'exam-default';
-  const subjectId = propSubjectId || selection.subject?.id || 'subj-default';
-  const topicId = propTopicId || selection.topic?.id || 'topic-default';
+  const examId = propExamId || selection.exam?.id || '';
+  const subjectId = propSubjectId || selection.subject?.id || '';
+  const topicId = propTopicId || selection.topic?.id || '';
   const subtopicId = selection.subtopic?.id;
 
-  const examName = propExamName || selection.exam?.name || 'Medical Boards';
-  const subjectName = propSubjectName || selection.subject?.name || 'Clinical Medicine';
-  const topicName = propTopicName || selection.topic?.name || 'High-Yield Topic';
+  const examName = propExamName || selection.exam?.name || '';
+  const subjectName = propSubjectName || selection.subject?.name || '';
+  const topicName = propTopicName || selection.topic?.name || '';
 
   // Workspace States
   const [session, setSession] = useState<TutorLessonSession | null>(null);
@@ -91,7 +91,7 @@ export function TutorInteractiveWorkspace({
     let isMounted = true;
 
     async function loadOrCreateSession() {
-      if (!topicId) return;
+      if (!activeUserId || !examId || !subjectId || !topicId) { setIsLoading(false); return; }
 
       setIsLoading(true);
       setErrorMessage(null);
