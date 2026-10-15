@@ -633,3 +633,44 @@ html.dark { color-scheme: dark; }
   background: rgba(109, 91, 255, 0.55);
   color: #ffffff;
 }
+
+
+/* Explicit dark variants take precedence over legacy base utilities above. */
+.dark [class~="dark:text-white"],
+.dark [class~="dark:text-slate-50"],
+.dark [class~="dark:text-slate-100"],
+.dark [class~="dark:text-slate-200"] {
+  color: var(--foreground) !important;
+}
+.dark [class~="dark:text-slate-300"],
+.dark [class~="dark:text-gray-300"] {
+  color: #cbd5e1 !important;
+}
+.dark [class~="dark:bg-slate-950"],
+.dark [class~="dark:bg-gray-950"] {
+  background-color: #080b1b !important;
+}
+.dark [class~="dark:bg-slate-900"],
+.dark [class~="dark:bg-gray-900"],
+.dark [class~="dark:bg-zinc-900"] {
+  background-color: #10162d !important;
+}
+.dark [class~="dark:bg-slate-800"],
+.dark [class~="dark:bg-gray-800"],
+.dark [class~="dark:bg-zinc-800"] {
+  background-color: #17213b !important;
+}
+.dark [class~="dark:border-slate-700"],
+.dark [class~="dark:border-slate-800"],
+.dark [class~="dark:border-gray-700"],
+.dark [class~="dark:border-zinc-700"] {
+  border-color: var(--border) !important;
+}
+
+/* Replace white-ended utility gradients with theme-aware surface gradients. */
+.dark [class~="from-white"][class*="bg-gradient"],
+.dark [class~="to-white"][class*="bg-gradient"],
+.dark [class~="from-slate-50"][class*="bg-gradient"],
+.dark [class~="to-slate-50"][class*="bg-gradient"] {
+  background-image: linear-gradient(135deg, var(--card), var(--background)) !important;
+}
