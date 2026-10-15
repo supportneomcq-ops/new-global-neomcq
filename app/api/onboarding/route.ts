@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
       country,
       language,
       examName,
+      examId,
       examCountry,
       examCategory,
       examLevel,
@@ -113,13 +114,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Authentication required to save onboarding preferences.' }, { status: 401 })
     }
 
-    // Never trust a client-supplied exam ID as the canonical curriculum source.
-    // Resolve the submitted exam name server-side and stop if resolution fails.
+    // The exam was already resolved on Step 2/3. Verify a supplied ID against the
+    // database and reuse its persisted curriculum when complete. This prevents the
+    // signup request from running the same expensive AI reconciliation a second time.
+    // The ID is never trusted without a server-side lookup.
     let finalExamId: string | null = null
     let studyPlanReady = false
 
     if (targetUserId) {
-      // 1. Resolve country_id and language_id from database
       let resolvedCountryId: string | null = null
       let resolvedLanguageId: string | null = null
       let resolvedTimezone = 'UTC'
@@ -133,16 +135,12 @@ export async function POST(req: NextRequest) {
 
         if (countryData && countryData.length > 0) {
           resolvedCountryId = countryData[0].id
-          if (countryData[0].default_timezone) {
-            resolvedTimezone = countryData[0].default_timezone
-          }
+          if (countryData[0].default_timezone) resolvedTimezone = countryData[0].default_timezone
         }
       }
 
       if (language) {
-        // UI labels such as "English (US/UK)" are display labels, not canonical DB names.
-        // Normalize the label before resolving the foreign key so language preferences persist.
-        const canonicalLanguageName = language.trim().replace(/\s*\([^)]*\)\s*/g, '').trim()
+        const canonicalLanguageName = language.trim().replace(/\\s*\\([^)]*\\)\\s*/g, '').trim()
         const { data: langData, error: languageLookupError } = await (admin as any)
           .from('languages')
           .select('id')
@@ -156,77 +154,152 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // 2. Resolve or Initialize Exam Intelligence & Curriculum.
-      // A successful HTTP response must never leave the user with an unresolved exam,
-      // a preset slug (such as "fmge"), or a client-supplied ID that was not verified.
-      try {
-        const resolved = await resolveOrInitializeExamIntelligence({
-          examQuery: examName,
-          country: examCountry || country,
-          category: examCategory,
-          level: examLevel,
-          userId: targetUserId,
-        })
-        if (!resolved?.success || !resolved.exam?.id) {
-          console.error('[Onboarding] Exam resolution returned no canonical exam:', {
-            examName,
-            success: resolved?.success,
-            hasExam: Boolean(resolved?.exam?.id),
+      // Fast path: verify the Step 2/3 canonical exam ID and reuse its curriculum.
+      // Compare the submitted label to canonical name/short name/slug to prevent an
+      // unrelated client-supplied ID from being attached to the account.
+      let curriculumReady = false
+      if (validation.data.examId) {
+        const { data: selectedExam, error: selectedExamError } = await (admin as any)
+          .from('exams')
+          .select('id, name, short_name, slug, status')
+          .eq('id', validation.data.examId)
+          .maybeSingle()
+
+        if (selectedExamError) {
+          console.error('[Onboarding] Selected exam lookup failed:', selectedExamError.message)
+          return NextResponse.json(
+            { success: false, error: 'We could not verify your selected exam. Please try again.' },
+            { status: 503 }
+          )
+        }
+
+        if (selectedExam && selectedExam.status !== 'archived') {
+          const normalizeLabel = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '')
+          const submittedLabel = normalizeLabel(examName)
+          const allowedLabels = [selectedExam.name, selectedExam.short_name || '', selectedExam.slug || '']
+            .filter(Boolean)
+            .map((value: string) => normalizeLabel(value))
+
+          if (!allowedLabels.includes(submittedLabel)) {
+            return NextResponse.json(
+              { success: false, error: 'Your selected exam details changed. Please return to exam selection and confirm the exam again.' },
+              { status: 409 }
+            )
+          }
+
+          finalExamId = selectedExam.id
+          const { data: existingSubjects, error: existingSubjectsError } = await (admin as any)
+            .from('exam_subjects')
+            .select('id')
+            .eq('exam_id', finalExamId)
+            .limit(200)
+
+          if (existingSubjectsError) {
+            console.error('[Onboarding] Existing curriculum lookup failed:', existingSubjectsError.message)
+            return NextResponse.json(
+              { success: false, error: 'We could not check your saved curriculum. Please retry in a moment.' },
+              { status: 503 }
+            )
+          }
+
+          const subjectIds = (existingSubjects || []).map((subject: { id: string }) => subject.id)
+          if (subjectIds.length > 0) {
+            const { data: existingTopics, error: existingTopicsError } = await (admin as any)
+              .from('exam_topics')
+              .select('id')
+              .in('subject_id', subjectIds)
+              .limit(1)
+
+            if (existingTopicsError) {
+              console.error('[Onboarding] Existing topic lookup failed:', existingTopicsError.message)
+              return NextResponse.json(
+                { success: false, error: 'We could not verify your saved exam topics. Please retry in a moment.' },
+                { status: 503 }
+              )
+            }
+            curriculumReady = Boolean(existingTopics && existingTopics.length > 0)
+          }
+        }
+      }
+
+      // Only run the AI resolver when there is no verified existing curriculum.
+      // Existing exams must not trigger a second full AI synthesis during signup.
+      if (!curriculumReady) {
+        try {
+          const resolved = await resolveOrInitializeExamIntelligence({
+            examQuery: examName,
+            country: examCountry || country,
+            category: examCategory,
+            level: examLevel,
+            userId: targetUserId,
           })
+          if (!resolved?.success || !resolved.exam?.id) {
+            console.error('[Onboarding] Exam resolution returned no canonical exam:', {
+              examName,
+              success: resolved?.success,
+              hasExam: Boolean(resolved?.exam?.id),
+            })
+            return NextResponse.json(
+              { success: false, error: 'We could not verify this exam and its curriculum. Please return to exam selection and try again.' },
+              { status: 422 }
+            )
+          }
+          finalExamId = resolved.exam.id
+        } catch (examErr) {
+          console.error('[Onboarding] Error resolving exam intelligence:', examErr)
           return NextResponse.json(
-            { success: false, error: 'We could not verify this exam and its curriculum. Please return to exam selection and try again.' },
+            { success: false, error: 'We could not verify this exam and its curriculum. Your study profile has not been saved. Please try again.' },
             { status: 422 }
           )
         }
-        finalExamId = resolved.exam.id
+      }
 
-        // Do not finalize signup with an empty or topic-less curriculum. The selected
-        // exam must have persisted, exam-specific subjects and at least one topic.
-        const { data: curriculumSubjects, error: subjectsError } = await (admin as any)
-          .from('exam_subjects')
-          .select('id')
-          .eq('exam_id', finalExamId)
-          .limit(200)
-
-        if (subjectsError) {
-          console.error('[Onboarding] Curriculum subject verification failed:', subjectsError.message)
-          return NextResponse.json(
-            { success: false, error: 'We could not verify the saved exam curriculum. Please retry in a moment.' },
-            { status: 503 }
-          )
-        }
-
-        const subjectIds = (curriculumSubjects || []).map((subject: { id: string }) => subject.id)
-        if (subjectIds.length === 0) {
-          return NextResponse.json(
-            { success: false, error: 'The selected exam curriculum is not ready yet. Please retry exam setup in a moment.' },
-            { status: 422 }
-          )
-        }
-
-        const { data: curriculumTopics, error: topicsError } = await (admin as any)
-          .from('exam_topics')
-          .select('id')
-          .in('subject_id', subjectIds)
-          .limit(1)
-
-        if (topicsError) {
-          console.error('[Onboarding] Curriculum topic verification failed:', topicsError.message)
-          return NextResponse.json(
-            { success: false, error: 'We could not verify the saved exam topics. Please retry in a moment.' },
-            { status: 503 }
-          )
-        }
-        if (!curriculumTopics || curriculumTopics.length === 0) {
-          return NextResponse.json(
-            { success: false, error: 'The selected exam has no saved topics yet. Please retry exam setup in a moment.' },
-            { status: 422 }
-          )
-        }
-      } catch (examErr) {
-        console.error('[Onboarding] Error resolving exam intelligence:', examErr)
+      // Final integrity check before persisting the profile.
+      if (!finalExamId) {
         return NextResponse.json(
-          { success: false, error: 'We could not verify this exam and its curriculum. Your study profile has not been saved. Please try again.' },
+          { success: false, error: 'We could not verify your selected exam. Please return to exam selection and try again.' },
+          { status: 422 }
+        )
+      }
+
+      const { data: curriculumSubjects, error: subjectsError } = await (admin as any)
+        .from('exam_subjects')
+        .select('id')
+        .eq('exam_id', finalExamId)
+        .limit(200)
+
+      if (subjectsError) {
+        console.error('[Onboarding] Curriculum subject verification failed:', subjectsError.message)
+        return NextResponse.json(
+          { success: false, error: 'We could not verify the saved exam curriculum. Please retry in a moment.' },
+          { status: 503 }
+        )
+      }
+
+      const subjectIds = (curriculumSubjects || []).map((subject: { id: string }) => subject.id)
+      if (subjectIds.length === 0) {
+        return NextResponse.json(
+          { success: false, error: 'The selected exam curriculum is not ready yet. Please retry exam setup in a moment.' },
+          { status: 422 }
+        )
+      }
+
+      const { data: curriculumTopics, error: topicsError } = await (admin as any)
+        .from('exam_topics')
+        .select('id')
+        .in('subject_id', subjectIds)
+        .limit(1)
+
+      if (topicsError) {
+        console.error('[Onboarding] Curriculum topic verification failed:', topicsError.message)
+        return NextResponse.json(
+          { success: false, error: 'We could not verify the saved exam topics. Please retry in a moment.' },
+          { status: 503 }
+        )
+      }
+      if (!curriculumTopics || curriculumTopics.length === 0) {
+        return NextResponse.json(
+          { success: false, error: 'The selected exam has no saved topics yet. Please retry exam setup in a moment.' },
           { status: 422 }
         )
       }
