@@ -32,7 +32,7 @@ export function usePlanCheckout() {
     async (
       planCode: PlanCode,
       options?: {
-        preferredCurrency?: 'USD' | 'INR';
+        preferredCurrency?: 'USD' | 'INR' | 'EUR';
         onSuccess?: (data: any) => void;
         onError?: (error: string) => void;
       }
