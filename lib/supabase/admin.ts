@@ -1,18 +1,27 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '../../types/database.types'
 
+/**
+ * Server-only privileged Supabase client.
+ * Never fall back to a publishable/anon key: privileged calls must fail clearly
+ * if a server-side secret is not configured.
+ */
 export function createAdminClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://exzpqrqflfhawgtnzxqx.supabase.co'
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!serviceKey) {
-    // Return standard client or fallback to avoid crashing module load
-    console.warn('SUPABASE_SERVICE_ROLE_KEY is missing. Admin operations will be restricted.')
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV4enBxcnFmbGZoYXdndG56eHF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2NzEzMzEsImV4cCI6MjEwMTI0NzMzMX0.HzAcsogz1ND64kXQ1dCDkDWLotB1Vo0lcgj4K3p4p5o'
-    return createClient<Database>(supabaseUrl, anonKey)
+  if (typeof window !== 'undefined') {
+    throw new Error('Security violation: the Supabase admin client is server-only.')
   }
 
-  return createClient<Database>(supabaseUrl, serviceKey, {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const secretKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl) {
+    throw new Error('NEXT_PUBLIC_SUPABASE_URL is not configured.')
+  }
+  if (!secretKey) {
+    throw new Error('Configure SUPABASE_SECRET_KEY for privileged server-side database operations.')
+  }
+
+  return createClient<Database>(supabaseUrl, secretKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
@@ -20,4 +29,4 @@ export function createAdminClient() {
   })
 }
 
-export const getSupabaseAdmin = createAdminClient;
+export const getSupabaseAdmin = createAdminClient
