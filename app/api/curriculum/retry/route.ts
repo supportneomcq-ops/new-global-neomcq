@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { resolveOrInitializeExamIntelligence } from '@/lib/server/exam-intelligence'
-import { ensureCurrentStudyPlan } from '@/lib/study-plans/ensure-current-plan'
 
 export const maxDuration = 60
 
@@ -90,13 +89,6 @@ export async function POST() {
 
     if (metadataError) {
       return NextResponse.json({ success: false, error: 'The curriculum is ready, but account status could not be refreshed yet.' }, { status: 500 })
-    }
-
-    try {
-      const plan = await ensureCurrentStudyPlan(admin, user.id, examId)
-      if (!plan.plan) console.warn('[Curriculum Retry] Curriculum ready; study plan will need retry:', plan.message)
-    } catch (planError) {
-      console.warn('[Curriculum Retry] Curriculum ready; study plan setup failed:', planError)
     }
 
     return NextResponse.json({ success: true, curriculumStatus: 'ready', examId })
