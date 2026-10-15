@@ -33,8 +33,7 @@ export async function POST(req: NextRequest) {
     const geo = await detectServerCountryAndCurrency(req, user.id);
     
     // Determine authoritative currency: if server detects India OR client requested INR & user/req is India
-    const authoritativeCurrency: 'INR' | 'USD' =
-      geo.isIndia || preferredCurrency === 'INR' && geo.countryCode === 'IN' ? 'INR' : (preferredCurrency === 'INR' && !geo.isIndia ? (geo.countryCode === 'IN' ? 'INR' : 'USD') : (geo.isIndia ? 'INR' : 'USD'));
+    const authoritativeCurrency: 'INR' | 'USD' | 'EUR' = geo.currency;
 
     const admin = getSupabaseAdmin();
 
@@ -100,7 +99,7 @@ export async function POST(req: NextRequest) {
     });
 
     const planAmount = rzpResult.currency === 'INR' ? plan.price_inr : plan.price_usd;
-    const formattedPriceObj = getFormattedPlanPrice(plan.code, rzpResult.currency as 'USD' | 'INR');
+    const formattedPriceObj = getFormattedPlanPrice(plan.code, rzpResult.currency as 'USD' | 'INR' | 'EUR');
 
     // The live subscriptions schema requires both period timestamps even while checkout is pending.
     // Pending status prevents these provisional dates from granting paid entitlements.
