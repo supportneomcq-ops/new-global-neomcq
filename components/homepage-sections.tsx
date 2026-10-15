@@ -52,7 +52,7 @@ function SectionHeading({ eyebrow, title, description }: { eyebrow: string; titl
     <div className="mx-auto mb-7 sm:mb-9 max-w-3xl text-center">
       <p className="mb-2 text-[10px] sm:text-xs font-extrabold uppercase tracking-[0.16em] text-violet-600">{eyebrow}</p>
       <h2 className="font-heading text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-slate-100">{title}</h2>
-      {description && <p className="mx-auto mt-2 max-w-2xl text-sm sm:text-base leading-relaxed text-slate-500 dark:text-slate-300 dark:text-slate-300">{description}</p>}
+      {description && <p className="mx-auto mt-2 max-w-2xl text-sm sm:text-base leading-relaxed text-slate-500 dark:text-slate-300">{description}</p>}
     </div>
   );
 }
@@ -67,7 +67,7 @@ export function HomepageSections({ onStartFree }: { onStartFree: () => void }) {
             {tools.map(({ title, description, action, href, icon: Icon, tone }) => (
               <article key={title} className={`group flex min-h-[220px] flex-col rounded-2xl border bg-gradient-to-br p-5 shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-lg ${toneClasses[tone].card}`}>
                 <div className={`mb-3 flex h-12 w-12 items-center justify-center rounded-xl ${toneClasses[tone].icon}`}><Icon className="h-6 w-6" strokeWidth={2.2} /></div>
-                <h3 className="text-base font-extrabold tracking-tight">{title}</h3>
+                <h3 className="text-base font-extrabold tracking-tight text-slate-900 dark:text-slate-100">{title}</h3>
                 <p className="mt-1.5 flex-1 text-sm leading-relaxed text-slate-600 dark:text-slate-300">{description}</p>
                 <Link href={href} className={`mt-4 inline-flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs font-bold ${toneClasses[tone].action}`}>
                   {action}<ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
@@ -85,8 +85,8 @@ export function HomepageSections({ onStartFree }: { onStartFree: () => void }) {
             {steps.map(({ number, title, description, icon: Icon }, index) => (
               <article key={number} className="relative flex min-h-[170px] flex-col items-center justify-center rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50/70 to-white dark:border-violet-800/70 dark:from-violet-950/40 dark:to-slate-950 px-5 py-6 text-center shadow-sm">
                 <span className="absolute -top-3 left-5 flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-blue-500 text-sm font-black text-white shadow-md">{number}</span>
-                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-violet-100 text-violet-600"><Icon className="h-6 w-6" /></div>
-                <h3 className="text-sm font-extrabold">{title}</h3>
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-violet-100 text-violet-600 dark:bg-violet-900/60 dark:text-violet-200"><Icon className="h-6 w-6" /></div>
+                <h3 className="text-sm font-extrabold text-slate-900 dark:text-slate-100">{title}</h3>
                 <p className="mt-1.5 max-w-xs text-xs sm:text-sm leading-relaxed text-slate-500 dark:text-slate-300">{description}</p>
                 {index < steps.length - 1 && <ArrowRight className="absolute -right-3 top-1/2 z-10 hidden h-6 w-6 -translate-y-1/2 text-violet-500 md:block" />}
               </article>
@@ -99,13 +99,13 @@ export function HomepageSections({ onStartFree }: { onStartFree: () => void }) {
         <div className="mx-auto max-w-6xl">
           <div className="flex flex-col items-center justify-between gap-3 sm:flex-row sm:items-end">
             <div className="flex-1"><SectionHeading eyebrow="Prepare for any exam" title="Trusted by Learners Across the World" description="Explore exam categories and build a preparation path around your goals." /></div>
-            <Link href="/onboarding" className="mb-7 inline-flex shrink-0 items-center gap-2 rounded-xl border border-violet-200 bg-white px-4 py-2.5 text-xs font-bold text-violet-700 shadow-sm transition hover:border-violet-400 hover:bg-violet-50 sm:mb-9">View All Exams <ArrowUpRight className="h-4 w-4" /></Link>
+            <Link href="/onboarding" className="mb-7 inline-flex shrink-0 items-center gap-2 rounded-xl border border-violet-200 bg-white px-4 py-2.5 text-xs font-bold text-violet-700 shadow-sm transition hover:border-violet-400 hover:bg-violet-50 dark:border-violet-700 dark:bg-slate-900 dark:text-violet-300 dark:hover:bg-violet-950/60 sm:mb-9">View All Exams <ArrowUpRight className="h-4 w-4" /></Link>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {examCategories.map(({ title, examples, icon: Icon, tone }) => (
               <Link href="/onboarding" key={title} className="group flex min-h-[92px] items-center gap-3 rounded-2xl border border-slate-100 bg-white dark:border-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:bg-slate-900 p-3.5 shadow-sm transition hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md">
                 <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${toneClasses[tone].icon}`}><Icon className="h-5 w-5" /></div>
-                <div className="min-w-0"><h3 className="text-sm font-extrabold">{title}</h3><p className="mt-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-300">{examples}</p></div>
+                <div className="min-w-0"><h3 className="text-sm font-extrabold text-slate-900 dark:text-slate-100">{title}</h3><p className="mt-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-300">{examples}</p></div>
               </Link>
             ))}
           </div>
@@ -117,7 +117,7 @@ export function HomepageSections({ onStartFree }: { onStartFree: () => void }) {
         <div className="pointer-events-none absolute -right-12 bottom-0 h-56 w-56 rounded-full bg-sky-200/40 blur-3xl" />
         <div className="relative mx-auto grid max-w-6xl items-center gap-7 lg:grid-cols-[.7fr_2fr_.7fr]">
           <div className="hidden text-center font-caveat text-2xl font-bold text-violet-600 lg:block">Clean &amp; modern interface <ArrowRight className="mx-auto mt-3 h-7 w-7 rotate-45" /></div>
-          <div className="overflow-hidden rounded-2xl border border-white bg-white p-2 shadow-[0_20px_60px_rgba(86,78,180,.18)] sm:p-3 dark:border-violet-800/80 dark:shadow-[0_20px_60px_rgba(0,0,0,.4)]">
+          <div className="overflow-hidden rounded-2xl border border-white bg-white p-2 shadow-[0_20px_60px_rgba(86,78,180,.18)] sm:p-3 dark:border-violet-800/80 dark:bg-slate-950 dark:shadow-[0_20px_60px_rgba(0,0,0,.4)]">
             <div className="overflow-hidden rounded-xl border border-slate-100 bg-slate-50 dark:border-slate-700 dark:bg-slate-900">
               <div className="flex h-9 items-center gap-2 border-b border-slate-100 bg-white dark:border-slate-700 dark:bg-slate-950 px-3">
                 <div className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-rose-300" /><span className="h-2 w-2 rounded-full bg-amber-300" /><span className="h-2 w-2 rounded-full bg-emerald-300" /></div>
@@ -153,7 +153,7 @@ export function HomepageSections({ onStartFree }: { onStartFree: () => void }) {
             {benefits.map(({ title, description, icon: Icon, tone }) => (
               <article key={title} className="rounded-2xl border border-slate-100 bg-white dark:border-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:bg-slate-900 p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
                 <div className={`mb-3 flex h-11 w-11 items-center justify-center rounded-xl ${toneClasses[tone].icon}`}><Icon className="h-5 w-5" /></div>
-                <h3 className="text-sm font-extrabold">{title}</h3><p className="mt-1.5 text-xs leading-relaxed text-slate-500 dark:text-slate-300">{description}</p>
+                <h3 className="text-sm font-extrabold text-slate-900 dark:text-slate-100">{title}</h3><p className="mt-1.5 text-xs leading-relaxed text-slate-500 dark:text-slate-300">{description}</p>
               </article>
             ))}
           </div>
@@ -171,7 +171,7 @@ export function HomepageSections({ onStartFree }: { onStartFree: () => void }) {
             ].map(({ title, description, icon: Icon, tone }) => (
               <article key={title} className="flex items-start gap-4 rounded-2xl border border-slate-100 bg-white dark:border-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:bg-slate-900 p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
                 <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${toneClasses[tone].icon}`}><Icon className="h-5 w-5" /></div>
-                <div><h3 className="text-sm font-extrabold">{title}</h3><p className="mt-1.5 text-xs leading-relaxed text-slate-500 dark:text-slate-300">{description}</p></div>
+                <div><h3 className="text-sm font-extrabold text-slate-900 dark:text-slate-100">{title}</h3><p className="mt-1.5 text-xs leading-relaxed text-slate-500 dark:text-slate-300">{description}</p></div>
               </article>
             ))}
           </div>
