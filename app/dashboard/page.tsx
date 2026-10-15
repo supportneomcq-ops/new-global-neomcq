@@ -15,6 +15,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<OnboardingData | null>(null);
   const [curriculumStatus, setCurriculumStatus] = useState<'pending' | 'needs_retry' | null>(null);
+  const [retryingCurriculum, setRetryingCurriculum] = useState(false);
+  const [curriculumRetryError, setCurriculumRetryError] = useState('');
 
   useEffect(() => {
     const fetchSessionAndProfile = async () => {
@@ -148,6 +150,24 @@ export default function DashboardPage() {
     return () => window.clearInterval(intervalId);
   }, [curriculumStatus]);
 
+  const handleRetryCurriculum = async () => {
+    setRetryingCurriculum(true);
+    setCurriculumRetryError('');
+    try {
+      const response = await fetch('/api/curriculum/retry', { method: 'POST' });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) {
+        setCurriculumRetryError(result?.error || 'We could not retry curriculum validation right now.');
+        return;
+      }
+      window.location.reload();
+    } catch {
+      setCurriculumRetryError('We could not connect to curriculum validation. Please try again.');
+    } finally {
+      setRetryingCurriculum(false);
+    }
+  };
+
   const handleSignOut = async () => {
     try {
       const supabase = getSupabaseClient();
@@ -181,13 +201,17 @@ export default function DashboardPage() {
           </p>
           {!needsRetry && <p className="mt-5 text-xs text-slate-500 dark:text-slate-400">You can keep this page open; there is no need to start setup again.</p>}
           {needsRetry && (
-            <button
-              type="button"
-              onClick={() => window.location.reload()}
-              className="mt-6 rounded-xl bg-violet-600 px-5 py-3 text-sm font-semibold text-white hover:bg-violet-700"
-            >
-              Check status again
-            </button>
+            <>
+              {curriculumRetryError && <p role="alert" className="mt-4 text-sm text-red-600 dark:text-red-300">{curriculumRetryError}</p>}
+              <button
+                type="button"
+                disabled={retryingCurriculum}
+                onClick={() => { void handleRetryCurriculum(); }}
+                className="mt-6 rounded-xl bg-violet-600 px-5 py-3 text-sm font-semibold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {retryingCurriculum ? 'Retrying validation…' : 'Retry curriculum validation'}
+              </button>
+            </>
           )}
         </section>
       </main>
