@@ -778,7 +778,7 @@ Output schema:
           },
         }),
         new Promise<never>((_, reject) => {
-          geminiTimeout = setTimeout(() => reject(new Error('Gemini request timed out after 22 seconds')), 22000)
+          geminiTimeout = setTimeout(() => reject(new Error('Gemini request timed out after 75 seconds')), 75000)
         }),
       ])
       if (geminiTimeout) clearTimeout(geminiTimeout)
@@ -868,7 +868,7 @@ Output schema:
     try {
       const openai = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
-        timeout: 22000,
+        timeout: 75000,
         maxRetries: 0,
       })
       const completion = await openai.chat.completions.create({
