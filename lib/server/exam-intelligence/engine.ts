@@ -791,8 +791,8 @@ Output schema:
         const q = normalizeInput(cleanName).slug.toLowerCase()
         const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 15 : /usmle-step-1|usmle-1/.test(q) ? 8 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
         if (validated.data.subjects.length < minimumSubjects) {
-          console.warn(`[Exam Intelligence] Incomplete curriculum rejected for ${cleanName}: ${validated.data.subjects.length}/${minimumSubjects} minimum subjects.`)
-          return null
+          console.warn(`[Exam Intelligence] Incomplete Gemini curriculum rejected for ${cleanName}: ${validated.data.subjects.length}/${minimumSubjects} minimum subjects. Trying fallback provider.`)
+          throw new Error('Gemini curriculum did not meet minimum subject coverage.')
         }
         return validated.data
       } else {
