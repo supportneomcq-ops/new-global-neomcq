@@ -333,7 +333,7 @@ export async function POST(req: NextRequest) {
         // Persist the curriculum request before returning. The scheduled worker owns
         // generation and retries; signup no longer depends on request-bound after().
         const curriculumKey = finalExamId
-          ? `curriculum-rebuild-v1:${finalExamId}`
+          ? `curriculum-onboarding-v1:${finalExamId}:${targetUserId}`
           : `curriculum-onboarding-v1:${examName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`
         const { error: queueError } = await (admin as any).from('ai_jobs').upsert({
           task: 'curriculum_rebuild',
