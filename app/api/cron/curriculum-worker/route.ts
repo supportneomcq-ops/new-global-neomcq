@@ -172,6 +172,40 @@ export async function GET(req: NextRequest) {
       throw new Error(`Curriculum did not pass persisted hierarchy validation (subjects=${subjects.length}, topics=${topicCount}, subtopics=${subtopicCount}).`)
     }
 
+    // Attach the verified canonical curriculum to a learner only after the
+    // persisted hierarchy passes the validation gate.
+    const learnerId = payload.userId
+    if (learnerId) {
+      const { error: profileError } = await admin.from('profiles').update({
+        current_exam_id: examId,
+        exam_locked: true,
+        exam_selected_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq('id', learnerId)
+      if (profileError) throw new Error('Verified curriculum could not be attached to the learner profile.')
+
+      const { error: linkError } = await admin.from('user_exams').upsert({
+        user_id: learnerId,
+        exam_id: examId,
+        target_date: payload.examDate || null,
+        target_score: 85,
+        status: 'in_progress',
+      }, { onConflict: 'user_id,exam_id' })
+      if (linkError) throw new Error('Verified curriculum could not be linked to the learner account.')
+
+      const { data: authRecord } = await admin.auth.admin.getUserById(learnerId)
+      const { error: authUpdateError } = await admin.auth.admin.updateUserById(learnerId, {
+        user_metadata: {
+          ...(authRecord?.user?.user_metadata || {}),
+          neo_curriculum_status: 'ready',
+          neo_exam_id: examId,
+          neo_exam_name: persisted.name,
+          neo_curriculum_ready_at: new Date().toISOString(),
+        },
+      })
+      if (authUpdateError) throw new Error('Curriculum is verified, but learner status could not be updated.')
+    }
+
     const { error: finishError } = await admin.from('ai_jobs').update({
       status: 'completed',
       completed_at: new Date().toISOString(),
