@@ -685,7 +685,7 @@ CRITICAL ARCHITECTURAL DIRECTIVES:
    - Classify question types: standard_mcq, clinical_vignette, case_based, calculation, image_based, scenario_architecture.
 2. CURRICULUM HIERARCHY:
    - Build the exam-specific syllabus breadth, not a short illustrative sample. Use official exam-body syllabus/blueprint knowledge where available; never merge separate exams or omit independently tested domains.
-   - FMGE and NEET PG must cover the full MBBS subject domains, not only 4-5 broad clinical subjects; target at least 15 distinct subjects. USMLE Step 1 must cover the full basic-science/organ-system blueprint, target at least 8 distinct domains. UPSC CSE must cover its major Prelims/Mains syllabus domains, target at least 6 subjects. AWS Solutions Architect Associate must cover all current exam domains, target at least 4.
+   - FMGE and NEET PG must cover the full MBBS subject domains, not only 4-5 broad clinical subjects; target at least 15 distinct subjects. NEET UG must contain six distinct class-specific subjects: Physics XI, Chemistry XI, Biology XI, Physics XII, Chemistry XII, and Biology XII. USMLE Step 1 must cover the full basic-science/organ-system blueprint, target at least 8 distinct domains. UPSC CSE must cover its major Prelims/Mains syllabus domains, target at least 6 subjects. AWS Solutions Architect Associate must cover all current exam domains, target at least 4.
    - For every subject, create the full relevant main topics (normally at least 3 where appropriate). For every main topic, create meaningful, domain-specific subtopics (normally at least 3 where appropriate). Do not use generic placeholders, duplicate subjects, or filler labels.
    - If you cannot confidently produce a complete, exam-specific hierarchy, do not claim that the syllabus is complete.
    - IMPORTANT: This stage creates ONLY the curriculum structure (names and descriptions). DO NOT generate MCQs, quizzes, flashcards, notes, or AI lessons in this profile.
@@ -789,7 +789,7 @@ Output schema:
 
       if (validated.success) {
         const q = normalizeInput(cleanName).slug.toLowerCase()
-        const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 15 : /usmle-step-1|usmle-1/.test(q) ? 8 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
+        const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 15 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 8 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
         if (validated.data.subjects.length < minimumSubjects) {
           console.warn(`[Exam Intelligence] Incomplete Gemini curriculum rejected for ${cleanName}: ${validated.data.subjects.length}/${minimumSubjects} minimum subjects. Trying fallback provider.`)
           throw new Error('Gemini curriculum did not meet minimum subject coverage.')
@@ -799,7 +799,7 @@ Output schema:
         console.warn('[Exam Intelligence] Validation schema issues:', validated.error.format())
         // Attempt partial recovery if subjects array exists
         const q = normalizeInput(cleanName).slug.toLowerCase()
-        const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 15 : /usmle-step-1|usmle-1/.test(q) ? 8 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
+        const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 15 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 8 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
         if (parsed.subjects && Array.isArray(parsed.subjects) && parsed.subjects.length >= minimumSubjects) {
           return {
             exam: {
@@ -887,7 +887,7 @@ Output schema:
         const validated = AIExamIntelligenceOutputSchema.safeParse(parsed)
         if (validated.success) {
           const q = normalizeInput(cleanName).slug.toLowerCase()
-          const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 15 : /usmle-step-1|usmle-1/.test(q) ? 8 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
+          const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 15 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 8 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
           if (validated.data.subjects.length >= minimumSubjects) {
             return validated.data
           }
