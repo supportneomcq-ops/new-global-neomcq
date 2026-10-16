@@ -762,21 +762,26 @@ Output schema:
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
 
-    // Use standard 15-second abort mechanism to prevent hanging
-    const abortCtrl = new AbortController()
-    const timer = setTimeout(() => abortCtrl.abort(), 18000)
+    // Bound the Gemini attempt even if the SDK/network ignores AbortController.
+    // This leaves time for the OpenAI fallback inside Vercel's function budget.
+    let geminiTimeout: ReturnType<typeof setTimeout> | undefined
 
     try {
-      const response = await ai.models.generateContent({
-        model: process.env.GEMINI_CURRICULUM_MODEL || 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-          systemInstruction,
-          responseMimeType: 'application/json',
-          temperature: 0.1,
-        },
-      })
-      clearTimeout(timer)
+      const response = await Promise.race([
+        ai.models.generateContent({
+          model: process.env.GEMINI_CURRICULUM_MODEL || 'gemini-2.5-flash',
+          contents: prompt,
+          config: {
+            systemInstruction,
+            responseMimeType: 'application/json',
+            temperature: 0.1,
+          },
+        }),
+        new Promise<never>((_, reject) => {
+          geminiTimeout = setTimeout(() => reject(new Error('Gemini request timed out after 22 seconds')), 22000)
+        }),
+      ])
+      if (geminiTimeout) clearTimeout(geminiTimeout)
 
       const text = response.text || '{}'
       const parsed = JSON.parse(text)
@@ -849,7 +854,7 @@ Output schema:
         }
       }
     } catch (apiErr: any) {
-      clearTimeout(timer)
+      if (geminiTimeout) clearTimeout(geminiTimeout)
       console.warn('[Exam Intelligence] Gemini API call failed or timed out:', apiErr.message)
     }
   } catch (err: any) {
