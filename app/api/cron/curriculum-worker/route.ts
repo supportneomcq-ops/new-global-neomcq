@@ -156,21 +156,38 @@ export async function GET(req: NextRequest) {
     examId = result.exam.id
 
     const { data: persisted, error: verifyError } = await admin.from('exams')
-      .select('id, name, metadata, exam_subjects(id, exam_topics(id, exam_subtopics(id)))')
+      .select('id, name, metadata, exam_subjects(id, active, is_active, exam_topics(id, active, is_active, exam_subtopics(id, is_active)))')
       .eq('id', examId)
       .maybeSingle()
     if (verifyError || !persisted) throw new Error('Could not verify the saved curriculum.')
 
-    const subjects = persisted.exam_subjects || []
-    const topicCount = subjects.reduce((n: number, s: any) => n + (s.exam_topics || []).length, 0)
-    const subtopicCount = subjects.reduce((n: number, s: any) => n + (s.exam_topics || []).reduce((m: number, t: any) => m + (t.exam_subtopics || []).length, 0), 0)
+    const allSubjects = persisted.exam_subjects || []
+    const subjects = allSubjects.filter((s: any) => s.is_active !== false && s.active !== false)
+    const topics = subjects.flatMap((s: any) => (s.exam_topics || []).filter((t: any) => t.is_active !== false && t.active !== false))
+    const topicCount = topics.length
+    const subtopicCount = topics.reduce((n: number, t: any) => n + (t.exam_subtopics || []).filter((st: any) => st.is_active !== false).length, 0)
     const metadata = persisted.metadata || {}
+    const examKey = String(persisted.name || examName).toLowerCase()
+    const minimumSubjects = /fmge|neet\\s*pg|ini-cet/.test(examKey) ? 15
+      : /neet\\s*ug/.test(examKey) ? 6
+      : /usmle\\s*step\\s*1/.test(examKey) ? 8
+      : /upsc/.test(examKey) ? 6
+      : /aws.*(solution|architect)|solutions-architect/.test(examKey) ? 4
+      : 1
     const validated = metadata.curriculum_validation_version === 2 &&
       metadata.curriculum_validation_passed === true &&
-      subjects.length > 0 && topicCount > 0 && subtopicCount > 0
+      subjects.length >= minimumSubjects && topicCount > 0 && subtopicCount > 0
 
     if (!validated) {
-      throw new Error(`Curriculum did not pass persisted hierarchy validation (subjects=${subjects.length}, topics=${topicCount}, subtopics=${subtopicCount}).`)
+      await admin.from('exams').update({
+        metadata: {
+          ...metadata,
+          curriculum_validation_passed: false,
+          curriculum_status: 'needs_enrichment',
+        },
+        updated_at: new Date().toISOString(),
+      }).eq('id', examId)
+      throw new Error(`Curriculum did not pass persisted hierarchy validation (active subjects=${subjects.length}/${minimumSubjects}, active topics=${topicCount}, active subtopics=${subtopicCount}).`)
     }
 
     // Attach the verified canonical curriculum to a learner only after the
