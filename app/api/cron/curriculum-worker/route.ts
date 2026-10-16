@@ -72,27 +72,28 @@ export async function GET(req: NextRequest) {
   // Claim a single job per invocation so a slow provider cannot consume the
   // entire worker window. The conditional update is the atomic claim operation.
   let candidate: any = null
-  const { data: queued } = await admin.from('ai_jobs')
+  // Retry a previously failed job before taking new work, so transient provider
+  // failures recover promptly rather than waiting behind the entire backlog.
+  const { data: failed } = await admin.from('ai_jobs')
     .select('*')
     .eq('task', TASK)
-    .eq('status', 'queued')
+    .eq('status', 'failed')
+    .lt('attempts', 3)
     .order('priority', { ascending: false })
     .order('created_at', { ascending: true })
-    .limit(BATCH_SIZE)
-  candidate = queued?.[0] || null
+    .limit(1)
+  candidate = failed?.[0] || null
 
   if (!candidate) {
-    const { data: failed } = await admin.from('ai_jobs')
+    const { data: queued } = await admin.from('ai_jobs')
       .select('*')
       .eq('task', TASK)
-      .eq('status', 'failed')
-      .lt('attempts', 3)
+      .eq('status', 'queued')
       .order('priority', { ascending: false })
       .order('created_at', { ascending: true })
-      .limit(1)
-    candidate = failed?.[0] || null
+      .limit(BATCH_SIZE)
+    candidate = queued?.[0] || null
   }
-
   if (!candidate) {
     const { count } = await admin.from('ai_jobs')
       .select('id', { count: 'exact', head: true })
