@@ -168,9 +168,9 @@ export async function GET(req: NextRequest) {
     const subtopicCount = topics.reduce((n: number, t: any) => n + (t.exam_subtopics || []).filter((st: any) => st.is_active !== false).length, 0)
     const metadata = persisted.metadata || {}
     const examKey = String(persisted.name || examName).toLowerCase()
-    const minimumSubjects = /fmge|neet\\s*pg|ini-cet/.test(examKey) ? 15
-      : /neet\\s*ug/.test(examKey) ? 6
-      : /usmle\\s*step\\s*1/.test(examKey) ? 8
+    const minimumSubjects = /fmge|neet\s*pg|ini-cet/.test(examKey) ? 15
+      : /neet\s*ug/.test(examKey) ? 6
+      : /usmle\s*step\s*1/.test(examKey) ? 8
       : /upsc/.test(examKey) ? 6
       : /aws.*(solution|architect)|solutions-architect/.test(examKey) ? 4
       : 1
