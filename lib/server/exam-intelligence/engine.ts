@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai'
+import OpenAI from 'openai'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { normalizeInput, calculateLevenshteinSimilarity } from '@/lib/knowledge/normalizer'
 import { classifyUserInput } from '@/lib/knowledge/classifier'
@@ -661,8 +662,8 @@ export async function generateAIExamIntelligence(
   categoryHint?: string,
   levelHint?: string
 ): Promise<AIExamIntelligenceOutput | null> {
-  if (!process.env.GEMINI_API_KEY) {
-    console.warn('[Exam Intelligence] No GEMINI_API_KEY configured for AI synthesis.')
+  if (!process.env.GEMINI_API_KEY && !process.env.OPENAI_API_KEY) {
+    console.warn('[Exam Intelligence] No supported AI provider key is configured for curriculum synthesis.')
     return null
   }
 
@@ -767,7 +768,7 @@ Output schema:
 
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: process.env.GEMINI_CURRICULUM_MODEL || 'gemini-2.5-flash',
         contents: prompt,
         config: {
           systemInstruction,
@@ -852,7 +853,49 @@ Output schema:
       console.warn('[Exam Intelligence] Gemini API call failed or timed out:', apiErr.message)
     }
   } catch (err: any) {
-    console.warn('[Exam Intelligence] AI synthesis execution error:', err.message)
+    console.warn('[Exam Intelligence] Gemini synthesis execution error:', err.message)
+  }
+
+  // Provider fallback: a temporary Gemini outage, invalid model, or missing Gemini
+  // key must not prevent curriculum creation when OpenAI is configured. Keep this
+  // bounded so onboarding/background processing cannot wait indefinitely.
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+        timeout: 22000,
+        maxRetries: 0,
+      })
+      const completion = await openai.chat.completions.create({
+        model: process.env.OPENAI_CURRICULUM_MODEL || 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemInstruction },
+          { role: 'user', content: prompt },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.1,
+        max_tokens: 12000,
+      })
+      const responseText = completion.choices[0]?.message?.content
+      if (responseText) {
+        const parsed = JSON.parse(responseText)
+        const validated = AIExamIntelligenceOutputSchema.safeParse(parsed)
+        if (validated.success) {
+          const q = normalizeInput(cleanName).slug.toLowerCase()
+          const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 15 : /usmle-step-1|usmle-1/.test(q) ? 8 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
+          if (validated.data.subjects.length >= minimumSubjects) {
+            return validated.data
+          }
+          console.warn(`[Exam Intelligence] OpenAI curriculum rejected for ${cleanName}: ${validated.data.subjects.length}/${minimumSubjects} minimum subjects.`)
+        } else {
+          console.warn('[Exam Intelligence] OpenAI curriculum did not match the required schema.')
+        }
+      } else {
+        console.warn('[Exam Intelligence] OpenAI returned an empty curriculum response.')
+      }
+    } catch (openaiError: any) {
+      console.warn('[Exam Intelligence] OpenAI fallback synthesis failed:', openaiError?.message || 'Unknown provider error')
+    }
   }
 
   return null
