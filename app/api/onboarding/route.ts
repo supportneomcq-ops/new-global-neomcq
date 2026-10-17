@@ -193,7 +193,7 @@ export async function POST(req: NextRequest) {
           // A single topic or a generic placeholder is not proof of a complete syllabus.
           const examMetadata = selectedExam.metadata || {}
           curriculumReady =
-            examMetadata.curriculum_validation_version === 2 &&
+            examMetadata.curriculum_validation_version === 3 &&
             examMetadata.curriculum_validation_passed === true
         }
       }
