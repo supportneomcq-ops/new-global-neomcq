@@ -168,14 +168,14 @@ export async function GET(req: NextRequest) {
     const subtopicCount = topics.reduce((n: number, t: any) => n + (t.exam_subtopics || []).filter((st: any) => st.is_active !== false).length, 0)
     const metadata = persisted.metadata || {}
     const examKey = String(persisted.name || examName).toLowerCase()
-    const minimumSubjects = /fmge|neet\\s*pg|ini-cet/.test(examKey) ? 20
+    const minimumSubjects = /fmge|neet\s*pg|ini-cet/.test(examKey) ? 20
       : /neet\s*ug/.test(examKey) ? 6
       : /usmle\s*step\s*[123]/.test(examKey) ? 8
       : /upsc/.test(examKey) ? 6
       : /aws.*(solution|architect)|solutions-architect/.test(examKey) ? 4
       : 1
     // Do not confuse a syntactically populated tree with a complete syllabus.
-    const minimumTopics = /fmge|neet\\s*pg|ini-cet/.test(examKey) ? Math.max(100, subjects.length * 5)
+    const minimumTopics = /fmge|neet\s*pg|ini-cet/.test(examKey) ? Math.max(100, subjects.length * 5)
       : /neet\s*ug/.test(examKey) ? 30
       : /usmle\s*step\s*1/.test(examKey) ? 40
       : /usmle\s*step\s*[23]/.test(examKey) ? 40
@@ -188,7 +188,7 @@ export async function GET(req: NextRequest) {
       const keys = values.map(normalized).filter(Boolean)
       return new Set(keys).size !== keys.length
     }
-    const exactSubjectCount = /fmge/.test(examKey) ? 20 : /usmle\\s*step\\s*1/.test(examKey) ? 11 : /usmle\\s*step\\s*[23]/.test(examKey) ? 18 : null
+    const exactSubjectCount = /fmge/.test(examKey) ? 20 : /usmle\s*step\s*1/.test(examKey) ? 11 : /usmle\s*step\s*[23]/.test(examKey) ? 18 : null
     const exactCountValid = exactSubjectCount === null || subjects.length === exactSubjectCount
     const requiredUSMLE1 = [
       'Human Development',
@@ -223,9 +223,9 @@ export async function GET(req: NextRequest) {
       'Biostatistics, Epidemiology/Population Health, & Interpretation of the Medical Literature',
       'Social Sciences',
     ]
-    const usmle1CoverageValid = !/usmle\\s*step\\s*1/.test(examKey) ||
+    const usmle1CoverageValid = !/usmle\s*step\s*1/.test(examKey) ||
       requiredUSMLE1.every((required) => subjects.some((s: any) => normalized(s.name) === normalized(required)))
-    const usmle2And3CoverageValid = !/usmle\\s*step\\s*[23]/.test(examKey) ||
+    const usmle2And3CoverageValid = !/usmle\s*step\s*[23]/.test(examKey) ||
       requiredUSMLE2And3.every((required) => subjects.some((s: any) => normalized(s.name) === normalized(required)))
     const everySubjectHasBreadth = subjects.every((s: any) => {
       const activeTopics = (s.exam_topics || []).filter((t: any) => t.is_active !== false && t.active !== false)
