@@ -2242,21 +2242,37 @@ export async function collectExamRulesProcess(
                 retrieved_at: e.retrieved_at || null,
               })),
               missing_or_unverified_fields: [
-                ['country', examRow?.country_id],
-                ['authority', examRow?.authority],
-                ['category', examRow?.category_id],
-                ['level', examRow?.level],
-                ['question_count', rulesValidation.question_count],
-                ['duration_minutes', rulesValidation.duration_minutes],
-                ['question_types', rulesValidation.question_types?.length ? rulesValidation.question_types : null],
-                ['total_marks', examRow?.total_marks],
-                ['passing_criteria', examRow?.passing_criteria],
-                ['eligibility', examRow?.eligibility],
-                ['attempt_rules', examRow?.attempt_rules],
-                ['selection_process', examRow?.selection_process],
-                ['official_source', evidenceSource],
-                ['version_year', currentVersion?.version_year || examRow?.version_year],
-              ].filter(([, value]) => value === undefined || value === null || value === '').map(([name]) => name),
+                ['canonical_exam_name', examRow?.name, null],
+                ['country', countryRow?.name || countryHint || null, countryEvidence],
+                ['authority', examRow?.authority || authorityRow?.name || null,
+                  authorityEvidence || (
+                    String(authorityRow?.verification_status || '').toLowerCase() === 'verified' &&
+                    (authorityRow?.official_website || authorityRow?.source_url)
+                      ? { source_url: authorityRow.official_website || authorityRow.source_url }
+                      : null
+                  )],
+                ['category', categoryRow?.name || categoryHint || null, categoryEvidence],
+                ['level', examRow?.level || null, levelEvidence],
+                ['stages', examRow?.stages || null, evidenceFor(['stages', 'exam_stages'])],
+                ['papers', examRow?.papers || null, evidenceFor(['papers', 'paper_pattern'])],
+                ['question_count', rulesValidation.question_count, countEvidence],
+                ['duration_minutes', rulesValidation.duration_minutes, durationEvidence],
+                ['question_types', rulesValidation.question_types?.length ? rulesValidation.question_types : null, typeEvidence],
+                ['total_marks', examRow?.total_marks ?? null, totalMarksEvidence],
+                ['positive_mark', rulesValidation.marking_scheme?.positive_mark ?? null, positiveEvidence],
+                ['negative_marking', rulesValidation.marking_scheme?.has_negative_marking ?? examRow?.negative_marking ?? null, negativeEvidence],
+                ['passing_criteria', examRow?.passing_criteria || null, passingEvidence],
+                ['eligibility', examRow?.eligibility || null, eligibilityEvidence],
+                ['attempt_rules', examRow?.attempt_rules || null, attemptsEvidence],
+                ['selection_process', examRow?.selection_process || null, selectionEvidence],
+                ['official_source', evidenceSource, evidenceSource ? { source_url: evidenceSource } : null],
+                ['version_year', currentVersion?.version_year || examRow?.version_year || null,
+                  currentVersion?.verification_status === 'verified' && currentVersion?.source_url
+                    ? { source_url: currentVersion.source_url }
+                    : null],
+              ].filter(([, value, evidence]) =>
+                value === undefined || value === null || value === '' || !evidence?.source_url
+              ).map(([name]) => name),
             }
           })(),
         },
