@@ -628,7 +628,7 @@ export function detectAndValidateExamRules(
     Object.keys(marking_scheme || {}).length > 0 && question_types.length > 0
   const rulesStatus: 'ready' | 'partial' | 'needs_review' = hasConflicts
     ? 'needs_review'
-    : requiredRulesPresent && (hasOfficialEvidence || trustedTemplate)
+    : requiredRulesPresent && hasOfficialEvidence
     ? 'ready'
     : 'partial'
 
