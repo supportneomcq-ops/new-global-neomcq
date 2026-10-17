@@ -660,14 +660,14 @@ function isCurriculumSpecComprehensive(examName: string, spec: AIExamIntelligenc
   const minSubjects = /fmge|neet-pg|ini-cet/.test(examKey) ? 20
     : /neet-ug|neetug/.test(examKey) ? 6
     : /usmle-step-1|usmle-1/.test(examKey) ? 11
-    : /usmle-step-[23]|usmle-[23]/.test(examKey) ? 8
+    : /usmle-step-[23]|usmle-[23]/.test(examKey) ? 18
     : /upsc/.test(examKey) ? 6
     : /aws.*(solution|architect)|solutions-architect/.test(examKey) ? 4
     : 1
   const minTopics = /fmge|neet-pg|ini-cet/.test(examKey) ? Math.max(100, subjects.length * 5)
     : /neet-ug|neetug/.test(examKey) ? 30
     : /usmle-step-1|usmle-1/.test(examKey) ? 55
-    : /usmle-step-[23]|usmle-[23]/.test(examKey) ? 40
+    : /usmle-step-[23]|usmle-[23]/.test(examKey) ? 90
     : /upsc/.test(examKey) ? 30
     : /aws.*(solution|architect)|solutions-architect/.test(examKey) ? 20
     : Math.max(8, subjects.length * 5)
@@ -679,7 +679,7 @@ function isCurriculumSpecComprehensive(examName: string, spec: AIExamIntelligenc
     return new Set(keys).size === keys.length
   }
   const generic = /^(core foundations?(&|and)? principles|advanced practice(&|and)? applied problem solving|fundamental concepts(&|and)? standards|case scenarios(&|and)? practice applications|core subject \d+|topic \d+)$/i
-  const exactSubjectCount = /fmge/.test(examKey) ? 20 : /usmle-step-1|usmle-1/.test(examKey) ? 11 : null
+  const exactSubjectCount = /fmge/.test(examKey) ? 20 : /usmle-step-1|usmle-1/.test(examKey) ? 11 : /usmle-step-[23]|usmle-[23]/.test(examKey) ? 18 : null
   const requiredUSMLE1 = [
     'Human Development',
     'Blood & Lymphoreticular/Immune Systems',
@@ -696,9 +696,31 @@ function isCurriculumSpecComprehensive(examName: string, spec: AIExamIntelligenc
   const subjectCountValid = exactSubjectCount === null
     ? subjects.length >= minSubjects
     : subjects.length === exactSubjectCount
+  const requiredUSMLE2And3 = [
+    'Human Development',
+    'Immune System',
+    'Blood & Lymphoreticular System',
+    'Behavioral Health',
+    'Nervous System & Special Senses',
+    'Skin & Subcutaneous Tissue',
+    'Musculoskeletal System',
+    'Cardiovascular System',
+    'Respiratory System',
+    'Gastrointestinal System',
+    'Renal & Urinary System',
+    'Pregnancy, Childbirth, & the Puerperium',
+    'Female Reproductive System & Breast',
+    'Male Reproductive System',
+    'Endocrine System',
+    'Multisystem Processes & Disorders',
+    'Biostatistics, Epidemiology/Population Health, & Interpretation of the Medical Literature',
+    'Social Sciences',
+  ]
   const usmle1CoverageValid = !/usmle-step-1|usmle-1/.test(examKey) ||
     requiredUSMLE1.every((required) => subjects.some((s: any) => normName(s.name) === normName(required)))
-  return subjectCountValid && usmle1CoverageValid &&
+  const usmle2And3CoverageValid = !/usmle-step-[23]|usmle-[23]/.test(examKey) ||
+    requiredUSMLE2And3.every((required) => subjects.some((s: any) => normName(s.name) === normName(required)))
+  return subjectCountValid && usmle1CoverageValid && usmle2And3CoverageValid &&
     topics >= minTopics &&
     subtopics >= topics * 3 &&
     unique(subjects.map((s: any) => s.name)) &&
@@ -744,7 +766,7 @@ CRITICAL ARCHITECTURAL DIRECTIVES:
 2. CURRICULUM HIERARCHY:
    - Build the exam-specific syllabus breadth, not a short illustrative sample. Use official exam-body syllabus/blueprint knowledge where available; never merge separate exams or omit independently tested domains.
    - FMGE and NEET PG must cover the full MBBS subject domains, not only 4-5 broad clinical subjects; target at least 15 distinct subjects. NEET UG must contain six distinct class-specific subjects: Physics XI, Chemistry XI, Biology XI, Physics XII, Chemistry XII, and Biology XII. USMLE Step 1 must cover the full basic-science/organ-system blueprint, target at least 8 distinct domains. UPSC CSE must cover its major Prelims/Mains syllabus domains, target at least 6 subjects. AWS Solutions Architect Associate must cover all current exam domains, target at least 4.
-   - For USMLE Step 1, use exactly these 11 official integrated content categories: Human Development; Blood & Lymphoreticular/Immune Systems; Behavioral Health & Nervous Systems/Special Senses; Musculoskeletal, Skin & Subcutaneous Tissue; Cardiovascular System; Respiratory & Renal/Urinary Systems; Gastrointestinal System; Reproductive & Endocrine Systems; Multisystem Processes & Disorders; Biostatistics & Epidemiology/Population Health; Social Sciences: Communication and Interpersonal Skills. Do not use a generic medical-school discipline list as the subject list. For FMGE and NEET PG, use exactly these 20 individual subject names: Anatomy, Physiology, Biochemistry, Pathology, Microbiology, Pharmacology, Forensic Medicine, Medicine, Psychiatry, Dermatology & STD, Radiotherapy, General Surgery, Anesthesiology, Orthopedics, Radiodiagnosis, Pediatrics, Ophthalmology, Otorhinolaryngology (ENT), Obstetrics & Gynaecology, Community Medicine. Do not add General Medicine, standalone Dermatology, Surgery, or Radiology as extra duplicate subjects. For INI-CET, include the full MBBS subject coverage. For every subject, create at least 5 meaningful, exam-specific main topics. For every main topic, create at least 3 specific subtopics. Preserve the real exam blueprint and avoid generic placeholders, duplicate subjects, repeated topic lists, and filler labels.
+   - For USMLE Step 2 CK and Step 3, use exactly these 18 official integrated content categories: Human Development; Immune System; Blood & Lymphoreticular System; Behavioral Health; Nervous System & Special Senses; Skin & Subcutaneous Tissue; Musculoskeletal System; Cardiovascular System; Respiratory System; Gastrointestinal System; Renal & Urinary System; Pregnancy, Childbirth, & the Puerperium; Female Reproductive System & Breast; Male Reproductive System; Endocrine System; Multisystem Processes & Disorders; Biostatistics, Epidemiology/Population Health, & Interpretation of the Medical Literature; Social Sciences. Step 2 CK topics must emphasize diagnosis, clinical management, prevention, and patient care; Step 3 must emphasize independent patient management, ambulatory care, emergencies, monitoring, and long-term management. Do not use generic medical-school discipline lists as the subject list. For USMLE Step 1, use exactly these 11 official integrated content categories: Human Development; Blood & Lymphoreticular/Immune Systems; Behavioral Health & Nervous Systems/Special Senses; Musculoskeletal, Skin & Subcutaneous Tissue; Cardiovascular System; Respiratory & Renal/Urinary Systems; Gastrointestinal System; Reproductive & Endocrine Systems; Multisystem Processes & Disorders; Biostatistics & Epidemiology/Population Health; Social Sciences: Communication and Interpersonal Skills. Do not use a generic medical-school discipline list as the subject list. For FMGE and NEET PG, use exactly these 20 individual subject names: Anatomy, Physiology, Biochemistry, Pathology, Microbiology, Pharmacology, Forensic Medicine, Medicine, Psychiatry, Dermatology & STD, Radiotherapy, General Surgery, Anesthesiology, Orthopedics, Radiodiagnosis, Pediatrics, Ophthalmology, Otorhinolaryngology (ENT), Obstetrics & Gynaecology, Community Medicine. Do not add General Medicine, standalone Dermatology, Surgery, or Radiology as extra duplicate subjects. For INI-CET, include the full MBBS subject coverage. For every subject, create at least 5 meaningful, exam-specific main topics. For every main topic, create at least 3 specific subtopics. Preserve the real exam blueprint and avoid generic placeholders, duplicate subjects, repeated topic lists, and filler labels.
    - If you cannot confidently produce a complete, exam-specific hierarchy, do not claim that the syllabus is complete.
    - IMPORTANT: This stage creates ONLY the curriculum structure (names and descriptions). DO NOT generate MCQs, quizzes, flashcards, notes, or AI lessons in this profile.
    - Ensure subjects, topics, and subtopics are genuinely, domain-accurately relevant to "${cleanName}".
@@ -813,7 +835,7 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
 
       if (validated.success) {
         const q = normalizeInput(cleanName).slug.toLowerCase()
-        const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 20 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 11 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
+        const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 20 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 11 : /usmle-step-[23]|usmle-[23]/.test(q) ? 18 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
         if (validated.data.subjects.length < minimumSubjects) {
           console.warn(`[Exam Intelligence] Incomplete Gemini curriculum rejected for ${cleanName}: ${validated.data.subjects.length}/${minimumSubjects} minimum subjects. Trying fallback provider.`)
           throw new Error('Gemini curriculum did not meet minimum subject coverage.')
@@ -827,7 +849,7 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
         console.warn('[Exam Intelligence] Validation schema issues:', validated.error.format())
         // Attempt partial recovery if subjects array exists
         const q = normalizeInput(cleanName).slug.toLowerCase()
-        const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 20 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 11 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
+        const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 20 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 11 : /usmle-step-[23]|usmle-[23]/.test(q) ? 18 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
         if (parsed.subjects && Array.isArray(parsed.subjects) && parsed.subjects.length >= minimumSubjects &&
           isCurriculumSpecComprehensive(cleanName, {
             ...(parsed as AIExamIntelligenceOutput),
@@ -920,7 +942,7 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
         const validated = AIExamIntelligenceOutputSchema.safeParse(parsed)
         if (validated.success) {
           const q = normalizeInput(cleanName).slug.toLowerCase()
-          const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 20 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 11 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
+          const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 20 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 11 : /usmle-step-[23]|usmle-[23]/.test(q) ? 18 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
           if (validated.data.subjects.length >= minimumSubjects && isCurriculumSpecComprehensive(cleanName, validated.data)) {
             return validated.data
           }
@@ -1883,7 +1905,7 @@ export async function enrichCurriculumProcess(
   // legacy subject rows that are not part of the accepted canonical structure.
   // Their records and learning content are retained; only visibility is changed.
   const canonicalExamKey = normalizeInput(examName).slug.toLowerCase()
-  if (hierarchyTargetsMet && /fmge|usmle-step-1|usmle-1/.test(canonicalExamKey)) {
+  if (hierarchyTargetsMet && /fmge|usmle-step-[123]|usmle-[123]/.test(canonicalExamKey)) {
     const { data: activeSubjectRows, error: activeSubjectRowsError } = await supabase
       .from('exam_subjects').select('id,name').eq('exam_id', examId).eq('is_active', true)
     if (activeSubjectRowsError) throw new Error(`Failed to inspect canonical subjects: ${activeSubjectRowsError.message}`)
