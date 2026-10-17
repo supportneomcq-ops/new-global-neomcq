@@ -2165,6 +2165,10 @@ export async function collectExamRulesProcess(
                 : evidence?.source_url ? 'verified' : 'needs_verification',
               source: evidence?.source_url || null,
             })
+            const countryEvidence = evidenceFor(['country', 'jurisdiction', 'country_name'])
+            const authorityEvidence = evidenceFor(['authority', 'exam_authority', 'publisher_authority'])
+            const categoryEvidence = evidenceFor(['category', 'exam_category'])
+            const levelEvidence = evidenceFor(['level', 'credential_level', 'exam_level'])
             const countEvidence = evidenceFor(['question_count', 'total_questions', 'questions'])
             const durationEvidence = evidenceFor(['duration_minutes', 'time_limit_mins', 'duration'])
             const typeEvidence = evidenceFor(['question_types', 'question_format', 'sections'])
@@ -2180,13 +2184,13 @@ export async function collectExamRulesProcess(
             return {
               audit_version: 1,
               audited_at: new Date().toISOString(),
-              overall_status: hasVerifiedSource ? 'evidence_available_review_required' : 'needs_verification',
+              overall_status: hasVerifiedSource ? 'partial_verification' : 'needs_verification',
               canonical_exam_name: field(examRow?.name, 'exams.name'),
-              country_id: field(examRow?.country_id, 'exams.country_id'),
-              authority: field(examRow?.authority || null, 'exams.authority'),
-              category_id: field(examRow?.category_id, 'exams.category_id'),
+              country_id: field(examRow?.country_id, countryEvidence),
+              authority: field(examRow?.authority || null, authorityEvidence),
+              category_id: field(examRow?.category_id, categoryEvidence),
               exam_type: field(examRow?.exam_type || null, 'exams.exam_type'),
-              level: field(examRow?.level || null, 'exams.level'),
+              level: field(examRow?.level || null, levelEvidence),
               stages: field(examRow?.stages || null, 'exams.stages'),
               papers: field(examRow?.papers || null, 'exams.papers'),
               question_count: field(rulesValidation.question_count, countEvidence),
