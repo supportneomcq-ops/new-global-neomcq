@@ -904,7 +904,9 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
           if (validated.data.subjects.length >= minimumSubjects && isCurriculumSpecComprehensive(cleanName, validated.data)) {
             return validated.data
           }
-          console.warn(`[Exam Intelligence] OpenAI curriculum rejected for ${cleanName}: insufficient subject/topic/subtopic coverage.`)
+          const rejectedTopicCount = validated.data.subjects.reduce((n: number, subject: any) => n + (subject.topics || []).length, 0)
+          const rejectedSubtopicCount = validated.data.subjects.reduce((n: number, subject: any) => n + (subject.topics || []).reduce((m: number, topic: any) => m + (topic.subtopics || []).length, 0), 0)
+          console.warn(`[Exam Intelligence] OpenAI curriculum rejected for ${cleanName}: subjects=${validated.data.subjects.length}/${minimumSubjects}, topics=${rejectedTopicCount}, subtopics=${rejectedSubtopicCount}; breadth/depth/duplicate/filler check failed.`)
         } else {
           console.warn('[Exam Intelligence] OpenAI curriculum did not match the required schema.')
         }
