@@ -2152,18 +2152,31 @@ export async function collectExamRulesProcess(
             const officialEvidence = (evidenceRows || []).filter((e: any) =>
               ['official_syllabus', 'official_bulletin', 'official_notification'].includes(String(e.source_type || '').toLowerCase()) &&
               ['valid', 'verified'].includes(String(e.verification_status || '').toLowerCase()) &&
-              typeof e.source_url === 'string' && /^https?:\\/\\//i.test(e.source_url)
+              typeof e.source_url === 'string' && /^https?:\/\//i.test(e.source_url)
             )
             const currentVersion = (versionRows || []).find((v: any) => v.is_current) || null
-            const hasVerifiedSource = officialEvidence.length > 0
-            const field = (value: any, source: string | null = null) => ({
+            const evidenceFor = (keys: string[]) => officialEvidence.find((e: any) =>
+              keys.some((key) => e.extracted_data && e.extracted_data[key] !== undefined && e.extracted_data[key] !== null)
+            ) || null
+            const field = (value: any, evidence: any = null) => ({
               value: value === undefined || value === '' ? null : value,
               status: value === undefined || value === '' || value === null
                 ? 'unknown'
-                : hasVerifiedSource ? 'verified' : 'needs_verification',
-              source,
+                : evidence?.source_url ? 'verified' : 'needs_verification',
+              source: evidence?.source_url || null,
             })
+            const countEvidence = evidenceFor(['question_count', 'total_questions', 'questions'])
+            const durationEvidence = evidenceFor(['duration_minutes', 'time_limit_mins', 'duration'])
+            const typeEvidence = evidenceFor(['question_types', 'question_format', 'sections'])
+            const positiveEvidence = evidenceFor(['positive_mark', 'marks_per_question', 'correct_mark'])
+            const negativeEvidence = evidenceFor(['negative_mark', 'negative_marking', 'has_negative_marking'])
+            const totalMarksEvidence = evidenceFor(['total_marks', 'maximum_marks', 'max_marks'])
+            const passingEvidence = evidenceFor(['passing_criteria', 'pass_mark', 'passing_score'])
+            const eligibilityEvidence = evidenceFor(['eligibility', 'eligibility_requirements'])
+            const attemptsEvidence = evidenceFor(['attempt_rules', 'attempt_limit', 'maximum_attempts'])
+            const selectionEvidence = evidenceFor(['selection_process', 'selection_criteria'])
             const evidenceSource = officialEvidence[0]?.source_url || null
+            const hasVerifiedSource = officialEvidence.length > 0
             return {
               audit_version: 1,
               audited_at: new Date().toISOString(),
@@ -2176,21 +2189,21 @@ export async function collectExamRulesProcess(
               level: field(examRow?.level || null, 'exams.level'),
               stages: field(examRow?.stages || null, 'exams.stages'),
               papers: field(examRow?.papers || null, 'exams.papers'),
-              question_count: field(rulesValidation.question_count, evidenceSource),
-              duration_minutes: field(rulesValidation.duration_minutes, evidenceSource),
-              question_types: field(rulesValidation.question_types?.length ? rulesValidation.question_types : null, evidenceSource),
-              total_marks: field(examRow?.total_marks ?? null, 'exams.total_marks'),
-              positive_mark: field(rulesValidation.marking_scheme?.positive_mark ?? null, evidenceSource),
+              question_count: field(rulesValidation.question_count, countEvidence),
+              duration_minutes: field(rulesValidation.duration_minutes, durationEvidence),
+              question_types: field(rulesValidation.question_types?.length ? rulesValidation.question_types : null, typeEvidence),
+              total_marks: field(examRow?.total_marks ?? null, totalMarksEvidence),
+              positive_mark: field(rulesValidation.marking_scheme?.positive_mark ?? null, positiveEvidence),
               negative_marking: field(
                 rulesValidation.marking_scheme && typeof rulesValidation.marking_scheme.has_negative_marking === 'boolean'
                   ? rulesValidation.marking_scheme.has_negative_marking
                   : examRow?.negative_marking || null,
-                evidenceSource || (examRow?.negative_marking ? 'exams.negative_marking' : null)
+                negativeEvidence
               ),
-              passing_criteria: field(examRow?.passing_criteria || null, 'exams.passing_criteria'),
-              eligibility: field(examRow?.eligibility || null, 'exams.eligibility'),
-              attempt_rules: field(examRow?.attempt_rules || null, 'exams.attempt_rules'),
-              selection_process: field(examRow?.selection_process || null, 'exams.selection_process'),
+              passing_criteria: field(examRow?.passing_criteria || null, passingEvidence),
+              eligibility: field(examRow?.eligibility || null, eligibilityEvidence),
+              attempt_rules: field(examRow?.attempt_rules || null, attemptsEvidence),
+              selection_process: field(examRow?.selection_process || null, selectionEvidence),
               version_year: field(currentVersion?.version_year || examRow?.version_year || null, currentVersion?.source_url || evidenceSource),
               official_sources: officialEvidence.map((e: any) => ({
                 url: e.source_url,
