@@ -200,7 +200,7 @@ export async function GET(req: NextRequest) {
     const genericLabels = /^(core foundations?(&|and)? principles|advanced practice(&|and)? applied problem solving|fundamental concepts(&|and)? standards|case scenarios(&|and)? practice applications|topic \d+|core subject \d+)$/i
     const hasGenericFiller = subjects.some((s: any) => genericLabels.test(String(s.name || '').trim())) ||
       topics.some((t: any) => genericLabels.test(String(t.name || '').trim()))
-    const validated = metadata.curriculum_validation_version === 2 &&
+    const validated = metadata.curriculum_validation_version === 3 &&
       metadata.curriculum_validation_passed === true &&
       subjects.length >= minimumSubjects &&
       topicCount >= minimumTopics &&
