@@ -2211,7 +2211,7 @@ async function persistCurriculumHierarchy(
 
   const { data: existingSubjects } = await supabase
     .from('exam_subjects')
-    .select('id, name, slug, exam_topics(id, name, slug, exam_subtopics(id, name, slug))')
+    .select('id, name, slug, is_active, exam_topics(id, name, slug, is_active, exam_subtopics(id, name, slug, is_active))')
     .eq('exam_id', examId)
 
   const currentSubjectsList = existingSubjects || []
@@ -2225,6 +2225,11 @@ async function persistCurriculumHierarchy(
 
     if (existingSub) {
       subjectId = existingSub.id
+      if (existingSub.is_active === false) {
+        const { error: reactivateSubjectError } = await supabase.from('exam_subjects').update({ is_active: true }).eq('id', existingSub.id)
+        if (reactivateSubjectError) throw new Error(`Failed to reactivate subject "${sItem.name}": ${reactivateSubjectError.message}`)
+        existingSub.is_active = true
+      }
     } else {
       const { data: insertedSub, error: subErr } = await supabase
         .from('exam_subjects')
@@ -2269,6 +2274,11 @@ async function persistCurriculumHierarchy(
 
       if (existingTop) {
         topicId = existingTop.id
+        if (existingTop.is_active === false) {
+          const { error: reactivateTopicError } = await supabase.from('exam_topics').update({ is_active: true }).eq('id', existingTop.id)
+          if (reactivateTopicError) throw new Error(`Failed to reactivate topic "${tItem.name}": ${reactivateTopicError.message}`)
+          existingTop.is_active = true
+        }
       } else {
         const { data: insertedTop, error: topErr } = await supabase
           .from('exam_topics')
@@ -2315,6 +2325,11 @@ async function persistCurriculumHierarchy(
           }
 
           const existingMatch = findMatchingSubtopicInList(stItem.name, existingSubtopics)
+          if (existingMatch?.is_active === false) {
+            const { error: reactivateSubtopicError } = await supabase.from('exam_subtopics').update({ is_active: true }).eq('id', existingMatch.id)
+            if (reactivateSubtopicError) throw new Error(`Failed to reactivate subtopic "${stItem.name}": ${reactivateSubtopicError.message}`)
+            existingMatch.is_active = true
+          }
           if (!existingMatch) {
             subtopicInserts.push({
               topic_id: topicId,
