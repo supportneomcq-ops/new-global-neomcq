@@ -168,14 +168,14 @@ export async function GET(req: NextRequest) {
     const subtopicCount = topics.reduce((n: number, t: any) => n + (t.exam_subtopics || []).filter((st: any) => st.is_active !== false).length, 0)
     const metadata = persisted.metadata || {}
     const examKey = String(persisted.name || examName).toLowerCase()
-    const minimumSubjects = /fmge|neet\s*pg|ini-cet/.test(examKey) ? 15
+    const minimumSubjects = /fmge|neet\\s*pg|ini-cet/.test(examKey) ? 20
       : /neet\s*ug/.test(examKey) ? 6
       : /usmle\s*step\s*[123]/.test(examKey) ? 8
       : /upsc/.test(examKey) ? 6
       : /aws.*(solution|architect)|solutions-architect/.test(examKey) ? 4
       : 1
     // Do not confuse a syntactically populated tree with a complete syllabus.
-    const minimumTopics = /fmge|neet\s*pg|ini-cet/.test(examKey) ? Math.max(75, subjects.length * 4)
+    const minimumTopics = /fmge|neet\\s*pg|ini-cet/.test(examKey) ? Math.max(100, subjects.length * 5)
       : /neet\s*ug/.test(examKey) ? 30
       : /usmle\s*step\s*1/.test(examKey) ? 40
       : /usmle\s*step\s*[23]/.test(examKey) ? 40
