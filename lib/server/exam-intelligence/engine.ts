@@ -657,13 +657,13 @@ export const VERIFIED_EXAM_TEMPLATES: Record<string, StandardCurriculumTemplate>
 function isCurriculumSpecComprehensive(examName: string, spec: AIExamIntelligenceOutput): boolean {
   const subjects = Array.isArray(spec.subjects) ? spec.subjects : []
   const examKey = normalizeInput(examName).slug.toLowerCase()
-  const minSubjects = /fmge|neet-pg|ini-cet/.test(examKey) ? 15
+  const minSubjects = /fmge|neet-pg|ini-cet/.test(examKey) ? 20
     : /neet-ug|neetug/.test(examKey) ? 6
     : /usmle-step-[123]|usmle-[123]/.test(examKey) ? 8
     : /upsc/.test(examKey) ? 6
     : /aws.*(solution|architect)|solutions-architect/.test(examKey) ? 4
     : 1
-  const minTopics = /fmge|neet-pg|ini-cet/.test(examKey) ? Math.max(75, subjects.length * 4)
+  const minTopics = /fmge|neet-pg|ini-cet/.test(examKey) ? Math.max(100, subjects.length * 5)
     : /neet-ug|neetug/.test(examKey) ? 30
     : /usmle-step-1|usmle-1/.test(examKey) ? 40
     : /usmle-step-[23]|usmle-[23]/.test(examKey) ? 40
@@ -724,7 +724,7 @@ CRITICAL ARCHITECTURAL DIRECTIVES:
 2. CURRICULUM HIERARCHY:
    - Build the exam-specific syllabus breadth, not a short illustrative sample. Use official exam-body syllabus/blueprint knowledge where available; never merge separate exams or omit independently tested domains.
    - FMGE and NEET PG must cover the full MBBS subject domains, not only 4-5 broad clinical subjects; target at least 15 distinct subjects. NEET UG must contain six distinct class-specific subjects: Physics XI, Chemistry XI, Biology XI, Physics XII, Chemistry XII, and Biology XII. USMLE Step 1 must cover the full basic-science/organ-system blueprint, target at least 8 distinct domains. UPSC CSE must cover its major Prelims/Mains syllabus domains, target at least 6 subjects. AWS Solutions Architect Associate must cover all current exam domains, target at least 4.
-   - For every subject, create at least 5 meaningful, exam-specific main topics where the domain supports it (never stop at 2-3 topics for a major subject). For every main topic, create at least 3 specific subtopics. Preserve the real exam blueprint and avoid generic placeholders, duplicate subjects, repeated topic lists, and filler labels.
+   - For FMGE and NEET PG, include all 20 individual MBBS subject entries, keeping Medicine allied specialties separate and Surgery allied specialties separate. For INI-CET, include the full MBBS subject coverage. For every subject, create at least 5 meaningful, exam-specific main topics. For every main topic, create at least 3 specific subtopics. Preserve the real exam blueprint and avoid generic placeholders, duplicate subjects, repeated topic lists, and filler labels.
    - If you cannot confidently produce a complete, exam-specific hierarchy, do not claim that the syllabus is complete.
    - IMPORTANT: This stage creates ONLY the curriculum structure (names and descriptions). DO NOT generate MCQs, quizzes, flashcards, notes, or AI lessons in this profile.
    - Ensure subjects, topics, and subtopics are genuinely, domain-accurately relevant to "${cleanName}".
@@ -793,7 +793,7 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
 
       if (validated.success) {
         const q = normalizeInput(cleanName).slug.toLowerCase()
-        const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 15 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 8 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
+        const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 20 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 8 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
         if (validated.data.subjects.length < minimumSubjects) {
           console.warn(`[Exam Intelligence] Incomplete Gemini curriculum rejected for ${cleanName}: ${validated.data.subjects.length}/${minimumSubjects} minimum subjects. Trying fallback provider.`)
           throw new Error('Gemini curriculum did not meet minimum subject coverage.')
@@ -807,7 +807,7 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
         console.warn('[Exam Intelligence] Validation schema issues:', validated.error.format())
         // Attempt partial recovery if subjects array exists
         const q = normalizeInput(cleanName).slug.toLowerCase()
-        const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 15 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 8 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
+        const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 20 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 8 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
         if (parsed.subjects && Array.isArray(parsed.subjects) && parsed.subjects.length >= minimumSubjects &&
           isCurriculumSpecComprehensive(cleanName, {
             ...(parsed as AIExamIntelligenceOutput),
@@ -900,7 +900,7 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
         const validated = AIExamIntelligenceOutputSchema.safeParse(parsed)
         if (validated.success) {
           const q = normalizeInput(cleanName).slug.toLowerCase()
-          const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 15 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 8 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
+          const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 20 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 8 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
           if (validated.data.subjects.length >= minimumSubjects && isCurriculumSpecComprehensive(cleanName, validated.data)) {
             return validated.data
           }
