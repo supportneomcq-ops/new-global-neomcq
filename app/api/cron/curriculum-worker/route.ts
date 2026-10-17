@@ -188,6 +188,23 @@ export async function GET(req: NextRequest) {
       const keys = values.map(normalized).filter(Boolean)
       return new Set(keys).size !== keys.length
     }
+    const exactSubjectCount = /fmge/.test(examKey) ? 20 : /usmle\\s*step\\s*1/.test(examKey) ? 11 : null
+    const exactCountValid = exactSubjectCount === null || subjects.length === exactSubjectCount
+    const requiredUSMLE1 = [
+      'Human Development',
+      'Blood & Lymphoreticular/Immune Systems',
+      'Behavioral Health & Nervous Systems/Special Senses',
+      'Musculoskeletal, Skin & Subcutaneous Tissue',
+      'Cardiovascular System',
+      'Respiratory & Renal/Urinary Systems',
+      'Gastrointestinal System',
+      'Reproductive & Endocrine Systems',
+      'Multisystem Processes & Disorders',
+      'Biostatistics & Epidemiology/Population Health',
+      'Social Sciences: Communication and Interpersonal Skills',
+    ]
+    const usmle1CoverageValid = !/usmle\\s*step\\s*1/.test(examKey) ||
+      requiredUSMLE1.every((required) => subjects.some((s: any) => normalized(s.name) === normalized(required)))
     const everySubjectHasBreadth = subjects.every((s: any) => {
       const activeTopics = (s.exam_topics || []).filter((t: any) => t.is_active !== false && t.active !== false)
       return activeTopics.length >= 5 && activeTopics.every((t: any) =>
@@ -208,7 +225,7 @@ export async function GET(req: NextRequest) {
       topics.some((t: any) => genericLabels.test(String(t.name || '').trim()))
     const validated = metadata.curriculum_validation_version === 3 &&
       metadata.curriculum_validation_passed === true &&
-      subjects.length >= minimumSubjects &&
+      subjects.length >= minimumSubjects && exactCountValid && usmle1CoverageValid &&
       topicCount >= minimumTopics &&
       subtopicCount >= minimumSubtopics &&
       !duplicateSubjects && !duplicateTopics && !duplicateSubtopics && !hasGenericFiller && everySubjectHasBreadth
