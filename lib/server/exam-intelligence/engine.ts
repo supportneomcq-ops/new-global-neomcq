@@ -2122,6 +2122,18 @@ export async function collectExamRulesProcess(
     supabase.from('exam_evidence').select('*').eq('exam_id', examId),
   ])
 
+  const [{ data: countryRow }, { data: categoryRow }, { data: authorityRow }] = await Promise.all([
+    examRow?.country_id
+      ? supabase.from('countries').select('id, name, iso2').eq('id', examRow.country_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    examRow?.category_id
+      ? supabase.from('exam_categories').select('id, name, slug').eq('id', examRow.category_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    examRow?.authority_id
+      ? supabase.from('exam_authorities').select('id, name, official_website, source_url, verification_status').eq('id', examRow.authority_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ])
+
   const fallbackSpec = buildFallbackCurriculum(examName, countryHint, categoryHint)
 
   // Detect and validate exam rules without inventing fake numbers
@@ -2185,11 +2197,23 @@ export async function collectExamRulesProcess(
               audit_version: 1,
               audited_at: new Date().toISOString(),
               overall_status: hasVerifiedSource ? 'partial_verification' : 'needs_verification',
-              canonical_exam_name: field(examRow?.name, 'exams.name'),
-              country_id: field(examRow?.country_id, countryEvidence),
-              authority: field(examRow?.authority || null, authorityEvidence),
-              category_id: field(examRow?.category_id, categoryEvidence),
-              exam_type: field(examRow?.exam_type || null, 'exams.exam_type'),
+              canonical_exam_name: field(examRow?.name, null),
+              country: field(countryRow?.name || countryHint || null, countryEvidence),
+              country_iso2: field(countryRow?.iso2 || null, countryEvidence),
+              country_id: field(examRow?.country_id || null, countryEvidence),
+              authority: field(
+                examRow?.authority || authorityRow?.name || null,
+                authorityEvidence || (
+                  String(authorityRow?.verification_status || '').toLowerCase() === 'verified' &&
+                  (authorityRow?.official_website || authorityRow?.source_url)
+                    ? { source_url: authorityRow.official_website || authorityRow.source_url }
+                    : null
+                )
+              ),
+              authority_source_url: field(authorityRow?.official_website || authorityRow?.source_url || null, authorityRow?.verification_status === 'verified' ? { source_url: authorityRow?.official_website || authorityRow?.source_url } : null),
+              category: field(categoryRow?.name || categoryHint || null, categoryEvidence),
+              category_id: field(examRow?.category_id || null, categoryEvidence),
+              exam_type: field(examRow?.exam_type || null, null),
               level: field(examRow?.level || null, levelEvidence),
               stages: field(examRow?.stages || null, 'exams.stages'),
               papers: field(examRow?.papers || null, 'exams.papers'),
