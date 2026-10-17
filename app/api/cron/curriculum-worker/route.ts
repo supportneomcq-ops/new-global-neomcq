@@ -182,12 +182,18 @@ export async function GET(req: NextRequest) {
       : /upsc/.test(examKey) ? 30
       : /aws.*(solution|architect)|solutions-architect/.test(examKey) ? 20
       : Math.max(8, subjects.length * 5)
-    const minimumSubtopics = Math.ceil(Math.max(topicCount, minimumTopics) * 2.5)
+    const minimumSubtopics = Math.max(minimumTopics * 3, topicCount * 3)
     const normalized = (value: string) => String(value || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim()
     const hasDuplicates = (values: string[]) => {
       const keys = values.map(normalized).filter(Boolean)
       return new Set(keys).size !== keys.length
     }
+    const everySubjectHasBreadth = subjects.every((s: any) => {
+      const activeTopics = (s.exam_topics || []).filter((t: any) => t.is_active !== false && t.active !== false)
+      return activeTopics.length >= 5 && activeTopics.every((t: any) =>
+        (t.exam_subtopics || []).filter((st: any) => st.is_active !== false).length >= 3
+      )
+    })
     const duplicateSubjects = hasDuplicates(subjects.map((s: any) => s.name))
     const duplicateTopics = subjects.some((s: any) => {
       const activeTopics = (s.exam_topics || []).filter((t: any) => t.is_active !== false && t.active !== false)
@@ -205,7 +211,7 @@ export async function GET(req: NextRequest) {
       subjects.length >= minimumSubjects &&
       topicCount >= minimumTopics &&
       subtopicCount >= minimumSubtopics &&
-      !duplicateSubjects && !duplicateTopics && !duplicateSubtopics && !hasGenericFiller
+      !duplicateSubjects && !duplicateTopics && !duplicateSubtopics && !hasGenericFiller && everySubjectHasBreadth
 
     if (!validated) {
       await admin.from('exams').update({
