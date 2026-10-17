@@ -2079,25 +2079,31 @@ export async function collectExamRulesProcess(
     console.warn('[Exam Rules Process B] Update exams note:', upErr)
   }
 
-  // Preserve historical versions; insert version record for current year if missing
+  // Preserve historical versions. The schema requires a source_url, so do not
+  // fabricate a URL or create a version row until a valid official source exists.
   if (!existingCurrentVersion) {
-    const patternSummary = `${examName} | ${rulesValidation.duration_minutes || 'N/A'} mins | ${rulesValidation.question_count || 'N/A'} questions | Marking: +${rulesValidation.marking_scheme?.positive_mark || 1}, ${rulesValidation.marking_scheme?.has_negative_marking ? '-' + (rulesValidation.marking_scheme?.negative_mark || 0.25) : 'no penalty'}`
-    const hasOfficialEvidence = (evidenceRows || []).some(
-      (e: any) =>
-        ['official_syllabus', 'official_bulletin'].includes(e.source_type) &&
-        e.verification_status === 'valid'
+    const officialEvidence = (evidenceRows || []).find((e: any) =>
+      ['official_syllabus', 'official_bulletin'].includes(e.source_type) &&
+      e.verification_status === 'valid' &&
+      typeof e.source_url === 'string' &&
+      /^https?:\\/\\//i.test(e.source_url)
     )
-    const { error: versionInsertError } = await supabase.from('exam_versions').insert({
-      exam_id: examId,
-      version_year: currentYear,
-      is_current: true,
-      pattern_summary: patternSummary,
-      // Verification status is authoritative; AI-generated rules remain pending review.
-      verified_at: new Date().toISOString(),
-      verification_status: hasOfficialEvidence ? 'verified' : 'pending_review',
-    })
-    if (versionInsertError) {
-      console.warn('[Exam Rules Process B] exam_versions insert note:', versionInsertError)
+    if (officialEvidence?.source_url) {
+      const patternSummary = `${examName} | ${rulesValidation.duration_minutes || 'N/A'} mins | ${rulesValidation.question_count || 'N/A'} questions | Marking: +${rulesValidation.marking_scheme?.positive_mark || 1}, ${rulesValidation.marking_scheme?.has_negative_marking ? '-' + (rulesValidation.marking_scheme?.negative_mark || 0.25) : 'no penalty'}`
+      const { error: versionInsertError } = await supabase.from('exam_versions').insert({
+        exam_id: examId,
+        version_year: currentYear,
+        is_current: true,
+        source_url: officialEvidence.source_url,
+        pattern_summary: patternSummary,
+        verified_at: new Date().toISOString(),
+        verification_status: 'verified',
+      })
+      if (versionInsertError) {
+        console.warn('[Exam Rules Process B] exam_versions insert note:', versionInsertError)
+      }
+    } else {
+      console.info('[Exam Rules Process B] No valid official source URL; skipping exam_versions row until evidence is available.')
     }
   }
 
