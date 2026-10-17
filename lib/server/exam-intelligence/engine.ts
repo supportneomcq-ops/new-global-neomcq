@@ -680,11 +680,11 @@ function isCurriculumSpecComprehensive(examName: string, spec: AIExamIntelligenc
   const generic = /^(core foundations?(&|and)? principles|advanced practice(&|and)? applied problem solving|fundamental concepts(&|and)? standards|case scenarios(&|and)? practice applications|core subject \d+|topic \d+)$/i
   return subjects.length >= minSubjects &&
     topics >= minTopics &&
-    subtopics >= Math.ceil(topics * 2.5) &&
+    subtopics >= topics * 3 &&
     unique(subjects.map((s: any) => s.name)) &&
-    subjects.every((s: any) => Array.isArray(s.topics) && s.topics.length > 0 &&
+    subjects.every((s: any) => Array.isArray(s.topics) && s.topics.length >= 5 &&
       unique(s.topics.map((t: any) => t.name)) &&
-      s.topics.every((t: any) => Array.isArray(t.subtopics) && t.subtopics.length >= 2 &&
+      s.topics.every((t: any) => Array.isArray(t.subtopics) && t.subtopics.length >= 3 &&
         unique(t.subtopics.map((st: any) => st.name)))) &&
     !subjects.some((s: any) => generic.test(String(s.name || '').trim()) ||
       (s.topics || []).some((t: any) => generic.test(String(t.name || '').trim())))
