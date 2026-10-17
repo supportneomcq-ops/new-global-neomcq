@@ -652,6 +652,44 @@ export const VERIFIED_EXAM_TEMPLATES: Record<string, StandardCurriculumTemplate>
   },
 }
 
+// A spec is not complete just because it parses as JSON or has a few subjects.
+// This guard prevents generic 3-topic skeletons from being cached as canonical syllabi.
+function isCurriculumSpecComprehensive(examName: string, spec: AIExamIntelligenceOutput): boolean {
+  const subjects = Array.isArray(spec.subjects) ? spec.subjects : []
+  const examKey = normalizeInput(examName).slug.toLowerCase()
+  const minSubjects = /fmge|neet-pg|ini-cet/.test(examKey) ? 15
+    : /neet-ug|neetug/.test(examKey) ? 6
+    : /usmle-step-[123]|usmle-[123]/.test(examKey) ? 8
+    : /upsc/.test(examKey) ? 6
+    : /aws.*(solution|architect)|solutions-architect/.test(examKey) ? 4
+    : 1
+  const minTopics = /fmge|neet-pg|ini-cet/.test(examKey) ? Math.max(75, subjects.length * 4)
+    : /neet-ug|neetug/.test(examKey) ? 30
+    : /usmle-step-1|usmle-1/.test(examKey) ? 40
+    : /usmle-step-[23]|usmle-[23]/.test(examKey) ? 40
+    : /upsc/.test(examKey) ? 30
+    : /aws.*(solution|architect)|solutions-architect/.test(examKey) ? 20
+    : Math.max(8, subjects.length * 5)
+  const topics = subjects.reduce((n, subject: any) => n + (Array.isArray(subject.topics) ? subject.topics.length : 0), 0)
+  const subtopics = subjects.reduce((n, subject: any) => n + (Array.isArray(subject.topics) ? subject.topics.reduce((m: number, topic: any) => m + (Array.isArray(topic.subtopics) ? topic.subtopics.length : 0), 0) : 0), 0)
+  const normName = (value: string) => String(value || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim()
+  const unique = (values: string[]) => {
+    const keys = values.map(normName).filter(Boolean)
+    return new Set(keys).size === keys.length
+  }
+  const generic = /^(core foundations?(&|and)? principles|advanced practice(&|and)? applied problem solving|fundamental concepts(&|and)? standards|case scenarios(&|and)? practice applications|core subject \d+|topic \d+)$/i
+  return subjects.length >= minSubjects &&
+    topics >= minTopics &&
+    subtopics >= Math.ceil(topics * 2.5) &&
+    unique(subjects.map((s: any) => s.name)) &&
+    subjects.every((s: any) => Array.isArray(s.topics) && s.topics.length > 0 &&
+      unique(s.topics.map((t: any) => t.name)) &&
+      s.topics.every((t: any) => Array.isArray(t.subtopics) && t.subtopics.length >= 2 &&
+        unique(t.subtopics.map((st: any) => st.name)))) &&
+    !subjects.some((s: any) => generic.test(String(s.name || '').trim()) ||
+      (s.topics || []).some((t: any) => generic.test(String(t.name || '').trim())))
+}
+
 // ============================================================================
 // AI STRUCTURED EXAM INTELLIGENCE GENERATOR
 // ============================================================================
@@ -1746,8 +1784,10 @@ export async function enrichCurriculumProcess(
   const cachedSpecResult = AIExamIntelligenceOutputSchema.safeParse(
     (examRow?.metadata as any)?.curriculum_spec_cache
   )
+  const cachedSpecIsComprehensive = cachedSpecResult.success &&
+    isCurriculumSpecComprehensive(examName, cachedSpecResult.data)
   const generatedSpec = specOverride || (
-    cachedSpecResult.success
+    cachedSpecIsComprehensive
       ? cachedSpecResult.data
       : await generateAIExamIntelligence(examName, countryHint, categoryHint)
   )
@@ -1762,7 +1802,7 @@ export async function enrichCurriculumProcess(
 
   // Cache before reconciliation so a failed DB write can be retried without
   // paying to synthesize the same syllabus again.
-  if (!cachedSpecResult.success || specOverride) {
+  if (!cachedSpecIsComprehensive || specOverride) {
     const { error: cacheError } = await supabase
       .from('exams')
       .update({
@@ -1825,10 +1865,11 @@ export async function enrichCurriculumProcess(
 
   await deactivateGenericCurriculumNodes(examId, supabase)
 
-  // Acceptance gate: every expected subject must exist; at least 80% of each
-  // subject's expected topics must exist; every matched topic must have at least
-  // one meaningful subtopic and at least 80% subtopic coverage.
+  // Acceptance gate: compare against the expected tree AND absolute breadth/depth.
+  // Relative coverage alone can falsely bless a tiny AI-generated syllabus.
+  const specIsComprehensive = isCurriculumSpecComprehensive(examName, aiSpec)
   const hierarchyTargetsMet =
+    specIsComprehensive &&
     comparisonReport.totalExpectedSubjects > 0 &&
     comparisonReport.subjects.length === comparisonReport.totalExpectedSubjects &&
     comparisonReport.subjects.every((subject: any) =>
@@ -1973,7 +2014,7 @@ export async function enrichCurriculumProcess(
       metadata: {
         ...(examRow?.metadata || {}),
         curriculum_status: hierarchyTargetsMet ? 'ready' : 'needs_enrichment',
-        curriculum_validation_version: 2,
+        curriculum_validation_version: 3,
         curriculum_validation_passed: hierarchyTargetsMet,
         curriculum_validation_checked_at: new Date().toISOString(),
         curriculum_spec_cache: aiSpec,
