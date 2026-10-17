@@ -734,10 +734,10 @@ CRITICAL ARCHITECTURAL DIRECTIVES:
 Output schema (compact JSON; omit optional descriptions to conserve output tokens):
 {
   "exam": {
-    "name": "\${cleanName}",
+    "name": "${cleanName}",
     "official_name": "Official Full Name",
-    "country": "\${countryHint || 'Global'}",
-    "category": "\${categoryHint || 'general-academics'}",
+    "country": "${countryHint || 'Global'}",
+    "category": "${categoryHint || 'general-academics'}",
     "type": "Licensing / Certification / Academic Entrance",
     "difficulty_level": "Intermediate"
   },
