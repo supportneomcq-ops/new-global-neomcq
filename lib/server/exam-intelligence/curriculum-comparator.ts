@@ -596,14 +596,16 @@ export function detectAndValidateExamRules(
     }
   }
 
-  // If DB fields are absent, adopt verified fallback without inserting arbitrary fake defaults
-  if (duration_minutes === null && fallbackSpec?.exam.question_config.duration_minutes) {
+  // Only a deterministic, high-confidence built-in template may supply rules without
+  // exam-specific evidence. AI-generated profiles are hypotheses, not official facts.
+  const trustedTemplate = Boolean(fallbackSpec && Number(fallbackSpec.confidence?.overall || 0) >= 0.98)
+  if (trustedTemplate && duration_minutes === null && fallbackSpec?.exam.question_config.duration_minutes) {
     duration_minutes = fallbackSpec.exam.question_config.duration_minutes
   }
-  if (question_count === null && fallbackSpec?.exam.question_config.default_question_count) {
+  if (trustedTemplate && question_count === null && fallbackSpec?.exam.question_config.default_question_count) {
     question_count = fallbackSpec.exam.question_config.default_question_count
   }
-  if (Object.keys(marking_scheme).length === 0 && fallbackSpec) {
+  if (trustedTemplate && Object.keys(marking_scheme).length === 0 && fallbackSpec) {
     marking_scheme = {
       positive_mark: fallbackSpec.exam.question_config.positive_mark,
       negative_mark: fallbackSpec.exam.question_config.negative_mark,
@@ -612,14 +614,21 @@ export function detectAndValidateExamRules(
       option_count: fallbackSpec.exam.question_config.option_count,
     }
   }
-  if (question_types.length === 0 && fallbackSpec) {
-    question_types = fallbackSpec.exam.question_config.question_types || ['standard_mcq']
+  if (trustedTemplate && question_types.length === 0 && fallbackSpec) {
+    question_types = fallbackSpec.exam.question_config.question_types || []
   }
 
+  const hasOfficialEvidence = evidenceRows.some((ev: any) =>
+    ['official_syllabus', 'official_bulletin', 'official_notification'].includes(String(ev.source_type || '').toLowerCase()) &&
+    ['valid', 'verified'].includes(String(ev.verification_status || '').toLowerCase()) &&
+    typeof ev.source_url === 'string' && /^https?:\\/\\//i.test(ev.source_url)
+  )
   const hasConflicts = conflictDetails.length > 0
+  const requiredRulesPresent = duration_minutes !== null && question_count !== null &&
+    Object.keys(marking_scheme || {}).length > 0 && question_types.length > 0
   const rulesStatus: 'ready' | 'partial' | 'needs_review' = hasConflicts
     ? 'needs_review'
-    : duration_minutes !== null && question_count !== null
+    : requiredRulesPresent && (hasOfficialEvidence || trustedTemplate)
     ? 'ready'
     : 'partial'
 
