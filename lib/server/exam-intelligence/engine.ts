@@ -731,70 +731,35 @@ CRITICAL ARCHITECTURAL DIRECTIVES:
 3. GENERATION RULES:
    - Configure distinct content rules for MCQs, Quizzes, Flashcards, AI Tutor, and Notes.
 
-Output schema:
+Output schema (compact JSON; omit optional descriptions to conserve output tokens):
 {
   "exam": {
-    "name": "${cleanName}",
-    "official_name": "Official Full Name of Examination",
-    "code": "EXAM-CODE",
-    "country": "${countryHint || 'Global'}",
-    "region": "Region / Jurisdiction",
-    "category": "${categoryHint || 'general-academics'}",
-    "type": "Licensing / Professional Certification / Academic Entrance",
-    "specialty_or_domain": "Core domain",
-    "difficulty_level": "Intermediate" | "Advanced" | "Expert" | "Beginner" | "Adaptive",
-    "difficulty_distribution": { "easy": 20, "medium": 60, "hard": 20 },
-    "question_config": {
-      "default_question_count": 100,
-      "option_count": 4,
-      "answer_type": "single",
-      "single_correct": true,
-      "multiple_correct": false,
-      "has_negative_marking": false,
-      "positive_mark": 1,
-      "negative_mark": 0,
-      "duration_minutes": 120,
-      "has_image_questions": false,
-      "has_video_questions": false,
-      "has_case_based_questions": false,
-      "has_clinical_vignettes": false,
-      "has_calculation_questions": false,
-      "has_matching_questions": false,
-      "has_true_false_questions": false,
-      "question_types": ["standard_mcq"]
-    }
+    "name": "\${cleanName}",
+    "official_name": "Official Full Name",
+    "country": "\${countryHint || 'Global'}",
+    "category": "\${categoryHint || 'general-academics'}",
+    "type": "Licensing / Certification / Academic Entrance",
+    "difficulty_level": "Intermediate"
   },
   "subjects": [
     {
       "name": "Subject Name",
-      "code": "SUBJ-01",
-      "description": "Comprehensive syllabus description",
       "weightage": 15,
       "order": 1,
       "topics": [
         {
-          "name": "Topic Name",
-          "description": "High yield topic focus",
+          "name": "Specific Topic Name",
           "order": 1,
           "subtopics": [
-            { "name": "Subtopic 1", "description": "Core concept", "order": 1 },
-            { "name": "Subtopic 2", "description": "Clinical/practical application", "order": 2 }
+            { "name": "Specific Subtopic 1", "order": 1 },
+            { "name": "Specific Subtopic 2", "order": 2 },
+            { "name": "Specific Subtopic 3", "order": 3 }
           ]
         }
       ]
     }
   ],
-  "content_generation_rules": {    "mcq": { "stem_style": "clinical_or_conceptual", "distractor_plausibility": "high" },
-    "quiz": { "pre_test_slots": 20, "post_test_slots": 20 },
-    "flashcard": { "target_count_per_topic": 40 },
-    "ai_tutor": { "socratic_mode": true },
-    "notes": { "high_yield_summary": true }
-  },
-  "confidence": {
-    "overall": 0.95,
-    "curriculum": 0.95,
-    "exam_rules": 0.9
-  }
+  "confidence": { "overall": 0.9, "curriculum": 0.9, "exam_rules": 0.8 }
 }`
 
   try {
@@ -812,6 +777,7 @@ Output schema:
           config: {
             systemInstruction,
             responseMimeType: 'application/json',
+            maxOutputTokens: 16000,
             temperature: 0.1,
           },
         }),
