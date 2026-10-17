@@ -30,42 +30,47 @@ export async function GET(req: NextRequest) {
     .eq('status', 'processing')
     .lt('started_at', staleBefore)
 
-  // Seed one durable, idempotent job for every existing non-archived exam.
-  // The resolver reuses canonical IDs and reconciles missing hierarchy nodes.
-  const { data: exams, error: examsError } = await admin
-    .from('exams')
-    .select('id, name, slug, status, metadata')
-    .neq('status', 'archived')
-    .order('name', { ascending: true })
-    .limit(250)
+  // Bulk catalogue backfill is opt-in only. The cron worker must prioritize
+  // signup-triggered/on-demand work instead of generating jobs for every exam
+  // on every invocation. Run with ?backfill=1 only for an intentional audit.
+  const backfillRequested = req.nextUrl.searchParams.get('backfill') === '1'
+  let jobs: any[] = []
+  if (backfillRequested) {
+    const { data: exams, error: examsError } = await admin
+      .from('exams')
+      .select('id, name, slug, status, metadata')
+      .neq('status', 'archived')
+      .order('name', { ascending: true })
+      .limit(250)
 
-  if (examsError) {
-    console.error('[Curriculum Worker] Exam scan failed:', examsError.message)
-    return json(500, { success: false, error: 'Could not scan the existing exam catalogue.' })
-  }
+    if (examsError) {
+      console.error('[Curriculum Worker] Exam scan failed:', examsError.message)
+      return json(500, { success: false, error: 'Could not scan the existing exam catalogue.' })
+    }
 
-  const jobs = (exams || []).map((exam: any) => ({
-    task: TASK,
-    exam_id: exam.id,
-    priority: /fmge|neet pg|neet ug|usmle/i.test(`${exam.name} ${exam.slug || ''}`) ? 10 : 5,
-    status: 'queued',
-    max_attempts: 3,
-    idempotency_key: `curriculum-rebuild-v1:${exam.id}`,
-    input_payload: {
-      examId: exam.id,
-      examName: exam.name,
-      source: 'existing_exam_backfill',
-    },
-    progress_stage: 'Queued for curriculum validation',
-    step_percentage: 0,
-  }))
+    jobs = (exams || []).map((exam: any) => ({
+      task: TASK,
+      exam_id: exam.id,
+      priority: /fmge|neet pg|neet ug|usmle/i.test(`${exam.name} ${exam.slug || ''}`) ? 10 : 5,
+      status: 'queued',
+      max_attempts: 3,
+      idempotency_key: `curriculum-rebuild-v1:${exam.id}`,
+      input_payload: {
+        examId: exam.id,
+        examName: exam.name,
+        source: 'existing_exam_backfill',
+      },
+      progress_stage: 'Queued for curriculum validation',
+      step_percentage: 0,
+    }))
 
-  if (jobs.length) {
-    const { error: seedError } = await admin.from('ai_jobs')
-      .upsert(jobs, { onConflict: 'idempotency_key', ignoreDuplicates: true })
-    if (seedError) {
-      console.error('[Curriculum Worker] Queue seeding failed:', seedError.message)
-      return json(500, { success: false, error: 'Could not queue existing exams for curriculum repair.' })
+    if (jobs.length) {
+      const { error: seedError } = await admin.from('ai_jobs')
+        .upsert(jobs, { onConflict: 'idempotency_key', ignoreDuplicates: true })
+      if (seedError) {
+        console.error('[Curriculum Worker] Queue seeding failed:', seedError.message)
+        return json(500, { success: false, error: 'Could not queue existing exams for curriculum repair.' })
+      }
     }
   }
 
@@ -74,21 +79,29 @@ export async function GET(req: NextRequest) {
   let candidate: any = null
   // Retry a previously failed job before taking new work, so transient provider
   // failures recover promptly rather than waiting behind the entire backlog.
-  const { data: failed } = await admin.from('ai_jobs')
+  let failedQuery = admin.from('ai_jobs')
     .select('*')
     .eq('task', TASK)
     .eq('status', 'failed')
     .lt('attempts', 3)
+  if (!backfillRequested) {
+    failedQuery = failedQuery.or('input_payload->>source.is.null,input_payload->>source.neq.existing_exam_backfill')
+  }
+  const { data: failed } = await failedQuery
     .order('priority', { ascending: false })
     .order('created_at', { ascending: true })
     .limit(1)
   candidate = failed?.[0] || null
 
   if (!candidate) {
-    const { data: queued } = await admin.from('ai_jobs')
+    let queuedQuery = admin.from('ai_jobs')
       .select('*')
       .eq('task', TASK)
       .eq('status', 'queued')
+    if (!backfillRequested) {
+      queuedQuery = queuedQuery.or('input_payload->>source.is.null,input_payload->>source.neq.existing_exam_backfill')
+    }
+    const { data: queued } = await queuedQuery
       .order('priority', { ascending: false })
       .order('created_at', { ascending: true })
       .limit(BATCH_SIZE)
