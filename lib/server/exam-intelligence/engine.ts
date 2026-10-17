@@ -813,7 +813,7 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
 
       if (validated.success) {
         const q = normalizeInput(cleanName).slug.toLowerCase()
-        const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 20 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 8 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
+        const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 20 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 11 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
         if (validated.data.subjects.length < minimumSubjects) {
           console.warn(`[Exam Intelligence] Incomplete Gemini curriculum rejected for ${cleanName}: ${validated.data.subjects.length}/${minimumSubjects} minimum subjects. Trying fallback provider.`)
           throw new Error('Gemini curriculum did not meet minimum subject coverage.')
@@ -827,7 +827,7 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
         console.warn('[Exam Intelligence] Validation schema issues:', validated.error.format())
         // Attempt partial recovery if subjects array exists
         const q = normalizeInput(cleanName).slug.toLowerCase()
-        const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 20 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 8 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
+        const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 20 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 11 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
         if (parsed.subjects && Array.isArray(parsed.subjects) && parsed.subjects.length >= minimumSubjects &&
           isCurriculumSpecComprehensive(cleanName, {
             ...(parsed as AIExamIntelligenceOutput),
@@ -920,7 +920,7 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
         const validated = AIExamIntelligenceOutputSchema.safeParse(parsed)
         if (validated.success) {
           const q = normalizeInput(cleanName).slug.toLowerCase()
-          const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 20 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 8 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
+          const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 20 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 11 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
           if (validated.data.subjects.length >= minimumSubjects && isCurriculumSpecComprehensive(cleanName, validated.data)) {
             return validated.data
           }
