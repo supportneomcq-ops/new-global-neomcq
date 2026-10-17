@@ -2086,7 +2086,7 @@ export async function collectExamRulesProcess(
       ['official_syllabus', 'official_bulletin'].includes(e.source_type) &&
       e.verification_status === 'valid' &&
       typeof e.source_url === 'string' &&
-      /^https?:\\/\\//i.test(e.source_url)
+      (e.source_url.startsWith('https://') || e.source_url.startsWith('http://'))
     )
     if (officialEvidence?.source_url) {
       const patternSummary = `${examName} | ${rulesValidation.duration_minutes || 'N/A'} mins | ${rulesValidation.question_count || 'N/A'} questions | Marking: +${rulesValidation.marking_scheme?.positive_mark || 1}, ${rulesValidation.marking_scheme?.has_negative_marking ? '-' + (rulesValidation.marking_scheme?.negative_mark || 0.25) : 'no penalty'}`
