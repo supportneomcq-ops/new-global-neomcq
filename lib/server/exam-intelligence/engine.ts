@@ -724,7 +724,7 @@ CRITICAL ARCHITECTURAL DIRECTIVES:
 2. CURRICULUM HIERARCHY:
    - Build the exam-specific syllabus breadth, not a short illustrative sample. Use official exam-body syllabus/blueprint knowledge where available; never merge separate exams or omit independently tested domains.
    - FMGE and NEET PG must cover the full MBBS subject domains, not only 4-5 broad clinical subjects; target at least 15 distinct subjects. NEET UG must contain six distinct class-specific subjects: Physics XI, Chemistry XI, Biology XI, Physics XII, Chemistry XII, and Biology XII. USMLE Step 1 must cover the full basic-science/organ-system blueprint, target at least 8 distinct domains. UPSC CSE must cover its major Prelims/Mains syllabus domains, target at least 6 subjects. AWS Solutions Architect Associate must cover all current exam domains, target at least 4.
-   - For every subject, create the full relevant main topics (normally at least 3 where appropriate). For every main topic, create meaningful, domain-specific subtopics (normally at least 3 where appropriate). Do not use generic placeholders, duplicate subjects, or filler labels.
+   - For every subject, create at least 5 meaningful, exam-specific main topics where the domain supports it (never stop at 2-3 topics for a major subject). For every main topic, create at least 3 specific subtopics. Preserve the real exam blueprint and avoid generic placeholders, duplicate subjects, repeated topic lists, and filler labels.
    - If you cannot confidently produce a complete, exam-specific hierarchy, do not claim that the syllabus is complete.
    - IMPORTANT: This stage creates ONLY the curriculum structure (names and descriptions). DO NOT generate MCQs, quizzes, flashcards, notes, or AI lessons in this profile.
    - Ensure subjects, topics, and subtopics are genuinely, domain-accurately relevant to "${cleanName}".
@@ -832,13 +832,22 @@ Output schema:
           console.warn(`[Exam Intelligence] Incomplete Gemini curriculum rejected for ${cleanName}: ${validated.data.subjects.length}/${minimumSubjects} minimum subjects. Trying fallback provider.`)
           throw new Error('Gemini curriculum did not meet minimum subject coverage.')
         }
+        if (!isCurriculumSpecComprehensive(cleanName, validated.data)) {
+          console.warn(`[Exam Intelligence] Gemini curriculum failed breadth/depth validation for ${cleanName}; trying fallback provider.`)
+          throw new Error('Gemini curriculum did not meet minimum topic/subtopic coverage.')
+        }
         return validated.data
       } else {
         console.warn('[Exam Intelligence] Validation schema issues:', validated.error.format())
         // Attempt partial recovery if subjects array exists
         const q = normalizeInput(cleanName).slug.toLowerCase()
         const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 15 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 8 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
-        if (parsed.subjects && Array.isArray(parsed.subjects) && parsed.subjects.length >= minimumSubjects) {
+        if (parsed.subjects && Array.isArray(parsed.subjects) && parsed.subjects.length >= minimumSubjects &&
+          isCurriculumSpecComprehensive(cleanName, {
+            ...(parsed as AIExamIntelligenceOutput),
+            exam: parsed.exam || { name: cleanName },
+            subjects: parsed.subjects,
+          } as AIExamIntelligenceOutput)) {
           return {
             exam: {
               name: cleanName,
@@ -917,7 +926,7 @@ Output schema:
         ],
         response_format: { type: 'json_object' },
         temperature: 0.1,
-        max_tokens: 12000,
+        max_tokens: 16000,
       })
       const responseText = completion.choices[0]?.message?.content
       if (responseText) {
@@ -926,10 +935,10 @@ Output schema:
         if (validated.success) {
           const q = normalizeInput(cleanName).slug.toLowerCase()
           const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 15 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 8 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
-          if (validated.data.subjects.length >= minimumSubjects) {
+          if (validated.data.subjects.length >= minimumSubjects && isCurriculumSpecComprehensive(cleanName, validated.data)) {
             return validated.data
           }
-          console.warn(`[Exam Intelligence] OpenAI curriculum rejected for ${cleanName}: ${validated.data.subjects.length}/${minimumSubjects} minimum subjects.`)
+          console.warn(`[Exam Intelligence] OpenAI curriculum rejected for ${cleanName}: insufficient subject/topic/subtopic coverage.`)
         } else {
           console.warn('[Exam Intelligence] OpenAI curriculum did not match the required schema.')
         }
