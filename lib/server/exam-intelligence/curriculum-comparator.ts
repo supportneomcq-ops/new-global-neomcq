@@ -621,7 +621,7 @@ export function detectAndValidateExamRules(
   const hasOfficialEvidence = evidenceRows.some((ev: any) =>
     ['official_syllabus', 'official_bulletin', 'official_notification'].includes(String(ev.source_type || '').toLowerCase()) &&
     ['valid', 'verified'].includes(String(ev.verification_status || '').toLowerCase()) &&
-    typeof ev.source_url === 'string' && /^https?:\\/\\//i.test(ev.source_url)
+    typeof ev.source_url === 'string' && /^https?:\/\//i.test(ev.source_url)
   )
   const hasConflicts = conflictDetails.length > 0
   const requiredRulesPresent = duration_minutes !== null && question_count !== null &&
