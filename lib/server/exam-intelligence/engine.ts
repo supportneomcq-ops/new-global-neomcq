@@ -659,13 +659,14 @@ function isCurriculumSpecComprehensive(examName: string, spec: AIExamIntelligenc
   const examKey = normalizeInput(examName).slug.toLowerCase()
   const minSubjects = /fmge|neet-pg|ini-cet/.test(examKey) ? 20
     : /neet-ug|neetug/.test(examKey) ? 6
-    : /usmle-step-[123]|usmle-[123]/.test(examKey) ? 8
+    : /usmle-step-1|usmle-1/.test(examKey) ? 11
+    : /usmle-step-[23]|usmle-[23]/.test(examKey) ? 8
     : /upsc/.test(examKey) ? 6
     : /aws.*(solution|architect)|solutions-architect/.test(examKey) ? 4
     : 1
   const minTopics = /fmge|neet-pg|ini-cet/.test(examKey) ? Math.max(100, subjects.length * 5)
     : /neet-ug|neetug/.test(examKey) ? 30
-    : /usmle-step-1|usmle-1/.test(examKey) ? 40
+    : /usmle-step-1|usmle-1/.test(examKey) ? 55
     : /usmle-step-[23]|usmle-[23]/.test(examKey) ? 40
     : /upsc/.test(examKey) ? 30
     : /aws.*(solution|architect)|solutions-architect/.test(examKey) ? 20
@@ -678,7 +679,26 @@ function isCurriculumSpecComprehensive(examName: string, spec: AIExamIntelligenc
     return new Set(keys).size === keys.length
   }
   const generic = /^(core foundations?(&|and)? principles|advanced practice(&|and)? applied problem solving|fundamental concepts(&|and)? standards|case scenarios(&|and)? practice applications|core subject \d+|topic \d+)$/i
-  return subjects.length >= minSubjects &&
+  const exactSubjectCount = /fmge/.test(examKey) ? 20 : /usmle-step-1|usmle-1/.test(examKey) ? 11 : null
+  const requiredUSMLE1 = [
+    'Human Development',
+    'Blood & Lymphoreticular/Immune Systems',
+    'Behavioral Health & Nervous Systems/Special Senses',
+    'Musculoskeletal, Skin & Subcutaneous Tissue',
+    'Cardiovascular System',
+    'Respiratory & Renal/Urinary Systems',
+    'Gastrointestinal System',
+    'Reproductive & Endocrine Systems',
+    'Multisystem Processes & Disorders',
+    'Biostatistics & Epidemiology/Population Health',
+    'Social Sciences: Communication and Interpersonal Skills',
+  ]
+  const subjectCountValid = exactSubjectCount === null
+    ? subjects.length >= minSubjects
+    : subjects.length === exactSubjectCount
+  const usmle1CoverageValid = !/usmle-step-1|usmle-1/.test(examKey) ||
+    requiredUSMLE1.every((required) => subjects.some((s: any) => normName(s.name) === normName(required)))
+  return subjectCountValid && usmle1CoverageValid &&
     topics >= minTopics &&
     subtopics >= topics * 3 &&
     unique(subjects.map((s: any) => s.name)) &&
@@ -724,7 +744,7 @@ CRITICAL ARCHITECTURAL DIRECTIVES:
 2. CURRICULUM HIERARCHY:
    - Build the exam-specific syllabus breadth, not a short illustrative sample. Use official exam-body syllabus/blueprint knowledge where available; never merge separate exams or omit independently tested domains.
    - FMGE and NEET PG must cover the full MBBS subject domains, not only 4-5 broad clinical subjects; target at least 15 distinct subjects. NEET UG must contain six distinct class-specific subjects: Physics XI, Chemistry XI, Biology XI, Physics XII, Chemistry XII, and Biology XII. USMLE Step 1 must cover the full basic-science/organ-system blueprint, target at least 8 distinct domains. UPSC CSE must cover its major Prelims/Mains syllabus domains, target at least 6 subjects. AWS Solutions Architect Associate must cover all current exam domains, target at least 4.
-   - For FMGE and NEET PG, use exactly these 20 individual subject names: Anatomy, Physiology, Biochemistry, Pathology, Microbiology, Pharmacology, Forensic Medicine, Medicine, Psychiatry, Dermatology & STD, Radiotherapy, General Surgery, Anesthesiology, Orthopedics, Radiodiagnosis, Pediatrics, Ophthalmology, Otorhinolaryngology (ENT), Obstetrics & Gynaecology, Community Medicine. Do not add General Medicine, standalone Dermatology, Surgery, or Radiology as extra duplicate subjects. For INI-CET, include the full MBBS subject coverage. For every subject, create at least 5 meaningful, exam-specific main topics. For every main topic, create at least 3 specific subtopics. Preserve the real exam blueprint and avoid generic placeholders, duplicate subjects, repeated topic lists, and filler labels.
+   - For USMLE Step 1, use exactly these 11 official integrated content categories: Human Development; Blood & Lymphoreticular/Immune Systems; Behavioral Health & Nervous Systems/Special Senses; Musculoskeletal, Skin & Subcutaneous Tissue; Cardiovascular System; Respiratory & Renal/Urinary Systems; Gastrointestinal System; Reproductive & Endocrine Systems; Multisystem Processes & Disorders; Biostatistics & Epidemiology/Population Health; Social Sciences: Communication and Interpersonal Skills. Do not use a generic medical-school discipline list as the subject list. For FMGE and NEET PG, use exactly these 20 individual subject names: Anatomy, Physiology, Biochemistry, Pathology, Microbiology, Pharmacology, Forensic Medicine, Medicine, Psychiatry, Dermatology & STD, Radiotherapy, General Surgery, Anesthesiology, Orthopedics, Radiodiagnosis, Pediatrics, Ophthalmology, Otorhinolaryngology (ENT), Obstetrics & Gynaecology, Community Medicine. Do not add General Medicine, standalone Dermatology, Surgery, or Radiology as extra duplicate subjects. For INI-CET, include the full MBBS subject coverage. For every subject, create at least 5 meaningful, exam-specific main topics. For every main topic, create at least 3 specific subtopics. Preserve the real exam blueprint and avoid generic placeholders, duplicate subjects, repeated topic lists, and filler labels.
    - If you cannot confidently produce a complete, exam-specific hierarchy, do not claim that the syllabus is complete.
    - IMPORTANT: This stage creates ONLY the curriculum structure (names and descriptions). DO NOT generate MCQs, quizzes, flashcards, notes, or AI lessons in this profile.
    - Ensure subjects, topics, and subtopics are genuinely, domain-accurately relevant to "${cleanName}".
@@ -1859,6 +1879,39 @@ export async function enrichCurriculumProcess(
         topic.subtopics.filter((subtopic: any) => subtopic.status === 'matched').length / topic.subtopics.length >= 0.8
       )
     )
+  // For the explicitly defined FMGE and USMLE Step 1 blueprints, deactivate
+  // legacy subject rows that are not part of the accepted canonical structure.
+  // Their records and learning content are retained; only visibility is changed.
+  const canonicalExamKey = normalizeInput(examName).slug.toLowerCase()
+  if (hierarchyTargetsMet && /fmge|usmle-step-1|usmle-1/.test(canonicalExamKey)) {
+    const { data: activeSubjectRows, error: activeSubjectRowsError } = await supabase
+      .from('exam_subjects').select('id,name').eq('exam_id', examId).eq('is_active', true)
+    if (activeSubjectRowsError) throw new Error(`Failed to inspect canonical subjects: ${activeSubjectRowsError.message}`)
+    const staleRows = (activeSubjectRows || []).filter((row: any) =>
+      !findMatchingSubjectInList(row.name, aiSpec.subjects)
+    )
+    const staleIds = staleRows.map((row: any) => row.id)
+    if (staleIds.length > 0) {
+      const { data: staleTopics, error: staleTopicsError } = await supabase
+        .from('exam_topics').select('id').in('subject_id', staleIds)
+      if (staleTopicsError) throw new Error(`Failed to inspect stale topics: ${staleTopicsError.message}`)
+      const staleTopicIds = (staleTopics || []).map((row: any) => row.id)
+      if (staleTopicIds.length > 0) {
+        const { error: staleSubtopicsError } = await supabase
+          .from('exam_subtopics').update({ is_active: false }).in('topic_id', staleTopicIds)
+        if (staleSubtopicsError) throw new Error(`Failed to deactivate stale subtopics: ${staleSubtopicsError.message}`)
+      }
+      if (staleTopicIds.length > 0) {
+        const { error: staleTopicsUpdateError } = await supabase
+          .from('exam_topics').update({ is_active: false }).in('id', staleTopicIds)
+        if (staleTopicsUpdateError) throw new Error(`Failed to deactivate stale topics: ${staleTopicsUpdateError.message}`)
+      }
+      const { error: staleSubjectsUpdateError } = await supabase
+        .from('exam_subjects').update({ is_active: false }).in('id', staleIds)
+      if (staleSubjectsUpdateError) throw new Error(`Failed to deactivate stale subjects: ${staleSubjectsUpdateError.message}`)
+    }
+  }
+
 
   // Calculate actual row counts
   const finalSubjectsRaw = comparisonReport.subjects.length > 0 ? (await supabase
