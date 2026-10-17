@@ -2117,7 +2117,7 @@ export async function collectExamRulesProcess(
   const supabase = supabaseClient || getSupabaseAdmin()
 
   const [{ data: examRow }, { data: versionRows }, { data: evidenceRows }] = await Promise.all([
-    supabase.from('exams').select('id, name, question_count, time_limit_mins, marking_scheme, question_types, metadata').eq('id', examId).single(),
+    supabase.from('exams').select('*').eq('id', examId).single(),
     supabase.from('exam_versions').select('*').eq('exam_id', examId),
     supabase.from('exam_evidence').select('*').eq('exam_id', examId),
   ])
@@ -2148,6 +2148,76 @@ export async function collectExamRulesProcess(
           ...(examRow?.metadata || {}),
           rules_conflicts: rulesValidation.conflictDetails,
           rules_status: rulesValidation.rulesStatus,
+          exam_metadata_audit: (() => {
+            const officialEvidence = (evidenceRows || []).filter((e: any) =>
+              ['official_syllabus', 'official_bulletin', 'official_notification'].includes(String(e.source_type || '').toLowerCase()) &&
+              ['valid', 'verified'].includes(String(e.verification_status || '').toLowerCase()) &&
+              typeof e.source_url === 'string' && /^https?:\\/\\//i.test(e.source_url)
+            )
+            const currentVersion = (versionRows || []).find((v: any) => v.is_current) || null
+            const hasVerifiedSource = officialEvidence.length > 0
+            const field = (value: any, source: string | null = null) => ({
+              value: value === undefined || value === '' ? null : value,
+              status: value === undefined || value === '' || value === null
+                ? 'unknown'
+                : hasVerifiedSource ? 'verified' : 'needs_verification',
+              source,
+            })
+            const evidenceSource = officialEvidence[0]?.source_url || null
+            return {
+              audit_version: 1,
+              audited_at: new Date().toISOString(),
+              overall_status: hasVerifiedSource ? 'evidence_available_review_required' : 'needs_verification',
+              canonical_exam_name: field(examRow?.name, 'exams.name'),
+              country_id: field(examRow?.country_id, 'exams.country_id'),
+              authority: field(examRow?.authority || null, 'exams.authority'),
+              category_id: field(examRow?.category_id, 'exams.category_id'),
+              exam_type: field(examRow?.exam_type || null, 'exams.exam_type'),
+              level: field(examRow?.level || null, 'exams.level'),
+              stages: field(examRow?.stages || null, 'exams.stages'),
+              papers: field(examRow?.papers || null, 'exams.papers'),
+              question_count: field(rulesValidation.question_count, evidenceSource),
+              duration_minutes: field(rulesValidation.duration_minutes, evidenceSource),
+              question_types: field(rulesValidation.question_types?.length ? rulesValidation.question_types : null, evidenceSource),
+              total_marks: field(examRow?.total_marks ?? null, 'exams.total_marks'),
+              positive_mark: field(rulesValidation.marking_scheme?.positive_mark ?? null, evidenceSource),
+              negative_marking: field(
+                rulesValidation.marking_scheme && typeof rulesValidation.marking_scheme.has_negative_marking === 'boolean'
+                  ? rulesValidation.marking_scheme.has_negative_marking
+                  : examRow?.negative_marking || null,
+                evidenceSource || (examRow?.negative_marking ? 'exams.negative_marking' : null)
+              ),
+              passing_criteria: field(examRow?.passing_criteria || null, 'exams.passing_criteria'),
+              eligibility: field(examRow?.eligibility || null, 'exams.eligibility'),
+              attempt_rules: field(examRow?.attempt_rules || null, 'exams.attempt_rules'),
+              selection_process: field(examRow?.selection_process || null, 'exams.selection_process'),
+              version_year: field(currentVersion?.version_year || examRow?.version_year || null, currentVersion?.source_url || evidenceSource),
+              official_sources: officialEvidence.map((e: any) => ({
+                url: e.source_url,
+                type: e.source_type,
+                publisher: e.publisher_authority || null,
+                version_date: e.source_version_date || null,
+                verification_status: e.verification_status,
+                retrieved_at: e.retrieved_at || null,
+              })),
+              missing_or_unverified_fields: [
+                ['country', examRow?.country_id],
+                ['authority', examRow?.authority],
+                ['category', examRow?.category_id],
+                ['level', examRow?.level],
+                ['question_count', rulesValidation.question_count],
+                ['duration_minutes', rulesValidation.duration_minutes],
+                ['question_types', rulesValidation.question_types?.length ? rulesValidation.question_types : null],
+                ['total_marks', examRow?.total_marks],
+                ['passing_criteria', examRow?.passing_criteria],
+                ['eligibility', examRow?.eligibility],
+                ['attempt_rules', examRow?.attempt_rules],
+                ['selection_process', examRow?.selection_process],
+                ['official_source', evidenceSource],
+                ['version_year', currentVersion?.version_year || examRow?.version_year],
+              ].filter(([, value]) => value === undefined || value === null || value === '').map(([name]) => name),
+            }
+          })(),
         },
         updated_at: new Date().toISOString(),
       })
