@@ -170,13 +170,42 @@ export async function GET(req: NextRequest) {
     const examKey = String(persisted.name || examName).toLowerCase()
     const minimumSubjects = /fmge|neet\s*pg|ini-cet/.test(examKey) ? 15
       : /neet\s*ug/.test(examKey) ? 6
-      : /usmle\s*step\s*1/.test(examKey) ? 8
+      : /usmle\s*step\s*[123]/.test(examKey) ? 8
       : /upsc/.test(examKey) ? 6
       : /aws.*(solution|architect)|solutions-architect/.test(examKey) ? 4
       : 1
+    // Do not confuse a syntactically populated tree with a complete syllabus.
+    const minimumTopics = /fmge|neet\s*pg|ini-cet/.test(examKey) ? Math.max(75, subjects.length * 4)
+      : /neet\s*ug/.test(examKey) ? 30
+      : /usmle\s*step\s*1/.test(examKey) ? 40
+      : /usmle\s*step\s*[23]/.test(examKey) ? 40
+      : /upsc/.test(examKey) ? 30
+      : /aws.*(solution|architect)|solutions-architect/.test(examKey) ? 20
+      : Math.max(8, subjects.length * 5)
+    const minimumSubtopics = Math.ceil(Math.max(topicCount, minimumTopics) * 2.5)
+    const normalized = (value: string) => String(value || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim()
+    const hasDuplicates = (values: string[]) => {
+      const keys = values.map(normalized).filter(Boolean)
+      return new Set(keys).size !== keys.length
+    }
+    const duplicateSubjects = hasDuplicates(subjects.map((s: any) => s.name))
+    const duplicateTopics = subjects.some((s: any) => {
+      const activeTopics = (s.exam_topics || []).filter((t: any) => t.is_active !== false && t.active !== false)
+      return hasDuplicates(activeTopics.map((t: any) => t.name))
+    })
+    const duplicateSubtopics = topics.some((t: any) => {
+      const activeSubtopics = (t.exam_subtopics || []).filter((st: any) => st.is_active !== false)
+      return hasDuplicates(activeSubtopics.map((st: any) => st.name))
+    })
+    const genericLabels = /^(core foundations?(&|and)? principles|advanced practice(&|and)? applied problem solving|fundamental concepts(&|and)? standards|case scenarios(&|and)? practice applications|topic \d+|core subject \d+)$/i
+    const hasGenericFiller = subjects.some((s: any) => genericLabels.test(String(s.name || '').trim())) ||
+      topics.some((t: any) => genericLabels.test(String(t.name || '').trim()))
     const validated = metadata.curriculum_validation_version === 2 &&
       metadata.curriculum_validation_passed === true &&
-      subjects.length >= minimumSubjects && topicCount > 0 && subtopicCount > 0
+      subjects.length >= minimumSubjects &&
+      topicCount >= minimumTopics &&
+      subtopicCount >= minimumSubtopics &&
+      !duplicateSubjects && !duplicateTopics && !duplicateSubtopics && !hasGenericFiller
 
     if (!validated) {
       await admin.from('exams').update({
