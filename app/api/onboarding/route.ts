@@ -338,7 +338,7 @@ export async function POST(req: NextRequest) {
         const { error: queueError } = await (admin as any).from('ai_jobs').upsert({
           task: 'curriculum_rebuild',
           exam_id: finalExamId,
-          priority: /fmge|neet pg|neet ug|usmle/i.test(examName) ? 10 : 5,
+          priority: 5,
           status: 'queued',
           max_attempts: 3,
           idempotency_key: curriculumKey,
