@@ -249,6 +249,8 @@ export async function GET(req: NextRequest) {
 
     const topicRows = subjects.flatMap((subject: any) => activeChildren(subject.exam_topics || []))
     const subtopicRows = topicRows.flatMap((topic: any) => activeChildren(topic.exam_subtopics || []))
+    const topicCount = topicRows.length
+    const subtopicCount = subtopicRows.length
     const hasDuplicateNames = (items: any[]) => {
       const names = items.map((item: any) => normalize(item.name)).filter(Boolean)
       return new Set(names).size !== names.length
