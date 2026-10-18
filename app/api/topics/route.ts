@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/server';
 import { normalizeInput } from '@/lib/knowledge/normalizer';
 import { GoogleGenAI } from '@google/genai';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) : null;
 
 export async function GET(req: NextRequest) {
   try {
@@ -66,6 +67,11 @@ export async function POST(req: NextRequest) {
     }
 
     const trimmedName = name.trim();
+    const authClient = await createClient();
+    const { data: { user }, error: authError } = await authClient.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ success: false, error: 'Please sign in to add curriculum.' }, { status: 401 });
+    }
     const supabase = getSupabaseAdmin();
 
     // 1. Verify subject exists and validate ancestry with exam if provided
@@ -87,6 +93,12 @@ export async function POST(req: NextRequest) {
         { success: false, error: 'Ancestry mismatch: Subject does not belong to the provided exam.' },
         { status: 400 }
       );
+    }
+
+    const { data: profile, error: profileError } = await (supabase as any)
+      .from('profiles').select('current_exam_id').eq('id', user.id).maybeSingle();
+    if (profileError || !profile || profile.current_exam_id !== subject.exam_id) {
+      return NextResponse.json({ success: false, error: 'You can only add curriculum to your currently selected exam.' }, { status: 403 });
     }
 
     const examName = subject.exams?.name || 'Target Exam';
@@ -130,8 +142,9 @@ Respond with valid JSON:
   "reason": string
 }`;
 
+      if (!ai) throw new Error('Gemini API key is not configured.');
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: process.env.GEMINI_CURRICULUM_MODEL || 'gemini-2.5-flash',
         contents: prompt,
         config: { responseMimeType: 'application/json' },
       });
