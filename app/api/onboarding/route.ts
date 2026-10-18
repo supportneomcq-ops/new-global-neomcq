@@ -332,9 +332,20 @@ export async function POST(req: NextRequest) {
 
         // Persist the curriculum request before returning. The scheduled worker owns
         // generation and retries; signup no longer depends on request-bound after().
+        const normalizeQueuePart = (value?: string | null) =>
+          String(value || '').toLowerCase().normalize('NFKD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+        const examIdentityKey = [
+          examName,
+          examCountry || country || 'global',
+          examCategory || 'uncategorized',
+          examLevel || 'unspecified-level',
+        ].map(normalizeQueuePart).join(':')
+        // Each learner needs their own attachment job. The canonical exam specification
+        // is cached on the exam record, so subsequent jobs reuse it without paying for
+        // another full AI curriculum generation.
         const curriculumKey = finalExamId
           ? `curriculum-onboarding-v1:${finalExamId}:${targetUserId}`
-          : `curriculum-onboarding-v1:${examName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`
+          : `curriculum-onboarding-v1:new:${examIdentityKey}:${targetUserId}`
         const { error: queueError } = await (admin as any).from('ai_jobs').upsert({
           task: 'curriculum_rebuild',
           exam_id: finalExamId,
