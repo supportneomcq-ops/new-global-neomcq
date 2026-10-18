@@ -652,84 +652,41 @@ export const VERIFIED_EXAM_TEMPLATES: Record<string, StandardCurriculumTemplate>
   },
 }
 
-// A spec is not complete just because it parses as JSON or has a few subjects.
-// This guard prevents generic 3-topic skeletons from being cached as canonical syllabi.
-function isCurriculumSpecComprehensive(examName: string, spec: AIExamIntelligenceOutput): boolean {
+// Universal curriculum quality gate. It deliberately contains no exam-name-specific
+// rules: the same structural standard applies to every exam, country, discipline and level.
+// Official subject coverage is checked separately by compareCurricula/evidence validation.
+function isCurriculumSpecComprehensive(_examName: string, spec: AIExamIntelligenceOutput): boolean {
   const subjects = Array.isArray(spec.subjects) ? spec.subjects : []
-  const examKey = normalizeInput(examName).slug.toLowerCase()
-  const minSubjects = /fmge|neet-pg|ini-cet/.test(examKey) ? 20
-    : /neet-ug|neetug/.test(examKey) ? 6
-    : /usmle-step-1|usmle-1/.test(examKey) ? 11
-    : /usmle-step-[23]|usmle-[23]/.test(examKey) ? 18
-    : /upsc/.test(examKey) ? 6
-    : /aws.*(solution|architect)|solutions-architect/.test(examKey) ? 4
-    : 1
-  const minTopics = /fmge|neet-pg|ini-cet/.test(examKey) ? Math.max(100, subjects.length * 5)
-    : /neet-ug|neetug/.test(examKey) ? 30
-    : /usmle-step-1|usmle-1/.test(examKey) ? 55
-    : /usmle-step-[23]|usmle-[23]/.test(examKey) ? 90
-    : /upsc/.test(examKey) ? 30
-    : /aws.*(solution|architect)|solutions-architect/.test(examKey) ? 20
-    : Math.max(8, subjects.length * 5)
-  const topics = subjects.reduce((n, subject: any) => n + (Array.isArray(subject.topics) ? subject.topics.length : 0), 0)
-  const subtopics = subjects.reduce((n, subject: any) => n + (Array.isArray(subject.topics) ? subject.topics.reduce((m: number, topic: any) => m + (Array.isArray(topic.subtopics) ? topic.subtopics.length : 0), 0) : 0), 0)
-  const normName = (value: string) => String(value || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim()
-  const unique = (values: string[]) => {
-    const keys = values.map(normName).filter(Boolean)
-    return new Set(keys).size === keys.length
+  if (subjects.length === 0) return false
+
+  const normalize = (value: unknown) => String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+  const uniqueMeaningfulNames = (values: unknown[]) => {
+    const names = values.map(normalize)
+    return names.every(Boolean) && new Set(names).size === names.length
   }
-  const generic = /^(core foundations?(&|and)? principles|advanced practice(&|and)? applied problem solving|fundamental concepts(&|and)? standards|case scenarios(&|and)? practice applications|core subject \d+|topic \d+)$/i
-  const exactSubjectCount = /fmge/.test(examKey) ? 20 : /usmle-step-1|usmle-1/.test(examKey) ? 11 : /usmle-step-[23]|usmle-[23]/.test(examKey) ? 18 : null
-  const requiredUSMLE1 = [
-    'Human Development',
-    'Blood & Lymphoreticular/Immune Systems',
-    'Behavioral Health & Nervous Systems/Special Senses',
-    'Musculoskeletal, Skin & Subcutaneous Tissue',
-    'Cardiovascular System',
-    'Respiratory & Renal/Urinary Systems',
-    'Gastrointestinal System',
-    'Reproductive & Endocrine Systems',
-    'Multisystem Processes & Disorders',
-    'Biostatistics & Epidemiology/Population Health',
-    'Social Sciences: Communication and Interpersonal Skills',
-  ]
-  const subjectCountValid = exactSubjectCount === null
-    ? subjects.length >= minSubjects
-    : subjects.length === exactSubjectCount
-  const requiredUSMLE2And3 = [
-    'Human Development',
-    'Immune System',
-    'Blood & Lymphoreticular System',
-    'Behavioral Health',
-    'Nervous System & Special Senses',
-    'Skin & Subcutaneous Tissue',
-    'Musculoskeletal System',
-    'Cardiovascular System',
-    'Respiratory System',
-    'Gastrointestinal System',
-    'Renal & Urinary System',
-    'Pregnancy, Childbirth, & the Puerperium',
-    'Female Reproductive System & Breast',
-    'Male Reproductive System',
-    'Endocrine System',
-    'Multisystem Processes & Disorders',
-    'Biostatistics, Epidemiology/Population Health, & Interpretation of the Medical Literature',
-    'Social Sciences',
-  ]
-  const usmle1CoverageValid = !/usmle-step-1|usmle-1/.test(examKey) ||
-    requiredUSMLE1.every((required) => subjects.some((s: any) => normName(s.name) === normName(required)))
-  const usmle2And3CoverageValid = !/usmle-step-[23]|usmle-[23]/.test(examKey) ||
-    requiredUSMLE2And3.every((required) => subjects.some((s: any) => normName(s.name) === normName(required)))
-  return subjectCountValid && usmle1CoverageValid && usmle2And3CoverageValid &&
-    topics >= minTopics &&
-    subtopics >= topics * 3 &&
-    unique(subjects.map((s: any) => s.name)) &&
-    subjects.every((s: any) => Array.isArray(s.topics) && s.topics.length >= 5 &&
-      unique(s.topics.map((t: any) => t.name)) &&
-      s.topics.every((t: any) => Array.isArray(t.subtopics) && t.subtopics.length >= 3 &&
-        unique(t.subtopics.map((st: any) => st.name)))) &&
-    !subjects.some((s: any) => generic.test(String(s.name || '').trim()) ||
-      (s.topics || []).some((t: any) => generic.test(String(t.name || '').trim())))
+  const genericLabel = /^(subject|topic|subtopic|core subject|core topic|topic number|module)\s*\d*$/i
+
+  if (!uniqueMeaningfulNames(subjects.map((subject: any) => subject.name))) return false
+
+  for (const subject of subjects as any[]) {
+    const topics = Array.isArray(subject.topics) ? subject.topics : []
+    if (topics.length === 0 || !uniqueMeaningfulNames(topics.map((topic: any) => topic.name))) return false
+    if (genericLabel.test(String(subject.name || '').trim())) return false
+
+    for (const topic of topics) {
+      const subtopics = Array.isArray(topic.subtopics) ? topic.subtopics : []
+      if (subtopics.length === 0 || !uniqueMeaningfulNames(subtopics.map((item: any) => item.name))) return false
+      if (genericLabel.test(String(topic.name || '').trim())) return false
+      if (subtopics.some((item: any) => genericLabel.test(String(item.name || '').trim()))) return false
+    }
+  }
+
+  return true
 }
 
 // ============================================================================
@@ -775,12 +732,14 @@ CRITICAL ARCHITECTURAL DIRECTIVES:
    - Establish realistic question configuration (option count, negative marking, question types, duration).
    - Classify question types: standard_mcq, clinical_vignette, case_based, calculation, image_based, scenario_architecture.
 2. CURRICULUM HIERARCHY:
-   - Build the exam-specific syllabus breadth, not a short illustrative sample. Use official exam-body syllabus/blueprint knowledge where available; never merge separate exams or omit independently tested domains.
-   - FMGE and NEET PG must cover the full MBBS subject domains, not only 4-5 broad clinical subjects; target at least 15 distinct subjects. NEET UG must contain six distinct class-specific subjects: Physics XI, Chemistry XI, Biology XI, Physics XII, Chemistry XII, and Biology XII. USMLE Step 1 must cover the full basic-science/organ-system blueprint, target at least 8 distinct domains. UPSC CSE must cover its major Prelims/Mains syllabus domains, target at least 6 subjects. AWS Solutions Architect Associate must cover all current exam domains, target at least 4.
-   - For USMLE Step 2 CK and Step 3, use exactly these 18 official integrated content categories: Human Development; Immune System; Blood & Lymphoreticular System; Behavioral Health; Nervous System & Special Senses; Skin & Subcutaneous Tissue; Musculoskeletal System; Cardiovascular System; Respiratory System; Gastrointestinal System; Renal & Urinary System; Pregnancy, Childbirth, & the Puerperium; Female Reproductive System & Breast; Male Reproductive System; Endocrine System; Multisystem Processes & Disorders; Biostatistics, Epidemiology/Population Health, & Interpretation of the Medical Literature; Social Sciences. Step 2 CK topics must emphasize diagnosis, clinical management, prevention, and patient care; Step 3 must emphasize independent patient management, ambulatory care, emergencies, monitoring, and long-term management. Do not use generic medical-school discipline lists as the subject list. For USMLE Step 1, use exactly these 11 official integrated content categories: Human Development; Blood & Lymphoreticular/Immune Systems; Behavioral Health & Nervous Systems/Special Senses; Musculoskeletal, Skin & Subcutaneous Tissue; Cardiovascular System; Respiratory & Renal/Urinary Systems; Gastrointestinal System; Reproductive & Endocrine Systems; Multisystem Processes & Disorders; Biostatistics & Epidemiology/Population Health; Social Sciences: Communication and Interpersonal Skills. Do not use a generic medical-school discipline list as the subject list. For FMGE and NEET PG, use exactly these 20 individual subject names: Anatomy, Physiology, Biochemistry, Pathology, Microbiology, Pharmacology, Forensic Medicine, Medicine, Psychiatry, Dermatology & STD, Radiotherapy, General Surgery, Anesthesiology, Orthopedics, Radiodiagnosis, Pediatrics, Ophthalmology, Otorhinolaryngology (ENT), Obstetrics & Gynaecology, Community Medicine. Do not add General Medicine, standalone Dermatology, Surgery, or Radiology as extra duplicate subjects. For INI-CET, include the full MBBS subject coverage. For every subject, create at least 5 meaningful, exam-specific main topics. For every main topic, create at least 3 specific subtopics. Preserve the real exam blueprint and avoid generic placeholders, duplicate subjects, repeated topic lists, and filler labels.
+   - Discover the complete subject and topic blueprint for THIS exam from its official examination authority, current official syllabus/notification, or reliable domain-specific reference. Do not reuse another exam's structure or hard-code assumptions based on exam name.
+   - Include every official subject/domain. Include exam-specific topics and subtopics supported by the syllabus; each topic must have at least one meaningful subtopic.
+   - Preserve official subject boundaries, stages, papers and levels. Never merge separate exams or silently omit independently tested domains.
+   - Do not invent official rules, counts, subject names or source URLs. Record uncertain facts as unknown / needing verification and keep curriculum status pending until evidence and hierarchy checks pass.
+   - Avoid generic placeholders, duplicate subjects/topics/subtopics, repeated topic lists, and filler labels.
    - If you cannot confidently produce a complete, exam-specific hierarchy, do not claim that the syllabus is complete.
    - IMPORTANT: This stage creates ONLY the curriculum structure (names and descriptions). DO NOT generate MCQs, quizzes, flashcards, notes, or AI lessons in this profile.
-   - Ensure subjects, topics, and subtopics are genuinely, domain-accurately relevant to "${cleanName}".
+   - Ensure subjects, topics, and subtopics are genuinely, domain-accurately relevant to "\${cleanName}".
 3. GENERATION RULES:
    - Configure distinct content rules for MCQs, Quizzes, Flashcards, AI Tutor, and Notes.
 
@@ -845,13 +804,6 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
       const validated = AIExamIntelligenceOutputSchema.safeParse(parsed)
 
       if (validated.success) {
-        const q = normalizeInput(cleanName).slug.toLowerCase()
-        const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 20 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 11 : /usmle-step-[23]|usmle-[23]/.test(q) ? 18 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
-        if (validated.data.subjects.length < minimumSubjects) {
-          keepMoreCompleteCandidate(validated.data)
-          console.warn(`[Exam Intelligence] Incomplete Gemini curriculum rejected for ${cleanName}: ${validated.data.subjects.length}/${minimumSubjects} minimum subjects. Trying fallback provider.`)
-          throw new Error('Gemini curriculum did not meet minimum subject coverage.')
-        }
         if (!isCurriculumSpecComprehensive(cleanName, validated.data)) {
           keepMoreCompleteCandidate(validated.data)
           console.warn(`[Exam Intelligence] Gemini curriculum failed breadth/depth validation for ${cleanName}; trying fallback provider.`)
@@ -861,9 +813,7 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
       } else {
         console.warn('[Exam Intelligence] Validation schema issues:', validated.error.format())
         // Attempt partial recovery if subjects array exists
-        const q = normalizeInput(cleanName).slug.toLowerCase()
-        const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 20 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 11 : /usmle-step-[23]|usmle-[23]/.test(q) ? 18 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
-        if (parsed.subjects && Array.isArray(parsed.subjects) && parsed.subjects.length >= minimumSubjects &&
+        if (parsed.subjects && Array.isArray(parsed.subjects) &&
           isCurriculumSpecComprehensive(cleanName, {
             ...(parsed as AIExamIntelligenceOutput),
             exam: parsed.exam || { name: cleanName },
@@ -954,9 +904,7 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
         const parsed = JSON.parse(responseText)
         const validated = AIExamIntelligenceOutputSchema.safeParse(parsed)
         if (validated.success) {
-          const q = normalizeInput(cleanName).slug.toLowerCase()
-          const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 20 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 11 : /usmle-step-[23]|usmle-[23]/.test(q) ? 18 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
-          if (validated.data.subjects.length >= minimumSubjects && isCurriculumSpecComprehensive(cleanName, validated.data)) {
+          if (isCurriculumSpecComprehensive(cleanName, validated.data)) {
             return validated.data
           }
           keepMoreCompleteCandidate(validated.data)
@@ -978,7 +926,7 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
   // instead of repeatedly asking it to regenerate from scratch. Only a response
   // that passes the full completeness gate can be considered ready downstream.
   if (bestPartialCandidate) {
-    const repairPrompt = `Repair and COMPLETE this incomplete exam curriculum for "${cleanName}". Return only one JSON object matching the NeoMCQ exam-intelligence schema (exam, subjects, content_generation_rules, confidence). Preserve correct exam-specific subject names. Every subject must have at least 5 distinct meaningful topics, and every topic at least 3 distinct meaningful subtopics. Respect exact official subject/domain counts for this exam where applicable. Do not use generic filler, duplicate names, or invent official exam rules. Unknown exam-rule fields must remain unknown/default and must not be described as verified. The supplied tree is a starting point, not a limit; add missing domain-specific topics/subtopics.\n\nCurrent partial curriculum:\n${JSON.stringify(bestPartialCandidate)}`
+    const repairPrompt = `Repair and COMPLETE this incomplete exam curriculum for "${cleanName}". Return only one JSON object matching the NeoMCQ exam-intelligence schema (exam, subjects, content_generation_rules, confidence). Preserve correct exam-specific subject names. Include every subject/domain in the official exam blueprint. Every topic must have at least one distinct meaningful subtopic. Preserve official subject boundaries and current syllabus scope. Do not use generic filler, duplicate names, or invent official exam rules. Unknown exam-rule fields must remain unknown/default and must not be described as verified. The supplied tree is a starting point, not a limit; add missing domain-specific topics/subtopics.\n\nCurrent partial curriculum:\n${JSON.stringify(bestPartialCandidate)}`
     try {
       let repaired: AIExamIntelligenceOutput | null = null
       if (process.env.GEMINI_API_KEY) {
