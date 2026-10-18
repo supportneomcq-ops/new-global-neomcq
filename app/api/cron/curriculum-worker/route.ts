@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
     jobs = (exams || []).map((exam: any) => ({
       task: TASK,
       exam_id: exam.id,
-      priority: /fmge|neet pg|neet ug|usmle/i.test(`${exam.name} ${exam.slug || ''}`) ? 10 : 5,
+      priority: 5,
       status: 'queued',
       max_attempts: 3,
       idempotency_key: `curriculum-rebuild-v1:${exam.id}`,
