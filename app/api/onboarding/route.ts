@@ -333,7 +333,7 @@ export async function POST(req: NextRequest) {
         // Persist the curriculum request before returning. The scheduled worker owns
         // generation and retries; signup no longer depends on request-bound after().
         const normalizeQueuePart = (value?: string | null) =>
-          String(value || '').toLowerCase().normalize('NFKD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+          String(value || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
         const examIdentityKey = [
           examName,
           examCountry || country || 'global',
