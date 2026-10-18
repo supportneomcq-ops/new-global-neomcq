@@ -748,6 +748,17 @@ export async function generateAIExamIntelligence(
   }
 
   const cleanName = examQuery.trim()
+  // Keep the most complete schema-valid response even when it falls short of the
+  // completeness gate. The resolver can reconcile this partial tree while the
+  // exam remains explicitly marked needs_enrichment; it must never be marked ready.
+  let bestPartialCandidate: AIExamIntelligenceOutput | null = null
+  const curriculumSize = (spec: AIExamIntelligenceOutput) => spec.subjects.reduce((total, subject) =>
+    total + (subject.topics || []).reduce((topicTotal, topic) => topicTotal + 1 + (topic.subtopics || []).length, 0), 0)
+  const keepMoreCompleteCandidate = (candidate: AIExamIntelligenceOutput) => {
+    if (!bestPartialCandidate || curriculumSize(candidate) > curriculumSize(bestPartialCandidate)) {
+      bestPartialCandidate = candidate
+    }
+  }
 
   const systemInstruction = `You are the Principal Psychometrician and Global Curriculum Architect for NeoMCQ.
 Your mission is to construct a rigorous, comprehensive Exam Intelligence Profile and Curriculum Specification for any examination worldwide.
@@ -837,10 +848,12 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
         const q = normalizeInput(cleanName).slug.toLowerCase()
         const minimumSubjects = /fmge|neet-pg|ini-cet/.test(q) ? 20 : /neet-ug|neetug/.test(q) ? 6 : /usmle-step-1|usmle-1/.test(q) ? 11 : /usmle-step-[23]|usmle-[23]/.test(q) ? 18 : /upsc/.test(q) ? 6 : /aws.*(solution|architect)|solutions-architect/.test(q) ? 4 : 1
         if (validated.data.subjects.length < minimumSubjects) {
+          keepMoreCompleteCandidate(validated.data)
           console.warn(`[Exam Intelligence] Incomplete Gemini curriculum rejected for ${cleanName}: ${validated.data.subjects.length}/${minimumSubjects} minimum subjects. Trying fallback provider.`)
           throw new Error('Gemini curriculum did not meet minimum subject coverage.')
         }
         if (!isCurriculumSpecComprehensive(cleanName, validated.data)) {
+          keepMoreCompleteCandidate(validated.data)
           console.warn(`[Exam Intelligence] Gemini curriculum failed breadth/depth validation for ${cleanName}; trying fallback provider.`)
           throw new Error('Gemini curriculum did not meet minimum topic/subtopic coverage.')
         }
@@ -946,6 +959,7 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
           if (validated.data.subjects.length >= minimumSubjects && isCurriculumSpecComprehensive(cleanName, validated.data)) {
             return validated.data
           }
+          keepMoreCompleteCandidate(validated.data)
           const rejectedTopicCount = validated.data.subjects.reduce((n: number, subject: any) => n + (subject.topics || []).length, 0)
           const rejectedSubtopicCount = validated.data.subjects.reduce((n: number, subject: any) => n + (subject.topics || []).reduce((m: number, topic: any) => m + (topic.subtopics || []).length, 0), 0)
           console.warn(`[Exam Intelligence] OpenAI curriculum rejected for ${cleanName}: subjects=${validated.data.subjects.length}/${minimumSubjects}, topics=${rejectedTopicCount}, subtopics=${rejectedSubtopicCount}; breadth/depth/duplicate/filler check failed.`)
@@ -960,7 +974,44 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
     }
   }
 
-  return null
+  // One bounded repair pass gives the model a concrete partial syllabus to extend,
+  // instead of repeatedly asking it to regenerate from scratch. Only a response
+  // that passes the full completeness gate can be considered ready downstream.
+  if (bestPartialCandidate) {
+    const repairPrompt = `Repair and COMPLETE this incomplete exam curriculum for "${cleanName}". Return only one JSON object matching the NeoMCQ exam-intelligence schema (exam, subjects, content_generation_rules, confidence). Preserve correct exam-specific subject names. Every subject must have at least 5 distinct meaningful topics, and every topic at least 3 distinct meaningful subtopics. Respect exact official subject/domain counts for this exam where applicable. Do not use generic filler, duplicate names, or invent official exam rules. Unknown exam-rule fields must remain unknown/default and must not be described as verified. The supplied tree is a starting point, not a limit; add missing domain-specific topics/subtopics.\n\nCurrent partial curriculum:\n${JSON.stringify(bestPartialCandidate)}`
+    try {
+      let repaired: AIExamIntelligenceOutput | null = null
+      if (process.env.GEMINI_API_KEY) {
+        const repairAi = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
+        const repairResponse = await repairAi.models.generateContent({
+          model: process.env.GEMINI_CURRICULUM_MODEL || 'gemini-2.5-flash',
+          contents: repairPrompt,
+          config: { systemInstruction, responseMimeType: 'application/json', maxOutputTokens: 16000, temperature: 0.1 },
+        })
+        const parsedRepair = JSON.parse(repairResponse.text || '{}')
+        const validatedRepair = AIExamIntelligenceOutputSchema.safeParse(parsedRepair)
+        if (validatedRepair.success) repaired = validatedRepair.data
+      } else if (process.env.OPENAI_API_KEY) {
+        const repairOpenAI = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 75000, maxRetries: 0 })
+        const repairCompletion = await repairOpenAI.chat.completions.create({
+          model: process.env.OPENAI_CURRICULUM_MODEL || 'gpt-4o-mini',
+          messages: [{ role: 'system', content: systemInstruction }, { role: 'user', content: repairPrompt }],
+          response_format: { type: 'json_object' }, temperature: 0.1, max_tokens: 16000,
+        })
+        const parsedRepair = JSON.parse(repairCompletion.choices[0]?.message?.content || '{}')
+        const validatedRepair = AIExamIntelligenceOutputSchema.safeParse(parsedRepair)
+        if (validatedRepair.success) repaired = validatedRepair.data
+      }
+      if (repaired && isCurriculumSpecComprehensive(cleanName, repaired)) return repaired
+      if (repaired) keepMoreCompleteCandidate(repaired)
+    } catch (repairError: any) {
+      console.warn('[Exam Intelligence] Compact curriculum repair pass failed:', repairError?.message || 'Unknown repair error')
+    }
+  }
+
+  // Preserve partial domain-specific output for reconciliation, but downstream
+  // validation continues to mark it needs_enrichment until the full gate passes.
+  return bestPartialCandidate
 }
 
 // ============================================================================
