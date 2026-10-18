@@ -169,101 +169,111 @@ export async function GET(req: NextRequest) {
     examId = result.exam.id
 
     const { data: persisted, error: verifyError } = await admin.from('exams')
-      .select('id, name, metadata, exam_subjects(id, active, is_active, exam_topics(id, active, is_active, exam_subtopics(id, is_active)))')
+      .select('id, name, metadata, exam_subjects(id, name, active, is_active, exam_topics(id, name, active, is_active, exam_subtopics(id, name, is_active)))')
       .eq('id', examId)
       .maybeSingle()
     if (verifyError || !persisted) throw new Error('Could not verify the saved curriculum.')
 
+    const metadata = persisted.metadata || {}
+    const spec = metadata.curriculum_spec_cache
+    const expectedSubjects = Array.isArray(spec?.subjects) ? spec.subjects : []
     const allSubjects = persisted.exam_subjects || []
     const subjects = allSubjects.filter((s: any) => s.is_active !== false && s.active !== false)
-    const topics = subjects.flatMap((s: any) => (s.exam_topics || []).filter((t: any) => t.is_active !== false && t.active !== false))
-    const topicCount = topics.length
-    const subtopicCount = topics.reduce((n: number, t: any) => n + (t.exam_subtopics || []).filter((st: any) => st.is_active !== false).length, 0)
-    const metadata = persisted.metadata || {}
-    const examKey = String(persisted.name || examName).toLowerCase()
-    const minimumSubjects = /fmge|neet\s*pg|ini-cet/.test(examKey) ? 20
-      : /neet\s*ug/.test(examKey) ? 6
-      : /usmle\s*step\s*[123]/.test(examKey) ? 8
-      : /upsc/.test(examKey) ? 6
-      : /aws.*(solution|architect)|solutions-architect/.test(examKey) ? 4
-      : 1
-    // Do not confuse a syntactically populated tree with a complete syllabus.
-    const minimumTopics = /fmge|neet\s*pg|ini-cet/.test(examKey) ? Math.max(100, subjects.length * 5)
-      : /neet\s*ug/.test(examKey) ? 30
-      : /usmle\s*step\s*1/.test(examKey) ? 40
-      : /usmle\s*step\s*[23]/.test(examKey) ? 40
-      : /upsc/.test(examKey) ? 30
-      : /aws.*(solution|architect)|solutions-architect/.test(examKey) ? 20
-      : Math.max(8, subjects.length * 5)
-    const minimumSubtopics = Math.max(minimumTopics * 3, topicCount * 3)
-    const normalized = (value: string) => String(value || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim()
-    const hasDuplicates = (values: string[]) => {
-      const keys = values.map(normalized).filter(Boolean)
-      return new Set(keys).size !== keys.length
+    const normalize = (value: unknown) => String(value || '')
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+    const activeChildren = (items: any[]) => (items || []).filter((item: any) =>
+      item.is_active !== false && item.active !== false
+    )
+    const findByName = (items: any[], name: string) =>
+      activeChildren(items).find((item: any) => normalize(item.name) === normalize(name))
+    const genericLabel = /^(subject|topic|subtopic|core subject|core topic|topic number|module)\s*\d*$/i
+
+    // Validate the persisted database hierarchy against the cached exam-specific
+    // specification. This is intentionally universal: never infer subject/topic
+    // counts from a few hard-coded exams. User-added extra nodes remain allowed.
+    let missingSubjects: string[] = []
+    let topicCoverageFailures: string[] = []
+    let subtopicCoverageFailures: string[] = []
+    let hasInvalidLabels = false
+
+    if (expectedSubjects.length > 0) {
+      for (const expectedSubject of expectedSubjects) {
+        const savedSubject = findByName(subjects, expectedSubject.name)
+        if (!savedSubject) {
+          missingSubjects.push(String(expectedSubject.name || '(unnamed subject)'))
+          continue
+        }
+        if (genericLabel.test(String(savedSubject.name || '').trim())) hasInvalidLabels = true
+
+        const expectedTopics = Array.isArray(expectedSubject.topics) ? expectedSubject.topics : []
+        const savedTopics = activeChildren(savedSubject.exam_topics || [])
+        if (expectedTopics.length === 0) {
+          topicCoverageFailures.push(String(expectedSubject.name || '(unnamed subject)'))
+          continue
+        }
+
+        let matchedTopics = 0
+        for (const expectedTopic of expectedTopics) {
+          const savedTopic = findByName(savedTopics, expectedTopic.name)
+          if (!savedTopic) continue
+          matchedTopics += 1
+          if (genericLabel.test(String(savedTopic.name || '').trim())) hasInvalidLabels = true
+
+          const expectedSubtopics = Array.isArray(expectedTopic.subtopics) ? expectedTopic.subtopics : []
+          const savedSubtopics = activeChildren(savedTopic.exam_subtopics || [])
+          const matchedSubtopics = expectedSubtopics.filter((expectedSubtopic: any) =>
+            Boolean(findByName(savedSubtopics, expectedSubtopic.name))
+          ).length
+
+          // A topic must have at least one meaningful saved subtopic, and at
+          // least 80% of its expected subtopics must be present.
+          if (
+            savedSubtopics.length === 0 ||
+            (expectedSubtopics.length > 0 && matchedSubtopics / expectedSubtopics.length < 0.8)
+          ) {
+            subtopicCoverageFailures.push(\`\${expectedSubject.name} > \${expectedTopic.name}\`)
+          }
+        }
+
+        // Every expected subject is required; at least 80% of each subject's
+        // expected topics must be present in the persisted hierarchy.
+        if (matchedTopics / expectedTopics.length < 0.8) {
+          topicCoverageFailures.push(String(expectedSubject.name || '(unnamed subject)'))
+        }
+      }
     }
-    const exactSubjectCount = /fmge/.test(examKey) ? 20 : /usmle\s*step\s*1/.test(examKey) ? 11 : /usmle\s*step\s*[23]/.test(examKey) ? 18 : null
-    const exactCountValid = exactSubjectCount === null || subjects.length === exactSubjectCount
-    const requiredUSMLE1 = [
-      'Human Development',
-      'Blood & Lymphoreticular/Immune Systems',
-      'Behavioral Health & Nervous Systems/Special Senses',
-      'Musculoskeletal, Skin & Subcutaneous Tissue',
-      'Cardiovascular System',
-      'Respiratory & Renal/Urinary Systems',
-      'Gastrointestinal System',
-      'Reproductive & Endocrine Systems',
-      'Multisystem Processes & Disorders',
-      'Biostatistics & Epidemiology/Population Health',
-      'Social Sciences: Communication and Interpersonal Skills',
-    ]
-    const requiredUSMLE2And3 = [
-      'Human Development',
-      'Immune System',
-      'Blood & Lymphoreticular System',
-      'Behavioral Health',
-      'Nervous System & Special Senses',
-      'Skin & Subcutaneous Tissue',
-      'Musculoskeletal System',
-      'Cardiovascular System',
-      'Respiratory System',
-      'Gastrointestinal System',
-      'Renal & Urinary System',
-      'Pregnancy, Childbirth, & the Puerperium',
-      'Female Reproductive System & Breast',
-      'Male Reproductive System',
-      'Endocrine System',
-      'Multisystem Processes & Disorders',
-      'Biostatistics, Epidemiology/Population Health, & Interpretation of the Medical Literature',
-      'Social Sciences',
-    ]
-    const usmle1CoverageValid = !/usmle\s*step\s*1/.test(examKey) ||
-      requiredUSMLE1.every((required) => subjects.some((s: any) => normalized(s.name) === normalized(required)))
-    const usmle2And3CoverageValid = !/usmle\s*step\s*[23]/.test(examKey) ||
-      requiredUSMLE2And3.every((required) => subjects.some((s: any) => normalized(s.name) === normalized(required)))
-    const everySubjectHasBreadth = subjects.every((s: any) => {
-      const activeTopics = (s.exam_topics || []).filter((t: any) => t.is_active !== false && t.active !== false)
-      return activeTopics.length >= 5 && activeTopics.every((t: any) =>
-        (t.exam_subtopics || []).filter((st: any) => st.is_active !== false).length >= 3
-      )
-    })
-    const duplicateSubjects = hasDuplicates(subjects.map((s: any) => s.name))
-    const duplicateTopics = subjects.some((s: any) => {
-      const activeTopics = (s.exam_topics || []).filter((t: any) => t.is_active !== false && t.active !== false)
-      return hasDuplicates(activeTopics.map((t: any) => t.name))
-    })
-    const duplicateSubtopics = topics.some((t: any) => {
-      const activeSubtopics = (t.exam_subtopics || []).filter((st: any) => st.is_active !== false)
-      return hasDuplicates(activeSubtopics.map((st: any) => st.name))
-    })
-    const genericLabels = /^(core foundations?(&|and)? principles|advanced practice(&|and)? applied problem solving|fundamental concepts(&|and)? standards|case scenarios(&|and)? practice applications|topic \d+|core subject \d+)$/i
-    const hasGenericFiller = subjects.some((s: any) => genericLabels.test(String(s.name || '').trim())) ||
-      topics.some((t: any) => genericLabels.test(String(t.name || '').trim()))
-    const validated = metadata.curriculum_validation_version === 3 &&
+
+    const topicRows = subjects.flatMap((subject: any) => activeChildren(subject.exam_topics || []))
+    const subtopicRows = topicRows.flatMap((topic: any) => activeChildren(topic.exam_subtopics || []))
+    const hasDuplicateNames = (items: any[]) => {
+      const names = items.map((item: any) => normalize(item.name)).filter(Boolean)
+      return new Set(names).size !== names.length
+    }
+    const duplicateSubjects = hasDuplicateNames(subjects)
+    const duplicateTopics = subjects.some((subject: any) =>
+      hasDuplicateNames(activeChildren(subject.exam_topics || []))
+    )
+    const duplicateSubtopics = topicRows.some((topic: any) =>
+      hasDuplicateNames(activeChildren(topic.exam_subtopics || []))
+    )
+    const validated =
+      metadata.curriculum_validation_version === 3 &&
       metadata.curriculum_validation_passed === true &&
-      subjects.length >= minimumSubjects && exactCountValid && usmle1CoverageValid && usmle2And3CoverageValid &&
-      topicCount >= minimumTopics &&
-      subtopicCount >= minimumSubtopics &&
-      !duplicateSubjects && !duplicateTopics && !duplicateSubtopics && !hasGenericFiller && everySubjectHasBreadth
+      expectedSubjects.length > 0 &&
+      missingSubjects.length === 0 &&
+      topicCoverageFailures.length === 0 &&
+      subtopicCoverageFailures.length === 0 &&
+      !hasInvalidLabels &&
+      !duplicateSubjects &&
+      !duplicateTopics &&
+      !duplicateSubtopics &&
+      subjects.length > 0 &&
+      topicRows.length > 0 &&
+      subtopicRows.length > 0
 
     if (!validated) {
       await admin.from('exams').update({
@@ -271,10 +281,21 @@ export async function GET(req: NextRequest) {
           ...metadata,
           curriculum_validation_passed: false,
           curriculum_status: 'needs_enrichment',
+          curriculum_validation_errors: {
+            missingSubjects: missingSubjects.slice(0, 30),
+            topicCoverageFailures: topicCoverageFailures.slice(0, 30),
+            subtopicCoverageFailures: subtopicCoverageFailures.slice(0, 30),
+            hasInvalidLabels,
+            duplicateSubjects,
+            duplicateTopics,
+            duplicateSubtopics,
+          },
         },
         updated_at: new Date().toISOString(),
       }).eq('id', examId)
-      throw new Error(`Curriculum did not pass persisted hierarchy validation (active subjects=${subjects.length}/${minimumSubjects}, active topics=${topicCount}, active subtopics=${subtopicCount}).`)
+      throw new Error(
+        \`Curriculum failed universal saved-hierarchy validation (expected subjects=\${expectedSubjects.length}, missing subjects=\${missingSubjects.length}, topic coverage failures=\${topicCoverageFailures.length}, subtopic coverage failures=\${subtopicCoverageFailures.length}).\`
+      )
     }
 
     // Attach the verified canonical curriculum to a learner only after the
