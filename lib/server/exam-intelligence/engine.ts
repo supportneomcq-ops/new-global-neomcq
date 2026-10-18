@@ -910,7 +910,7 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
           keepMoreCompleteCandidate(validated.data)
           const rejectedTopicCount = validated.data.subjects.reduce((n: number, subject: any) => n + (subject.topics || []).length, 0)
           const rejectedSubtopicCount = validated.data.subjects.reduce((n: number, subject: any) => n + (subject.topics || []).reduce((m: number, topic: any) => m + (topic.subtopics || []).length, 0), 0)
-          console.warn(`[Exam Intelligence] OpenAI curriculum rejected for ${cleanName}: subjects=${validated.data.subjects.length}/${minimumSubjects}, topics=${rejectedTopicCount}, subtopics=${rejectedSubtopicCount}; breadth/depth/duplicate/filler check failed.`)
+          console.warn(`[Exam Intelligence] OpenAI curriculum rejected for ${cleanName}: topics=${rejectedTopicCount}, subtopics=${rejectedSubtopicCount}; universal breadth/depth/duplicate/filler check failed.`)
         } else {
           console.warn('[Exam Intelligence] OpenAI curriculum did not match the required schema.')
         }
@@ -1900,40 +1900,6 @@ export async function enrichCurriculumProcess(
         topic.subtopics.filter((subtopic: any) => subtopic.status === 'matched').length / topic.subtopics.length >= 0.8
       )
     )
-  // For the explicitly defined FMGE and USMLE Step 1 blueprints, deactivate
-  // legacy subject rows that are not part of the accepted canonical structure.
-  // Their records and learning content are retained; only visibility is changed.
-  const canonicalExamKey = normalizeInput(examName).slug.toLowerCase()
-  if (hierarchyTargetsMet && /fmge|usmle-step-[123]|usmle-[123]/.test(canonicalExamKey)) {
-    const { data: activeSubjectRows, error: activeSubjectRowsError } = await supabase
-      .from('exam_subjects').select('id,name').eq('exam_id', examId).eq('is_active', true)
-    if (activeSubjectRowsError) throw new Error(`Failed to inspect canonical subjects: ${activeSubjectRowsError.message}`)
-    const staleRows = (activeSubjectRows || []).filter((row: any) =>
-      !findMatchingSubjectInList(row.name, aiSpec.subjects)
-    )
-    const staleIds = staleRows.map((row: any) => row.id)
-    if (staleIds.length > 0) {
-      const { data: staleTopics, error: staleTopicsError } = await supabase
-        .from('exam_topics').select('id').in('subject_id', staleIds)
-      if (staleTopicsError) throw new Error(`Failed to inspect stale topics: ${staleTopicsError.message}`)
-      const staleTopicIds = (staleTopics || []).map((row: any) => row.id)
-      if (staleTopicIds.length > 0) {
-        const { error: staleSubtopicsError } = await supabase
-          .from('exam_subtopics').update({ is_active: false }).in('topic_id', staleTopicIds)
-        if (staleSubtopicsError) throw new Error(`Failed to deactivate stale subtopics: ${staleSubtopicsError.message}`)
-      }
-      if (staleTopicIds.length > 0) {
-        const { error: staleTopicsUpdateError } = await supabase
-          .from('exam_topics').update({ is_active: false }).in('id', staleTopicIds)
-        if (staleTopicsUpdateError) throw new Error(`Failed to deactivate stale topics: ${staleTopicsUpdateError.message}`)
-      }
-      const { error: staleSubjectsUpdateError } = await supabase
-        .from('exam_subjects').update({ is_active: false }).in('id', staleIds)
-      if (staleSubjectsUpdateError) throw new Error(`Failed to deactivate stale subjects: ${staleSubjectsUpdateError.message}`)
-    }
-  }
-
-
   // Calculate actual row counts
   const finalSubjectsRaw = comparisonReport.subjects.length > 0 ? (await supabase
     .from('exam_subjects')
