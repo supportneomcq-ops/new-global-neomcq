@@ -60,8 +60,8 @@ interface LearningContentEngineProps {
 }
 
 export function LearningContentEngine({
-  initialExamName = 'USMLE Step 1 & 2 CK',
-  initialSubjectName = 'Human Anatomy',
+  initialExamName = 'Your exam',
+  initialSubjectName = 'Select a subject',
 }: LearningContentEngineProps) {
   const { selection, setSubject, setTopic, refreshHierarchy } = useSelection()
 
