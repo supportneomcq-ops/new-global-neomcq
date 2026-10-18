@@ -675,12 +675,12 @@ function isCurriculumSpecComprehensive(_examName: string, spec: AIExamIntelligen
 
   for (const subject of subjects as any[]) {
     const topics = Array.isArray(subject.topics) ? subject.topics : []
-    if (topics.length === 0 || !uniqueMeaningfulNames(topics.map((topic: any) => topic.name))) return false
+    if (topics.length < 5 || !uniqueMeaningfulNames(topics.map((topic: any) => topic.name))) return false
     if (genericLabel.test(String(subject.name || '').trim())) return false
 
     for (const topic of topics) {
       const subtopics = Array.isArray(topic.subtopics) ? topic.subtopics : []
-      if (subtopics.length === 0 || !uniqueMeaningfulNames(subtopics.map((item: any) => item.name))) return false
+      if (subtopics.length < 3 || !uniqueMeaningfulNames(subtopics.map((item: any) => item.name))) return false
       if (genericLabel.test(String(topic.name || '').trim())) return false
       if (subtopics.some((item: any) => genericLabel.test(String(item.name || '').trim()))) return false
     }
@@ -733,7 +733,7 @@ CRITICAL ARCHITECTURAL DIRECTIVES:
    - Classify question types: standard_mcq, clinical_vignette, case_based, calculation, image_based, scenario_architecture.
 2. CURRICULUM HIERARCHY:
    - Discover the complete subject and topic blueprint for THIS exam from its official examination authority, current official syllabus/notification, or reliable domain-specific reference. Do not reuse another exam's structure or hard-code assumptions based on exam name.
-   - Include every official subject/domain. Include exam-specific topics and subtopics supported by the syllabus; each topic must have at least one meaningful subtopic.
+   - Include every official subject/domain. For every subject, generate at least five distinct meaningful exam-specific topics; for every topic, generate at least three distinct meaningful subtopics. These are universal minimum-depth checks, not substitutes for official syllabus coverage.
    - Preserve official subject boundaries, stages, papers and levels. Never merge separate exams or silently omit independently tested domains.
    - Do not invent official rules, counts, subject names or source URLs. Record uncertain facts as unknown / needing verification and keep curriculum status pending until evidence and hierarchy checks pass.
    - Avoid generic placeholders, duplicate subjects/topics/subtopics, repeated topic lists, and filler labels.
@@ -926,7 +926,7 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
   // instead of repeatedly asking it to regenerate from scratch. Only a response
   // that passes the full completeness gate can be considered ready downstream.
   if (bestPartialCandidate) {
-    const repairPrompt = `Repair and COMPLETE this incomplete exam curriculum for "${cleanName}". Return only one JSON object matching the NeoMCQ exam-intelligence schema (exam, subjects, content_generation_rules, confidence). Preserve correct exam-specific subject names. Include every subject/domain in the official exam blueprint. Every topic must have at least one distinct meaningful subtopic. Preserve official subject boundaries and current syllabus scope. Do not use generic filler, duplicate names, or invent official exam rules. Unknown exam-rule fields must remain unknown/default and must not be described as verified. The supplied tree is a starting point, not a limit; add missing domain-specific topics/subtopics.\n\nCurrent partial curriculum:\n${JSON.stringify(bestPartialCandidate)}`
+    const repairPrompt = `Repair and COMPLETE this incomplete exam curriculum for "${cleanName}". Return only one JSON object matching the NeoMCQ exam-intelligence schema (exam, subjects, content_generation_rules, confidence). Preserve correct exam-specific subject names. Include every subject/domain in the official exam blueprint. Every subject must have at least five distinct meaningful topics, and every topic at least three distinct meaningful subtopics. Preserve official subject boundaries and current syllabus scope. Do not use generic filler, duplicate names, or invent official exam rules. Unknown exam-rule fields must remain unknown/default and must not be described as verified. The supplied tree is a starting point, not a limit; add missing domain-specific topics/subtopics.\n\nCurrent partial curriculum:\n${JSON.stringify(bestPartialCandidate)}`
     try {
       let repaired: AIExamIntelligenceOutput | null = null
       if (process.env.GEMINI_API_KEY) {
