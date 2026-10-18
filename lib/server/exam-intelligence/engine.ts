@@ -739,7 +739,7 @@ CRITICAL ARCHITECTURAL DIRECTIVES:
    - Avoid generic placeholders, duplicate subjects/topics/subtopics, repeated topic lists, and filler labels.
    - If you cannot confidently produce a complete, exam-specific hierarchy, do not claim that the syllabus is complete.
    - IMPORTANT: This stage creates ONLY the curriculum structure (names and descriptions). DO NOT generate MCQs, quizzes, flashcards, notes, or AI lessons in this profile.
-   - Ensure subjects, topics, and subtopics are genuinely, domain-accurately relevant to "\${cleanName}".
+   - Ensure subjects, topics, and subtopics are genuinely, domain-accurately relevant to "${cleanName}".
 3. GENERATION RULES:
    - Configure distinct content rules for MCQs, Quizzes, Flashcards, AI Tutor, and Notes.
 
