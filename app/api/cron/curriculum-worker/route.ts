@@ -235,7 +235,7 @@ export async function GET(req: NextRequest) {
             savedSubtopics.length === 0 ||
             (expectedSubtopics.length > 0 && matchedSubtopics / expectedSubtopics.length < 0.8)
           ) {
-            subtopicCoverageFailures.push(\`\${expectedSubject.name} > \${expectedTopic.name}\`)
+            subtopicCoverageFailures.push(`${expectedSubject.name} > ${expectedTopic.name}`)
           }
         }
 
@@ -294,7 +294,7 @@ export async function GET(req: NextRequest) {
         updated_at: new Date().toISOString(),
       }).eq('id', examId)
       throw new Error(
-        \`Curriculum failed universal saved-hierarchy validation (expected subjects=\${expectedSubjects.length}, missing subjects=\${missingSubjects.length}, topic coverage failures=\${topicCoverageFailures.length}, subtopic coverage failures=\${subtopicCoverageFailures.length}).\`
+        `Curriculum failed universal saved-hierarchy validation (expected subjects=${expectedSubjects.length}, missing subjects=${missingSubjects.length}, topic coverage failures=${topicCoverageFailures.length}, subtopic coverage failures=${subtopicCoverageFailures.length}).`
       )
     }
 
