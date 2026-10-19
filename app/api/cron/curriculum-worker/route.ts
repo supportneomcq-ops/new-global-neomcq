@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
   // Bulk catalogue backfill is opt-in only. The cron worker must prioritize
   // signup-triggered/on-demand work instead of generating jobs for every exam
   // on every invocation. Run with ?backfill=1 only for an intentional audit.
+  const requestedJobId = req.nextUrl.searchParams.get('jobId')
   const backfillRequested = req.nextUrl.searchParams.get('backfill') === '1'
   let jobs: any[] = []
   if (backfillRequested) {
@@ -87,6 +88,7 @@ export async function GET(req: NextRequest) {
   if (!backfillRequested) {
     failedQuery = failedQuery.or('input_payload->>source.is.null,input_payload->>source.neq.existing_exam_backfill')
   }
+  if (requestedJobId) failedQuery = failedQuery.eq('id', requestedJobId)
   const { data: failed } = await failedQuery
     .order('priority', { ascending: false })
     .order('created_at', { ascending: true })
@@ -101,6 +103,7 @@ export async function GET(req: NextRequest) {
     if (!backfillRequested) {
       queuedQuery = queuedQuery.or('input_payload->>source.is.null,input_payload->>source.neq.existing_exam_backfill')
     }
+    if (requestedJobId) queuedQuery = queuedQuery.eq('id', requestedJobId)
     const { data: queued } = await queuedQuery
       .order('priority', { ascending: false })
       .order('created_at', { ascending: true })
