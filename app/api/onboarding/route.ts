@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { after, NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { z } from 'zod'
@@ -346,7 +346,7 @@ export async function POST(req: NextRequest) {
         const curriculumKey = finalExamId
           ? `curriculum-onboarding-v1:${finalExamId}:${targetUserId}`
           : `curriculum-onboarding-v1:new:${examIdentityKey}:${targetUserId}`
-        const { error: queueError } = await (admin as any).from('ai_jobs').upsert({
+        const { data: insertedJob, error: queueError } = await (admin as any).from('ai_jobs').upsert({
           task: 'curriculum_rebuild',
           exam_id: finalExamId,
           priority: 5,
@@ -366,12 +366,101 @@ export async function POST(req: NextRequest) {
           progress_stage: 'Queued for curriculum generation',
           step_percentage: 0,
         }, { onConflict: 'idempotency_key', ignoreDuplicates: true })
+          .select('id, status, attempts, max_attempts')
+          .maybeSingle()
+
         if (queueError) {
           console.error('[Onboarding] Could not queue durable curriculum job:', queueError.message)
           return NextResponse.json({
             success: false,
             error: 'Your account was saved, but curriculum setup could not be queued. Please retry setup.',
           }, { status: 503 })
+        }
+
+        // An idempotent upsert may return no row when the same job already exists.
+        // Read that durable job so retries can resume instead of silently doing nothing.
+        const { data: existingJob, error: jobLookupError } = insertedJob
+          ? { data: insertedJob, error: null }
+          : await (admin as any).from('ai_jobs')
+              .select('id, status, attempts, max_attempts')
+              .eq('idempotency_key', curriculumKey)
+              .maybeSingle()
+
+        if (jobLookupError || !existingJob) {
+          console.error('[Onboarding] Queued curriculum job could not be read:', jobLookupError?.message)
+          return NextResponse.json({
+            success: false,
+            error: 'Your account was saved, but curriculum setup could not be confirmed. Please retry setup.',
+          }, { status: 503 })
+        }
+
+        let jobToKick = existingJob
+        if (
+          jobToKick.status === 'failed' &&
+          Number(jobToKick.attempts || 0) >= Number(jobToKick.max_attempts || 3)
+        ) {
+          const { data: resetJob, error: resetError } = await (admin as any).from('ai_jobs')
+            .update({
+              status: 'queued',
+              attempts: 0,
+              max_attempts: 3,
+              error: null,
+              started_at: null,
+              completed_at: null,
+              progress_stage: 'Queued for a fresh curriculum retry',
+              step_percentage: 0,
+            })
+            .eq('id', jobToKick.id)
+            .eq('status', 'failed')
+            .select('id, status, attempts, max_attempts')
+            .maybeSingle()
+
+          if (resetError || !resetJob) {
+            console.error('[Onboarding] Failed curriculum job could not be requeued:', resetError?.message)
+            return NextResponse.json({
+              success: false,
+              error: 'Your account was saved, but curriculum retry could not be queued. Please retry setup.',
+            }, { status: 503 })
+          }
+          jobToKick = resetJob
+        }
+
+        // Vercel Hobby cron runs only once daily. Kick off this learner's exact
+        // durable job after returning the onboarding response instead of making
+        // the learner wait for tomorrow's cron. The CRON_SECRET stays server-side.
+        if (jobToKick.status === 'queued' || jobToKick.status === 'failed') {
+          const jobIdForKickoff = jobToKick.id as string
+          const workerOrigin = new URL(req.url).origin
+          after(async () => {
+            const cronSecret = process.env.CRON_SECRET
+            if (!cronSecret) {
+              console.error('[Onboarding] CRON_SECRET is missing; curriculum job remains queued for cron recovery.')
+              return
+            }
+            try {
+              const workerResponse = await fetch(
+                `${workerOrigin}/api/cron/curriculum-worker?jobId=${encodeURIComponent(jobIdForKickoff)}`,
+                {
+                  method: 'GET',
+                  headers: { authorization: `Bearer ${cronSecret}` },
+                  cache: 'no-store',
+                }
+              )
+              const workerResult = await workerResponse.json().catch(() => ({}))
+              if (!workerResponse.ok || workerResult.success === false) {
+                console.error('[Onboarding] Immediate curriculum worker did not complete successfully:', {
+                  jobId: jobIdForKickoff,
+                  status: workerResponse.status,
+                  error: workerResult.error || workerResult.message || 'Unknown worker failure',
+                })
+              }
+            } catch (kickoffError: any) {
+              console.error('[Onboarding] Immediate curriculum worker request failed:', {
+                jobId: jobIdForKickoff,
+                error: kickoffError?.message || 'Unknown kickoff error',
+              })
+            }
+          })
         }
       }
     }
