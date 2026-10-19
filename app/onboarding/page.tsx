@@ -1552,7 +1552,7 @@ export default function OnboardingPage() {
                     Setting Up Your Exam
                   </h1>
                   <p className="text-xs sm:text-sm text-slate-500 dark:text-gray-400 max-w-md mx-auto">
-                    Preparing the latest available curriculum for <strong className="text-[#00D4FF]">{formData.selectedExamName}</strong>...
+                    Saving your account first. Curriculum generation for <strong className="text-[#00D4FF]">{formData.selectedExamName}</strong> continues in the background and is marked ready only after the saved subject, topic, and subtopic hierarchy passes validation.
                   </p>
                 </div>
 
@@ -1569,12 +1569,12 @@ export default function OnboardingPage() {
                 {/* Step Item Checklist */}
                 <div className="space-y-2.5 text-left max-w-md mx-auto pt-2">
                   {[
-                    'Confirming your exam and its official name',
-                    'Curriculum framework resolved in database',
-                    'Preparing your exam subjects',
-                    'Organizing topics from the syllabus',
-                    'Subtopics & modules verified',
-                    'Preparing your account and study workspace',
+                    'Confirming the selected exam and jurisdiction',
+                    'Creating your learner account',
+                    'Saving study preferences',
+                    'Persisting the curriculum-generation job',
+                    'Requesting background curriculum processing',
+                    'Finishing account setup; curriculum status is tracked separately',
                   ].map((label, idx) => {
                     const isDone = activePrepIndex > idx;
                     const isCurrent = activePrepIndex === idx;
