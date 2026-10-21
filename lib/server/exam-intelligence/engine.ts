@@ -652,12 +652,34 @@ export const VERIFIED_EXAM_TEMPLATES: Record<string, StandardCurriculumTemplate>
   },
 }
 
-// Universal curriculum quality gate. It deliberately contains no exam-name-specific
-// rules: the same structural standard applies to every exam, country, discipline and level.
-// Official subject coverage is checked separately by compareCurricula/evidence validation.
-function isCurriculumSpecComprehensive(_examName: string, spec: AIExamIntelligenceOutput): boolean {
+// Universal curriculum quality gate.
+// Adapts subject, topic, and subtopic depth requirements dynamically based on exam difficulty level.
+function isCurriculumSpecComprehensive(examName: string, spec: AIExamIntelligenceOutput, levelHint?: string): boolean {
   const subjects = Array.isArray(spec.subjects) ? spec.subjects : []
   if (subjects.length === 0) return false
+
+  const normalizedLevel = (levelHint || spec.exam?.difficulty_level || '').toLowerCase()
+  const normalizedCategory = (spec.exam?.category || '').toLowerCase()
+  const isHighDifficulty =
+    normalizedLevel.includes('advanced') ||
+    normalizedLevel.includes('expert') ||
+    normalizedLevel.includes('medical') ||
+    normalizedLevel.includes('competitive') ||
+    normalizedLevel.includes('licensing') ||
+    normalizedCategory.includes('medical') ||
+    normalizedCategory.includes('engineering') ||
+    normalizedCategory.includes('civil-services') ||
+    normalizedCategory.includes('finance') ||
+    /usmle|fmge|neet|jee|upsc|cfa|cpa|nclex|aws|bar|gate/i.test(examName)
+
+  const isFoundationDifficulty =
+    normalizedLevel.includes('beginner') ||
+    normalizedLevel.includes('school') ||
+    normalizedLevel.includes('foundation') ||
+    normalizedLevel.includes('basic')
+
+  const minTopics = isFoundationDifficulty ? 3 : isHighDifficulty ? 5 : 4
+  const minSubtopics = isFoundationDifficulty ? 2 : isHighDifficulty ? 3 : 2
 
   const normalize = (value: unknown) => String(value || '')
     .normalize('NFKD')
@@ -675,12 +697,12 @@ function isCurriculumSpecComprehensive(_examName: string, spec: AIExamIntelligen
 
   for (const subject of subjects as any[]) {
     const topics = Array.isArray(subject.topics) ? subject.topics : []
-    if (topics.length < 5 || !uniqueMeaningfulNames(topics.map((topic: any) => topic.name))) return false
+    if (topics.length < minTopics || !uniqueMeaningfulNames(topics.map((topic: any) => topic.name))) return false
     if (genericLabel.test(String(subject.name || '').trim())) return false
 
     for (const topic of topics) {
       const subtopics = Array.isArray(topic.subtopics) ? topic.subtopics : []
-      if (subtopics.length < 3 || !uniqueMeaningfulNames(subtopics.map((item: any) => item.name))) return false
+      if (subtopics.length < minSubtopics || !uniqueMeaningfulNames(subtopics.map((item: any) => item.name))) return false
       if (genericLabel.test(String(topic.name || '').trim())) return false
       if (subtopics.some((item: any) => genericLabel.test(String(item.name || '').trim()))) return false
     }
@@ -705,6 +727,36 @@ export async function generateAIExamIntelligence(
   }
 
   const cleanName = examQuery.trim()
+  const normalizedLevel = (levelHint || '').toLowerCase()
+  const normalizedCategory = (categoryHint || '').toLowerCase()
+  const isHighDifficulty =
+    normalizedLevel.includes('advanced') ||
+    normalizedLevel.includes('expert') ||
+    normalizedLevel.includes('medical') ||
+    normalizedLevel.includes('competitive') ||
+    normalizedLevel.includes('licensing') ||
+    normalizedCategory.includes('medical') ||
+    normalizedCategory.includes('engineering') ||
+    normalizedCategory.includes('civil-services') ||
+    normalizedCategory.includes('finance') ||
+    /usmle|fmge|neet|jee|upsc|cfa|cpa|nclex|aws|bar|gate/i.test(cleanName)
+
+  const isFoundationDifficulty =
+    normalizedLevel.includes('beginner') ||
+    normalizedLevel.includes('school') ||
+    normalizedLevel.includes('foundation') ||
+    normalizedLevel.includes('basic')
+
+  const targetDifficultyLabel = isFoundationDifficulty
+    ? 'Beginner / Foundation Level'
+    : isHighDifficulty
+      ? 'Advanced / High-Stakes Professional / Medical Level'
+      : 'Intermediate / College & Professional Certification Level'
+
+  const minSubjectCount = isFoundationDifficulty ? '3 to 5' : isHighDifficulty ? '8 to 15' : '5 to 8'
+  const minTopicCount = isFoundationDifficulty ? '4 to 6' : isHighDifficulty ? '6 to 10' : '5 to 8'
+  const minSubtopicCount = isFoundationDifficulty ? '2 to 4' : isHighDifficulty ? '4 to 8' : '3 to 5'
+
   // Keep the most complete schema-valid response even when it falls short of the
   // completeness gate. The resolver can reconcile this partial tree while the
   // exam remains explicitly marked needs_enrichment; it must never be marked ready.
@@ -726,18 +778,20 @@ ${countryHint ? `Country / Region Context: ${countryHint}` : ''}
 ${categoryHint ? `Discipline / Category Context: ${categoryHint}` : ''}
 ${levelHint ? `Credential Level / Stage Context: ${levelHint}` : ''}
 
-CRITICAL ARCHITECTURAL DIRECTIVES:
-1. EXAM LEVEL:
+CRITICAL ARCHITECTURAL DIRECTIVES & DYNAMIC DIFFICULTY DEPTH:
+1. EXAM LEVEL & DIFFICULTY SCALE:
+   - Evaluated Difficulty Tier: ${targetDifficultyLabel}
    - Identify official full name, standard code/acronym, jurisdiction, and credential level.
    - Establish realistic question configuration (option count, negative marking, question types, duration).
    - Classify question types: standard_mcq, clinical_vignette, case_based, calculation, image_based, scenario_architecture.
-2. CURRICULUM HIERARCHY:
-   - Discover the complete subject and topic blueprint for THIS exam from its official examination authority, current official syllabus/notification, or reliable domain-specific reference. Do not reuse another exam's structure or hard-code assumptions based on exam name.
-   - Include every official subject/domain. For every subject, generate at least five distinct meaningful exam-specific topics; for every topic, generate at least three distinct meaningful subtopics. These are universal minimum-depth checks, not substitutes for official syllabus coverage.
+2. CURRICULUM HIERARCHY & CUSTOM DEPTH:
+   - Generate ${minSubjectCount} distinct, domain-accurate subjects covering the official blueprint for "${cleanName}".
+   - For every subject, generate ${minTopicCount} distinct, exam-specific topics.
+   - For every topic, generate ${minSubtopicCount} granular subtopics tailored to the difficulty tier (${targetDifficultyLabel}).
+   - For high-difficulty exams (Medical, Competitive, Professional), generate clinical vignettes, diagnostic frameworks, case scenarios, or complex problem-solving subtopics.
    - Preserve official subject boundaries, stages, papers and levels. Never merge separate exams or silently omit independently tested domains.
-   - Do not invent official rules, counts, subject names or source URLs. Record uncertain facts as unknown / needing verification and keep curriculum status pending until evidence and hierarchy checks pass.
-   - Avoid generic placeholders, duplicate subjects/topics/subtopics, repeated topic lists, and filler labels.
-   - If you cannot confidently produce a complete, exam-specific hierarchy, do not claim that the syllabus is complete.
+   - Do not invent official rules, counts, subject names or source URLs.
+   - Avoid generic placeholders (like "Overview", "Topic 1", "Misc"), duplicate subjects/topics/subtopics, and filler labels.
    - IMPORTANT: This stage creates ONLY the curriculum structure (names and descriptions). DO NOT generate MCQs, quizzes, flashcards, notes, or AI lessons in this profile.
    - Ensure subjects, topics, and subtopics are genuinely, domain-accurately relevant to "${cleanName}".
 3. GENERATION RULES:
@@ -751,7 +805,7 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
     "country": "${countryHint || 'Global'}",
     "category": "${categoryHint || 'general-academics'}",
     "type": "Licensing / Certification / Academic Entrance",
-    "difficulty_level": "Intermediate"
+    "difficulty_level": "${isFoundationDifficulty ? 'Beginner' : isHighDifficulty ? 'Advanced' : 'Intermediate'}"
   },
   "subjects": [
     {
@@ -763,9 +817,9 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
           "name": "Specific Topic Name",
           "order": 1,
           "subtopics": [
-            { "name": "Specific Subtopic 1", "order": 1 },
-            { "name": "Specific Subtopic 2", "order": 2 },
-            { "name": "Specific Subtopic 3", "order": 3 }
+            { "name": "Specific Granular Subtopic 1", "order": 1 },
+            { "name": "Specific Granular Subtopic 2", "order": 2 },
+            { "name": "Specific Granular Subtopic 3", "order": 3 }
           ]
         }
       ]
@@ -804,7 +858,7 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
       const validated = AIExamIntelligenceOutputSchema.safeParse(parsed)
 
       if (validated.success) {
-        if (!isCurriculumSpecComprehensive(cleanName, validated.data)) {
+        if (!isCurriculumSpecComprehensive(cleanName, validated.data, levelHint)) {
           keepMoreCompleteCandidate(validated.data)
           console.warn(`[Exam Intelligence] Gemini curriculum failed breadth/depth validation for ${cleanName}; trying fallback provider.`)
           throw new Error('Gemini curriculum did not meet minimum topic/subtopic coverage.')
@@ -818,7 +872,7 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
             ...(parsed as AIExamIntelligenceOutput),
             exam: parsed.exam || { name: cleanName },
             subjects: parsed.subjects,
-          } as AIExamIntelligenceOutput)) {
+          } as AIExamIntelligenceOutput, levelHint)) {
           return {
             exam: {
               name: cleanName,
@@ -904,7 +958,7 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
         const parsed = JSON.parse(responseText)
         const validated = AIExamIntelligenceOutputSchema.safeParse(parsed)
         if (validated.success) {
-          if (isCurriculumSpecComprehensive(cleanName, validated.data)) {
+          if (isCurriculumSpecComprehensive(cleanName, validated.data, levelHint)) {
             return validated.data
           }
           keepMoreCompleteCandidate(validated.data)
@@ -950,7 +1004,7 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
         const validatedRepair = AIExamIntelligenceOutputSchema.safeParse(parsedRepair)
         if (validatedRepair.success) repaired = validatedRepair.data
       }
-      if (repaired && isCurriculumSpecComprehensive(cleanName, repaired)) return repaired
+      if (repaired && isCurriculumSpecComprehensive(cleanName, repaired, levelHint)) return repaired
       if (repaired) keepMoreCompleteCandidate(repaired)
     } catch (repairError: any) {
       console.warn('[Exam Intelligence] Compact curriculum repair pass failed:', repairError?.message || 'Unknown repair error')

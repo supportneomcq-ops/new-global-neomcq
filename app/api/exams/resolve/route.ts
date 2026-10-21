@@ -34,7 +34,28 @@ export async function POST(req: NextRequest) {
       const admin = getSupabaseAdmin()
       const { data: exams, error: examsError } = await admin
         .from('exams')
-        .select('id, name, short_name, slug, level, countries(name, flag_emoji), exam_categories(name, slug)')
+        .select(`
+          id,
+          name,
+          short_name,
+          slug,
+          level,
+          difficulty,
+          question_count,
+          time_limit_mins,
+          marking_scheme,
+          countries(name, flag_emoji),
+          exam_categories(name, slug),
+          exam_subjects(
+            id,
+            name,
+            exam_topics(
+              id,
+              name,
+              exam_subtopics(id, name)
+            )
+          )
+        `)
         .neq('status', 'archived')
         .limit(500)
 
@@ -75,6 +96,18 @@ export async function POST(req: NextRequest) {
       }
 
       if (matchedExam) {
+        const subjects = matchedExam.exam_subjects || []
+        const subjectCount = subjects.length
+        let topicCount = 0
+        let subtopicCount = 0
+        subjects.forEach((s: any) => {
+          const topics = s.exam_topics || []
+          topicCount += topics.length
+          topics.forEach((t: any) => {
+            if (t.exam_subtopics) subtopicCount += t.exam_subtopics.length
+          })
+        })
+
         return NextResponse.json({
           success: true,
           status: 'EXISTING_EXAM',
@@ -86,6 +119,14 @@ export async function POST(req: NextRequest) {
             flag: matchedExam.countries?.flag_emoji || '🌐',
             category: matchedExam.exam_categories?.name || 'Professional Licensing',
             level: matchedExam.level || null,
+            difficulty: matchedExam.difficulty || 'Advanced',
+            question_count: matchedExam.question_count || 100,
+            time_limit_mins: matchedExam.time_limit_mins || 120,
+            marking_scheme: matchedExam.marking_scheme || null,
+            subjectCount,
+            topicCount,
+            subtopicCount,
+            exam_subjects: subjects,
           },
           curriculumStatus: 'verified_during_signup',
         })

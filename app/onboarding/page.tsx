@@ -159,12 +159,12 @@ export default function OnboardingPage() {
   // Step 5 Progress Animation Steps
   const [prepProgress, setPrepProgress] = useState<number>(0);
   const [prepStatuses, setPrepStatuses] = useState<string[]>([
-    'Preparing your exam curriculum...',
-    'Exam verified',
-    'Subjects prepared',
-    'Main topics prepared',
-    'Subtopics prepared where applicable',
-    'Curriculum saved',
+    'Analyzing exam requirements & difficulty level...',
+    'AI Model generating official exam syllabus...',
+    'Building subject hierarchy & weightage matrix...',
+    'Generating granular main topics & subtopics for difficulty level...',
+    'Validating syllabus depth and structured subtopic details...',
+    'Curriculum created & linked to your study plan!',
   ]);
   const [activePrepIndex, setActivePrepIndex] = useState<number>(0);
 
