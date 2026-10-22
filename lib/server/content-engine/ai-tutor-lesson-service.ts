@@ -149,7 +149,7 @@ export class AITutorLessonService {
     }
 
     // Mark job running
-    await GenerationJobManager.markRunning(activeJob.id, 'gemini', 'gemini-3.5-flash', supabase);
+    await GenerationJobManager.markRunning(activeJob.id, 'gemini', 'gemini-3.8-flash', supabase);
 
     // 4. Gemini AI Lesson Generation
     try {
@@ -303,7 +303,7 @@ INSTRUCTIONS:
 `;
 
           const aiResponse = await ai.models.generateContent({
-            model: 'gemini-3.5-flash',
+            model: 'gemini-3.8-flash',
             contents: prompt,
           });
 

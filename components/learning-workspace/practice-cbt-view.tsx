@@ -47,6 +47,8 @@ interface DBMCQ {
   difficulty?: string;
   high_yield_tag?: string;
   version: number;
+  subtopic_id?: string;
+  subtopic?: string;
 }
 
 interface ContentVersionRecord {
@@ -159,6 +161,8 @@ export function PracticeCbtView({
         difficulty: q.difficulty || undefined,
         high_yield_tag: q.metadata?.high_yield_tag || (Array.isArray(q.tags) ? q.tags[0] : undefined),
         version: q.version || 1,
+        subtopic_id: q.metadata?.subtopic_id,
+        subtopic: q.metadata?.subtopic || (Array.isArray(q.tags) ? q.tags.find((t: string) => t !== q.metadata?.high_yield_tag) : undefined),
       }));
       setDbMcqs(parsedMcqs);
 
@@ -197,7 +201,7 @@ export function PracticeCbtView({
   // Re-load whenever selected topic or generation status changes
   useEffect(() => {
     loadDatabaseRecords();
-  }, [activeTopicId, isContextGenerating]);
+  }, [activeTopicId, activeSubtopicId, isContextGenerating]);
 
   // Synthesize New Practice Q-Bank Batch
   const handleSynthesizeBatch = async () => {
@@ -209,6 +213,24 @@ export function PracticeCbtView({
       console.error('[PracticeCbtView] Error generating batch:', err);
     }
   };
+
+  // Auto-generate high-yield practice batch just-in-time if none exists for this topic
+  const autoSynthesizedTopicRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const scopeKey = `${activeTopicId || ''}_${activeSubtopicId || 'main'}`;
+    if (
+      !dbLoading &&
+      versions.length === 0 &&
+      dbMcqs.length === 0 &&
+      !isContextGenerating &&
+      activeTopicId &&
+      autoSynthesizedTopicRef.current !== scopeKey
+    ) {
+      autoSynthesizedTopicRef.current = scopeKey;
+      handleSynthesizeBatch();
+    }
+  }, [dbLoading, versions.length, dbMcqs.length, isContextGenerating, activeTopicId, activeSubtopicId]);
 
   // Compute stats of an activity inside a version (using real SQL attempts and questions)
   const getActivityStats = (version: ContentVersionRecord, activity: 'all' | 'A' | 'B') => {
@@ -288,6 +310,22 @@ export function PracticeCbtView({
     }
 
     if (activeSet.length === 0) return;
+
+    // If subtopic is selected, prioritize subtopic-focused questions to the top
+    if (activeSubtopicId || selection.subtopic?.name) {
+      const targetSubName = selection.subtopic?.name?.toLowerCase();
+      activeSet = [...activeSet].sort((a, b) => {
+        const aMatch =
+          (activeSubtopicId && (a.metadata?.subtopic_id === activeSubtopicId || a.subtopic_id === activeSubtopicId)) ||
+          (targetSubName && ((a.metadata?.subtopic || a.subtopic)?.toLowerCase() === targetSubName || (Array.isArray(a.tags) && a.tags.some((t: string) => t.toLowerCase() === targetSubName))));
+        const bMatch =
+          (activeSubtopicId && (b.metadata?.subtopic_id === activeSubtopicId || b.subtopic_id === activeSubtopicId)) ||
+          (targetSubName && ((b.metadata?.subtopic || b.subtopic)?.toLowerCase() === targetSubName || (Array.isArray(b.tags) && b.tags.some((t: string) => t.toLowerCase() === targetSubName))));
+        if (aMatch && !bMatch) return -1;
+        if (!aMatch && bMatch) return 1;
+        return 0;
+      });
+    }
 
     // Save playing descriptors
     setActiveBatch(version);
@@ -496,8 +534,6 @@ export function PracticeCbtView({
   if (gameState === 'library') {
     return (
       <div className="space-y-6 max-w-5xl mx-auto pb-12">
-        {/* Breadcrumb Context Layer */}
-        {renderBreadcrumbHeader()}
 
         {/* Dynamic Context Header */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-6 transition-all">

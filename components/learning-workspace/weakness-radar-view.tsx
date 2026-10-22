@@ -74,6 +74,7 @@ export function WeaknessRadarView({ user, onSelectTab }: WeaknessRadarViewProps)
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-16">
+
       {/* Header */}
       <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-wrap items-center justify-between gap-4">
         <div>

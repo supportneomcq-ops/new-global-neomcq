@@ -54,15 +54,18 @@ export function AiTutorWhiteboardView({ user }: AiTutorWhiteboardViewProps) {
   }
 
   return (
-    <TutorInteractiveWorkspace
-      examId={examId}
-      subjectId={subjectId}
-      topicId={topicId}
-      userId={resolvedUserId}
-      topicName={selection.topic?.name || ''}
-      subjectName={selection.subject?.name || ''}
-      examName={selection.exam?.name || ''}
-    />
+    <div className="space-y-4">
+
+      <TutorInteractiveWorkspace
+        examId={examId}
+        subjectId={subjectId}
+        topicId={topicId}
+        userId={resolvedUserId}
+        topicName={selection.topic?.name || ''}
+        subjectName={selection.subject?.name || ''}
+        examName={selection.exam?.name || ''}
+      />
+    </div>
   );
 }
 

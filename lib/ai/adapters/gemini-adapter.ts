@@ -19,6 +19,8 @@ export class GoogleGeminiProvider extends ProviderAdapter {
 
   // Candidate models to probe/verify
   public static readonly CANDIDATE_MODELS = [
+    'gemini-3.8-flash',
+    'gemini-flash-latest',
     'gemini-3.6-flash',
     'gemini-3.5-flash-lite',
     'gemini-3.5-flash',
@@ -57,7 +59,7 @@ export class GoogleGeminiProvider extends ProviderAdapter {
     return Boolean(this.getApiKey());
   }
 
-  public async testConnection(probeModel = 'gemini-3.5-flash'): Promise<ProviderConnectionTestResult> {
+  public async testConnection(probeModel = 'gemini-3.8-flash'): Promise<ProviderConnectionTestResult> {
     const testedAt = new Date().toISOString();
     if (!this.isConfigured()) {
       return {

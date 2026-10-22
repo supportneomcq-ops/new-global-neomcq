@@ -127,7 +127,7 @@ Respond strictly in valid JSON format with NO markdown wrapping:
         taskType: 'active_recall_generation',
         prompt,
         preferredProvider: 'gemini',
-        preferredModel: 'gemini-2.5-flash',
+        preferredModel: 'gemini-3.8-flash',
         temperature: 0.2,
       });
       rawResultText = genResult.text;

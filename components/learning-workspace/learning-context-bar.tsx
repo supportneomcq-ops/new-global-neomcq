@@ -5,29 +5,30 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Lock,
   ChevronDown,
+  ChevronUp,
   Plus,
   BookOpen,
   Sparkles,
   Loader2,
-  CheckCircle2,
-  AlertCircle,
-  X,
   Search,
   Check,
   Layers,
   FileText,
   Bookmark,
+  ChevronRight,
+  Filter,
 } from 'lucide-react';
-import { useSelection, SelectedItem } from '@/lib/context/selection-context';
+import { useSelection } from '@/lib/context/selection-context';
 import { useTopicContent } from '@/lib/context/topic-content-context';
 import { ExamSwitchModal } from '@/components/exam-switch-modal';
 import { AddMissingCurriculumModal, AddMissingMode } from '@/components/learning-workspace/add-missing-curriculum-modal';
 
 interface LearningContextBarProps {
   onShowClick?: () => void;
+  defaultExpanded?: boolean;
 }
 
-export function LearningContextBar({ onShowClick }: LearningContextBarProps = {}) {
+export function LearningContextBar({ onShowClick, defaultExpanded = false }: LearningContextBarProps = {}) {
   const {
     selection,
     availableSubjects,
@@ -37,15 +38,17 @@ export function LearningContextBar({ onShowClick }: LearningContextBarProps = {}
     setTopic,
     setSubtopic,
     isExamLocked,
-    examSwitchCount,
   } = useSelection();
 
-  const { orchestrateTopic, refreshTopicContent, isOrchestrating, isLoading, isRefreshing } = useTopicContent();
+  const { orchestrateTopic, isOrchestrating, isLoading, isRefreshing } = useTopicContent();
 
   const activeExam = selection.exam;
   const activeSubject = selection.subject;
   const activeTopic = selection.topic;
   const activeSubtopic = selection.subtopic;
+
+  // Collapsible Hierarchy State (Collapsed by default)
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   // Dropdown States
   const [isSubjectOpen, setIsSubjectOpen] = useState(false);
@@ -105,368 +108,405 @@ export function LearningContextBar({ onShowClick }: LearningContextBarProps = {}
     );
   }, [availableSubtopics, subtopicQuery]);
 
+  const isPendingContent = isOrchestrating || isLoading || isRefreshing;
+
   return (
     <>
-      <div className="w-full bg-white dark:bg-[#0B101E] border-b border-slate-200 dark:border-slate-800/80 px-4 py-2.5 shadow-sm transition-colors">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
-          {/* Hierarchy Nav Controls */}
-          <div className="neo-learning-path-controls flex flex-wrap items-center gap-2 text-xs">
-            {/* 1. Exam (Locked / Selector) */}
-            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 font-bold text-slate-800 dark:text-slate-100 shadow-inner">
-              <BookOpen className="w-3.5 h-3.5 text-[#6D5BFF]" />
-              <span className="truncate max-w-[140px] sm:max-w-[200px]" title={activeExam?.name || 'Exam'}>
-                {activeExam?.name || 'Loading Exam...'}
-              </span>
-              {isExamLocked ? (
+      <div className="w-full bg-slate-50/80 dark:bg-[#0B101E]/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 px-3 py-2 sm:px-4 sm:py-2.5 transition-colors select-none">
+        <div className="max-w-5xl mx-auto space-y-2">
+          
+          {/* COLLAPSED VIEW (Compact 1-Row Summary) */}
+          {!isExpanded ? (
+            <div
+              onClick={() => setIsExpanded(true)}
+              className="flex flex-wrap items-center justify-between gap-2.5 bg-white dark:bg-[#0E1324] border border-slate-200/90 dark:border-slate-800 rounded-2xl p-2.5 px-3.5 shadow-2xs hover:border-violet-300 dark:hover:border-violet-800/80 transition-all cursor-pointer group"
+            >
+              <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-700 dark:text-slate-200 min-w-0 flex-1">
+                {/* Exam Badge */}
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-violet-50 dark:bg-violet-950/60 border border-violet-200/60 dark:border-violet-800/50 font-extrabold text-violet-700 dark:text-violet-300 shrink-0">
+                  <span className="text-xs">📖</span>
+                  <span className="truncate max-w-[120px] sm:max-w-[180px]">
+                    {activeExam?.name || 'Select Exam'}
+                  </span>
+                  {isExamLocked && (
+                    <span className="text-[10px] bg-violet-200/70 dark:bg-violet-900/80 text-violet-800 dark:text-violet-200 px-1 py-0.2 rounded font-bold inline-flex items-center gap-0.5">
+                      <Lock className="w-2.5 h-2.5" /> Locked
+                    </span>
+                  )}
+                </div>
+
+                <span className="text-slate-400 font-bold hidden sm:inline">&gt;</span>
+
+                {/* Subject / Topic Path */}
+                <div className="flex flex-wrap items-center gap-1 font-semibold text-slate-800 dark:text-slate-200 text-[11px] sm:text-xs min-w-0">
+                  <span className="inline-flex items-center gap-1 truncate max-w-[110px] sm:max-w-[160px] text-slate-900 dark:text-white font-bold">
+                    <span className="text-xs">🥞</span> {activeSubject?.name || 'All Subjects'}
+                  </span>
+                  {activeTopic && (
+                    <>
+                      <span className="text-slate-400">&gt;</span>
+                      <span className="inline-flex items-center gap-1 truncate max-w-[120px] sm:max-w-[180px] text-slate-700 dark:text-slate-300">
+                        <span className="text-xs">📄</span> {activeTopic.name}
+                      </span>
+                    </>
+                  )}
+                  {activeSubtopic && (
+                    <>
+                      <span className="text-slate-400">&gt;</span>
+                      <span className="inline-flex items-center gap-1 truncate max-w-[120px] sm:max-w-[200px] text-indigo-600 dark:text-indigo-400 font-bold">
+                        <span className="text-xs">🔖</span> {activeSubtopic.name}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Trigger */}
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setIsExamSwitchModalOpen(true)}
-                  className="ml-1 text-[10px] bg-[#6D5BFF]/10 text-[#6D5BFF] dark:text-[#8877FF] px-1.5 py-0.5 rounded flex items-center gap-1 hover:bg-[#6D5BFF]/20 transition-colors"
-                  title="Exam Locked on Study Plan. Click to switch ($2 USD / Free once per plan)."
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsExpanded(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-600 group-hover:bg-violet-700 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
                 >
-                  <Lock className="w-2.5 h-2.5" />
-                  <span className="font-extrabold">Locked</span>
+                  <Filter className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Change Selection</span>
+                  <span className="sm:hidden">Edit</span>
+                  <ChevronDown className="w-3.5 h-3.5" />
                 </button>
-              ) : (
+              </div>
+            </div>
+          ) : (
+            /* EXPANDED VIEW (Stacked Card Hierarchy matching reference layout) */
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="bg-white dark:bg-[#0E1324] border border-slate-200/90 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-lg space-y-3"
+            >
+              {/* Card 1: Exam Row */}
+              <div className="flex items-center justify-between gap-2 p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-sm">📖</span>
+                  <span className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white truncate">
+                    {activeExam?.name || 'Loading Exam...'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsExamSwitchModalOpen(true)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-violet-100 dark:bg-violet-950/80 border border-violet-200/60 dark:border-violet-800 text-violet-700 dark:text-violet-300 font-extrabold text-[11px] hover:bg-violet-200/80 cursor-pointer"
+                  >
+                    <Lock className="w-3 h-3" />
+                    <span>Locked</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Card 2: Subject Selector */}
+              <div className="relative" ref={subjectRef}>
                 <button
                   type="button"
-                  onClick={() => setIsExamSwitchModalOpen(true)}
-                  className="ml-1 text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded font-bold hover:bg-emerald-500/20"
+                  onClick={() => {
+                    setIsSubjectOpen(!isSubjectOpen);
+                    setIsTopicOpen(false);
+                    setIsSubtopicOpen(false);
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-white dark:bg-[#111827] border border-blue-200/80 dark:border-blue-900/60 text-slate-900 dark:text-white text-xs sm:text-sm font-bold shadow-2xs hover:border-blue-400 transition-all cursor-pointer"
                 >
-                  Switch
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Layers className="w-4 h-4 text-blue-500 shrink-0" />
+                    <span className="truncate">{activeSubject?.name || 'Select Subject'}</span>
+                  </div>
+                  <ChevronDown className="w-4 h-4 opacity-60 shrink-0" />
                 </button>
-              )}
-            </div>
 
-            <span className="text-slate-400 font-bold hidden sm:inline">/</span>
+                <AnimatePresence>
+                  {isSubjectOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 4 }}
+                      className="absolute left-0 right-0 mt-1.5 bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 p-2 text-xs"
+                    >
+                      <div className="relative mb-2">
+                        <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
+                        <input
+                          type="text"
+                          placeholder="Search subjects..."
+                          value={subjectQuery}
+                          onChange={(e) => setSubjectQuery(e.target.value)}
+                          className="w-full pl-8 pr-2 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
 
-            {/* 2. Subject Dropdown */}
-            <div className="relative neo-path-step neo-path-subject" ref={subjectRef}>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSubjectOpen(!isSubjectOpen);
-                  setIsTopicOpen(false);
-                  setIsSubtopicOpen(false);
-                }}
-                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 font-bold text-xs transition-all border ${
-                  activeSubject
-                    ? 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white hover:border-[#6D5BFF]/50'
-                    : 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
-                }`}
-              >
-                <Layers className="w-3.5 h-3.5 text-[#00D4FF]" />
-                <span className="truncate max-w-[130px] sm:max-w-[180px]">
-                  {activeSubject?.name || 'Select Subject'}
-                </span>
-                <ChevronDown className="w-3.5 h-3.5 opacity-60 ml-0.5" />
-              </button>
+                      <div className="max-h-52 overflow-y-auto space-y-1 pr-1">
+                        {filteredSubjects.map((s) => {
+                          const isSelected = activeSubject?.id === s.id;
+                          return (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onClick={() => {
+                                setSubject(s);
+                                setIsSubjectOpen(false);
+                                setSubjectQuery('');
+                              }}
+                              className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-colors ${
+                                isSelected
+                                  ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold'
+                                  : 'hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300'
+                              }`}
+                            >
+                              <span className="truncate">{s.name}</span>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-blue-500" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
 
-              <AnimatePresence>
-                {isSubjectOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 4 }}
-                    className="absolute left-0 mt-1 w-64 bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 p-2 text-xs"
+              {/* Card 3: Main Topic Selector */}
+              <div className="relative" ref={topicRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsTopicOpen(!isTopicOpen);
+                    setIsSubjectOpen(false);
+                    setIsSubtopicOpen(false);
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-white dark:bg-[#111827] border border-purple-200/80 dark:border-purple-900/60 text-slate-900 dark:text-white text-xs sm:text-sm font-bold shadow-2xs hover:border-purple-400 transition-all cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <FileText className="w-4 h-4 text-purple-500 shrink-0" />
+                    <span className="truncate">{activeTopic?.name || 'Select Topic'}</span>
+                  </div>
+                  <ChevronDown className="w-4 h-4 opacity-60 shrink-0" />
+                </button>
+
+                <AnimatePresence>
+                  {isTopicOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 4 }}
+                      className="absolute left-0 right-0 mt-1.5 bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 p-2 text-xs"
+                    >
+                      <div className="relative mb-2">
+                        <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
+                        <input
+                          type="text"
+                          placeholder="Search topics..."
+                          value={topicQuery}
+                          onChange={(e) => setTopicQuery(e.target.value)}
+                          className="w-full pl-8 pr-2 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
+
+                      <div className="max-h-52 overflow-y-auto space-y-1 pr-1">
+                        {filteredTopics.map((t) => {
+                          const isSelected = activeTopic?.id === t.id;
+                          return (
+                            <button
+                              key={t.id}
+                              type="button"
+                              onClick={() => {
+                                setTopic(t);
+                                setIsTopicOpen(false);
+                                setTopicQuery('');
+                              }}
+                              className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-colors ${
+                                isSelected
+                                  ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 font-bold'
+                                  : 'hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300'
+                              }`}
+                            >
+                              <span className="truncate">{t.name}</span>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-purple-500" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Card 4: Subtopic Selector */}
+              <div className="relative" ref={subtopicRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSubtopicOpen(!isSubtopicOpen);
+                    setIsSubjectOpen(false);
+                    setIsTopicOpen(false);
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-white dark:bg-[#111827] border border-emerald-200/80 dark:border-emerald-900/60 text-slate-900 dark:text-white text-xs sm:text-sm font-bold shadow-2xs hover:border-emerald-400 transition-all cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Bookmark className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span className="truncate">
+                      {activeSubtopic?.name || (availableSubtopics.length > 0 ? 'Select Subtopic' : 'All Subtopics')}
+                    </span>
+                  </div>
+                  <ChevronDown className="w-4 h-4 opacity-60 shrink-0" />
+                </button>
+
+                <AnimatePresence>
+                  {isSubtopicOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 4 }}
+                      className="absolute left-0 right-0 mt-1.5 bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 p-2 text-xs"
+                    >
+                      <div className="relative mb-2">
+                        <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
+                        <input
+                          type="text"
+                          placeholder="Search subtopics..."
+                          value={subtopicQuery}
+                          onChange={(e) => setSubtopicQuery(e.target.value)}
+                          className="w-full pl-8 pr-2 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div className="max-h-52 overflow-y-auto space-y-1 pr-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSubtopic(null);
+                            setIsSubtopicOpen(false);
+                            setSubtopicQuery('');
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-colors ${
+                            !activeSubtopic
+                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold'
+                              : 'hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300'
+                          }`}
+                        >
+                          <span className="truncate">All Subtopics (Full Topic Coverage)</span>
+                          {!activeSubtopic && <Check className="w-3.5 h-3.5 text-emerald-500" />}
+                        </button>
+
+                        {filteredSubtopics.map((st) => {
+                          const isSelected = activeSubtopic?.id === st.id;
+                          return (
+                            <button
+                              key={st.id}
+                              type="button"
+                              onClick={() => {
+                                setSubtopic(st);
+                                setIsSubtopicOpen(false);
+                                setSubtopicQuery('');
+                              }}
+                              className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-colors ${
+                                isSelected
+                                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold'
+                                  : 'hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300'
+                              }`}
+                            >
+                              <span className="truncate">{st.name}</span>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-emerald-500" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Bottom Action Row: [+] and [✨ SHOW] and [Collapse] */}
+              <div className="flex items-center justify-between gap-3 pt-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddMissingMode('topic');
+                      setIsAddMissingOpen(true);
+                    }}
+                    className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold flex items-center justify-center transition-all cursor-pointer"
+                    title="Add Missing Subject / Topic"
                   >
-                    <div className="relative mb-2">
-                      <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
-                      <input
-                        type="text"
-                        placeholder="Search subjects..."
-                        value={subjectQuery}
-                        onChange={(e) => setSubjectQuery(e.target.value)}
-                        className="w-full pl-8 pr-2 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs focus:outline-none focus:border-[#6D5BFF]"
-                      />
-                    </div>
+                    <Plus className="w-5 h-5" />
+                  </button>
 
-                    <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
-                      {filteredSubjects.map((s) => {
-                        const isSelected = activeSubject?.id === s.id;
-                        return (
-                          <button
-                            key={s.id}
-                            type="button"
-                            onClick={() => {
-                              setSubject(s);
-                              setIsSubjectOpen(false);
-                              setSubjectQuery('');
-                            }}
-                            className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between transition-colors ${
-                              isSelected
-                                ? 'bg-[#6D5BFF]/10 text-[#6D5BFF] font-bold'
-                                : 'hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300'
-                            }`}
-                          >
-                            <span className="truncate">{s.name}</span>
-                            {isSelected && <Check className="w-3.5 h-3.5 text-[#6D5BFF]" />}
-                          </button>
-                        );
-                      })}
-                      {filteredSubjects.length === 0 && (
-                        <div className="text-center py-3 text-slate-400 text-[11px]">
-                          No matching subjects found
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsSubjectOpen(false);
-                          setAddMissingMode('subject');
-                          setIsAddMissingOpen(true);
-                        }}
-                        className="w-full py-1.5 px-2 rounded-xl bg-[#6D5BFF]/10 hover:bg-[#6D5BFF]/20 text-[#6D5BFF] dark:text-[#8877FF] font-bold flex items-center justify-center gap-1 transition-colors"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Add Subject</span>
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <span className="text-slate-400 font-bold hidden sm:inline">/</span>
-
-            {/* 3. Topic Dropdown */}
-            <div className="relative neo-path-step neo-path-topic" ref={topicRef}>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsTopicOpen(!isTopicOpen);
-                  setIsSubjectOpen(false);
-                  setIsSubtopicOpen(false);
-                }}
-                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 font-bold text-xs transition-all border ${
-                  activeTopic
-                    ? 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white hover:border-[#A855F7]/50'
-                    : 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
-                }`}
-              >
-                <FileText className="w-3.5 h-3.5 text-[#A855F7]" />
-                <span className="truncate max-w-[130px] sm:max-w-[180px]">
-                  {activeTopic?.name || 'Select Topic'}
-                </span>
-                <ChevronDown className="w-3.5 h-3.5 opacity-60 ml-0.5" />
-              </button>
-
-              <AnimatePresence>
-                {isTopicOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 4 }}
-                    className="absolute left-0 mt-1 w-64 bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 p-2 text-xs"
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await orchestrateTopic(false);
+                      if (onShowClick) {
+                        onShowClick();
+                      }
+                      setIsExpanded(false);
+                    }}
+                    disabled={isPendingContent}
+                    className={`px-5 py-2.5 rounded-2xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all shadow-md ${
+                      isPendingContent
+                        ? 'bg-violet-500/20 text-violet-400 cursor-not-allowed'
+                        : 'bg-violet-600 hover:bg-violet-700 text-white shadow-violet-600/30 active:scale-95 cursor-pointer'
+                    }`}
                   >
-                    <div className="relative mb-2">
-                      <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
-                      <input
-                        type="text"
-                        placeholder="Search topics..."
-                        value={topicQuery}
-                        onChange={(e) => setTopicQuery(e.target.value)}
-                        className="w-full pl-8 pr-2 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs focus:outline-none focus:border-[#A855F7]"
-                      />
-                    </div>
+                    {isPendingContent ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Updating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 text-amber-300" />
+                        <span>SHOW</span>
+                      </>
+                    )}
+                  </button>
+                </div>
 
-                    <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
-                      {filteredTopics.map((t) => {
-                        const isSelected = activeTopic?.id === t.id;
-                        return (
-                          <button
-                            key={t.id}
-                            type="button"
-                            onClick={() => {
-                              setTopic(t);
-                              setIsTopicOpen(false);
-                              setTopicQuery('');
-                            }}
-                            className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between transition-colors ${
-                              isSelected
-                                ? 'bg-[#A855F7]/10 text-[#A855F7] font-bold'
-                                : 'hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300'
-                            }`}
-                          >
-                            <span className="truncate">{t.name}</span>
-                            {isSelected && <Check className="w-3.5 h-3.5 text-[#A855F7]" />}
-                          </button>
-                        );
-                      })}
-                      {filteredTopics.length === 0 && (
-                        <div className="text-center py-3 text-slate-400 text-[11px]">
-                          No matching topics found
-                        </div>
-                      )}
-                    </div>
+                <button
+                  type="button"
+                  onClick={() => setIsExpanded(false)}
+                  className="px-3 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  <span>Done</span>
+                  <ChevronUp className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </motion.div>
+          )}
 
-                    <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsTopicOpen(false);
-                          setAddMissingMode('topic');
-                          setIsAddMissingOpen(true);
-                        }}
-                        className="w-full py-1.5 px-2 rounded-xl bg-[#A855F7]/10 hover:bg-[#A855F7]/20 text-[#A855F7] font-bold flex items-center justify-center gap-1 transition-colors"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Add Topic</span>
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <span className="text-slate-400 font-bold hidden sm:inline">/</span>
-
-            {/* 4. Subtopic Dropdown */}
-            <div className="relative neo-path-step neo-path-subtopic" ref={subtopicRef}>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSubtopicOpen(!isSubtopicOpen);
-                  setIsSubjectOpen(false);
-                  setIsTopicOpen(false);
-                }}
-                className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 font-bold text-xs transition-all border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white hover:border-emerald-500/50"
-              >
-                <Bookmark className="w-3.5 h-3.5 text-emerald-500" />
-                <span className="truncate max-w-[130px] sm:max-w-[180px]">
-                  {activeSubtopic?.name || (availableSubtopics.length > 0 ? 'Select Subtopic' : 'All Subtopics')}
-                </span>
-                <ChevronDown className="w-3.5 h-3.5 opacity-60 ml-0.5" />
-              </button>
-
-              <AnimatePresence>
-                {isSubtopicOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 4 }}
-                    className="absolute left-0 mt-1 w-64 bg-white dark:bg-[#0E1324] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 p-2 text-xs"
-                  >
-                    <div className="relative mb-2">
-                      <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
-                      <input
-                        type="text"
-                        placeholder="Search subtopics..."
-                        value={subtopicQuery}
-                        onChange={(e) => setSubtopicQuery(e.target.value)}
-                        className="w-full pl-8 pr-2 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs focus:outline-none focus:border-emerald-500"
-                      />
-                    </div>
-
-                    <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSubtopic(null);
-                          setIsSubtopicOpen(false);
-                          setSubtopicQuery('');
-                        }}
-                        className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between transition-colors ${
-                          !activeSubtopic
-                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold'
-                            : 'hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300'
-                        }`}
-                      >
-                        <span className="truncate">All Subtopics (Full Topic Coverage)</span>
-                        {!activeSubtopic && <Check className="w-3.5 h-3.5 text-emerald-500" />}
-                      </button>
-
-                      {filteredSubtopics.map((st) => {
-                        const isSelected = activeSubtopic?.id === st.id;
-                        return (
-                          <button
-                            key={st.id}
-                            type="button"
-                            onClick={() => {
-                              setSubtopic(st);
-                              setIsSubtopicOpen(false);
-                              setSubtopicQuery('');
-                            }}
-                            className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between transition-colors ${
-                              isSelected
-                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold'
-                                : 'hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300'
-                            }`}
-                          >
-                            <span className="truncate">{st.name}</span>
-                            {isSelected && <Check className="w-3.5 h-3.5 text-emerald-500" />}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsSubtopicOpen(false);
-                          setAddMissingMode('subtopic');
-                          setIsAddMissingOpen(true);
-                        }}
-                        className="w-full py-1.5 px-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold flex items-center justify-center gap-1 transition-colors"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Add Subtopic</span>
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+          {/* Dynamic Breadcrumb Path Line below card */}
+          <div className="flex flex-wrap items-center gap-1.5 text-[11px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 px-1 pt-0.5">
+            <span className="text-slate-700 dark:text-slate-300 font-bold">MCQ Practice</span>
+            <ChevronRight className="w-3 h-3 text-slate-400 shrink-0" />
+            <span className="uppercase text-slate-600 dark:text-slate-300">
+              {activeExam?.name || 'EXAM'}
+            </span>
+            {activeSubject && (
+              <>
+                <ChevronRight className="w-3 h-3 text-slate-400 shrink-0" />
+                <span className="text-slate-700 dark:text-slate-200">{activeSubject.name}</span>
+              </>
+            )}
+            {activeTopic && (
+              <>
+                <ChevronRight className="w-3 h-3 text-slate-400 shrink-0" />
+                <span className="text-slate-800 dark:text-slate-100">{activeTopic.name}</span>
+              </>
+            )}
+            {activeSubtopic && (
+              <>
+                <ChevronRight className="w-3 h-3 text-slate-400 shrink-0" />
+                <span className="text-violet-600 dark:text-violet-400 font-bold">{activeSubtopic.name}</span>
+              </>
+            )}
           </div>
 
-          {/* Action Tools: SHOW / Resolve Content & Add Missing */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setAddMissingMode('topic');
-                setIsAddMissingOpen(true);
-              }}
-              className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs"
-              title="Add a missing subject, topic, or subtopic"
-            >
-              <Plus className="w-3.5 h-3.5 text-indigo-500" />
-              <span className="hidden sm:inline">Add Missing</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={async () => {
-                await orchestrateTopic(false);
-                if (onShowClick) {
-                  onShowClick();
-                }
-              }}
-              disabled={isOrchestrating || isLoading || isRefreshing}
-              className={`px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-md ${
-                isOrchestrating || isLoading || isRefreshing
-                  ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 cursor-not-allowed'
-                  : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/30 active:scale-95 cursor-pointer'
-              }`}
-              title="Initialize topic workspace and check content library cards"
-            >
-              {isOrchestrating || isLoading || isRefreshing ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Checking...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                  <span>SHOW</span>
-                </>
-              )}
-            </button>
-          </div>
         </div>
       </div>
 
@@ -488,3 +528,4 @@ export function LearningContextBar({ onShowClick }: LearningContextBarProps = {}
     </>
   );
 }
+

@@ -121,7 +121,17 @@ export default function PricingPage() {
               </div>
 
               <div className="pt-4 border-t border-slate-100 dark:border-slate-800/80 mb-6 space-y-3">
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Plan Highlights</p>
+                <div className="p-3 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/80 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 font-black text-xs">
+                    500
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-indigo-950 dark:text-indigo-200">Credits Included / mo</p>
+                    <p className="text-[11px] text-indigo-700 dark:text-indigo-300 font-medium">~15 full AI topic generation packs</p>
+                  </div>
+                </div>
+
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider pt-2">Plan Highlights</p>
                 {AUTHORITATIVE_PLANS.PRO.features.map((feature, idx) => (
                   <div key={idx} className="flex items-start gap-2.5 text-xs text-slate-700 dark:text-slate-300">
                     <Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
@@ -170,7 +180,17 @@ export default function PricingPage() {
               </div>
 
               <div className="pt-4 border-t border-slate-100 dark:border-slate-800/80 mb-6 space-y-3">
-                <p className="text-[11px] font-bold text-[#6D5BFF] dark:text-[#8E7CFF] uppercase tracking-wider">
+                <div className="p-3 rounded-2xl bg-violet-50/70 dark:bg-violet-950/40 border border-violet-200/80 dark:border-violet-800/80 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-violet-600 text-white flex items-center justify-center shrink-0 font-black text-xs">
+                    1.5K
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-violet-950 dark:text-violet-200">Credits Included / mo</p>
+                    <p className="text-[11px] text-violet-700 dark:text-violet-300 font-medium">~45 full AI topic generation packs</p>
+                  </div>
+                </div>
+
+                <p className="text-[11px] font-bold text-[#6D5BFF] dark:text-[#8E7CFF] uppercase tracking-wider pt-2">
                   Everything in Pro Plus
                 </p>
                 {AUTHORITATIVE_PLANS.MAX.features.map((feature, idx) => (

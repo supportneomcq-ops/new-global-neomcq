@@ -239,8 +239,8 @@ export function DashboardView({ user, onSignOut, onOpenPractice, onUpdateProfile
 
         {/* Dynamic Main Workspace Content */}
         <main className="flex-1 p-3.5 sm:p-5 lg:p-7 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-8 min-w-0 space-y-4 sm:space-y-6">
-          {/* Unified Subject & Topic selection bar rendered across all learning tabs */}
-          {activeTab !== 'dashboard' && activeTab !== 'radar' && activeTab !== 'plan' && activeTab !== 'saved' && (
+          {/* Unified Subject & Topic selection bar rendered across all learning and workspace tabs */}
+          {activeTab !== 'dashboard' && activeTab !== 'saved' && (
             <LearningContextBar onShowClick={() => handleSelectTab('dashboard')} />
           )}
 

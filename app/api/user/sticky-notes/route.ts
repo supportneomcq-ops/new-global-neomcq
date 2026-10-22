@@ -53,6 +53,39 @@ export async function GET(req: NextRequest) {
       data = fallbackData;
     }
 
+    if (!data || data.length === 0) {
+      const { data: vData } = await (supabase as any)
+        .from('content_versions')
+        .select('snapshot')
+        .eq('asset_id', topicId)
+        .eq('asset_type', 'topic')
+        .order('version', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const canonicalSticky = vData?.snapshot?.sticky_notes;
+      if (Array.isArray(canonicalSticky) && canonicalSticky.length > 0) {
+        const mapped = canonicalSticky.map((sn: any, idx: number) => ({
+          id: sn.id || `sn_${topicId}_${idx}`,
+          user_id: userId || 'anonymous',
+          topic_id: topicId,
+          subtopic_id: subtopicId || null,
+          exam_id: examId || null,
+          subject_id: subjectId || null,
+          title: sn.title || `${sn.category ? String(sn.category).replace('_', ' ').toUpperCase() : 'HIGH-YIELD'} PEARL`,
+          text: sn.text || '',
+          category: sn.category || 'high_yield',
+          color: sn.color || 'yellow',
+          pinned: Boolean(sn.pinned),
+          size: 'md',
+          rotation_deg: 0,
+          is_ai_generated: true,
+          created_at: new Date().toISOString(),
+        }));
+        return NextResponse.json({ success: true, stickyNotes: mapped });
+      }
+    }
+
     return NextResponse.json({ success: true, stickyNotes: data || [] });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

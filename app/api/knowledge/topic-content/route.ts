@@ -16,9 +16,11 @@ export async function POST(req: NextRequest) {
     const topicId = body.topicId || body.topic_id
     const subjectId = body.subjectId || body.subject_id
     const examId = body.examId || body.exam_id
+    const subtopicId = body.subtopicId || body.subtopic_id
     let topicNameInput = (body.topicName || body.name || '').toString().trim()
     let subjectNameInput = (body.subjectName || '').toString().trim()
     let examNameInput = (body.examName || '').toString().trim()
+    let subtopicNameInput = (body.subtopicName || '').toString().trim()
     const contentType = body.contentType || 'full_pack'
     const difficulty = body.difficulty || 'Intermediate'
     const language = body.language || 'en'
@@ -129,6 +131,7 @@ export async function POST(req: NextRequest) {
       examInput: examId || examNameInput,
       subjectInput: subjectId || subjectNameInput,
       topicInput: topicId || topicNameInput,
+      subtopicInput: subtopicId || subtopicNameInput || null,
       userId: activeUserId,
       difficulty,
       language,

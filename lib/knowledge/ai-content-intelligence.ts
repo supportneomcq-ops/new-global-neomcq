@@ -15,6 +15,7 @@ import { getSupabaseAdmin } from '@/lib/supabase'
 import { GoogleGenAI } from '@google/genai'
 import { resolveCanonicalHierarchy, CanonicalHierarchyResolution } from './canonical-resolver'
 import { KeyVault } from '@/lib/ai-gateway'
+import { getExamStyleAndPattern } from '@/lib/server/content-engine/exam-style-helper'
 
 export interface GeneratedMCQ {
   id?: string
@@ -384,7 +385,7 @@ async function executeMultiProviderGeneration(prompt: string, taskType: string):
   const availableModels = modelsRes.data || []
 
   const primaryProvider = routing?.primary_provider || 'gemini'
-  const primaryModel = routing?.primary_model || 'gemini-3.6-flash'
+  const primaryModel = routing?.primary_model || 'gemini-3.8-flash'
   const fallbackProvider = routing?.fallback_provider || 'openai'
   const fallbackModel = routing?.fallback_model || 'gpt-4o'
 
@@ -509,6 +510,7 @@ export async function getOrGenerateCanonicalTopicContent({
   examInput,
   subjectInput,
   topicInput,
+  subtopicInput,
   userId,
   difficulty = 'Intermediate',
   language = 'en',
@@ -518,6 +520,7 @@ export async function getOrGenerateCanonicalTopicContent({
   examInput: string
   subjectInput: string
   topicInput: string
+  subtopicInput?: string | null
   userId?: string | null
   difficulty?: string
   language?: string
@@ -562,6 +565,35 @@ export async function getOrGenerateCanonicalTopicContent({
   const exam = hierarchy.exam
   const subject = hierarchy.subject
   const topic = hierarchy.topic
+
+  // Resolve Subtopic if requested
+  let subtopicName = ''
+  let subtopicId = ''
+  if (subtopicInput && typeof subtopicInput === 'string' && subtopicInput.trim()) {
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(subtopicInput.trim())
+    if (isUUID) {
+      const { data: stRow } = await supabase
+        .from('exam_subtopics')
+        .select('id, name')
+        .eq('id', subtopicInput.trim())
+        .maybeSingle()
+      if (stRow) {
+        subtopicId = stRow.id
+        subtopicName = stRow.name
+      }
+    } else {
+      subtopicName = subtopicInput.trim()
+      const { data: stRow } = await supabase
+        .from('exam_subtopics')
+        .select('id, name')
+        .eq('topic_id', topic.id)
+        .ilike('name', subtopicName)
+        .maybeSingle()
+      if (stRow) {
+        subtopicId = stRow.id
+      }
+    }
+  }
 
   // 2. Fetch Existing Content & Content Versions
   let latestVersionRecord: any = null
@@ -793,7 +825,9 @@ export async function getOrGenerateCanonicalTopicContent({
       : 'REFRESH_30_DAYS'
 
   // Deterministic Idempotency Key
-  const idempotencyKey = `canonical_topic:${exam.id}:${subject.id}:${topic.id}:full_pack:v${targetVersionNum}`
+  const idempotencyKey = subtopicId
+    ? `canonical_topic:${exam.id}:${subject.id}:${topic.id}:${subtopicId}:full_pack:v${targetVersionNum}`
+    : `canonical_topic:${exam.id}:${subject.id}:${topic.id}:full_pack:v${targetVersionNum}`
 
   // Concurrency Check: If an active DB job is already executing for this exact idempotency key, attach to it
   if (!forceRefresh) {
@@ -847,6 +881,8 @@ export async function getOrGenerateCanonicalTopicContent({
           exam,
           subject,
           topic,
+          subtopicName,
+          subtopicId,
           targetVersionNum,
           generationReason,
           idempotencyKey,
@@ -892,6 +928,8 @@ export async function getOrGenerateCanonicalTopicContent({
     exam,
     subject,
     topic,
+    subtopicName,
+    subtopicId,
     targetVersionNum,
     generationReason,
     idempotencyKey,
@@ -912,6 +950,8 @@ async function executeGenerationWorkflow({
   exam,
   subject,
   topic,
+  subtopicName,
+  subtopicId,
   targetVersionNum,
   generationReason,
   idempotencyKey,
@@ -926,6 +966,8 @@ async function executeGenerationWorkflow({
   exam: any
   subject: any
   topic: any
+  subtopicName?: string
+  subtopicId?: string
   targetVersionNum: number
   generationReason: 'FIRST_GENERATION' | 'FORCE_REFRESH' | 'REFRESH_30_DAYS'
   idempotencyKey: string
@@ -971,6 +1013,8 @@ async function executeGenerationWorkflow({
             exam: exam.name,
             subject: subject.name,
             topic: topic.name,
+            subtopic: subtopicName || null,
+            subtopic_id: subtopicId || null,
             difficulty,
             language,
             reason: generationReason,
@@ -998,38 +1042,46 @@ async function executeGenerationWorkflow({
   const examCategory = exam.exam_categories?.name || exam.metadata?.exam_intelligence?.exam_category || 'General Academic/Professional'
   const questionStyle = exam.question_types ? JSON.stringify(exam.question_types) : 'standard_mcq'
 
-  const prompt = `You are the Lead Master Academic Professor and Board Author for NeoMCQ.com.
+  // Fetch verified domain persona, exam style, and question patterns (e.g. Engineering, Law, Finance, Medicine, IT, General)
+  const styleAndPattern = await getExamStyleAndPattern(exam.id, supabase)
+
+  const prompt = `You are ${styleAndPattern.role} for NeoMCQ.com.
 TASK: ${generationReason === 'FIRST_GENERATION' ? 'GENERATE FIRST-TIME HIGH-YIELD CANONICAL ASSETS' : 'SCHEDULED HIGH-YIELD REFRESH UPDATE'}
 
 CANONICAL TARGET SCOPE:
 - Canonical Exam: ${exam.name}
 - Jurisdiction / Country: ${examCountry}
 - Discipline / Category: ${examCategory}
+- Domain / Field: ${styleAndPattern.domain.toUpperCase()} (Worldwide Coverage: Engineering, Law, Finance, Business, Civil Services, Medicine, IT, Architecture, Agriculture, Languages, or Sciences)
 - Question Format / Pattern: ${questionStyle}
+- Exam Style & Question Rules: ${styleAndPattern.styleDescription}
+- Notes Curriculum Focus: ${styleAndPattern.notesInstruction}
+- Marking Scheme: ${styleAndPattern.markingSchemeInstruction}
 - Canonical Subject: ${subject.name}
 - Canonical Topic: ${topic.name}
+${subtopicName ? `- Focused Subtopic: ${subtopicName}` : '- Subtopic: Comprehensive Topic Coverage'}
 - Target Difficulty: ${difficulty}
 - Language: ${language}
 
 CRITICAL RULES:
-1. STRICT SCOPE CONSTRAINT: Generate content strictly within the bounds of "${topic.name}" in "${subject.name}" for "${exam.name}". Do NOT drift into unrelated topics.
-2. DOMAIN & EXAMINATION ACCURACY: Adhere strictly to verified examination standards for ${exam.name} (${examCategory}). If it is a medical licensing examination (e.g. FMGE, USMLE, NCLEX), use high-yield clinical vignettes and pearls. If it is an engineering, IT, law, business, finance, or general academic examination, use the exact technical, conceptual, numerical, or reasoning styles suitable for that domain. Do NOT hardcode medical clinical vignettes for non-medical exams.
+1. STRICT MULTI-DISCIPLINE FIDELITY: NeoMCQ is a global platform supporting all academic and professional examination boards worldwide. You MUST adapt question stems, distractors, notes, and pearls strictly to ${exam.name}'s specific domain (${styleAndPattern.domain}). Never generate medical clinical vignettes for an engineering, law, finance, or general exam; never generate engineering formulas for a medical or law exam.
+2. STRICT SCOPE CONSTRAINT: Generate content strictly within the bounds of ${subtopicName ? `"${subtopicName}" under topic "${topic.name}"` : `"${topic.name}"`} in "${subject.name}" for "${exam.name}".
 3. ZERO DUPLICATE QUESTIONS:
 ${existingSummaries ? `Existing questions in database (DO NOT REWRITE OR DUPLICATE):\n${existingSummaries}\n` : 'No prior questions in database.'}
 4. REQUIRED JSON STRUCTURE:
 {
   "mcqs": [
     {
-      "question": "Clear, high-yield clinical or conceptual stem",
+      "question": "Clear, high-yield exam question stem tailored strictly to ${exam.name} (${styleAndPattern.domain})",
       "options": ["Option A choice", "Option B choice", "Option C choice", "Option D choice"],
       "correct_index": 0,
-      "explanation": "Detailed rationale explaining why the correct choice is accurate and why distractors are incorrect.",
-      "clinical_pearl": "High-yield memory pearl or buzzword",
-      "high_yield_tag": "${topic.name} - Guideline/Mechanism",
+      "explanation": "Detailed rationale explaining why the correct choice is accurate and why distractors are incorrect according to authoritative standards.",
+      "clinical_pearl": "High-yield memory takeaway, key formula, diagnostic rule, statutory distinction, or core rule of thumb",
+      "high_yield_tag": "${subtopicName || topic.name} - Core Principle",
       "difficulty": "${difficulty}"
     }
   ],
-  "notes": "# 📚 ${topic.name.toUpperCase()} — COMPREHENSIVE GUIDE\\nDetailed structured markdown notes formatted for A4 printing with clear headings, diagnostic algorithms, and clinical pearls...",
+  "notes": "# 📚 ${(subtopicName || topic.name).toUpperCase()} — COMPREHENSIVE GUIDE\\nDetailed structured markdown notes formatted for A4 printing with clear headings, theoretical principles, comparative tables, and exam pearls...",
   "flashcards": [
     {
       "front": "Active recall question",
@@ -1040,16 +1092,16 @@ ${existingSummaries ? `Existing questions in database (DO NOT REWRITE OR DUPLICA
   ],
   "sticky_notes": [
     {
-      "text": "High-yield pearl or board trap to remember",
+      "text": "High-yield pearl, formula, or exam trap to remember",
       "color": "amber",
       "category": "Exam Pearls"
     }
   ],
   "fill_in_the_blanks": [
     {
-      "sentence": "The core governing rule or equation for [Key Concept] under standard conditions is [Standard Rule/Formula].",
-      "blank": "Standard Rule/Formula",
-      "concept": "${topic.name}",
+      "sentence": "The core governing principle, standard, or equation for [Key Concept] is [Standard Target].",
+      "blank": "Standard Target",
+      "concept": "${subtopicName || topic.name}",
       "explanation": "High-yield foundational rule."
     }
   ],
@@ -1057,16 +1109,16 @@ ${existingSummaries ? `Existing questions in database (DO NOT REWRITE OR DUPLICA
     {
       "phase": 1,
       "title": "1. Foundational Architecture & Core Mechanisms",
-      "diagram": "Step-by-step pathway or system flow diagram",
-      "description": "Clear conceptual breakdown of the primary mechanism",
+      "diagram": "Step-by-step pathway, flowchart, or concept diagram",
+      "description": "Clear conceptual breakdown of the primary principle",
       "badge": "Core Theory"
     }
   ],
-  "tutor_explanation": "Friendly, step-by-step master tutor breakdown with analogies...",
+  "tutor_explanation": "Friendly, step-by-step master tutor breakdown with domain-appropriate analogies...",
   "revision_sheet": "⚡ 60-SECOND RAPID REVISION SHEET..."
 }
 
-Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill in the blanks, and whiteboard lesson phases. Respond strictly in valid JSON format.`
+Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill in the blanks, and whiteboard lesson phases tailored specifically to ${exam.name}. Respond strictly in valid JSON format.`
 
   // 3. Execute AI Generation with Multi-Provider Failover
   let generationOutput: any = null
@@ -1177,6 +1229,12 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
         ai_generated: true,
         ai_provider: providerUsed,
         ai_model: modelUsed,
+        metadata: {
+          subtopic: subtopicName || null,
+          subtopic_id: subtopicId || null,
+          high_yield_tag: m.high_yield_tag || null,
+        },
+        tags: subtopicName ? [subtopicName, topic.name, subject.name] : [topic.name, subject.name],
       }))
 
       const { error: mcqInsertError } = await supabase.from('mcqs').insert(mcqRows)
@@ -1189,7 +1247,7 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
         exam_id: exam.id,
         subject_id: subject.id,
         topic_id: topic.id,
-        title: `${topic.name} — Comprehensive Guide (v${targetVersionNum})`,
+        title: `${subtopicName ? `${subtopicName} (${topic.name})` : topic.name} — Comprehensive Guide (v${targetVersionNum})`,
         content: finalPayload.notes,
         note_type: 'high_yield',
         status: 'approved',
@@ -1226,7 +1284,7 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
           exam_id: exam.id,
           subject_id: subject.id,
           topic_id: topic.id,
-          title: `60s Revision — ${topic.name} (v${targetVersionNum})`,
+          title: `60s Revision — ${subtopicName || topic.name} (v${targetVersionNum})`,
           content: finalPayload.revision_sheet,
           status: 'approved',
           ai_generated: true,
@@ -1254,6 +1312,8 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
           subject_name: subject.name,
           topic_id: topic.id,
           topic_name: topic.name,
+          subtopic_id: subtopicId || null,
+          subtopic_name: subtopicName || null,
           generation_reason: generationReason,
           model_id: modelUsed,
           provider: providerUsed,

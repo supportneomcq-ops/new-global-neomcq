@@ -233,6 +233,8 @@ export function TopicContentProvider({ children }: { children: React.ReactNode }
           body: JSON.stringify({
             topicId: selection.topic?.id,
             topicName: topicName,
+            subtopicId: selection.subtopic?.id,
+            subtopicName: selection.subtopic?.name,
             subjectId: selection.subject?.id,
             subjectName: subjectName,
             examId: selection.exam?.id,
@@ -304,7 +306,7 @@ export function TopicContentProvider({ children }: { children: React.ReactNode }
         }, 300);
       }
     },
-    [selection.topic?.id, selection.topic?.name, selection.subject?.id, selection.subject?.name, selection.exam?.id, selection.exam?.name]
+    [selection.topic?.id, selection.topic?.name, selection.subject?.id, selection.subject?.name, selection.exam?.id, selection.exam?.name, selection.subtopic?.id, selection.subtopic?.name]
   );
 
   const orchestrateTopic = useCallback(
@@ -378,7 +380,7 @@ export function TopicContentProvider({ children }: { children: React.ReactNode }
     return () => clearInterval(interval);
   }, [cards, orchestrateTopic]);
 
-  // When active topic changes, immediately reset cards so no stale cards are shown!
+  // When active topic or subtopic changes, immediately reset cards so no stale cards are shown!
   useEffect(() => {
     setCards([]);
     setContent(null);
@@ -387,7 +389,7 @@ export function TopicContentProvider({ children }: { children: React.ReactNode }
     if (selection.topic?.name) {
       orchestrateTopic(false);
     }
-  }, [selection.topic?.id, selection.topic?.name, orchestrateTopic]);
+  }, [selection.topic?.id, selection.topic?.name, selection.subtopic?.id, selection.subtopic?.name, orchestrateTopic]);
 
   const refreshTopicContent = useCallback(
     async (force = true) => {

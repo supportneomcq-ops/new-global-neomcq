@@ -226,6 +226,7 @@ export async function POST(req: NextRequest) {
             examInput: exam.id,
             subjectInput: subject.id,
             topicInput: topic.id,
+            subtopicInput: subtopicId || subtopicName || null,
             userId: user.id,
             forceRefresh: forceRefresh === true,
           });

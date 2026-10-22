@@ -489,7 +489,7 @@ CRITICAL RULES:
     prompt,
     systemInstruction,
     preferredProvider: 'gemini',
-    preferredModel: 'gemini-3.5-flash',
+    preferredModel: 'gemini-3.8-flash',
     temperature: 0.25,
     maxOutputTokens: 12000,
     responseMimeType: 'application/json',
@@ -521,7 +521,7 @@ CRITICAL RULES:
     const repairProvider = String(genResult.providerUsed || '').toLowerCase().includes('openai')
       ? 'openai'
       : 'gemini';
-    const repairModel = genResult.modelUsed || (repairProvider === 'openai' ? 'gpt-4o-mini' : 'gemini-3.5-flash');
+    const repairModel = genResult.modelUsed || (repairProvider === 'openai' ? 'gpt-4o-mini' : 'gemini-3.8-flash');
     const repairResult = await AIGateway.generateContent({
       userId,
       taskType: 'a4_notes_generation',
