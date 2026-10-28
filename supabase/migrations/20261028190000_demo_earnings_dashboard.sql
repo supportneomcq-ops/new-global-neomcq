@@ -33,7 +33,8 @@ using (
   )
 );
 
-grant select on public.demo_earnings_monthly to authenticated;
+revoke all on table public.demo_earnings_monthly from anon, authenticated;
+grant select on table public.demo_earnings_monthly to authenticated;
 
 insert into public.demo_earnings_monthly
   (period_start, period_label, currency, gross_revenue, operating_expenses, net_profit, target_profit, is_demo, demo_notice)
