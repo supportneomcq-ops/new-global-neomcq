@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { RefreshCw, Wallet, TrendingUp, ReceiptText, BrainCircuit, Server, Target, ShieldCheck, AlertCircle } from 'lucide-react';
+import { RefreshCw, Wallet, ReceiptText, BrainCircuit, Server, Target, ShieldCheck, AlertCircle } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,8 +34,8 @@ export default async function FinancialsPage() {
     supabase.from('payments').select('id, amount, currency, status, created_at, subscription_id').gte('created_at', from).order('created_at', { ascending: false }).limit(5000),
     supabase.from('subscriptions').select('id, plan_id, plan_code, status, amount, currency, created_at, started_at').gte('created_at', from).order('created_at', { ascending: false }).limit(5000),
     supabase.from('subscription_plans').select('id, name, slug, price_inr, price_usd, billing_interval, is_active').order('price_inr'),
-    supabase.from('ai_cost_events').select('id, provider, model, actual_provider_cost, ai_infrastructure_cost, created_at').gte('created_at', from).order('created_at', { ascending: false }).limit(10000),
-    supabase.from('operating_expense_entries').select('id, category, description, amount, currency, incurred_on, verified').gte('incurred_on', from.slice(0, 10)).order('incurred_on', { ascending: false }).limit(5000),
+    supabase.from('ai_cost_events' as any).select('id, provider, model, actual_provider_cost, ai_infrastructure_cost, created_at').gte('created_at', from).order('created_at', { ascending: false }).limit(10000),
+    supabase.from('operating_expense_entries' as any).select('id, category, description, amount, currency, incurred_on, verified').gte('incurred_on', from.slice(0, 10)).order('incurred_on', { ascending: false }).limit(5000),
   ]);
 
   const payments = paymentResult.data ?? [];
