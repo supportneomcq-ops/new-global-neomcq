@@ -109,10 +109,12 @@ export default function AdminDashboardOverviewPage() {
     const csvRows = [
       ['Metric', 'Value', 'Time Range'],
       ['Total Users', liveMetrics.totalUsers || 0, timeRange],
+      ['Prepared Profiles (not registered accounts)', liveMetrics.preparedStudentProfiles || 0, 'All time'],
       ['New Users', liveMetrics.newUsers || 0, timeRange],
       ['Active Users', liveMetrics.activeUsers || 0, timeRange],
       ['Premium Users', liveMetrics.premiumUsers || 0, timeRange],
-      ['Revenue (INR)', liveMetrics.revenue || 0, timeRange],
+      ['Revenue Actual (INR)', liveMetrics.revenue || 0, timeRange],
+      ['Revenue Target (INR)', 250000, timeRange],
       ['AI Requests', liveMetrics.aiRequests || 0, timeRange],
       ['Questions Generated', liveMetrics.questionsGenerated || 0, timeRange],
       ['Questions Solved', liveMetrics.questionsSolved || 0, timeRange],
@@ -152,6 +154,14 @@ export default function AdminDashboardOverviewPage() {
       col: '#6D5BFF'
     },
     {
+      label: 'Prepared Profiles',
+      val: (liveMetrics?.preparedStudentProfiles ?? 0).toLocaleString(),
+      trend: 'Profile pool',
+      isUp: true,
+      spark: [0, 1, 2, 3, 4, liveMetrics?.preparedStudentProfiles || 0],
+      col: '#A855F7'
+    },
+    {
       label: 'Active Users',
       val: (liveMetrics?.activeUsers ?? 0).toLocaleString(),
       trend: getTrend(liveMetrics?.activeUsers || 0, liveMetrics?.activeUsersPrev || 0).text,
@@ -176,12 +186,20 @@ export default function AdminDashboardOverviewPage() {
       col: '#F59E0B'
     },
     {
-      label: 'Revenue',
+      label: 'Revenue (Actual)',
       val: `₹${(liveMetrics?.revenue ?? 0).toLocaleString()}`,
       trend: getTrend(liveMetrics?.revenue || 0, liveMetrics?.revenuePrev || 0).text,
       isUp: getTrend(liveMetrics?.revenue || 0, liveMetrics?.revenuePrev || 0).isUp,
       spark: [0, 0, 0, liveMetrics?.revenuePrev || 0, liveMetrics?.revenue || 0],
       col: '#10B981'
+    },
+    {
+      label: 'Revenue Target',
+      val: '₹2,50,000',
+      trend: 'Goal',
+      isUp: true,
+      spark: [1, 1, 2, 2, 3, 4],
+      col: '#F59E0B'
     },
     {
       label: 'AI Requests',
@@ -305,7 +323,15 @@ export default function AdminDashboardOverviewPage() {
               <div className="text-lg font-black text-white">{c.val}</div>
               {renderSparkline(c.spark, c.col)}
             </div>
-            <div className="text-[9px] text-slate-600 dark:text-slate-400">vs last period</div>
+            <div className="text-[9px] text-slate-600 dark:text-slate-400">
+              {c.label === 'Prepared Profiles'
+                ? 'Prepared profiles; not registered accounts'
+                : c.label === 'Revenue (Actual)'
+                  ? 'Actual recorded payments'
+                  : c.label === 'Revenue Target'
+                    ? 'Target only · not collected revenue'
+                    : 'vs last period'}
+            </div>
           </div>
         ))}
       </div>
