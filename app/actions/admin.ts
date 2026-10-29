@@ -783,6 +783,16 @@ export async function getLiveDashboardMetricsAction(timeRange: string = '7_days'
     results.totalUsers = 0;
   }
 
+  // Prepared student profiles are intentionally kept separate from authenticated accounts.
+  try {
+    const { count } = await adminClient
+      .from('demo_student_profiles' as any)
+      .select('id', { count: 'exact', head: true });
+    results.preparedStudentProfiles = count || 0;
+  } catch (err) {
+    results.preparedStudentProfiles = 0;
+  }
+
   // 2. New Users (current vs previous period)
   try {
     let qCurr = adminClient.from('profiles').select('id', { count: 'exact', head: true });
