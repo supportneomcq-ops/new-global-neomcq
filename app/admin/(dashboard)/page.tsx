@@ -192,6 +192,14 @@ export default function AdminDashboardOverviewPage() {
       col: '#10B981'
     },
     {
+      label: 'Revenue Target',
+      val: '₹2,50,000',
+      trend: 'Goal',
+      isUp: true,
+      spark: [1, 1, 2, 2, 3, 4],
+      col: '#F59E0B'
+    },
+    {
       label: 'AI Requests',
       val: (liveMetrics?.aiRequests ?? 0).toLocaleString(),
       trend: getTrend(liveMetrics?.aiRequests || 0, liveMetrics?.aiRequestsPrev || 0).text,
@@ -317,8 +325,10 @@ export default function AdminDashboardOverviewPage() {
               {c.label === 'Prepared Profiles'
                 ? 'Prepared profiles; not registered accounts'
                 : c.label === 'Revenue (Actual)'
-                  ? 'Actual recorded payments · Goal ₹2,50,000'
-                  : 'vs last period'}
+                  ? 'Actual recorded payments'
+                  : c.label === 'Revenue Target'
+                    ? 'Target only · not collected revenue'
+                    : 'vs last period'}
             </div>
           </div>
         ))}
