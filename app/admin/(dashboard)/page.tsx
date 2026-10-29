@@ -152,6 +152,14 @@ export default function AdminDashboardOverviewPage() {
       col: '#6D5BFF'
     },
     {
+      label: 'Prepared Profiles',
+      val: (liveMetrics?.preparedStudentProfiles ?? 0).toLocaleString(),
+      trend: 'Profile pool',
+      isUp: true,
+      spark: [0, 1, 2, 3, 4, liveMetrics?.preparedStudentProfiles || 0],
+      col: '#A855F7'
+    },
+    {
       label: 'Active Users',
       val: (liveMetrics?.activeUsers ?? 0).toLocaleString(),
       trend: getTrend(liveMetrics?.activeUsers || 0, liveMetrics?.activeUsersPrev || 0).text,
@@ -176,7 +184,7 @@ export default function AdminDashboardOverviewPage() {
       col: '#F59E0B'
     },
     {
-      label: 'Revenue',
+      label: 'Revenue (Actual)',
       val: `₹${(liveMetrics?.revenue ?? 0).toLocaleString()}`,
       trend: getTrend(liveMetrics?.revenue || 0, liveMetrics?.revenuePrev || 0).text,
       isUp: getTrend(liveMetrics?.revenue || 0, liveMetrics?.revenuePrev || 0).isUp,
@@ -305,7 +313,13 @@ export default function AdminDashboardOverviewPage() {
               <div className="text-lg font-black text-white">{c.val}</div>
               {renderSparkline(c.spark, c.col)}
             </div>
-            <div className="text-[9px] text-slate-600 dark:text-slate-400">vs last period</div>
+            <div className="text-[9px] text-slate-600 dark:text-slate-400">
+              {c.label === 'Prepared Profiles'
+                ? 'Prepared profiles; not registered accounts'
+                : c.label === 'Revenue (Actual)'
+                  ? 'Actual recorded payments · Goal ₹2,50,000'
+                  : 'vs last period'}
+            </div>
           </div>
         ))}
       </div>
