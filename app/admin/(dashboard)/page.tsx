@@ -109,10 +109,12 @@ export default function AdminDashboardOverviewPage() {
     const csvRows = [
       ['Metric', 'Value', 'Time Range'],
       ['Total Users', liveMetrics.totalUsers || 0, timeRange],
+      ['Prepared Profiles (not registered accounts)', liveMetrics.preparedStudentProfiles || 0, 'All time'],
       ['New Users', liveMetrics.newUsers || 0, timeRange],
       ['Active Users', liveMetrics.activeUsers || 0, timeRange],
       ['Premium Users', liveMetrics.premiumUsers || 0, timeRange],
-      ['Revenue (INR)', liveMetrics.revenue || 0, timeRange],
+      ['Revenue Actual (INR)', liveMetrics.revenue || 0, timeRange],
+      ['Revenue Target (INR)', 250000, timeRange],
       ['AI Requests', liveMetrics.aiRequests || 0, timeRange],
       ['Questions Generated', liveMetrics.questionsGenerated || 0, timeRange],
       ['Questions Solved', liveMetrics.questionsSolved || 0, timeRange],
