@@ -228,6 +228,7 @@ export function AdminShell({ userEmail, roles, children }: AdminShellProps) {
       title: 'REVENUE',
       items: [
         { label: 'Revenue', href: '/admin/revenue', icon: BadgeDollarSign },
+        { label: 'Demo Earnings', href: '/admin/demo-earnings', icon: TrendingUp },
         { label: 'Payments', href: '/admin/payments', icon: CreditCard },
         { label: 'Razorpay', href: '/admin/razorpay', icon: Activity },
         { label: 'Subscriptions', href: '/admin/subscriptions', icon: Layers },
