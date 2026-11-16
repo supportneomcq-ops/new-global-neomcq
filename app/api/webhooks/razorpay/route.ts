@@ -242,7 +242,7 @@ export async function POST(req: NextRequest) {
 
             const { error: subscriptionCreditError } = await admin.rpc('credit_adjust', {
               p_user_id: userId,
-              p_amount: 1000,
+              p_amount: plan.included_credits,
               p_type: 'SUBSCRIPTION_GRANT',
               p_reason: `Subscription Charge ${subscriptionId}:${paymentId}`,
             });
@@ -422,7 +422,7 @@ export async function POST(req: NextRequest) {
 
               const { error: subscriptionCreditError } = await admin.rpc('credit_adjust', {
                 p_user_id: userId,
-                p_amount: 1000,
+                p_amount: plan.included_credits,
                 p_type: 'SUBSCRIPTION_GRANT',
                 p_reason: `Subscription Activated ${checkoutOrderId}`,
               });
