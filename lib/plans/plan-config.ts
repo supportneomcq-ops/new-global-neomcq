@@ -88,7 +88,9 @@ export const AUTHORITATIVE_PLANS: Record<PlanCode, PlanDefinition> = {
       'Active Recall Flashcards & Fill-in-the-Blank Drills',
       'High-Speed Neural Audio (TTS) in AI Tutor (15 audio/day)',
       '500 AI credits per monthly billing period',
+      'Unused subscription credits are capped at 2x your plan allowance',
       '1,500 AI credits per monthly billing period',
+      'Unused subscription credits are capped at 2x your plan allowance',
       'Exam Curriculum Switching Fee applicable',
     ],
     limits: {
@@ -176,6 +178,7 @@ export const AUTHORITATIVE_PLANS: Record<PlanCode, PlanDefinition> = {
       'High-volume access for 1 full year (365 days), subject to fair-use limits',
       'FREE Unlimited Exam Curriculum Switching (Zero Fees)',
       '5,000 AI credits included for the annual billing period',
+      'Unused subscription credits are capped at 2x your plan allowance',
       'High daily limits for MCQs, quizzes, flashcards, notes, and AI Tutor',
       'Advanced AI Tutor interactive lessons and live whiteboards',
       'High-volume neural audio TTS allowance',
