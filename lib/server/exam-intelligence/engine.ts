@@ -1030,10 +1030,10 @@ ${JSON.stringify(bestPartialCandidate)}`
 
     if (!isCompleteRepair(bestPartialCandidate) && process.env.OPENAI_API_KEY) {
       try {
-        const candidate = bestPartialCandidate
+        const candidate: AIExamIntelligenceOutput = bestPartialCandidate as AIExamIntelligenceOutput
         const normalizeLabel = (value: string) => value.toLowerCase().replace(/&/g, ' and ')
           .replace(/[^a-z0-9]+/g, ' ').trim()
-        const subjectDeficits = (candidate?.subjects || []).map((subject) => {
+        const subjectDeficits = (candidate.subjects || []).map((subject) => {
           const topics = subject.topics || []
           const thinTopics = topics
             .filter((topic) => (topic.subtopics || []).length < 3)
