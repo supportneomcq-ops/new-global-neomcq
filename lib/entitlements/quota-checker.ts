@@ -189,9 +189,8 @@ export async function checkFeatureQuota(params: QuotaCheckParams): Promise<Quota
   // 2. PAID PLAN DAILY QUOTAS & TOPIC SWITCH LIMITS
   // ---------------------------------------------------------------------------
   if (isPaid) {
-    if (planCode === 'ELITE') {
-      return { allowed: true, planCode: 'ELITE' };
-    }
+    // Elite is a premium high-volume plan, not an unmetered API key.
+    // Apply the same server-side daily counters using its larger fair-use limits.
 
     // Fetch plan limits configuration from DB or AUTHORITATIVE_PLANS
     let planLimits: Record<string, any> = {};

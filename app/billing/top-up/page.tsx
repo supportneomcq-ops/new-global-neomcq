@@ -60,7 +60,7 @@ export default function CreditTopUpPage() {
           setCurrentBalance(data.wallet?.credit_balance || 0);
           const activeSub = Boolean(data.subscription && data.subscription.status === 'active');
           // Also allow admin/test emails or active status
-          setIsSubscribed(activeSub || true); // enforced strictly on server route as well
+          setIsSubscribed(Boolean(activeSub && data.subscription?.current_period_end && new Date(data.subscription.current_period_end).getTime() > Date.now()));
         }
       } catch (err) {
         console.error('Error fetching subscription status:', err);
@@ -101,6 +101,7 @@ export default function CreditTopUpPage() {
               orderId: data.orderId,
               paymentId: response.razorpay_payment_id || `pay_top_${Date.now()}`,
               credits: data.credits,
+              signature: response.razorpay_signature,
             });
           },
           theme: { color: '#6D5BFF' },
@@ -113,14 +114,7 @@ export default function CreditTopUpPage() {
         const rzp = new window.Razorpay(options);
         rzp.open();
       } else {
-        // Fallback simulation for preview environments
-        setTimeout(async () => {
-          await verifyTopUp({
-            orderId: data.orderId,
-            paymentId: `pay_sim_${Date.now()}`,
-            credits: data.credits,
-          });
-        }, 1000);
+        throw new Error('Secure Razorpay checkout could not be loaded. No payment was taken; please refresh and try again.');
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Error processing top-up request.');
@@ -128,7 +122,7 @@ export default function CreditTopUpPage() {
     }
   };
 
-  const verifyTopUp = async (payload: { orderId: string; paymentId: string; credits: number }) => {
+  const verifyTopUp = async (payload: { orderId: string; paymentId: string; credits: number; signature: string }) => {
     try {
       const verifyRes = await fetch('/api/user/credits/topup-verify', {
         method: 'POST',

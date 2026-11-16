@@ -230,11 +230,23 @@ export async function POST(req: NextRequest) {
                 amount: paymentAmount,
                 currency: paymentCurrency,
                 status: 'captured',
+                plan_code: plan.code,
+                payment_category: 'subscription',
+                processing_fee_amount: paymentEntity?.fee == null ? null : Number(paymentEntity.fee) / 100,
+                tax_amount: paymentEntity?.tax == null ? null : Number(paymentEntity.tax) / 100,
                 webhook_payload: event,
               },
               { onConflict: 'razorpay_payment_id' }
             );
             if (paymentRecordError) throw paymentRecordError;
+
+            const { error: subscriptionCreditError } = await admin.rpc('credit_adjust', {
+              p_user_id: userId,
+              p_amount: plan.included_credits,
+              p_type: 'SUBSCRIPTION_GRANT',
+              p_reason: `Subscription Charge ${subscriptionId}:${paymentId}`,
+            });
+            if (subscriptionCreditError) throw subscriptionCreditError;
           }
         }
       }
@@ -275,6 +287,9 @@ export async function POST(req: NextRequest) {
               amount,
               currency,
               status: 'captured',
+              payment_category: isExamSwitch ? 'exam_switch' : 'other',
+              processing_fee_amount: paymentEntity?.fee == null ? null : Number(paymentEntity.fee) / 100,
+              tax_amount: paymentEntity?.tax == null ? null : Number(paymentEntity.tax) / 100,
               webhook_payload: event,
             },
             { onConflict: 'razorpay_payment_id' }
@@ -385,6 +400,34 @@ export async function POST(req: NextRequest) {
             );
 
             if (activationError) throw activationError;
+
+            if (paymentId) {
+              const { error: paymentAllocationError } = await admin.from('payments').upsert(
+                {
+                  user_id: userId,
+                  razorpay_payment_id: paymentId,
+                  razorpay_order_id: checkoutOrderId,
+                  amount: paymentEntity?.amount != null ? Number(paymentEntity.amount) / 100 : subscriptionAmount,
+                  currency: paymentEntity?.currency || subscriptionCurrency,
+                  status: 'captured',
+                  plan_code: plan.code,
+                  payment_category: 'subscription',
+                  processing_fee_amount: paymentEntity?.fee == null ? null : Number(paymentEntity.fee) / 100,
+                  tax_amount: paymentEntity?.tax == null ? null : Number(paymentEntity.tax) / 100,
+                  webhook_payload: event,
+                },
+                { onConflict: 'razorpay_payment_id' }
+              );
+              if (paymentAllocationError) throw paymentAllocationError;
+
+              const { error: subscriptionCreditError } = await admin.rpc('credit_adjust', {
+                p_user_id: userId,
+                p_amount: plan.included_credits,
+                p_type: 'SUBSCRIPTION_GRANT',
+                p_reason: `Subscription Activated ${checkoutOrderId}`,
+              });
+              if (subscriptionCreditError) throw subscriptionCreditError;
+            }
 
             if (plan.code === 'ELITE') {
               await admin.from('profiles').update({ exam_locked: false }).eq('id', userId);

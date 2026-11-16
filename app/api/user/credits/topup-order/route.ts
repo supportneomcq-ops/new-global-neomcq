@@ -3,82 +3,78 @@ import { createClient } from '@/lib/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import Razorpay from 'razorpay';
 
+const CREDIT_PACKS = {
+  '5usd': { amount: 500, credits: 800, name: '800 AI Credits Top-Up ($5)' },
+  '10usd': { amount: 1000, credits: 1600, name: '1600 AI Credits Top-Up ($10)' },
+} as const;
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
-
     if (!user) {
       return NextResponse.json({ success: false, error: 'Authentication required.' }, { status: 401 });
     }
 
     const admin = getSupabaseAdmin();
-
-    // 1. Enforce subscribers-only check
-    const { data: sub } = await admin
+    const { data: sub, error: subError } = await admin
       .from('subscriptions')
-      .select('status')
+      .select('status, current_period_end')
       .eq('user_id', user.id)
-      .in('status', ['active', 'authenticated'])
+      .eq('status', 'active')
       .maybeSingle();
 
-    const isSubscribed = Boolean(sub) || user.email === 'swapnilsonawane913@gmail.com';
-    if (!isSubscribed) {
+    const periodEnd = sub?.current_period_end ? new Date(sub.current_period_end).getTime() : 0;
+    if (subError) {
+      return NextResponse.json({ success: false, error: 'Could not verify your subscription. Please retry.' }, { status: 503 });
+    }
+    if (!sub || periodEnd <= Date.now()) {
       return NextResponse.json(
-        { success: false, error: 'Credit top-ups are reserved exclusively for active subscribers (Pro, Max, or Elite).' },
+        { success: false, error: 'Credit top-ups are available only to users with an active paid subscription.' },
         { status: 403 }
       );
     }
 
     const body = await req.json();
-    const packType = body.packType; // '5usd' or '10usd'
-
-    let amountUsd = 5.00;
-    let creditsToAdd = 800;
-    let packName = '800 AI Credits Top-Up ($5)';
-
-    if (packType === '10usd') {
-      amountUsd = 10.00;
-      creditsToAdd = 1600;
-      packName = '1600 AI Credits Top-Up ($10)';
+    const packType = body?.packType as keyof typeof CREDIT_PACKS;
+    const pack = CREDIT_PACKS[packType];
+    if (!pack) {
+      return NextResponse.json({ success: false, error: 'Choose a valid credit pack.' }, { status: 400 });
     }
 
-    const amountCents = Math.round(amountUsd * 100);
-
-    const keyId = process.env.RAZORPAY_KEY_ID;
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
-
-    let razorpayOrderId = `order_topup_${Date.now()}`;
-
-    if (keyId && keySecret) {
-      try {
-        const razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret });
-        const order = await razorpay.orders.create({
-          amount: amountCents,
-          currency: 'USD',
-          receipt: `topup_${user.id.slice(0, 8)}_${Date.now()}`,
-          notes: {
-            user_id: user.id,
-            credits: creditsToAdd.toString(),
-            pack_type: packType,
-          },
-        });
-        razorpayOrderId = order.id;
-      } catch (rzpErr) {
-        console.warn('Razorpay order creation fallback in dev mode:', rzpErr);
-      }
+    const keyId = process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || '';
+    const keySecret = process.env.RAZORPAY_KEY_SECRET || '';
+    if (!keyId || !keySecret || keyId.startsWith('mock_')) {
+      return NextResponse.json({ success: false, error: 'Secure credit checkout is temporarily unavailable.' }, { status: 503 });
     }
+
+    const razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret });
+    const order = await razorpay.orders.create({
+      amount: pack.amount,
+      currency: 'USD',
+      receipt: `topup_${user.id.slice(0, 8)}_${Date.now()}`,
+      notes: {
+        purpose: 'credit_topup',
+        user_id: user.id,
+        credits: String(pack.credits),
+        pack_type: packType,
+      },
+    });
 
     return NextResponse.json({
       success: true,
-      orderId: razorpayOrderId,
-      amount: amountCents,
-      currency: 'USD',
-      keyId: keyId || '',
-      credits: creditsToAdd,
-      packName,
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      keyId,
+      credits: pack.credits,
+      packName: pack.name,
     });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message || 'Failed to create top-up order' }, { status: 500 });
+    console.error('[Credit Top-up] Order creation failed:', err);
+    return NextResponse.json(
+      { success: false, error: 'Could not create a secure credit checkout. No credits were charged.' },
+      { status: 502 }
+    );
   }
 }
