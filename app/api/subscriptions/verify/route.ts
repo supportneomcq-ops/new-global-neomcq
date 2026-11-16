@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
     const ensureSubscriptionCredits = async () => {
       const { error } = await admin.rpc('credit_adjust', {
         p_user_id: user.id,
-        p_amount: 1000,
+        p_amount: plan.included_credits,
         p_type: 'SUBSCRIPTION_GRANT',
         p_reason: subscriptionCreditReason,
       });
