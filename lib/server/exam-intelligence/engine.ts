@@ -1027,6 +1027,54 @@ ${JSON.stringify(bestPartialCandidate)}`
         console.warn('[Exam Intelligence] OpenAI curriculum repair failed:', repairError?.message || 'Unknown provider error')
       }
     }
+
+    if (!isCompleteRepair(bestPartialCandidate) && process.env.OPENAI_API_KEY) {
+      try {
+        const candidate = bestPartialCandidate
+        const normalizeLabel = (value: string) => value.toLowerCase().normalize('NFKD')
+          .replace(/[\\u0300-\\u036f]/g, '').replace(/&/g, ' and ')
+          .replace(/[^a-z0-9]+/g, ' ').trim()
+        const subjectDeficits = (candidate?.subjects || []).map((subject) => {
+          const topics = subject.topics || []
+          const thinTopics = topics
+            .filter((topic) => (topic.subtopics || []).length < 3)
+            .map((topic) => `${topic.name} (${(topic.subtopics || []).length}/3 subtopics)`)
+          return {
+            name: subject.name,
+            topicCount: topics.length,
+            missingTopics: Math.max(0, 5 - topics.length),
+            thinTopics,
+          }
+        })
+        const duplicateSubjects = (candidate?.subjects || []).map((subject) => normalizeLabel(subject.name))
+          .filter((name, index, all) => name && all.indexOf(name) !== index)
+        const thinSubjectSummary = subjectDeficits
+          .filter((item) => item.missingTopics > 0 || item.thinTopics.length > 0)
+          .map((item) => `${item.name}: ${item.topicCount}/5 topics; add ${item.missingTopics} topics; thin topics: ${item.thinTopics.join(', ') || 'none'}`)
+        const targetedPrompt = `The previous curriculum repair is still incomplete. Fix ONLY the listed validation gaps while preserving all correct exam-specific content and returning the complete NeoMCQ JSON schema.
+Per-subject gaps:
+${thinSubjectSummary.length ? thinSubjectSummary.join('\\n') : 'No topic-count gaps detected; inspect and remove duplicate or generic subject/topic/subtopic labels.'}
+Duplicate subject labels detected: ${duplicateSubjects.length ? [...new Set(duplicateSubjects)].join(', ') : 'none detected'}.
+Hard rules: at least 5 meaningful topics in every subject and at least 3 meaningful subtopics in every topic; no duplicate labels within a parent; no generic filler. Do not rename or remove valid official subjects. Return JSON only.
+
+Current best curriculum:
+${JSON.stringify(candidate)}`
+        const targetedOpenAI = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 75000, maxRetries: 0 })
+        const targetedCompletion = await targetedOpenAI.chat.completions.create({
+          model: process.env.OPENAI_CURRICULUM_MODEL || 'gpt-5.4-mini',
+          messages: [{ role: 'system', content: systemInstruction }, { role: 'user', content: targetedPrompt }],
+          response_format: { type: 'json_object' }, max_completion_tokens: 16000,
+        })
+        const parsedTargeted = JSON.parse(targetedCompletion.choices[0]?.message?.content || '{}')
+        const validatedTargeted = AIExamIntelligenceOutputSchema.safeParse(parsedTargeted)
+        const targetedRepair = validatedTargeted.success ? validatedTargeted.data : null
+        if (isCompleteRepair(targetedRepair)) return targetedRepair!
+        if (targetedRepair) keepMoreCompleteCandidate(targetedRepair)
+        console.warn('[Exam Intelligence] Targeted OpenAI repair remained incomplete for', cleanName)
+      } catch (targetedError: any) {
+        console.warn('[Exam Intelligence] Targeted OpenAI curriculum repair failed:', targetedError?.message || 'Unknown provider error')
+      }
+    }
   }
 
   // Preserve partial domain-specific output for reconciliation, but downstream
