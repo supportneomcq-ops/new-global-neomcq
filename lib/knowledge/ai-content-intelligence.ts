@@ -1264,7 +1264,7 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
 
     // 5c. Insert Flashcards into flashcards table
     if (finalPayload.flashcards.length > 0) {
-      const flashRows = finalPayload.flashcards.map((f) => ({
+      const flashRows = finalPayload.flashcards.map((f, idx) => ({
         exam_id: exam.id,
         subject_id: subject.id,
         topic_id: topic.id,
