@@ -435,6 +435,15 @@ export async function POST(req: NextRequest) {
           }
         }
       }
+    } else if (eventType === 'payment.refunded') {
+      // Full refunds reverse the associated owner reserve allocation via the payments trigger.
+      if (paymentId) {
+        const { error: refundUpdateError } = await admin
+          .from('payments')
+          .update({ status: 'refunded', webhook_payload: event })
+          .eq('razorpay_payment_id', paymentId);
+        if (refundUpdateError) throw refundUpdateError;
+      }
     } else if (eventType === 'payment.failed') {
       if (userId && paymentId) {
         await admin.from('payments').upsert(
