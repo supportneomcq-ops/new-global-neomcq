@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
       status: 'captured',
       payment_category: 'credit_topup',
       processing_fee_amount: payment?.fee == null ? null : Number(payment.fee) / 100,
-      tax_amount: payment?.tax == null ? null : Number(payment.tax) / 100,
+      gateway_fee_tax_amount: payment?.tax == null ? null : Number(payment.tax) / 100,
       webhook_payload: { verified_via: 'razorpay_signature_and_api', pack_type: packType },
     }, { onConflict: 'razorpay_payment_id' });
     if (paymentRecordError) {
