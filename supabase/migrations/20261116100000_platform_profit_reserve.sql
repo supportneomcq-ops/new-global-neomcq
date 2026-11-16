@@ -107,6 +107,9 @@ BEGIN
 END;
 $$;
 
+REVOKE ALL ON FUNCTION public.allocate_subscription_payment_profit() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.allocate_subscription_payment_profit() TO service_role;
+
 DROP TRIGGER IF EXISTS trg_allocate_subscription_payment_profit ON public.payments;
 CREATE TRIGGER trg_allocate_subscription_payment_profit
 AFTER INSERT OR UPDATE OF status, amount, currency, plan_code, payment_category,
