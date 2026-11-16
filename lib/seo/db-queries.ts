@@ -212,7 +212,7 @@ export async function getPublicSubjectBySlug(
       // Fetch topics for this subject
       const { data: topicData } = await (supabase as any)
         .from('exam_topics')
-        .select('id, name, slug, description, level, learning_objectives, estimated_study_mins, updated_at')
+        .select('id, name, slug, description, importance, display_order, created_at, verified_at')
         .eq('subject_id', subjData.id)
         .order('name', { ascending: true });
 
@@ -223,15 +223,15 @@ export async function getPublicSubjectBySlug(
           name: t.name,
           slug: t.slug || slugify(t.name),
           description: t.description,
-          level: t.level,
-          learning_objectives: t.learning_objectives,
-          estimated_study_mins: t.estimated_study_mins,
+          level: t.importance || 'High Yield',
+          learning_objectives: [],
+          estimated_study_mins: undefined,
           exam_id: exam.id,
           exam_name: exam.name,
           exam_slug: exam.slug,
           subject_name: subjData.name,
           subject_slug: subject!.slug,
-          updated_at: t.updated_at,
+          updated_at: t.verified_at || t.created_at,
         }));
       }
     }
@@ -295,7 +295,7 @@ export async function getPublicTopicBySlug(
     try {
       const { data: dbTopic } = await (supabase as any)
         .from('exam_topics')
-        .select('id, name, slug, description, level, learning_objectives, estimated_study_mins, updated_at')
+        .select('id, name, slug, description, importance, display_order, created_at, verified_at')
         .eq('subject_id', subject.id)
         .or(`slug.eq.${cleanTopicSlug},name.ilike.%${cleanTopicSlug.replace(/-/g, ' ')}%`)
         .maybeSingle();
@@ -307,15 +307,15 @@ export async function getPublicTopicBySlug(
           name: dbTopic.name,
           slug: dbTopic.slug || slugify(dbTopic.name),
           description: dbTopic.description,
-          level: dbTopic.level,
-          learning_objectives: dbTopic.learning_objectives,
-          estimated_study_mins: dbTopic.estimated_study_mins,
+          level: dbTopic.importance || 'High Yield',
+          learning_objectives: [],
+          estimated_study_mins: undefined,
           exam_id: exam.id,
           exam_name: exam.name,
           exam_slug: exam.slug,
           subject_name: subject.name,
           subject_slug: subject.slug,
-          updated_at: dbTopic.updated_at,
+          updated_at: dbTopic.verified_at || dbTopic.created_at,
         };
       }
     } catch (err) {
