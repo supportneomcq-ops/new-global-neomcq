@@ -60,7 +60,7 @@ export default function CreditTopUpPage() {
           setCurrentBalance(data.wallet?.credit_balance || 0);
           const activeSub = Boolean(data.subscription && data.subscription.status === 'active');
           // Also allow admin/test emails or active status
-          setIsSubscribed(activeSub && (!data.subscription?.current_period_end || new Date(data.subscription.current_period_end).getTime() > Date.now()));
+          setIsSubscribed(Boolean(activeSub && data.subscription?.current_period_end && new Date(data.subscription.current_period_end).getTime() > Date.now()));
         }
       } catch (err) {
         console.error('Error fetching subscription status:', err);
