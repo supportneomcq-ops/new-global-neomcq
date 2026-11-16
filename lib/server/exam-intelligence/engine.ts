@@ -1031,8 +1031,7 @@ ${JSON.stringify(bestPartialCandidate)}`
     if (!isCompleteRepair(bestPartialCandidate) && process.env.OPENAI_API_KEY) {
       try {
         const candidate = bestPartialCandidate
-        const normalizeLabel = (value: string) => value.toLowerCase().normalize('NFKD')
-          .replace(/[\\u0300-\\u036f]/g, '').replace(/&/g, ' and ')
+        const normalizeLabel = (value: string) => value.toLowerCase().replace(/&/g, ' and ')
           .replace(/[^a-z0-9]+/g, ' ').trim()
         const subjectDeficits = (candidate?.subjects || []).map((subject) => {
           const topics = subject.topics || []
@@ -1053,7 +1052,7 @@ ${JSON.stringify(bestPartialCandidate)}`
           .map((item) => `${item.name}: ${item.topicCount}/5 topics; add ${item.missingTopics} topics; thin topics: ${item.thinTopics.join(', ') || 'none'}`)
         const targetedPrompt = `The previous curriculum repair is still incomplete. Fix ONLY the listed validation gaps while preserving all correct exam-specific content and returning the complete NeoMCQ JSON schema.
 Per-subject gaps:
-${thinSubjectSummary.length ? thinSubjectSummary.join('\\n') : 'No topic-count gaps detected; inspect and remove duplicate or generic subject/topic/subtopic labels.'}
+${thinSubjectSummary.length ? thinSubjectSummary.join(String.fromCharCode(10)) : 'No topic-count gaps detected; inspect and remove duplicate or generic subject/topic/subtopic labels.'}
 Duplicate subject labels detected: ${duplicateSubjects.length ? [...new Set(duplicateSubjects)].join(', ') : 'none detected'}.
 Hard rules: at least 5 meaningful topics in every subject and at least 3 meaningful subtopics in every topic; no duplicate labels within a parent; no generic filler. Do not rename or remove valid official subjects. Return JSON only.
 
