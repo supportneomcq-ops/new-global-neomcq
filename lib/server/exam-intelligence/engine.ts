@@ -950,8 +950,7 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
           { role: 'user', content: prompt },
         ],
         response_format: { type: 'json_object' },
-        temperature: 0.1,
-        max_tokens: 16000,
+        max_completion_tokens: 16000,
       })
       const responseText = completion.choices[0]?.message?.content
       if (responseText) {
@@ -1017,7 +1016,7 @@ ${JSON.stringify(bestPartialCandidate)}`
         const repairCompletion = await repairOpenAI.chat.completions.create({
           model: process.env.OPENAI_CURRICULUM_MODEL || 'gpt-5.4-mini',
           messages: [{ role: 'system', content: systemInstruction }, { role: 'user', content: repairPrompt }],
-          response_format: { type: 'json_object' }, temperature: 0.1, max_tokens: 16000,
+          response_format: { type: 'json_object' }, max_completion_tokens: 16000,
         })
         const parsedRepair = JSON.parse(repairCompletion.choices[0]?.message?.content || '{}')
         const validatedRepair = AIExamIntelligenceOutputSchema.safeParse(parsedRepair)
