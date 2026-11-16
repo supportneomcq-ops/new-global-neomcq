@@ -838,7 +838,7 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
     try {
       const response = await Promise.race([
         ai.models.generateContent({
-          model: process.env.GEMINI_CURRICULUM_MODEL || 'gemini-2.5-flash',
+          model: process.env.GEMINI_CURRICULUM_MODEL || 'gemini-3.6-flash',
           contents: prompt,
           config: {
             systemInstruction,
@@ -944,7 +944,7 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
         maxRetries: 0,
       })
       const completion = await openai.chat.completions.create({
-        model: process.env.OPENAI_CURRICULUM_MODEL || 'gpt-4o-mini',
+        model: process.env.OPENAI_CURRICULUM_MODEL || 'gpt-5.4-mini',
         messages: [
           { role: 'system', content: systemInstruction },
           { role: 'user', content: prompt },
@@ -997,7 +997,7 @@ ${JSON.stringify(bestPartialCandidate)}`
       try {
         const repairAi = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
         const repairResponse = await repairAi.models.generateContent({
-          model: process.env.GEMINI_CURRICULUM_MODEL || 'gemini-2.5-flash',
+          model: process.env.GEMINI_CURRICULUM_MODEL || 'gemini-3.6-flash',
           contents: repairPrompt,
           config: { systemInstruction, responseMimeType: 'application/json', maxOutputTokens: 16000, temperature: 0.1 },
         })
@@ -1015,7 +1015,7 @@ ${JSON.stringify(bestPartialCandidate)}`
       try {
         const repairOpenAI = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 75000, maxRetries: 0 })
         const repairCompletion = await repairOpenAI.chat.completions.create({
-          model: process.env.OPENAI_CURRICULUM_MODEL || 'gpt-4o-mini',
+          model: process.env.OPENAI_CURRICULUM_MODEL || 'gpt-5.4-mini',
           messages: [{ role: 'system', content: systemInstruction }, { role: 'user', content: repairPrompt }],
           response_format: { type: 'json_object' }, temperature: 0.1, max_tokens: 16000,
         })
@@ -1882,6 +1882,17 @@ export async function enrichCurriculumProcess(
       ? cachedSpecResult.data
       : await generateAIExamIntelligence(examName, countryHint, categoryHint)
   )
+  if (generatedSpec && !isCurriculumSpecComprehensive(examName, generatedSpec)) {
+    const generatedTopicCount = (generatedSpec.subjects || []).reduce((total, subject) => total + (subject.topics || []).length, 0)
+    const generatedSubtopicCount = (generatedSpec.subjects || []).reduce(
+      (total, subject) => total + (subject.topics || []).reduce((sum, topic) => sum + (topic.subtopics || []).length, 0),
+      0
+    )
+    throw new Error(
+      `AI returned an incomplete curriculum for "${examName}" (subjects=${generatedSpec.subjects?.length || 0}, topics=${generatedTopicCount}, subtopics=${generatedSubtopicCount}). The partial specification was not cached or persisted; retry after provider repair.`
+    )
+  }
+
   if (!generatedSpec) {
     const subjects = existingSubjects || []
     const topicCount = subjects.reduce((n: number, s: any) => n + (s.exam_topics || []).length, 0)
