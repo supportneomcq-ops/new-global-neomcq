@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
-import { resolveOrInitializeExamIntelligence } from '@/lib/server/exam-intelligence'
+import {
+  resolveOrInitializeExamIntelligence,
+  findMatchingSubjectInList,
+  findMatchingTopicInList,
+  findMatchingSubtopicInList,
+} from '@/lib/server/exam-intelligence'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -191,8 +196,17 @@ export async function GET(req: NextRequest) {
     const activeChildren = (items: any[]) => (items || []).filter((item: any) =>
       item.is_active !== false && item.active !== false
     )
-    const findByName = (items: any[], name: string) =>
-      activeChildren(items).find((item: any) => normalize(item.name) === normalize(name))
+    const findByName = (
+      items: any[],
+      name: string,
+      entityType: 'SUBJECT' | 'TOPIC' | 'SUBTOPIC',
+      parentContext?: string,
+    ) => {
+      const activeItems = activeChildren(items)
+      if (entityType === 'SUBJECT') return findMatchingSubjectInList(name, activeItems)
+      if (entityType === 'TOPIC') return findMatchingTopicInList(name, activeItems, parentContext)
+      return findMatchingSubtopicInList(name, activeItems, parentContext)
+    }
     const genericLabel = /^(subject|topic|subtopic|core subject|core topic|topic number|module)\s*\d*$/i
 
     // Validate the persisted database hierarchy against the cached exam-specific
@@ -205,7 +219,7 @@ export async function GET(req: NextRequest) {
 
     if (expectedSubjects.length > 0) {
       for (const expectedSubject of expectedSubjects) {
-        const savedSubject = findByName(subjects, expectedSubject.name)
+        const savedSubject = findByName(subjects, expectedSubject.name, 'SUBJECT')
         if (!savedSubject) {
           missingSubjects.push(String(expectedSubject.name || '(unnamed subject)'))
           continue
@@ -221,7 +235,7 @@ export async function GET(req: NextRequest) {
 
         let matchedTopics = 0
         for (const expectedTopic of expectedTopics) {
-          const savedTopic = findByName(savedTopics, expectedTopic.name)
+          const savedTopic = findByName(savedTopics, expectedTopic.name, 'TOPIC', expectedSubject.name)
           if (!savedTopic) continue
           matchedTopics += 1
           if (genericLabel.test(String(savedTopic.name || '').trim())) hasInvalidLabels = true
@@ -229,7 +243,7 @@ export async function GET(req: NextRequest) {
           const expectedSubtopics = Array.isArray(expectedTopic.subtopics) ? expectedTopic.subtopics : []
           const savedSubtopics = activeChildren(savedTopic.exam_subtopics || [])
           const matchedSubtopics = expectedSubtopics.filter((expectedSubtopic: any) =>
-            Boolean(findByName(savedSubtopics, expectedSubtopic.name))
+            Boolean(findByName(savedSubtopics, expectedSubtopic.name, 'SUBTOPIC', expectedTopic.name))
           ).length
 
           // A topic must have at least one meaningful saved subtopic, and at
