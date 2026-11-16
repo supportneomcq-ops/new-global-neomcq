@@ -8,7 +8,7 @@
  * - Multi-Key Load Balancing & Failover (Gemini primary -> OpenAI fallback)
  * - Strict Scope Control & Zero Duplicate Questions Fingerprinting
  * - Strict Content Validation Pipeline (Verified JSON schema, no synthetic templates)
- * - Full Versioning in content_versions & Financial Auditing in ai_cost_events & ai_credit_ledger
+ * - Full Versioning in content_versions & Financial Auditing in ai_cost_events
  */
 
 import { getSupabaseAdmin } from '@/lib/supabase'
@@ -162,6 +162,13 @@ function normalizeQuestionStem(text: string): string {
     .trim()
 }
 
+function normalizePersistedFlashcardDifficulty(value?: string | null): 'Easy' | 'Medium' | 'Hard' {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (normalized.includes('easy') || normalized.includes('beginner')) return 'Easy'
+  if (normalized.includes('hard') || normalized.includes('advanced') || normalized.includes('expert')) return 'Hard'
+  return 'Medium'
+}
+
 /**
  * Validation Pipeline for AI-generated medical/academic content
  */
@@ -252,13 +259,6 @@ function validateGeneratedContent(
   const validNotes = typeof rawPayload?.notes === 'string' && rawPayload.notes.length > 50
     ? rawPayload.notes.trim()
     : ''
-
-function normalizePersistedFlashcardDifficulty(value?: string | null): 'Easy' | 'Medium' | 'Hard' {
-  const normalized = String(value || '').trim().toLowerCase()
-  if (normalized.includes('easy') || normalized.includes('beginner')) return 'Easy'
-  if (normalized.includes('hard') || normalized.includes('advanced') || normalized.includes('expert')) return 'Hard'
-  return 'Medium'
-}
 
   const validFlashcards: GeneratedFlashcard[] = []
   if (Array.isArray(rawPayload?.flashcards)) {
@@ -1454,7 +1454,7 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
       output_tokens: outputTokens,
       cached_tokens: 0,
       actual_cost_usd: costUsd,
-      credits_deducted: 2.0,
+      credits_deducted: 0,
       duration_ms: duration,
       model_used: modelUsed,
       provider_used: providerUsed,
