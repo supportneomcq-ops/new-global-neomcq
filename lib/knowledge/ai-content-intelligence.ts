@@ -253,6 +253,13 @@ function validateGeneratedContent(
     ? rawPayload.notes.trim()
     : ''
 
+function normalizePersistedFlashcardDifficulty(value?: string | null): 'Easy' | 'Medium' | 'Hard' {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (normalized.includes('easy') || normalized.includes('beginner')) return 'Easy'
+  if (normalized.includes('hard') || normalized.includes('advanced') || normalized.includes('expert')) return 'Hard'
+  return 'Medium'
+}
+
   const validFlashcards: GeneratedFlashcard[] = []
   if (Array.isArray(rawPayload?.flashcards)) {
     for (const f of rawPayload.flashcards) {
@@ -1002,8 +1009,6 @@ async function executeGenerationWorkflow({
           subject_id: subject.id,
           topic_id: topic.id,
           task: generationReason === 'FIRST_GENERATION' ? 'FIRST_GENERATION' : 'TOPIC_CONTENT_REFRESH',
-          content_type: 'full_pack',
-          target_version: targetVersionNum,
           idempotency_key: idempotencyKey,
           priority: 5,
           status: 'running',
@@ -1123,7 +1128,7 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
   // 3. Execute AI Generation with Multi-Provider Failover
   let generationOutput: any = null
   try {
-    generationOutput = await executeMultiProviderGeneration(prompt, generationReason === 'FIRST_GENERATION' ? 'FIRST_GENERATION' : 'TOPIC_CONTENT_REFRESH')
+    generationOutput = await executeMultiProviderGeneration(prompt, 'MCQ_GENERATION')
   } catch (genError: any) {
     // Fail the job in database
     if (jobId) {
@@ -1132,7 +1137,6 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
         .update({
           status: 'failed',
           error: genError.message || 'Generation failed',
-          error_code: 'PROVIDER_EXHAUSTED',
           completed_at: new Date().toISOString(),
         })
         .eq('id', jobId)
@@ -1173,7 +1177,6 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
         .update({
           status: 'failed',
           error: 'Generated payload failed structural validation checks.',
-          error_code: 'VALIDATION_FAILED',
           completed_at: new Date().toISOString(),
         })
         .eq('id', jobId)
@@ -1267,7 +1270,8 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
         topic_id: topic.id,
         front: f.front,
         back: f.back,
-        difficulty: difficulty || 'Medium',
+        difficulty: normalizePersistedFlashcardDifficulty(f.difficulty || difficulty),
+        card_index: idx + 1,
         status: 'approved',
         version: targetVersionNum,
         ai_generated: true,
@@ -1345,8 +1349,8 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
     // 5f. Log Financial Event in ai_cost_events
     const { error: costEventError } = await supabase.from('ai_cost_events').insert({
       user_id: userId || null,
-      job_id: jobId || null,
-      content_version_id: contentVersionId,
+      request_id: jobId || idempotencyKey,
+      idempotency_key: idempotencyKey,
       task_type: generationReason === 'FIRST_GENERATION' ? 'FIRST_GENERATION' : 'TOPIC_CONTENT_REFRESH',
       provider: providerUsed,
       model: modelUsed,
@@ -1357,30 +1361,9 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
       actual_provider_cost: costUsd,
       revenue_allocated: costUsd * 2.5, // 60% gross margin target
       ai_infrastructure_cost: costUsd * 0.05,
-      credits_deducted: 2.0,
+      credits_deducted: 0,
     })
     if (costEventError) console.error('[AI Content Intelligence] AI cost event could not be recorded:', costEventError)
-
-    // 5g. Log Immutable Credit Ledger if user requested
-    if (userId) {
-      const { error: creditLedgerError } = await supabase.from('ai_credit_ledger').insert({
-        user_id: userId,
-        job_id: jobId || null,
-        content_version_id: contentVersionId,
-        provider: providerUsed,
-        model: modelUsed,
-        task_type: generationReason,
-        input_tokens: inputTokens,
-        output_tokens: outputTokens,
-        actual_provider_cost_usd: costUsd,
-        internal_credit_cost: 2.0,
-        credit_balance_before: 0,
-        credit_balance_after: 0,
-        transaction_type: 'AI_DEDUCTION',
-        description: `Content Generation for ${topic.name} (v${targetVersionNum})`,
-      })
-      if (creditLedgerError) console.error('[AI Content Intelligence] AI credit ledger could not be recorded:', creditLedgerError)
-    }
 
     // 5h. Mark Job as Completed in ai_jobs
     if (jobId) {
@@ -1399,7 +1382,7 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
             quality_score: finalPayload.quality_score,
             content_version_id: contentVersionId,
           },
-          credits_consumed: 2.0,
+          credits_consumed: 0,
         })
         .eq('id', jobId)
       if (jobUpdateError) console.error('[AI Content Intelligence] Content was saved but the job status could not be updated:', jobUpdateError)
