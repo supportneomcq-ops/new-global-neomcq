@@ -45,7 +45,7 @@ export async function POST() {
     }
 
     const examMetadata = exam.metadata || {}
-    if (examMetadata.curriculum_validation_version !== 2 || examMetadata.curriculum_validation_passed !== true) {
+    if (examMetadata.curriculum_validation_version !== 3 || examMetadata.curriculum_validation_passed !== true) {
       return NextResponse.json({ success: false, error: 'The syllabus still needs validation. Please retry shortly.' }, { status: 422 })
     }
 
