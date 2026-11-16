@@ -39,11 +39,18 @@ export interface PlanDefinition {
   popular?: boolean;
   highlight?: boolean;
   exam_switch_fee_usd: number; // $2 for PRO/MAX, $0 for ELITE
-  is_unlimited: boolean; // true ONLY for ELITE
+  is_unlimited: boolean; // true only when all metered AI features are genuinely unmetered
+  included_credits: number; // one-time allowance per billing period, granted idempotently after payment
   features: string[];
   limits: {
-    daily_ai_questions: number; // Infinity for ELITE
-    monthly_ai_tutor_sessions: number; // Infinity for ELITE
+    daily_ai_questions: number;
+    monthly_ai_tutor_sessions: number;
+    daily_mcq_questions: number;
+    daily_quiz_attempts: number;
+    daily_flashcard_reviews: number;
+    daily_notes_generations: number;
+    daily_blanks_questions: number;
+    daily_tutor_interactions: number;
     daily_topic_switches: number;
     daily_tutor_tts: number;
     audio_tts_enabled: boolean;
@@ -72,6 +79,7 @@ export const AUTHORITATIVE_PLANS: Record<PlanCode, PlanDefinition> = {
     highlight: false,
     exam_switch_fee_usd: 2.0,
     is_unlimited: false,
+    included_credits: 500,
     features: [
       'Comprehensive access to 180+ Country Syllabus & Exam Blueprints',
       'Adaptive MCQ Practice & Mock Exams with Standard Explanations',
@@ -79,11 +87,19 @@ export const AUTHORITATIVE_PLANS: Record<PlanCode, PlanDefinition> = {
       'Spaced Repetition Knowledge Radar & Topic Analytics',
       'Active Recall Flashcards & Fill-in-the-Blank Drills',
       'High-Speed Neural Audio (TTS) in AI Tutor (15 audio/day)',
+      '500 AI credits per monthly billing period',
+      '1,500 AI credits per monthly billing period',
       'Exam Curriculum Switching Fee applicable',
     ],
     limits: {
       daily_ai_questions: 100,
       monthly_ai_tutor_sessions: 30,
+      daily_mcq_questions: 100,
+      daily_quiz_attempts: 20,
+      daily_flashcard_reviews: 100,
+      daily_notes_generations: 5,
+      daily_blanks_questions: 100,
+      daily_tutor_interactions: 10,
       daily_topic_switches: 2,
       daily_tutor_tts: 15,
       audio_tts_enabled: true,
@@ -110,6 +126,7 @@ export const AUTHORITATIVE_PLANS: Record<PlanCode, PlanDefinition> = {
     highlight: false,
     exam_switch_fee_usd: 2.0,
     is_unlimited: false,
+    included_credits: 1500,
     features: [
       'Everything in Pro included',
       'Advanced Clinical Vignettes & Complex Diagnostic Reasoning',
@@ -122,6 +139,12 @@ export const AUTHORITATIVE_PLANS: Record<PlanCode, PlanDefinition> = {
     limits: {
       daily_ai_questions: 350,
       monthly_ai_tutor_sessions: 120,
+      daily_mcq_questions: 350,
+      daily_quiz_attempts: 50,
+      daily_flashcard_reviews: 300,
+      daily_notes_generations: 15,
+      daily_blanks_questions: 350,
+      daily_tutor_interactions: 40,
       daily_topic_switches: 15,
       daily_tutor_tts: 50,
       audio_tts_enabled: true,
@@ -142,31 +165,38 @@ export const AUTHORITATIVE_PLANS: Record<PlanCode, PlanDefinition> = {
     annual: true,
     duration_days: 365,
     period_label: '/year',
-    tagline: 'Unlimited platform access with zero exam switch fees for 1 full year',
-    description: 'The ultimate all-inclusive annual membership for serious candidates.',
+    tagline: 'High-volume AI study access with zero exam switch fees for 1 full year',
+    description: 'The highest annual allowance, advanced AI tools, and priority study support with fair-use safeguards.',
     popular: false,
     highlight: true,
     exam_switch_fee_usd: 0.0,
-    is_unlimited: true,
+    is_unlimited: false,
+    included_credits: 5000,
     features: [
-      'Truly Unlimited Access for 1 Full Year (365 Days)',
+      'High-volume access for 1 full year (365 days), subject to fair-use limits',
       'FREE Unlimited Exam Curriculum Switching (Zero Fees)',
-      'Unlimited MCQ, Quiz, Flashcard & A4 Revision Note Generation',
-      'Unlimited AI Tutor Interactive Lessons & Live Whiteboards',
-      'Unlimited Neural Audio TTS Explanations in AI Tutor',
-      'Zero Artificial Credit Counters or Monthly Quotas',
-      'Dedicated Tier-1 AI Compute with Ultra-Low Latency',
+      '5,000 AI credits included for the annual billing period',
+      'High daily limits for MCQs, quizzes, flashcards, notes, and AI Tutor',
+      'Advanced AI Tutor interactive lessons and live whiteboards',
+      'High-volume neural audio TTS allowance',
+      'Priority AI generation with automatic low-cost model routing',
       'VIP Priority 24/7 Support & Rapid Syllabus Blueprint Updates',
     ],
     limits: {
-      daily_ai_questions: Number.POSITIVE_INFINITY,
-      monthly_ai_tutor_sessions: Number.POSITIVE_INFINITY,
-      daily_topic_switches: Number.POSITIVE_INFINITY,
-      daily_tutor_tts: Number.POSITIVE_INFINITY,
+      daily_ai_questions: 1000,
+      monthly_ai_tutor_sessions: 300,
+      daily_mcq_questions: 1000,
+      daily_quiz_attempts: 100,
+      daily_flashcard_reviews: 1500,
+      daily_notes_generations: 50,
+      daily_blanks_questions: 1000,
+      daily_tutor_interactions: 100,
+      daily_topic_switches: 100,
+      daily_tutor_tts: 200,
       audio_tts_enabled: true,
       priority_queue: true,
       unlimited_exam_switches: true,
-      show_credit_caps: false,
+      show_credit_caps: true,
     },
   },
 };
@@ -245,6 +275,7 @@ export function getPublicPlansConfig() {
     highlight: plan.highlight,
     exam_switch_fee_usd: plan.exam_switch_fee_usd,
     is_unlimited: plan.is_unlimited,
+    included_credits: plan.included_credits,
     features: plan.features,
     limits: {
       audio_tts_enabled: plan.limits.audio_tts_enabled,
