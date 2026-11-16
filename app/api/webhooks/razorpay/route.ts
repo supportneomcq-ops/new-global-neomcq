@@ -233,7 +233,7 @@ export async function POST(req: NextRequest) {
                 plan_code: plan.code,
                 payment_category: 'subscription',
                 processing_fee_amount: paymentEntity?.fee == null ? null : Number(paymentEntity.fee) / 100,
-                tax_amount: paymentEntity?.tax == null ? null : Number(paymentEntity.tax) / 100,
+                gateway_fee_tax_amount: paymentEntity?.tax == null ? null : Number(paymentEntity.tax) / 100,
                 webhook_payload: event,
               },
               { onConflict: 'razorpay_payment_id' }
@@ -289,7 +289,7 @@ export async function POST(req: NextRequest) {
               status: 'captured',
               payment_category: isExamSwitch ? 'exam_switch' : 'other',
               processing_fee_amount: paymentEntity?.fee == null ? null : Number(paymentEntity.fee) / 100,
-              tax_amount: paymentEntity?.tax == null ? null : Number(paymentEntity.tax) / 100,
+              gateway_fee_tax_amount: paymentEntity?.tax == null ? null : Number(paymentEntity.tax) / 100,
               webhook_payload: event,
             },
             { onConflict: 'razorpay_payment_id' }
@@ -413,7 +413,7 @@ export async function POST(req: NextRequest) {
                   plan_code: plan.code,
                   payment_category: 'subscription',
                   processing_fee_amount: paymentEntity?.fee == null ? null : Number(paymentEntity.fee) / 100,
-                  tax_amount: paymentEntity?.tax == null ? null : Number(paymentEntity.tax) / 100,
+                  gateway_fee_tax_amount: paymentEntity?.tax == null ? null : Number(paymentEntity.tax) / 100,
                   webhook_payload: event,
                 },
                 { onConflict: 'razorpay_payment_id' }
@@ -434,6 +434,15 @@ export async function POST(req: NextRequest) {
             }
           }
         }
+      }
+    } else if (eventType === 'payment.refunded') {
+      // Full refunds reverse the associated owner reserve allocation via the payments trigger.
+      if (paymentId) {
+        const { error: refundUpdateError } = await admin
+          .from('payments')
+          .update({ status: 'refunded', webhook_payload: event })
+          .eq('razorpay_payment_id', paymentId);
+        if (refundUpdateError) throw refundUpdateError;
       }
     } else if (eventType === 'payment.failed') {
       if (userId && paymentId) {

@@ -229,6 +229,7 @@ export function AdminShell({ userEmail, roles, children }: AdminShellProps) {
       items: [
         { label: 'Revenue', href: '/admin/revenue', icon: BadgeDollarSign },
         { label: 'Payments', href: '/admin/payments', icon: CreditCard },
+        { label: 'Owner Reserve (20%)', href: '/admin/profit-reserve', icon: Coins },
         { label: 'Razorpay', href: '/admin/razorpay', icon: Activity },
         { label: 'Subscriptions', href: '/admin/subscriptions', icon: Layers },
         { label: 'Plans', href: '/admin/plans', icon: Sliders },

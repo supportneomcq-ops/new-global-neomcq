@@ -263,7 +263,7 @@ export async function POST(req: NextRequest) {
         plan_code: plan.code,
         payment_category: 'subscription',
         processing_fee_amount: verifiedPayment.fee == null ? null : Number(verifiedPayment.fee) / 100,
-        tax_amount: verifiedPayment.tax == null ? null : Number(verifiedPayment.tax) / 100,
+        gateway_fee_tax_amount: verifiedPayment.tax == null ? null : Number(verifiedPayment.tax) / 100,
         webhook_payload: {
           verified_via: 'server_signature_and_razorpay_api',
           plan_code: plan.code,

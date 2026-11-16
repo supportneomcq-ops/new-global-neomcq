@@ -980,10 +980,21 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
   // instead of repeatedly asking it to regenerate from scratch. Only a response
   // that passes the full completeness gate can be considered ready downstream.
   if (bestPartialCandidate) {
-    const repairPrompt = `Repair and COMPLETE this incomplete exam curriculum for "${cleanName}". Return only one JSON object matching the NeoMCQ exam-intelligence schema (exam, subjects, content_generation_rules, confidence). Preserve correct exam-specific subject names. Include every subject/domain in the official exam blueprint. Every subject must have at least five distinct meaningful topics, and every topic at least three distinct meaningful subtopics. Preserve official subject boundaries and current syllabus scope. Do not use generic filler, duplicate names, or invent official exam rules. Unknown exam-rule fields must remain unknown/default and must not be described as verified. The supplied tree is a starting point, not a limit; add missing domain-specific topics/subtopics.\n\nCurrent partial curriculum:\n${JSON.stringify(bestPartialCandidate)}`
-    try {
-      let repaired: AIExamIntelligenceOutput | null = null
-      if (process.env.GEMINI_API_KEY) {
+    const repairPrompt = `Repair and COMPLETE this incomplete exam curriculum for "${cleanName}".
+${countryHint ? `Jurisdiction: ${countryHint}.\\n` : ''}${categoryHint ? `Exam category: ${categoryHint}.\\n` : ''}${levelHint ? `Credential level: ${levelHint}.\\n` : ''}
+Return one JSON object matching the NeoMCQ exam-intelligence schema (exam, subjects, content_generation_rules, confidence). Preserve every correct existing subject name and official subject boundary. Do not omit any domain from the official exam blueprint.
+HARD COMPLETENESS REQUIREMENTS: every subject must contain at least 5 distinct, meaningful, exam-specific topics; every topic must contain at least 3 distinct, meaningful subtopics. These are minimums for EACH subject and EACH topic, not totals across the curriculum. The supplied tree is incomplete: expand the specific thin subjects, especially any subject with fewer than 5 topics. Do not merely repeat or rename existing topics.
+Preserve official syllabus scope. Do not use generic filler, duplicate names, or invent official exam rules. Unknown exam-rule fields must remain unknown/default and must not be described as verified. Add domain-specific topics/subtopics only when they genuinely belong to this exam.
+
+Current partial curriculum:
+${JSON.stringify(bestPartialCandidate)}`
+    const isCompleteRepair = (candidate: AIExamIntelligenceOutput | null) =>
+      Boolean(candidate && isCurriculumSpecComprehensive(cleanName, candidate, levelHint))
+    let repaired: AIExamIntelligenceOutput | null = null
+
+    // Try Gemini first, then OpenAI even when Gemini returns valid but incomplete JSON.
+    if (process.env.GEMINI_API_KEY) {
+      try {
         const repairAi = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
         const repairResponse = await repairAi.models.generateContent({
           model: process.env.GEMINI_CURRICULUM_MODEL || 'gemini-2.5-flash',
@@ -993,7 +1004,15 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
         const parsedRepair = JSON.parse(repairResponse.text || '{}')
         const validatedRepair = AIExamIntelligenceOutputSchema.safeParse(parsedRepair)
         if (validatedRepair.success) repaired = validatedRepair.data
-      } else if (process.env.OPENAI_API_KEY) {
+        if (isCompleteRepair(repaired)) return repaired!
+        if (repaired) keepMoreCompleteCandidate(repaired)
+      } catch (repairError: any) {
+        console.warn('[Exam Intelligence] Gemini curriculum repair failed:', repairError?.message || 'Unknown provider error')
+      }
+    }
+
+    if (!isCompleteRepair(repaired) && process.env.OPENAI_API_KEY) {
+      try {
         const repairOpenAI = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 75000, maxRetries: 0 })
         const repairCompletion = await repairOpenAI.chat.completions.create({
           model: process.env.OPENAI_CURRICULUM_MODEL || 'gpt-4o-mini',
@@ -1002,12 +1021,12 @@ Output schema (compact JSON; omit optional descriptions to conserve output token
         })
         const parsedRepair = JSON.parse(repairCompletion.choices[0]?.message?.content || '{}')
         const validatedRepair = AIExamIntelligenceOutputSchema.safeParse(parsedRepair)
-        if (validatedRepair.success) repaired = validatedRepair.data
+        const openAiRepair = validatedRepair.success ? validatedRepair.data : null
+        if (isCompleteRepair(openAiRepair)) return openAiRepair!
+        if (openAiRepair) keepMoreCompleteCandidate(openAiRepair)
+      } catch (repairError: any) {
+        console.warn('[Exam Intelligence] OpenAI curriculum repair failed:', repairError?.message || 'Unknown provider error')
       }
-      if (repaired && isCurriculumSpecComprehensive(cleanName, repaired, levelHint)) return repaired
-      if (repaired) keepMoreCompleteCandidate(repaired)
-    } catch (repairError: any) {
-      console.warn('[Exam Intelligence] Compact curriculum repair pass failed:', repairError?.message || 'Unknown repair error')
     }
   }
 
