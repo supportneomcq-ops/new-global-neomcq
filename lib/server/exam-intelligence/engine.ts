@@ -2480,11 +2480,17 @@ async function persistCurriculumHierarchy(
           .maybeSingle()
         if (dbSub) {
           subjectId = dbSub.id
+        } else {
+          throw new Error(
+            `Failed to persist curriculum subject "${sItem.name}": ${subErr?.message || 'insert returned no row'}`
+          )
         }
       }
     }
 
-    if (!subjectId) continue
+    if (!subjectId) {
+      throw new Error(`Curriculum subject "${sItem.name}" could not be resolved after insertion.`)
+    }
 
     const currentTopicsList = existingSub?.exam_topics || []
 
@@ -2528,11 +2534,17 @@ async function persistCurriculumHierarchy(
             .maybeSingle()
           if (dbTop) {
             topicId = dbTop.id
+          } else {
+            throw new Error(
+              `Failed to persist curriculum topic "${tItem.name}" under "${sItem.name}": ${topErr?.message || 'insert returned no row'}`
+            )
           }
         }
       }
 
-      if (!topicId) continue
+      if (!topicId) {
+        throw new Error(`Curriculum topic "${tItem.name}" under "${sItem.name}" could not be resolved after insertion.`)
+      }
 
       // Process Subtopics under Topic if provided
       if (tItem.subtopics && tItem.subtopics.length > 0) {
