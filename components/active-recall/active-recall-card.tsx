@@ -81,16 +81,18 @@ export function ActiveRecallCard({
       setUserAnswer(savedAnswer.userAnswer);
       setIsEvaluated(true);
       setIsRevealed(!!savedAnswer.isRevealed);
+      setFeedback(savedAnswer.feedback || null);
       setEvalResult({
         isCorrect: !!savedAnswer.isCorrect,
         normalizedUserAnswer: savedAnswer.userAnswer,
-        normalizedCorrectAnswer: item.blank,
+        normalizedCorrectAnswer: savedAnswer.feedback?.answer?.toLowerCase() || '',
         matchType: savedAnswer.isCorrect ? 'exact' : 'incorrect',
       });
     } else {
       setUserAnswer('');
       setIsEvaluated(false);
       setEvalResult(null);
+      setFeedback(null);
       setIsRevealed(false);
       setStartTime(Date.now());
       setIsShaking(false);
@@ -398,7 +400,7 @@ export function ActiveRecallCard({
                 )}
 
                 <p className="font-semibold text-slate-900 dark:text-white">
-                  Target Answer: <span className="underline decoration-indigo-500 font-bold">{item.blank}</span>
+                  Target Answer: <span className="underline decoration-indigo-500 font-bold">{feedback?.answer || ''}</span>
                   {feedback?.acceptedAnswers && feedback.acceptedAnswers.length > 1 && (
                     <span className="block text-[11px] font-normal text-slate-500 dark:text-slate-400 mt-0.5">
                       Accepted: {feedback.acceptedAnswers.join(' • ')}
