@@ -21,13 +21,12 @@ import {
   VolumeX,
 } from 'lucide-react';
 import { ActiveRecallItem, AnswerEvaluationResult } from '@/lib/types/active-recall';
-import { evaluateRecallAnswer } from '@/lib/active-recall/evaluation';
 
 interface ActiveRecallCardProps {
   item: ActiveRecallItem;
   currentIndex: number;
   totalItems: number;
-  onAnswerSubmit: (answer: string, evalResult: AnswerEvaluationResult, isRevealed: boolean, responseTimeMs: number) => void;
+  onAnswerSubmit: (answer: string, isRevealed: boolean, responseTimeMs: number) => Promise<{ isCorrect: boolean; feedback: { answer: string; acceptedAnswers: string[]; explanation: string; highYieldPoint?: string; memoryHook?: string; examTip?: string } }>;
   onNext: () => void;
   onPrevious: () => void;
   hasPrevious: boolean;
@@ -58,12 +57,14 @@ export function ActiveRecallCard({
       ? {
           isCorrect: !!savedAnswer.isCorrect,
           normalizedUserAnswer: savedAnswer.userAnswer,
-          normalizedCorrectAnswer: item.blank,
+          normalizedCorrectAnswer: '',
           matchType: savedAnswer.isCorrect ? 'exact' : 'incorrect',
         }
       : null
   );
   const [isRevealed, setIsRevealed] = useState(!!savedAnswer?.isRevealed);
+  const [feedback, setFeedback] = useState<{ answer: string; acceptedAnswers: string[]; explanation: string; highYieldPoint?: string; memoryHook?: string; examTip?: string } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [startTime, setStartTime] = useState<number>(Date.now());
   const [isShaking, setIsShaking] = useState(false);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
@@ -134,41 +135,37 @@ export function ActiveRecallCard({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [userAnswer, isEvaluated, hasPrevious, onNext, onPrevious]);
 
-  const handleCheckAnswer = () => {
-    if (!userAnswer.trim() || isEvaluated) return;
-
-    const responseTime = Date.now() - startTime;
-    const res = evaluateRecallAnswer(userAnswer, item);
-
-    setEvalResult(res);
-    setIsEvaluated(true);
-    setIsRevealed(false);
-
-    if (!res.isCorrect) {
-      setIsShaking(true);
-      setTimeout(() => setIsShaking(false), 600);
-    }
-
-    onAnswerSubmit(userAnswer.trim(), res, false, responseTime);
+  const handleCheckAnswer = async () => {
+    if (!userAnswer.trim() || isEvaluated || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const result = await onAnswerSubmit(userAnswer.trim(), false, Date.now() - startTime);
+      const res: AnswerEvaluationResult = { isCorrect: result.isCorrect, normalizedUserAnswer: userAnswer.trim().toLowerCase(), normalizedCorrectAnswer: result.feedback.answer.toLowerCase(), matchedAnswer: result.isCorrect ? result.feedback.answer : undefined, matchType: result.isCorrect ? 'exact' : 'incorrect' };
+      setFeedback(result.feedback);
+      setEvalResult(res);
+      setIsEvaluated(true);
+      setIsRevealed(false);
+      if (!res.isCorrect) { setIsShaking(true); setTimeout(() => setIsShaking(false), 600); }
+    } catch (error) {
+      console.error('Active recall answer could not be checked:', error);
+      alert(error instanceof Error ? error.message : 'Unable to check your answer. Please try again.');
+    } finally { setIsSubmitting(false); }
   };
 
-  const handleRevealAnswer = () => {
-    if (isEvaluated) return;
-
-    const responseTime = Date.now() - startTime;
-    const res: AnswerEvaluationResult = {
-      isCorrect: false,
-      normalizedUserAnswer: '',
-      normalizedCorrectAnswer: item.blank,
-      matchType: 'incorrect',
-    };
-
-    setEvalResult(res);
-    setIsEvaluated(true);
-    setIsRevealed(true);
-    setUserAnswer(item.blank);
-
-    onAnswerSubmit('[REVEALED]', res, true, responseTime);
+  const handleRevealAnswer = async () => {
+    if (isEvaluated || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const result = await onAnswerSubmit('[REVEALED]', true, Date.now() - startTime);
+      setFeedback(result.feedback);
+      setEvalResult({ isCorrect: false, normalizedUserAnswer: '', normalizedCorrectAnswer: result.feedback.answer.toLowerCase(), matchType: 'incorrect' });
+      setIsEvaluated(true);
+      setIsRevealed(true);
+      setUserAnswer(result.feedback.answer);
+    } catch (error) {
+      console.error('Active recall answer could not be revealed:', error);
+      alert(error instanceof Error ? error.message : 'Unable to reveal the answer. Please try again.');
+    } finally { setIsSubmitting(false); }
   };
 
   // Render sentence with interactive/transformed blanks
@@ -205,7 +202,7 @@ export function ActiveRecallCard({
                   ) : (
                     <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
                   )}
-                  <span>{item.blank}</span>
+                  <span>{feedback?.answer || ''}</span>
                 </motion.span>
               );
             }
@@ -336,11 +333,11 @@ export function ActiveRecallCard({
                 <button
                   type="button"
                   onClick={handleCheckAnswer}
-                  disabled={!userAnswer.trim()}
+                  disabled={!userAnswer.trim() || isSubmitting}
                   className="px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold tracking-wide transition-all shadow-sm hover:shadow-indigo-500/20 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2 shrink-0"
                 >
                   <Sparkles className="w-4 h-4" />
-                  <span>Check Answer</span>
+                  <span>{isSubmitting ? 'Checking…' : 'Check Answer'}</span>
                 </button>
               </div>
             </div>
@@ -353,6 +350,7 @@ export function ActiveRecallCard({
               <button
                 type="button"
                 onClick={handleRevealAnswer}
+                disabled={isSubmitting}
                 className="text-xs text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 font-bold flex items-center gap-1.5 ml-auto cursor-pointer transition-colors"
               >
                 <Eye className="w-3.5 h-3.5" />
@@ -401,9 +399,9 @@ export function ActiveRecallCard({
 
                 <p className="font-semibold text-slate-900 dark:text-white">
                   Target Answer: <span className="underline decoration-indigo-500 font-bold">{item.blank}</span>
-                  {item.acceptedAnswers && item.acceptedAnswers.length > 1 && (
+                  {feedback?.acceptedAnswers && feedback.acceptedAnswers.length > 1 && (
                     <span className="block text-[11px] font-normal text-slate-500 dark:text-slate-400 mt-0.5">
-                      Accepted: {item.acceptedAnswers.join(' • ')}
+                      Accepted: {feedback.acceptedAnswers.join(' • ')}
                     </span>
                   )}
                 </p>
@@ -411,52 +409,52 @@ export function ActiveRecallCard({
             </div>
 
             {/* Pathophysiology & Core Rationale */}
-            {item.explanation && (
+            {feedback?.explanation && (
               <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 space-y-1.5">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
                   <BookOpen className="w-3.5 h-3.5" /> Conceptual Rationale &amp; Key Mechanism
                 </h4>
                 <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
-                  {item.explanation}
+                  {feedback?.explanation}
                 </p>
               </div>
             )}
 
             {/* High-Yield Point */}
-            {item.highYieldPoint && (
+            {feedback?.highYieldPoint && (
               <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/60 text-xs sm:text-sm text-amber-950 dark:text-amber-200 space-y-1 flex items-start gap-2.5">
                 <Award className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                 <div>
                   <strong className="font-bold block text-amber-900 dark:text-amber-300 text-xs uppercase tracking-wide">
                     High-Yield Board Takeaway
                   </strong>
-                  <p className="leading-snug">{item.highYieldPoint}</p>
+                  <p className="leading-snug">{feedback?.highYieldPoint}</p>
                 </div>
               </div>
             )}
 
             {/* Memory Hook / Mnemonic */}
-            {item.memoryHook && (
+            {feedback?.memoryHook && (
               <div className="p-4 rounded-2xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200/80 dark:border-purple-800/60 text-xs sm:text-sm text-purple-950 dark:text-purple-200 space-y-1 flex items-start gap-2.5">
                 <Lightbulb className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0 mt-0.5" />
                 <div>
                   <strong className="font-bold block text-purple-900 dark:text-purple-300 text-xs uppercase tracking-wide">
                     Memory Hook &amp; Mnemonic
                   </strong>
-                  <p className="leading-snug">{item.memoryHook}</p>
+                  <p className="leading-snug">{feedback?.memoryHook}</p>
                 </div>
               </div>
             )}
 
             {/* Board Exam Trap / Tip */}
-            {item.examTip && (
+            {feedback?.examTip && (
               <div className="p-4 rounded-2xl bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-800/60 text-xs sm:text-sm text-rose-950 dark:text-rose-200 space-y-1 flex items-start gap-2.5">
                 <Zap className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
                 <div>
                   <strong className="font-bold block text-rose-900 dark:text-rose-300 text-xs uppercase tracking-wide">
                     Board Exam Trap Warning
                   </strong>
-                  <p className="leading-snug">{item.examTip}</p>
+                  <p className="leading-snug">{feedback?.examTip}</p>
                 </div>
               </div>
             )}
