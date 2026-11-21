@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { verifyAdminApiSession } from '@/lib/admin-auth';
 import { checkFeatureQuota } from '@/lib/entitlements/quota-checker';
 import { ContentScope } from '@/lib/types/a4-notes';
 import {
@@ -138,6 +139,13 @@ export async function POST(req: NextRequest) {
       contentScope = subtopicId ? 'SUBTOPIC' : 'TOPIC',
       forceRefresh = false,
     } = body;
+
+    if (forceRefresh === true) {
+      const adminAuth = await verifyAdminApiSession();
+      if (!adminAuth.authorized) {
+        return NextResponse.json({ error: 'Only an authorized administrator can refresh shared canonical notes.' }, { status: 403 });
+      }
+    }
 
     if (!examId || !subjectId || !topicId) {
       return NextResponse.json(
