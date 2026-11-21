@@ -193,7 +193,7 @@ export function PracticeCbtView({
   const handleSynthesizeBatch = async () => {
     if (!activeTopicId) return;
     try {
-      await refreshTopicContent(true); // Triggers loading stepper automatically
+      await refreshTopicContent(false); // Triggers loading stepper automatically
       await loadDatabaseRecords();
     } catch (err) {
       console.error('[PracticeCbtView] Error generating batch:', err);
