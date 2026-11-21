@@ -205,9 +205,9 @@ export async function POST(req: NextRequest) {
     }
     const safeContent = {
       ...result.content,
-      mcqs: Array.isArray(result.content.mcqs) ? result.content.mcqs.map(safeQuestion) : [],
-      quiz_a: Array.isArray(result.content.quiz_a) ? result.content.quiz_a.map(safeQuestion) : [],
-      quiz_b: Array.isArray(result.content.quiz_b) ? result.content.quiz_b.map(safeQuestion) : [],
+      mcqs: Array.isArray(result.content.mcqs) ? result.content.mcqs.map(safeQuestion).filter((item: any) => item.id) : [],
+      quiz_a: Array.isArray(result.content.quiz_a) ? result.content.quiz_a.map(safeQuestion).filter((item: any) => item.id) : [],
+      quiz_b: Array.isArray(result.content.quiz_b) ? result.content.quiz_b.map(safeQuestion).filter((item: any) => item.id) : [],
       // Cloze answers and rationales are delivered by the authenticated Active Recall attempt endpoint.
       fill_in_the_blanks: Array.isArray(result.content.fill_in_the_blanks)
         ? result.content.fill_in_the_blanks.map((item: any) => ({
