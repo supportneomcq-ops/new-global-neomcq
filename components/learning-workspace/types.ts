@@ -17,8 +17,8 @@ export interface MCQQuestion {
   id?: string;
   question: string;
   options: string[];
-  correct_index: number;
-  explanation: string;
+  correct_index?: number;
+  explanation?: string;
   clinical_pearl?: string;
   high_yield_tag?: string;
   difficulty?: string;
