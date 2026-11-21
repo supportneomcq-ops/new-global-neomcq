@@ -130,13 +130,7 @@ export function FlashcardWorkspaceView() {
       return () => { active = false; };
     }
 
-    const storageKey = `neo_flashcards_${examName}_${subjectName}_${topicName}_${subtopicName || 'main'}`;
-    let savedRatings: Record<string, 'again' | 'good' | 'easy'> = {};
-    try {
-      const stored = localStorage.getItem(storageKey);
-      if (stored) savedRatings = JSON.parse(stored);
-    } catch { /* Ignore invalid legacy local progress. */ }
-
+    const savedRatings: Record<string, 'again' | 'good' | 'easy'> = {};
     const canonicalDeckId = topicCards.find((card) => card.deckId)?.deckId;
     const applyRatings = (ratings: Record<string, 'again' | 'good' | 'easy'>) => {
       if (!active) return;
@@ -187,11 +181,6 @@ export function FlashcardWorkspaceView() {
         });
         const data = await response.json().catch(() => null);
         if (!response.ok || !data?.success) throw new Error(data?.error || 'Unable to save flashcard progress.');
-      } else {
-        // Compatibility fallback for legacy snapshot-only decks without canonical DB IDs.
-        const storageKey = `neo_flashcards_${examName}_${subjectName}_${topicName}_${subtopicName || 'main'}`;
-        const updatedRatings = { ...userRatings, [cardId]: rating };
-        localStorage.setItem(storageKey, JSON.stringify(updatedRatings));
       }
 
       const updatedRatings = { ...userRatings, [cardId]: rating };
