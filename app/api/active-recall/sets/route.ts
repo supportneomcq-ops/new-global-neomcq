@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { ActiveRecallSet, ActiveRecallItem } from '@/lib/types/active-recall';
+import { createClient } from '@/lib/supabase/server';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { examId, subjectId, topicId, subtopicId, userId } = body;
+    const { examId, subjectId, topicId, subtopicId } = body;
+    const sessionClient = await createClient();
+    const { data: authData, error: authError } = await sessionClient.auth.getUser();
+    if (authError || !authData.user) {
+      return NextResponse.json({ success: false, error: 'Please sign in to access active recall.' }, { status: 401 });
+    }
+    const userId = authData.user.id;
 
     if (!topicId) {
       return NextResponse.json(
