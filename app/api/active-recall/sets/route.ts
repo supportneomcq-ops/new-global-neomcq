@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     // 2. Fetch Content Versions for this topic
     const { data: versionRows, error: verErr } = await (supabase as any)
       .from('content_versions')
-      .select('id, version, is_current, generation_reason, snapshot, created_at')
+      .select('id, version, generation_reason, snapshot, created_at')
       .eq('asset_id', topicId)
       .eq('asset_type', 'topic')
       .order('version', { ascending: false });
