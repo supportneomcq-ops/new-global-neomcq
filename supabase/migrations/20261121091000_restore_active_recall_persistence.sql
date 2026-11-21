@@ -55,6 +55,16 @@ CREATE TABLE IF NOT EXISTS public.active_recall_sessions (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Attempts must always belong to a durable session; prevents orphaned progress rows.
+DO $
+BEGIN
+  ALTER TABLE public.active_recall_attempts
+    ADD CONSTRAINT active_recall_attempts_session_id_fkey
+    FOREIGN KEY (session_id) REFERENCES public.active_recall_sessions(id) ON DELETE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $;
+
 CREATE INDEX IF NOT EXISTS idx_active_recall_sessions_user
   ON public.active_recall_sessions(user_id, topic_id);
 CREATE INDEX IF NOT EXISTS idx_active_recall_sessions_status
