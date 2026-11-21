@@ -282,21 +282,15 @@ export function PracticeCbtView({
   // Launch Practice Game Session (State B)
   const handleStartPractice = (version: ContentVersionRecord, activity: 'all' | 'A' | 'B') => {
     // 1. Resolve questions for this batch
-    const versionQuestions = dbMcqs.length > 0
-      ? dbMcqs.filter((q) => q.version === version.version)
-      : (version.snapshot?.mcqs || []);
+    const versionQuestions = dbMcqs.filter((q) => q.version === version.version);
 
     let activeSet: any[] = [];
     if (activity === 'all') {
       activeSet = versionQuestions;
     } else if (activity === 'A') {
-      activeSet = version.snapshot?.quiz_a && version.snapshot.quiz_a.length > 0
-        ? version.snapshot.quiz_a
-        : versionQuestions.slice(0, Math.min(20, Math.ceil(versionQuestions.length / 2)));
+      activeSet = versionQuestions.slice(0, Math.min(20, Math.ceil(versionQuestions.length / 2)));
     } else {
-      activeSet = version.snapshot?.quiz_b && version.snapshot.quiz_b.length > 0
-        ? version.snapshot.quiz_b
-        : versionQuestions.slice(Math.min(20, Math.ceil(versionQuestions.length / 2)));
+      activeSet = versionQuestions.slice(Math.min(20, Math.ceil(versionQuestions.length / 2)));
     }
 
     if (activeSet.length === 0) return;
@@ -930,20 +924,20 @@ export function PracticeCbtView({
                         {isCorrect ? 'Correct! High Yield Integration Success.' : 'Incorrect Option Selected.'}
                       </h4>
                       <p className="text-xs leading-relaxed font-medium">
-                        {currentQ.explanation}
+                        {answerFeedback[currentQ.id]?.explanation || 'Answer rationale is not available for this question.'}
                       </p>
                     </div>
                   </div>
 
                   {/* Key Insight / Pearl Box */}
-                  {currentQ.clinical_pearl && (
+                  {answerFeedback[currentQ.id]?.clinical_pearl && (
                     <div className="p-4 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 space-y-1.5">
                       <div className="flex items-center gap-1.5 text-xs font-black text-amber-800 dark:text-amber-300">
                         <Sparkles className="w-4 h-4 text-amber-500 fill-amber-500" />
                         <span>High-Yield Insight & Core Concept</span>
                       </div>
                       <p className="text-xs text-amber-900 dark:text-amber-200 leading-relaxed font-semibold">
-                        {currentQ.clinical_pearl}
+                        {answerFeedback[currentQ.id]?.clinical_pearl}
                       </p>
                     </div>
                   )}
