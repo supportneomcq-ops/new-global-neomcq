@@ -573,7 +573,8 @@ CRITICAL RULES:
  */
 export async function saveCanonicalA4Note(document: A4NotesDocument): Promise<string> {
   const adminClient = getSupabaseAdmin();
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  // expires_at is retained for legacy schema compatibility; is_current now governs canonical freshness.
+  const expiresAt = new Date('9999-12-31T23:59:59.999Z').toISOString();
 
   // 1. Deactivate any existing current record for this exact scope
   let deactivateQuery = adminClient
