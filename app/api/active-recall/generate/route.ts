@@ -217,6 +217,14 @@ Respond strictly in valid JSON format with NO markdown wrapping:
       );
     }
 
+    const safeItems = items.map((item) => ({
+      id: item.id,
+      concept: item.concept,
+      sentence: item.sentence,
+      difficulty: item.difficulty,
+      subtopicName: item.subtopicName,
+    })) as ActiveRecallItem[];
+
     const newSet: ActiveRecallSet = {
       id: newVersionRow?.id || `set_${nextVersion}`,
       topicId,
@@ -234,7 +242,7 @@ Respond strictly in valid JSON format with NO markdown wrapping:
       difficulty: 'High-Yield',
       completionPercentage: 0,
       bestAccuracy: 0,
-      items,
+      items: safeItems,
     };
 
     return NextResponse.json({
