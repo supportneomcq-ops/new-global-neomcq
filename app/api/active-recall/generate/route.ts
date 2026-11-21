@@ -202,7 +202,6 @@ Respond strictly in valid JSON format with NO markdown wrapping:
         asset_id: topicId,
         asset_type: 'topic',
         version: nextVersion,
-        is_current: true,
         generation_reason: nextVersion === 1 ? 'FIRST_GENERATION' : 'FORCE_REFRESH',
         requested_by: userId || null,
         snapshot: updatedSnapshot,
@@ -210,8 +209,12 @@ Respond strictly in valid JSON format with NO markdown wrapping:
       .select('id, version, created_at')
       .single();
 
-    if (saveErr) {
-      console.warn('Notice saving content version:', saveErr);
+    if (saveErr || !newVersionRow) {
+      console.error('Failed to persist active recall content version:', saveErr);
+      return NextResponse.json(
+        { success: false, error: 'The recall set could not be saved. Please retry shortly.' },
+        { status: 500 }
+      );
     }
 
     const newSet: ActiveRecallSet = {
