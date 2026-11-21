@@ -4,11 +4,18 @@ import { AIGateway } from '@/lib/ai/ai-gateway';
 import { ActiveRecallSet, ActiveRecallItem } from '@/lib/types/active-recall';
 import { extractJsonFromAiResponse } from '@/lib/ai/json-cleaner';
 import { getExamStyleAndPattern } from '@/lib/server/content-engine/exam-style-helper';
+import { createClient } from '@/lib/supabase/server';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { examId, subjectId, topicId, subtopicId, userId, difficulty = 'High Yield' } = body;
+    const { examId, subjectId, topicId, subtopicId, difficulty = 'High Yield' } = body;
+    const sessionClient = await createClient();
+    const { data: authData, error: authError } = await sessionClient.auth.getUser();
+    if (authError || !authData.user) {
+      return NextResponse.json({ success: false, error: 'Please sign in to generate active recall.' }, { status: 401 });
+    }
+    const userId = authData.user.id;
 
     if (!topicId) {
       return NextResponse.json(
