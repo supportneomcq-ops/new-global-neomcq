@@ -3,7 +3,7 @@
  * 
  * Production-grade AI Content Orchestrator:
  * - Strict Canonical Entity Resolution (Exam -> Subject -> Topic)
- * - 30-Day Freshness Rule (Content reuse = $0 AI Cost, 0 User Credits charged)
+ * - Canonical Version Reuse (shared content is reused until an authorised version refresh)
  * - Concurrency Lock & Database-Level Idempotency (1 generation for concurrent requests)
  * - Multi-Key Load Balancing & Failover (Gemini primary -> OpenAI fallback)
  * - Strict Scope Control & Zero Duplicate Questions Fingerprinting
@@ -87,7 +87,7 @@ export interface ContentIntelligenceResult {
   served_from_cache: boolean
   is_stale?: boolean
   refresh_pending?: boolean
-  generation_reason: 'CACHE_30_DAYS' | 'FIRST_GENERATION' | 'REFRESH_30_DAYS' | 'FORCE_REFRESH' | 'ERROR'
+  generation_reason: 'CANONICAL_REUSE' | 'FIRST_GENERATION' | 'FORCE_REFRESH' | 'ERROR'
   version_number: number
   hierarchy: CanonicalHierarchyResolution
   content: ContentIntelligencePayload | null
@@ -107,9 +107,6 @@ export interface ContentIntelligenceResult {
   error_code?: string
   retry_after?: number
 }
-
-// 30 Days in Milliseconds
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
 
 /**
  * Polls the database for completion of an active AI job
@@ -816,11 +813,7 @@ export async function getOrGenerateCanonicalTopicContent({
 
   // 5. Generate a new canonical version only for first generation or an authorised explicit refresh.
   const targetVersionNum = currentVersionNum + 1
-  const generationReason = !hasExistingContent
-    ? 'FIRST_GENERATION'
-    : forceRefresh
-      ? 'FORCE_REFRESH'
-       : 'ADMIN_REFRESH'
+  const generationReason = hasExistingContent ? 'FORCE_REFRESH' : 'FIRST_GENERATION'
 
   // Deterministic Idempotency Key
   const idempotencyKey = subtopicId
@@ -902,7 +895,7 @@ export async function getOrGenerateCanonicalTopicContent({
       served_from_cache: true,
       is_stale: true,
       refresh_pending: true,
-      generation_reason: 'CACHE_30_DAYS',
+      generation_reason: 'CANONICAL_REUSE',
       version_number: currentVersionNum,
       hierarchy,
       content: getCachedPayload(),
@@ -967,7 +960,7 @@ async function executeGenerationWorkflow({
   subtopicName?: string
   subtopicId?: string
   targetVersionNum: number
-  generationReason: 'FIRST_GENERATION' | 'FORCE_REFRESH' | 'REFRESH_30_DAYS'
+  generationReason: 'FIRST_GENERATION' | 'FORCE_REFRESH'
   idempotencyKey: string
   existingDbMcqs: any[]
   difficulty: string
@@ -1378,7 +1371,7 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
           tutor_explanation: finalPayload.tutor_explanation,
           revision_sheet: finalPayload.revision_sheet,
         },
-        change_summary: `${generationReason === 'FIRST_GENERATION' ? 'Initial Canonical Asset Generation' : 'Scheduled 30-Day Refresh'} (Version ${targetVersionNum})`,
+        change_summary: `${generationReason === 'FIRST_GENERATION' ? 'Initial Canonical Asset Generation' : 'Authorised Canonical Refresh'} (Version ${targetVersionNum})`,
       })
       .select('id')
       .maybeSingle()
