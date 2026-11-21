@@ -664,19 +664,10 @@ export async function getOrGenerateCanonicalTopicContent({
     existingDbFlashcards.length > 0 ||
     legacyFlashcardItems.length > 0
 
-  // 3. 30-Day Freshness Check
-  let isFresh = false
+  // Canonical topic content is shared and reusable until an authorised refresh creates a new version.
+  // Age alone must never trigger duplicate AI spend for the same syllabus scope.
+  const isFresh = hasExistingContent
   const currentVersionNum = latestVersionRecord?.version || (existingDbMcqs.length > 0 ? 1 : 0)
-
-  if (hasExistingContent) {
-    if (latestVersionRecord?.created_at) {
-      const ageMs = Date.now() - new Date(latestVersionRecord.created_at).getTime()
-      if (ageMs < THIRTY_DAYS_MS) isFresh = true
-    } else if (existingDbMcqs.length > 0) {
-      const latestMcqDate = new Date(existingDbMcqs[existingDbMcqs.length - 1].created_at).getTime()
-      if (Date.now() - latestMcqDate < THIRTY_DAYS_MS) isFresh = true
-    }
-  }
 
   // Format cached content payload helper
   const getCachedPayload = (): ContentIntelligencePayload => {
@@ -799,13 +790,13 @@ export async function getOrGenerateCanonicalTopicContent({
     }
   }
 
-  // 4. Rule: If content is fresh (< 30 days old) and NOT force refreshed -> Serve immediately from DB ($0 AI Cost, 0 Credits)
+  // 4. Reuse the existing canonical version unless an authorised refresh was explicitly requested.
   if (hasExistingContent && isFresh && !forceRefresh) {
-    console.log(`[AI Content Intelligence] Serving fresh canonical content (< 30 days old) for topic: ${topic.name}`)
+    console.log(`[AI Content Intelligence] Serving reusable canonical content for topic: ${topic.name}`)
     return {
       success: true,
       served_from_cache: true,
-      generation_reason: 'CACHE_30_DAYS',
+      generation_reason: 'CANONICAL_REUSE',
       version_number: currentVersionNum,
       hierarchy,
       content: getCachedPayload(),
@@ -823,13 +814,13 @@ export async function getOrGenerateCanonicalTopicContent({
     }
   }
 
-  // 5. Rule: If content is older than 30 days, we serve the existing content immediately (non-blocking) and schedule background refresh
+  // 5. Generate a new canonical version only for first generation or an authorised explicit refresh.
   const targetVersionNum = currentVersionNum + 1
   const generationReason = !hasExistingContent
     ? 'FIRST_GENERATION'
     : forceRefresh
       ? 'FORCE_REFRESH'
-      : 'REFRESH_30_DAYS'
+       : 'ADMIN_REFRESH'
 
   // Deterministic Idempotency Key
   const idempotencyKey = subtopicId
