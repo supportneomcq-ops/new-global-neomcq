@@ -316,7 +316,7 @@ export function FlashcardWorkspaceView() {
         <Layers className="mx-auto h-9 w-9 text-violet-600 dark:text-violet-300" />
         <h2 className="mt-3 text-lg font-bold text-slate-900 dark:text-slate-100">No saved flashcards for this topic yet</h2>
         <p className="mx-auto mt-2 max-w-lg text-sm text-slate-600 dark:text-slate-300">{error || 'Generate or save topic-specific learning content before starting a flashcard review.'}</p>
-        <button type="button" onClick={() => void refreshTopicContent(true)} disabled={isLoading || isOrchestrating} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-500 px-4 py-2.5 text-sm font-extrabold text-white shadow-md disabled:opacity-60">
+        <button type="button" onClick={() => void refreshTopicContent(false)} disabled={isLoading || isOrchestrating} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-500 px-4 py-2.5 text-sm font-extrabold text-white shadow-md disabled:opacity-60">
           {isLoading || isOrchestrating ? <RotateCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} Generate topic content
         </button>
       </div>
