@@ -257,7 +257,9 @@ export async function POST(req: NextRequest) {
         subject_id: subjectId,
         topic_id: topicId,
         task: 'a4_notes_generation',
-        idempotency_key: jobScopeKey,
+        // ai_jobs.idempotency_key has a global unique index, so include the canonical target version.
+        // Concurrent requests for the same version still converge on the same durable job key.
+        idempotency_key: `${jobScopeKey}_v${targetVersion}`,
         status: 'running',
         provider: 'Google Gemini AI',
         model: 'gemini-3.6-flash',
