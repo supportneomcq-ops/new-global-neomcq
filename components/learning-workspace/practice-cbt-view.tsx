@@ -90,7 +90,6 @@ export function PracticeCbtView({
   const [dbMcqs, setDbMcqs] = useState<DBMCQ[]>([]);
   const [userAttempts, setUserAttempts] = useState<Record<string, UserAttempt[]>>({});
   const [dbLoading, setDbLoading] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
   const [answerFeedback, setAnswerFeedback] = useState<Record<string, { is_correct: boolean; correct_answer?: string; explanation?: string; clinical_pearl?: string }>>({});
 
   // Practice Player State (STATE B)
@@ -107,15 +106,6 @@ export function PracticeCbtView({
   const [sessionStartTime, setSessionStartTime] = useState<number>(0);
   const [questionStartTime, setQuestionStartTime] = useState<number>(0);
   const [totalSessionTimeSpent, setTotalSessionTimeSpent] = useState<number>(0);
-
-  // Load active authenticated user
-  useEffect(() => {
-    const fetchUser = async () => {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      setCurrentUser(authUser);
-    };
-    fetchUser();
-  }, [supabase]);
 
   // Main Data Orchestrator: Fetch Versions, Questions, and Attempts from Supabase
   const loadDatabaseRecords = async () => {
@@ -330,7 +320,7 @@ export function PracticeCbtView({
         const parsed = JSON.parse(saved);
         if (parsed) {
           startIdx = parsed.currentIndex || 0;
-          answers = parsed.selectedAnswers || {};
+          answers = {}; // Never trust locally cached answer state; server submissions are authoritative.
           flags = parsed.flaggedQuestions || {};
           strikethroughs = parsed.eliminatedOptions || {};
         }
@@ -362,7 +352,7 @@ export function PracticeCbtView({
   }, [currentIndex, selectedAnswers, flaggedQuestions, eliminatedOptions, gameState, activeBatch, activeActivity, activeTopicId]);
 
   // Correctness is returned only by the authenticated server-side submission endpoint.
-  const isQuestionCorrect = (q: any, selectedIdx: number) => {
+  const isQuestionCorrect = (q: any) => {
     const feedback = q?.id ? answerFeedback[q.id] : null;
     return Boolean(feedback && feedback.is_correct);
   };
@@ -752,13 +742,13 @@ export function PracticeCbtView({
   const currentQ = questions[currentIndex];
   const isCurrentAnswered = selectedAnswers[currentIndex] !== undefined;
   const selectedIdx = selectedAnswers[currentIndex];
-  const isCorrect = isCurrentAnswered && isQuestionCorrect(currentQ, selectedIdx);
+  const isCorrect = isCurrentAnswered && isQuestionCorrect(currentQ);
 
   // Stats calculation inside active set
   const answeredCount = Object.keys(selectedAnswers).length;
   let runningCorrectCount = 0;
   questions.forEach((q, idx) => {
-    if (selectedAnswers[idx] !== undefined && isQuestionCorrect(q, selectedAnswers[idx])) {
+    if (selectedAnswers[idx] !== undefined && isQuestionCorrect(q)) {
       runningCorrectCount++;
     }
   });
@@ -994,7 +984,7 @@ export function PracticeCbtView({
                   } else if (isAnswered) {
                     // check correctness of answer
                     const ans = selectedAnswers[idx];
-                    const isCorrectCell = isQuestionCorrect(q, ans);
+                    const isCorrectCell = isQuestionCorrect(q);
                     cellStyle = isCorrectCell
                       ? 'bg-emerald-500 text-white font-bold'
                       : 'bg-rose-500 text-white font-bold';
