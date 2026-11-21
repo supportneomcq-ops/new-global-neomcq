@@ -11,6 +11,7 @@ import {
   MessageSquare,
   Sparkles,
   CheckSquare,
+  Printer,
 } from 'lucide-react';
 import {
   A4NotesDocument,
@@ -418,7 +419,7 @@ export function A4DocumentReader({ document, onBackToOverview }: A4DocumentReade
 
   return (
     <div
-      className="w-full min-h-screen bg-slate-100/80 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-16 relative"
+      className="a4-print-root w-full min-h-screen bg-slate-100/80 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-16 relative"
       onMouseUp={handleMouseUp}
     >
       {/* Floating Selection Toolbar */}
@@ -430,7 +431,7 @@ export function A4DocumentReader({ document, onBackToOverview }: A4DocumentReade
       />
 
       {/* Reader Header Toolbar */}
-      <div className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 py-2.5 shadow-xs">
+      <div className="a4-print-toolbar sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 py-2.5 shadow-xs">
         <div className="max-w-6xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
           {/* Left: Back & Document Metadata */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -491,6 +492,16 @@ export function A4DocumentReader({ document, onBackToOverview }: A4DocumentReade
                 A+
               </button>
             </div>
+
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-500"
+              title="Print or save this document as PDF"
+              aria-label="Print or save as PDF"
+            >
+              <Printer className="w-4 h-4" />
+            </button>
 
             {/* Search Toggle Button */}
             <button
@@ -574,7 +585,7 @@ export function A4DocumentReader({ document, onBackToOverview }: A4DocumentReade
 
       {/* A4 Document Pages Container */}
       <div
-        className="max-w-4xl mx-auto px-2 sm:px-4 py-6 sm:py-10 space-y-8"
+        className="a4-print-pages max-w-4xl mx-auto px-2 sm:px-4 py-6 sm:py-10 space-y-8"
         style={{ fontSize: `${fontScale}%` }}
       >
         {document.pages.map((page: A4Page) => (
@@ -582,7 +593,7 @@ export function A4DocumentReader({ document, onBackToOverview }: A4DocumentReade
             key={page.pageNumber}
             id={`a4-page-${page.pageNumber}`}
             data-page-number={page.pageNumber}
-            className="w-full bg-[#fcfaf4] dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl p-5 sm:p-10 md:p-12 transition-all relative max-w-full group/sheet"
+            className="a4-print-page w-full bg-[#fcfaf4] dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl p-5 sm:p-10 md:p-12 transition-all relative max-w-full group/sheet"
             style={{
               maxWidth: '820px',
               margin: '0 auto 2rem auto',
@@ -809,6 +820,24 @@ export function A4DocumentReader({ document, onBackToOverview }: A4DocumentReade
           </article>
         ))}
       </div>
+      <style jsx global>{`
+        @page { size: A4; margin: 12mm; }
+        @media print {
+          body { background: #fff !important; color: #111 !important; }
+          .a4-print-root { background: #fff !important; color: #111 !important; padding: 0 !important; min-height: 0 !important; }
+          .a4-print-toolbar { display: none !important; }
+          .a4-print-pages { max-width: none !important; padding: 0 !important; margin: 0 !important; }
+          .a4-print-page {
+            width: 100% !important; max-width: none !important; min-height: 273mm !important;
+            margin: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 0 !important;
+            box-shadow: none !important; background: #fff !important; color: #111 !important;
+            break-after: page; page-break-after: always;
+          }
+          .a4-print-page:last-child { break-after: auto; page-break-after: auto; }
+          .a4-print-page * { color: #111 !important; }
+          .a4-print-page a { color: #111 !important; text-decoration: none !important; }
+        }
+      `}</style>
     </div>
   );
 }
