@@ -41,8 +41,8 @@ interface DBMCQ {
   id: string;
   question: string;
   options: string[];
-  correct_answer: string;
-  explanation: string;
+  explanation?: string;
+  correct_index?: number;
   clinical_pearl?: string;
   difficulty?: string;
   high_yield_tag?: string;
@@ -59,7 +59,6 @@ interface ContentVersionRecord {
   content_count: number;
   change_summary?: string;
   generation_reason?: string;
-  snapshot: any;
 }
 
 interface UserAttempt {
@@ -91,7 +90,7 @@ export function PracticeCbtView({
   const [dbMcqs, setDbMcqs] = useState<DBMCQ[]>([]);
   const [userAttempts, setUserAttempts] = useState<Record<string, UserAttempt[]>>({});
   const [dbLoading, setDbLoading] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [answerFeedback, setAnswerFeedback] = useState<Record<string, { is_correct: boolean; correct_answer?: string; explanation?: string; clinical_pearl?: string }>>({});
 
   // Practice Player State (STATE B)
   const [gameState, setGameState] = useState<'library' | 'playing' | 'completed'>('library');
@@ -108,15 +107,6 @@ export function PracticeCbtView({
   const [questionStartTime, setQuestionStartTime] = useState<number>(0);
   const [totalSessionTimeSpent, setTotalSessionTimeSpent] = useState<number>(0);
 
-  // Load active authenticated user
-  useEffect(() => {
-    const fetchUser = async () => {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      setCurrentUser(authUser);
-    };
-    fetchUser();
-  }, [supabase]);
-
   // Main Data Orchestrator: Fetch Versions, Questions, and Attempts from Supabase
   const loadDatabaseRecords = async () => {
     if (!activeTopicId) return;
@@ -125,7 +115,7 @@ export function PracticeCbtView({
       // 1. Fetch content versions associated with topic
       const { data: vData, error: vErr } = await supabase
         .from('content_versions')
-        .select('id, version, created_at, snapshot, change_summary, generation_reason')
+        .select('id, version, created_at, change_summary, generation_reason')
         .eq('asset_id', activeTopicId)
         .eq('asset_type', 'topic')
         .order('version', { ascending: false });
@@ -135,18 +125,17 @@ export function PracticeCbtView({
         id: v.id,
         version: v.version,
         created_at: v.created_at,
-        quality_score: Number(v.snapshot?.quality_score || 95),
-        content_count: Number(v.snapshot?.mcqs?.length || 40),
+        quality_score: 95,
+        content_count: 40,
         change_summary: v.change_summary,
         generation_reason: v.generation_reason,
-        snapshot: v.snapshot || {},
       }));
       setVersions(parsedVersions);
 
       // 2. Fetch specific questions associated with topic from real `mcqs` table
       const { data: qData, error: qErr } = await supabase
         .from('mcqs')
-        .select('id, question, options, correct_answer, explanation, clinical_pearl, difficulty, tags, metadata, version')
+        .select('id, question, options, difficulty, tags, metadata, version')
         .eq('topic_id', activeTopicId)
         .order('id', { ascending: true });
 
@@ -155,9 +144,6 @@ export function PracticeCbtView({
         id: q.id,
         question: q.question,
         options: Array.isArray(q.options) ? q.options : [],
-        correct_answer: q.correct_answer,
-        explanation: q.explanation,
-        clinical_pearl: q.clinical_pearl || undefined,
         difficulty: q.difficulty || undefined,
         high_yield_tag: q.metadata?.high_yield_tag || (Array.isArray(q.tags) ? q.tags[0] : undefined),
         version: q.version || 1,
@@ -235,21 +221,15 @@ export function PracticeCbtView({
   // Compute stats of an activity inside a version (using real SQL attempts and questions)
   const getActivityStats = (version: ContentVersionRecord, activity: 'all' | 'A' | 'B') => {
     // 1. Resolve questions for this version
-    const versionQuestions = dbMcqs.length > 0
-      ? dbMcqs.filter((q) => q.version === version.version)
-      : (version.snapshot?.mcqs || []);
+    const versionQuestions = dbMcqs.filter((q) => q.version === version.version);
 
     let activeSet: any[] = [];
     if (activity === 'all') {
       activeSet = versionQuestions;
     } else if (activity === 'A') {
-      activeSet = version.snapshot?.quiz_a && version.snapshot.quiz_a.length > 0
-        ? version.snapshot.quiz_a
-        : versionQuestions.slice(0, Math.min(20, Math.ceil(versionQuestions.length / 2)));
+      activeSet = versionQuestions.slice(0, Math.min(20, Math.ceil(versionQuestions.length / 2)));
     } else {
-      activeSet = version.snapshot?.quiz_b && version.snapshot.quiz_b.length > 0
-        ? version.snapshot.quiz_b
-        : versionQuestions.slice(Math.min(20, Math.ceil(versionQuestions.length / 2)));
+      activeSet = versionQuestions.slice(Math.min(20, Math.ceil(versionQuestions.length / 2)));
     }
 
     const N = activeSet.length;
@@ -292,21 +272,15 @@ export function PracticeCbtView({
   // Launch Practice Game Session (State B)
   const handleStartPractice = (version: ContentVersionRecord, activity: 'all' | 'A' | 'B') => {
     // 1. Resolve questions for this batch
-    const versionQuestions = dbMcqs.length > 0
-      ? dbMcqs.filter((q) => q.version === version.version)
-      : (version.snapshot?.mcqs || []);
+    const versionQuestions = dbMcqs.filter((q) => q.version === version.version);
 
     let activeSet: any[] = [];
     if (activity === 'all') {
       activeSet = versionQuestions;
     } else if (activity === 'A') {
-      activeSet = version.snapshot?.quiz_a && version.snapshot.quiz_a.length > 0
-        ? version.snapshot.quiz_a
-        : versionQuestions.slice(0, Math.min(20, Math.ceil(versionQuestions.length / 2)));
+      activeSet = versionQuestions.slice(0, Math.min(20, Math.ceil(versionQuestions.length / 2)));
     } else {
-      activeSet = version.snapshot?.quiz_b && version.snapshot.quiz_b.length > 0
-        ? version.snapshot.quiz_b
-        : versionQuestions.slice(Math.min(20, Math.ceil(versionQuestions.length / 2)));
+      activeSet = versionQuestions.slice(Math.min(20, Math.ceil(versionQuestions.length / 2)));
     }
 
     if (activeSet.length === 0) return;
@@ -346,7 +320,7 @@ export function PracticeCbtView({
         const parsed = JSON.parse(saved);
         if (parsed) {
           startIdx = parsed.currentIndex || 0;
-          answers = parsed.selectedAnswers || {};
+          answers = {}; // Never trust locally cached answer state; server submissions are authoritative.
           flags = parsed.flaggedQuestions || {};
           strikethroughs = parsed.eliminatedOptions || {};
         }
@@ -377,20 +351,16 @@ export function PracticeCbtView({
     );
   }, [currentIndex, selectedAnswers, flaggedQuestions, eliminatedOptions, gameState, activeBatch, activeActivity, activeTopicId]);
 
-  // Dynamic correct answer checker
-  const isQuestionCorrect = (q: any, selectedIdx: number) => {
-    if (typeof q.correct_index === 'number') {
-      return selectedIdx === q.correct_index;
-    }
-    // For database records, match string options
-    const correctOpt = q.correct_answer;
-    const selectedOpt = q.options[selectedIdx];
-    return correctOpt === selectedOpt;
+  // Correctness is returned only by the authenticated server-side submission endpoint.
+  const isQuestionCorrect = (q: any) => {
+    const feedback = q?.id ? answerFeedback[q.id] : null;
+    return Boolean(feedback && feedback.is_correct);
   };
 
   const getCorrectIndex = (q: any) => {
-    if (typeof q.correct_index === 'number') return q.correct_index;
-    return q.options.indexOf(q.correct_answer);
+    const feedback = q?.id ? answerFeedback[q.id] : null;
+    if (!feedback?.correct_answer) return -1;
+    return q.options.findIndex((option: string) => option.trim().toLowerCase() === feedback.correct_answer?.trim().toLowerCase());
   };
 
   // Option submission event
@@ -398,42 +368,33 @@ export function PracticeCbtView({
     if (selectedAnswers[currentIndex] !== undefined) return; // Answered already
 
     const q = questions[currentIndex];
-    const isCorrect = isQuestionCorrect(q, optIdx);
+    if (!q?.id) return;
 
-    // Save to local playing state
-    setSelectedAnswers((prev) => ({
-      ...prev,
-      [currentIndex]: optIdx,
-    }));
-
-    // Perform direct insert to Supabase mcq_attempts table (RLS authorized)
-    if (q.id) {
-      try {
-        const timeSpent = Date.now() - questionStartTime;
-        const attemptRow = {
-          user_id: currentUser?.id || null,
-          mcq_id: q.id,
-          selected_option: q.options[optIdx],
-          selected_index: optIdx,
-          is_correct: isCorrect,
-          response_time_ms: Math.min(120000, timeSpent), // limit extreme caps
-        };
-        await supabase.from('mcq_attempts').insert(attemptRow);
-
-        // Update cache of attempts locally
-        setUserAttempts((prev) => {
-          const existing = prev[q.id!] || [];
-          const updated = [...existing, {
-            mcq_id: q.id!,
-            selected_index: optIdx,
-            is_correct: isCorrect,
-            created_at: new Date().toISOString(),
-          }];
-          return { ...prev, [q.id!]: updated };
-        });
-      } catch (err) {
-        console.warn('[PracticeCbtView] Silent error persisting attempt:', err);
+    try {
+      const response = await fetch('/api/mcq/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mcqId: q.id, selectedIndex: optIdx }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Unable to submit answer');
       }
+
+      setAnswerFeedback((prev) => ({ ...prev, [q.id]: result }));
+      setSelectedAnswers((prev) => ({ ...prev, [currentIndex]: optIdx }));
+      setUserAttempts((prev) => ({
+        ...prev,
+        [q.id]: [...(prev[q.id] || []), {
+          mcq_id: q.id,
+          selected_index: optIdx,
+          is_correct: Boolean(result.is_correct),
+          created_at: new Date().toISOString(),
+        }],
+      }));
+    } catch (err) {
+      console.error('[PracticeCbtView] Answer submission failed:', err);
+      window.alert('Your answer could not be submitted. Please try again.');
     }
   };
 
@@ -781,13 +742,13 @@ export function PracticeCbtView({
   const currentQ = questions[currentIndex];
   const isCurrentAnswered = selectedAnswers[currentIndex] !== undefined;
   const selectedIdx = selectedAnswers[currentIndex];
-  const isCorrect = isCurrentAnswered && isQuestionCorrect(currentQ, selectedIdx);
+  const isCorrect = isCurrentAnswered && isQuestionCorrect(currentQ);
 
   // Stats calculation inside active set
   const answeredCount = Object.keys(selectedAnswers).length;
   let runningCorrectCount = 0;
   questions.forEach((q, idx) => {
-    if (selectedAnswers[idx] !== undefined && isQuestionCorrect(q, selectedAnswers[idx])) {
+    if (selectedAnswers[idx] !== undefined && isQuestionCorrect(q)) {
       runningCorrectCount++;
     }
   });
@@ -953,20 +914,20 @@ export function PracticeCbtView({
                         {isCorrect ? 'Correct! High Yield Integration Success.' : 'Incorrect Option Selected.'}
                       </h4>
                       <p className="text-xs leading-relaxed font-medium">
-                        {currentQ.explanation}
+                        {answerFeedback[currentQ.id]?.explanation || 'Answer rationale is not available for this question.'}
                       </p>
                     </div>
                   </div>
 
                   {/* Key Insight / Pearl Box */}
-                  {currentQ.clinical_pearl && (
+                  {answerFeedback[currentQ.id]?.clinical_pearl && (
                     <div className="p-4 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 space-y-1.5">
                       <div className="flex items-center gap-1.5 text-xs font-black text-amber-800 dark:text-amber-300">
                         <Sparkles className="w-4 h-4 text-amber-500 fill-amber-500" />
                         <span>High-Yield Insight & Core Concept</span>
                       </div>
                       <p className="text-xs text-amber-900 dark:text-amber-200 leading-relaxed font-semibold">
-                        {currentQ.clinical_pearl}
+                        {answerFeedback[currentQ.id]?.clinical_pearl}
                       </p>
                     </div>
                   )}
@@ -1023,7 +984,7 @@ export function PracticeCbtView({
                   } else if (isAnswered) {
                     // check correctness of answer
                     const ans = selectedAnswers[idx];
-                    const isCorrectCell = isQuestionCorrect(q, ans);
+                    const isCorrectCell = isQuestionCorrect(q);
                     cellStyle = isCorrectCell
                       ? 'bg-emerald-500 text-white font-bold'
                       : 'bg-rose-500 text-white font-bold';
