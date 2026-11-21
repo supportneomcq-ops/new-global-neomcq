@@ -32,12 +32,14 @@ export async function POST(req: NextRequest) {
     }
 
     const { data: version, error: versionError } = await (supabase as any).from('content_versions')
-      .select('id,asset_id,asset_type,snapshot').eq('id', versionId).maybeSingle();
+      .select('id,asset_id,asset_type,version,snapshot').eq('id', versionId).maybeSingle();
     if (versionError || !version || version.asset_id !== topicId || version.asset_type !== 'topic') {
       return NextResponse.json({ success: false, error: 'Recall content version is unavailable.' }, { status: 404 });
     }
     const recallItems = version.snapshot?.fill_in_the_blanks;
-    const item = Array.isArray(recallItems) ? recallItems.find((entry: any) => entry.id === recallItemId) : null;
+    const item = Array.isArray(recallItems) ? recallItems.find((entry: any, index: number) =>
+      (typeof entry.id === 'string' ? entry.id : `fib_${version.version || 1}_${index}`) === recallItemId
+    ) : null;
     if (!item || typeof item.blank !== 'string' || !item.blank.trim()) {
       return NextResponse.json({ success: false, error: 'Recall item not found in this set.' }, { status: 404 });
     }
