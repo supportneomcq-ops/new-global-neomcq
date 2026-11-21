@@ -36,6 +36,7 @@ interface ActiveRecallCardProps {
     isCorrect: boolean;
     isRevealed: boolean;
     evaluated: boolean;
+    feedback?: { answer: string; acceptedAnswers: string[]; explanation: string; highYieldPoint?: string; memoryHook?: string; examTip?: string };
   };
 }
 
