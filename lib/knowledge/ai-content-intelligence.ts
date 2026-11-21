@@ -1209,6 +1209,8 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
 
   // 5. Atomic Database Persistence (Append-Only & Version Record)
   let contentVersionId: string | null = null
+  let flashcardDeckId: string | null = null
+  let previousCurrentDeckIds: string[] = []
 
   try {
     // 5a. Insert MCQs into mcqs table
@@ -1262,14 +1264,64 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
       if (notesInsertError) throw new Error(`Failed to persist generated notes: ${notesInsertError.message}`)
     }
 
-    // 5c. Insert Flashcards into flashcards table
+    // 5c. Persist one shared, versioned flashcard deck and attach every canonical card to it.
     if (finalPayload.flashcards.length > 0) {
+      let previousDeckQuery = supabase
+        .from('flashcard_decks')
+        .select('id')
+        .eq('topic_id', topic.id)
+        .eq('is_current', true)
+      if (subtopicId) previousDeckQuery = previousDeckQuery.eq('subtopic_id', subtopicId)
+      else previousDeckQuery = previousDeckQuery.is('subtopic_id', null)
+
+      const { data: previousDecks, error: previousDeckError } = await previousDeckQuery
+      if (previousDeckError) throw new Error(`Could not resolve the previous flashcard deck: ${previousDeckError.message}`)
+      previousCurrentDeckIds = (previousDecks || []).map((deck: any) => deck.id)
+
+      if (previousCurrentDeckIds.length > 0) {
+        const { error: deactivateError } = await supabase
+          .from('flashcard_decks')
+          .update({ is_current: false, updated_at: new Date().toISOString() })
+          .in('id', previousCurrentDeckIds)
+        if (deactivateError) throw new Error(`Could not archive the previous flashcard deck: ${deactivateError.message}`)
+      }
+
+      const { data: deckRow, error: deckInsertError } = await supabase
+        .from('flashcard_decks')
+        .insert({
+          title: `${subtopicName || topic.name} — Flashcards (v${targetVersionNum})`,
+          description: `Shared canonical flashcards for ${exam.name} · ${subject.name} · ${topic.name}`,
+          exam_id: exam.id,
+          subject_id: subject.id,
+          topic_id: topic.id,
+          subtopic_id: subtopicId || null,
+          card_count: finalPayload.flashcards.length,
+          status: 'approved',
+          version: String(targetVersionNum),
+          version_num: targetVersionNum,
+          is_current: true,
+          generation_metadata: { source: 'ai-content-intelligence', version: targetVersionNum, provider: providerUsed, model: modelUsed },
+        })
+        .select('id')
+        .single()
+
+      if (deckInsertError || !deckRow?.id) {
+        throw new Error(`Failed to persist canonical flashcard deck: ${deckInsertError?.message || 'No deck ID returned'}`)
+      }
+      flashcardDeckId = deckRow.id
+
       const flashRows = finalPayload.flashcards.map((f, idx) => ({
+        deck_id: flashcardDeckId,
         exam_id: exam.id,
         subject_id: subject.id,
         topic_id: topic.id,
+        subtopic_id: subtopicId || null,
         front: f.front,
         back: f.back,
+        explanation: f.explanation || null,
+        high_yield_pearl: f.high_yield_pearl || f.clinical_pearl || null,
+        clinical_correlation: f.clinical_correlation || null,
+        reference_notes: f.reference_notes || null,
         difficulty: normalizePersistedFlashcardDifficulty(f.difficulty || difficulty),
         card_index: idx + 1,
         status: 'approved',
@@ -1394,11 +1446,19 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
       supabase.from('mcqs').delete().eq('topic_id', topic.id).eq('version', targetVersionNum).eq('ai_generated', true),
       supabase.from('notes').delete().eq('topic_id', topic.id).eq('version', targetVersionNum).eq('ai_generated', true),
       supabase.from('flashcards').delete().eq('topic_id', topic.id).eq('version', targetVersionNum).eq('ai_generated', true),
+      ...(flashcardDeckId ? [supabase.from('flashcard_decks').delete().eq('id', flashcardDeckId)] : []),
       supabase.from('revision_sheets').delete().eq('topic_id', topic.id).eq('title', `60s Revision — ${topic.name} (v${targetVersionNum})`),
       supabase.from('content_versions').delete().eq('asset_id', topic.id).eq('asset_type', 'topic').eq('version', targetVersionNum),
     ])
     for (const cleanupResult of cleanupResults) {
       if (cleanupResult.error) console.error('[AI Content Intelligence] Partial-write cleanup failed:', cleanupResult.error)
+    }
+    if (previousCurrentDeckIds.length > 0) {
+      const { error: restoreDeckError } = await supabase
+        .from('flashcard_decks')
+        .update({ is_current: true, updated_at: new Date().toISOString() })
+        .in('id', previousCurrentDeckIds)
+      if (restoreDeckError) console.error('[AI Content Intelligence] Previous flashcard deck restore failed:', restoreDeckError)
     }
 
     if (jobId) {
