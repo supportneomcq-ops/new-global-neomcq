@@ -860,59 +860,6 @@ export async function getOrGenerateCanonicalTopicContent({
     }
   }
 
-  // If we already have existing content and this is a 30-day refresh, return existing content non-blocking while queueing background generation
-  if (hasExistingContent && generationReason === 'REFRESH_30_DAYS') {
-    console.log(`[AI Content Intelligence] Topic ${topic.name} is >= 30 days old. Returning existing content and triggering background refresh.`)
-
-    // Trigger background generation without blocking response
-    const backgroundTask = (async () => {
-      try {
-        await executeGenerationWorkflow({
-          supabase,
-          exam,
-          subject,
-          topic,
-          subtopicName,
-          subtopicId,
-          targetVersionNum,
-          generationReason,
-          idempotencyKey,
-          existingDbMcqs,
-          difficulty,
-          language,
-          userId,
-          startTime,
-          hierarchy,
-        })
-      } catch (bgErr) {
-        console.warn('[AI Content Intelligence] Background refresh task error:', bgErr)
-      }
-    })()
-
-    // Non-blocking return of current version
-    return {
-      success: true,
-      served_from_cache: true,
-      is_stale: true,
-      refresh_pending: true,
-      generation_reason: 'CANONICAL_REUSE',
-      version_number: currentVersionNum,
-      hierarchy,
-      content: getCachedPayload(),
-      metrics: {
-        input_tokens: 0,
-        output_tokens: 0,
-        cached_tokens: 0,
-        actual_cost_usd: 0,
-        credits_deducted: 0,
-        duration_ms: Date.now() - startTime,
-        model_used: 'cache-reused-refresh-scheduled',
-        provider_used: 'supabase-db',
-      },
-      created_at: latestVersionRecord?.created_at || new Date().toISOString(),
-    }
-  }
-
   // 6. Execute Synchronous Generation (for FIRST_GENERATION or FORCE_REFRESH)
   return await executeGenerationWorkflow({
     supabase,
