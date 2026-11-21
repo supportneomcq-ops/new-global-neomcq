@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { verifyAdminApiSession } from '@/lib/admin-auth';
 import { checkFeatureQuota } from '@/lib/entitlements/quota-checker';
 import { ContentScope } from '@/lib/types/a4-notes';
 import {
@@ -139,6 +140,13 @@ export async function POST(req: NextRequest) {
       forceRefresh = false,
     } = body;
 
+    if (forceRefresh === true) {
+      const adminAuth = await verifyAdminApiSession();
+      if (!adminAuth.authorized) {
+        return NextResponse.json({ error: 'Only an authorized administrator can refresh shared canonical notes.' }, { status: 403 });
+      }
+    }
+
     if (!examId || !subjectId || !topicId) {
       return NextResponse.json(
         { error: 'Missing required curriculum identifiers (examId, subjectId, topicId)' },
@@ -249,7 +257,9 @@ export async function POST(req: NextRequest) {
         subject_id: subjectId,
         topic_id: topicId,
         task: 'a4_notes_generation',
-        idempotency_key: jobScopeKey,
+        // ai_jobs.idempotency_key has a global unique index, so include the canonical target version.
+        // Concurrent requests for the same version still converge on the same durable job key.
+        idempotency_key: `${jobScopeKey}_v${targetVersion}`,
         status: 'running',
         provider: 'Google Gemini AI',
         model: 'gemini-3.6-flash',

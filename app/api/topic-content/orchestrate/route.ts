@@ -4,9 +4,8 @@ import { createClient } from '@/lib/supabase/server';
 import { checkFeatureQuota } from '@/lib/entitlements/quota-checker';
 import { resolveCanonicalHierarchy } from '@/lib/knowledge/canonical-resolver';
 import { GenerationJobManager } from '@/lib/server/content-engine/job-manager';
-import { getOrGenerateCanonicalTopicContent } from '@/lib/knowledge/ai-content-intelligence';
-
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+import { getOrGenerateCanonicalTopicContent } from '@/lib/knowledge/ai-content-intelligence'
+import { verifyAdminApiSession } from '@/lib/admin-auth';
 
 // AI generation can take longer than the response itself; keep the post-response task alive.
 export const maxDuration = 60;
@@ -118,14 +117,16 @@ export async function POST(req: NextRequest) {
     // 3. Fetch active job status for this topic from ai_jobs
     const activeJob = await GenerationJobManager.getLatestJobForTopic(topic.id, supabase);
 
-    // 4. Determine 30-day freshness
-    let isFresh = false;
-    if (latestVersionRecord?.created_at && !forceRefresh) {
-      const ageMs = Date.now() - new Date(latestVersionRecord.created_at).getTime();
-      if (ageMs < THIRTY_DAYS_MS) {
-        isFresh = true;
+    if (forceRefresh === true) {
+      const adminAuth = await verifyAdminApiSession();
+      if (!adminAuth.authorized) {
+        return NextResponse.json({ success: false, error: 'Only an authorized administrator can refresh shared canonical topic content.' }, { status: 403 });
       }
     }
+
+    // 4. Canonical topic content is reusable until an authorised version refresh replaces it.
+    // Age alone must not trigger repeated AI generation for students.
+    const isFresh = Boolean(latestVersionRecord);
 
     // Snapshot payload. Support both the current schema and the slot-based format already stored in production.
     // Without these fallbacks, existing quizzes and flashcards appear empty and trigger unnecessary AI regeneration.

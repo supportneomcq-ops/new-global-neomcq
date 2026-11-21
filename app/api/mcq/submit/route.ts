@@ -8,7 +8,10 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { mcqId, selectedIndex, selectedOption } = body ?? {};
 
-    if (typeof mcqId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(mcqId)) {
+    if (
+      typeof mcqId !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(mcqId)
+    ) {
       return NextResponse.json({ success: false, error: 'A valid mcqId is required' }, { status: 400 });
     }
 
@@ -24,8 +27,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'selectedIndex is invalid' }, { status: 400 });
     }
 
-    // Resolve identity from a verified session or a verified bearer token; never trust a user ID from the body.
-    let user = null as { id: string; email?: string } | null;
+    // Resolve identity only from a verified session or bearer token.
+    let user: { id: string; email?: string } | null = null;
     const authHeader = req.headers.get('authorization');
     if (authHeader?.startsWith('Bearer ')) {
       const token = authHeader.slice('Bearer '.length).trim();
@@ -46,7 +49,7 @@ export async function POST(req: NextRequest) {
     const adminClient = getSupabaseAdmin();
     const { data: mcq, error: mcqError } = await adminClient
       .from('mcqs')
-      .select('id, status, visibility, user_id')
+      .select('id, status, visibility, user_id, options, correct_answer, explanation, rationale, clinical_pearl')
       .eq('id', mcqId)
       .maybeSingle();
 
@@ -74,20 +77,52 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // This RPC uses service-role privileges, so the checks above must be completed first.
-    const { data, error } = await adminClient.rpc('submit_mcq_answer_atomic', {
-      p_user_id: user.id,
-      p_mcq_id: mcqId,
-      p_selected_index: hasIndex ? Number(selectedIndex) : null,
-      p_selected_option: hasOption ? selectedOption.trim() : null,
-    });
+    const options = Array.isArray(mcq.options) ? mcq.options : [];
+    let chosenIndex: number;
+    let chosenOption: string;
 
-    if (error) {
-      console.error('RPC submit_mcq_answer_atomic error:', error);
-      return NextResponse.json({ success: false, error: 'Failed to verify answer server-side' }, { status: 500 });
+    if (hasIndex) {
+      chosenIndex = Number(selectedIndex);
+      if (chosenIndex < 0 || chosenIndex >= options.length) {
+        return NextResponse.json({ success: false, error: 'selectedIndex is out of range' }, { status: 400 });
+      }
+      chosenOption = String(options[chosenIndex]);
+    } else {
+      chosenOption = selectedOption.trim();
+      chosenIndex = options.findIndex((option: unknown) => String(option).trim().toLowerCase() === chosenOption.toLowerCase());
+      if (chosenIndex < 0) {
+        return NextResponse.json({ success: false, error: 'Selected option is not valid for this question' }, { status: 400 });
+      }
     }
 
-    return NextResponse.json(data);
+    const correctAnswer = typeof mcq.correct_answer === 'string' ? mcq.correct_answer : '';
+    if (!correctAnswer) {
+      return NextResponse.json({ success: false, error: 'This question is awaiting answer verification.' }, { status: 409 });
+    }
+    const isCorrect = chosenOption.trim().toLowerCase() === correctAnswer.trim().toLowerCase();
+
+    // Service-role writes are safe here because the user and question access were verified above.
+    const { error: attemptError } = await adminClient.from('mcq_attempts').insert({
+      user_id: user.id,
+      mcq_id: mcqId,
+      selected_option: chosenOption,
+      selected_index: chosenIndex,
+      is_correct: isCorrect,
+    });
+
+    if (attemptError) {
+      console.error('Could not save MCQ attempt:', attemptError);
+      return NextResponse.json({ success: false, error: 'Your answer could not be saved. Please retry.' }, { status: 500 });
+    }
+
+    // Answer key and rationale are disclosed only after this authenticated submission.
+    return NextResponse.json({
+      success: true,
+      is_correct: isCorrect,
+      correct_answer: correctAnswer,
+      explanation: mcq.explanation || mcq.rationale || '',
+      clinical_pearl: mcq.clinical_pearl || '',
+    });
   } catch (err: unknown) {
     console.error('MCQ answer submission failed:', err);
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });

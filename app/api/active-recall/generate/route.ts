@@ -4,11 +4,18 @@ import { AIGateway } from '@/lib/ai/ai-gateway';
 import { ActiveRecallSet, ActiveRecallItem } from '@/lib/types/active-recall';
 import { extractJsonFromAiResponse } from '@/lib/ai/json-cleaner';
 import { getExamStyleAndPattern } from '@/lib/server/content-engine/exam-style-helper';
+import { createClient } from '@/lib/supabase/server';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { examId, subjectId, topicId, subtopicId, userId, difficulty = 'High Yield' } = body;
+    const { examId, subjectId, topicId, subtopicId, difficulty = 'High Yield' } = body;
+    const sessionClient = await createClient();
+    const { data: authData, error: authError } = await sessionClient.auth.getUser();
+    if (authError || !authData.user) {
+      return NextResponse.json({ success: false, error: 'Please sign in to generate active recall.' }, { status: 401 });
+    }
+    const userId = authData.user.id;
 
     if (!topicId) {
       return NextResponse.json(
@@ -195,7 +202,6 @@ Respond strictly in valid JSON format with NO markdown wrapping:
         asset_id: topicId,
         asset_type: 'topic',
         version: nextVersion,
-        is_current: true,
         generation_reason: nextVersion === 1 ? 'FIRST_GENERATION' : 'FORCE_REFRESH',
         requested_by: userId || null,
         snapshot: updatedSnapshot,
@@ -203,9 +209,21 @@ Respond strictly in valid JSON format with NO markdown wrapping:
       .select('id, version, created_at')
       .single();
 
-    if (saveErr) {
-      console.warn('Notice saving content version:', saveErr);
+    if (saveErr || !newVersionRow) {
+      console.error('Failed to persist active recall content version:', saveErr);
+      return NextResponse.json(
+        { success: false, error: 'The recall set could not be saved. Please retry shortly.' },
+        { status: 500 }
+      );
     }
+
+    const safeItems = items.map((item) => ({
+      id: item.id,
+      concept: item.concept,
+      sentence: item.sentence,
+      difficulty: item.difficulty,
+      subtopicName: item.subtopicName,
+    })) as ActiveRecallItem[];
 
     const newSet: ActiveRecallSet = {
       id: newVersionRow?.id || `set_${nextVersion}`,
@@ -224,7 +242,7 @@ Respond strictly in valid JSON format with NO markdown wrapping:
       difficulty: 'High-Yield',
       completionPercentage: 0,
       bestAccuracy: 0,
-      items,
+      items: safeItems,
     };
 
     return NextResponse.json({

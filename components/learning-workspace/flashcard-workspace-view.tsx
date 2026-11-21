@@ -37,6 +37,7 @@ export interface Flashcard {
   clinical_pearl?: string;
   status?: 'again' | 'good' | 'easy' | 'unseen';
   bookmarked?: boolean;
+  deckId?: string;
 }
 
 export interface FlashcardDeck {
@@ -54,12 +55,14 @@ export interface FlashcardDeck {
   againCount: number;
   version: number;
   cards: Flashcard[];
+  canonicalDeckId?: string;
 }
 
 // Use only persisted or generated flashcards for the selected topic. Never pad a deck with generic sample questions.
 function mapTopicFlashcards(rawCards: any[], subject: string): Flashcard[] {
   return rawCards.slice(0, 30).map((card, index) => ({
     id: card.id || `fc_${index + 1}`,
+    deckId: card.deck_id || undefined,
     front: card.front,
     back: card.back,
     category: card.category || subject || 'Uncategorized',
@@ -80,6 +83,7 @@ export function FlashcardWorkspaceView() {
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
   const [gameState, setGameState] = useState<'overview' | 'studying' | 'summary'>('overview');
   const [userRatings, setUserRatings] = useState<Record<string, 'again' | 'good' | 'easy'>>({});
+  const [isSavingRating, setIsSavingRating] = useState(false);
   const [direction, setDirection] = useState<'next' | 'prev'>('next');
   const bookmarkItemId = selection.subtopic?.id || selection.topic?.id || '';
   const [isDeckBookmarked, setIsDeckBookmarked] = useState(false);
@@ -113,96 +117,93 @@ export function FlashcardWorkspaceView() {
 
   // Initialize only from real persisted/generated cards for the selected curriculum context.
   useEffect(() => {
+    let active = true;
     if (!selection.exam?.id || !selection.subject?.id || !selection.topic?.id) {
-      setDeck(null);
-      setActiveCardIndex(0);
-      setGameState('overview');
-      return;
+      setDeck(null); setActiveCardIndex(0); setGameState('overview');
+      return () => { active = false; };
     }
 
     const rawCards = Array.isArray(content?.flashcards) ? content.flashcards : [];
     const topicCards = mapTopicFlashcards(rawCards, subjectName);
     if (topicCards.length === 0) {
-      setDeck(null);
-      setActiveCardIndex(0);
-      setGameState('overview');
-      return;
+      setDeck(null); setActiveCardIndex(0); setGameState('overview');
+      return () => { active = false; };
     }
 
-    const storageKey = `neo_flashcards_${examName}_${subjectName}_${topicName}_${subtopicName || 'main'}`;
-    let savedRatings: Record<string, 'again' | 'good' | 'easy'> = {};
-    try {
-      const stored = localStorage.getItem(storageKey);
-      if (stored) savedRatings = JSON.parse(stored);
-    } catch {
-      // Ignore invalid local progress and start this deck cleanly.
+    const savedRatings: Record<string, 'again' | 'good' | 'easy'> = {};
+    const canonicalDeckId = topicCards.find((card) => card.deckId)?.deckId;
+    const applyRatings = (ratings: Record<string, 'again' | 'good' | 'easy'>) => {
+      if (!active) return;
+      setUserRatings(ratings);
+      const updatedCards = topicCards.map((card) => ({ ...card, status: ratings[card.id] || 'unseen' }));
+      const easyCount = updatedCards.filter((card) => card.status === 'easy').length;
+      const goodCount = updatedCards.filter((card) => card.status === 'good').length;
+      const againCount = updatedCards.filter((card) => card.status === 'again').length;
+      setDeck({
+        id: `deck_${examName}_${topicName}`, canonicalDeckId,
+        title: `${subtopicName || topicName} — ${updatedCards.length} Flashcards`,
+        description: `Flashcards generated or saved for ${examName}.`,
+        examName, subjectName, topicName, subtopicName,
+        totalCards: updatedCards.length, lastStudied: undefined,
+        masteredCount: easyCount, learningCount: goodCount, againCount,
+        version: 1, cards: updatedCards,
+      });
+      setActiveCardIndex(0); setIsFlipped(false); setGameState('overview');
+    };
+
+    applyRatings(savedRatings);
+    if (canonicalDeckId) {
+      void fetch(`/api/user/flashcard-progress?deckId=${encodeURIComponent(canonicalDeckId)}`, { cache: 'no-store' })
+        .then(async (response) => {
+          const data = await response.json().catch(() => null);
+          if (!response.ok || !data?.success || !Array.isArray(data.progress)) return;
+          const serverRatings: Record<string, 'again' | 'good' | 'easy'> = {};
+          for (const item of data.progress) {
+            if (['again', 'good', 'easy'].includes(item.last_rating)) serverRatings[item.flashcard_id] = item.last_rating;
+          }
+          applyRatings(serverRatings);
+        })
+        .catch((error) => console.warn('[FlashcardWorkspaceView] Progress sync unavailable:', error));
     }
-    setUserRatings(savedRatings);
-
-    const updatedCards = topicCards.map((card) => ({
-      ...card,
-      status: savedRatings[card.id] || 'unseen',
-    }));
-    const easyCount = updatedCards.filter((card) => card.status === 'easy').length;
-    const goodCount = updatedCards.filter((card) => card.status === 'good').length;
-    const againCount = updatedCards.filter((card) => card.status === 'again').length;
-
-    setDeck({
-      id: `deck_${examName}_${topicName}`,
-      title: `${subtopicName || topicName} — ${updatedCards.length} Flashcards`,
-      description: `Flashcards generated or saved for ${examName}.`,
-      examName,
-      subjectName,
-      topicName,
-      subtopicName,
-      totalCards: updatedCards.length,
-      lastStudied: undefined,
-      masteredCount: easyCount,
-      learningCount: goodCount,
-      againCount,
-      version: 1,
-      cards: updatedCards,
-    });
-    setActiveCardIndex(0);
-    setIsFlipped(false);
-    setGameState('overview');
+    return () => { active = false; };
   }, [content?.flashcards, examName, subjectName, topicName, subtopicName, selection.exam?.id, selection.subject?.id, selection.topic?.id]);
 
-  const saveRating = (cardId: string, rating: 'again' | 'good' | 'easy') => {
-    const updatedRatings = { ...userRatings, [cardId]: rating };
-    setUserRatings(updatedRatings);
-
-    const storageKey = `neo_flashcards_${examName}_${subjectName}_${topicName}_${subtopicName || 'main'}`;
+  const saveRating = async (cardId: string, rating: 'again' | 'good' | 'easy'): Promise<boolean> => {
+    if (!deck || isSavingRating) return false;
+    setIsSavingRating(true);
     try {
-      localStorage.setItem(storageKey, JSON.stringify(updatedRatings));
-    } catch {
-      // ignore
-    }
+      const card = deck.cards.find((item) => item.id === cardId);
+      if (!card) throw new Error('Flashcard was not found in the current deck.');
+      if (deck.canonicalDeckId && card.deckId) {
+        const response = await fetch('/api/user/flashcard-progress', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deckId: deck.canonicalDeckId, flashcardId: cardId, rating }),
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok || !data?.success) throw new Error(data?.error || 'Unable to save flashcard progress.');
+      }
 
-    if (deck) {
-      const updatedCards = deck.cards.map((c) =>
-        c.id === cardId ? { ...c, status: rating } : c
-      );
-      const easyCount = updatedCards.filter((c) => c.status === 'easy').length;
-      const goodCount = updatedCards.filter((c) => c.status === 'good').length;
-      const againCount = updatedCards.filter((c) => c.status === 'again').length;
-
+      const updatedRatings = { ...userRatings, [cardId]: rating };
+      setUserRatings(updatedRatings);
+      const updatedCards = deck.cards.map((item) => item.id === cardId ? { ...item, status: rating } : item);
       setDeck({
-        ...deck,
-        cards: updatedCards,
-        masteredCount: easyCount,
-        learningCount: goodCount,
-        againCount: againCount,
+        ...deck, cards: updatedCards,
+        masteredCount: updatedCards.filter((item) => item.status === 'easy').length,
+        learningCount: updatedCards.filter((item) => item.status === 'good').length,
+        againCount: updatedCards.filter((item) => item.status === 'again').length,
       });
-    }
+      return true;
+    } catch (error) {
+      console.error('[FlashcardWorkspaceView] Progress save failed:', error);
+      alert(error instanceof Error ? error.message : 'Unable to save flashcard progress.');
+      return false;
+    } finally { setIsSavingRating(false); }
   };
 
-  const handleRateCard = (rating: 'again' | 'good' | 'easy') => {
-    if (!deck) return;
+  const handleRateCard = async (rating: 'again' | 'good' | 'easy') => {
+    if (!deck || isSavingRating) return;
     const currentCard = deck.cards[activeCardIndex];
-    if (currentCard) {
-      saveRating(currentCard.id, rating);
-    }
+    if (currentCard && !(await saveRating(currentCard.id, rating))) return;
 
     setIsFlipped(false);
     if (activeCardIndex < deck.cards.length - 1) {
@@ -304,7 +305,7 @@ export function FlashcardWorkspaceView() {
         <Layers className="mx-auto h-9 w-9 text-violet-600 dark:text-violet-300" />
         <h2 className="mt-3 text-lg font-bold text-slate-900 dark:text-slate-100">No saved flashcards for this topic yet</h2>
         <p className="mx-auto mt-2 max-w-lg text-sm text-slate-600 dark:text-slate-300">{error || 'Generate or save topic-specific learning content before starting a flashcard review.'}</p>
-        <button type="button" onClick={() => void refreshTopicContent(true)} disabled={isLoading || isOrchestrating} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-500 px-4 py-2.5 text-sm font-extrabold text-white shadow-md disabled:opacity-60">
+        <button type="button" onClick={() => void refreshTopicContent(false)} disabled={isLoading || isOrchestrating} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-500 px-4 py-2.5 text-sm font-extrabold text-white shadow-md disabled:opacity-60">
           {isLoading || isOrchestrating ? <RotateCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} Generate topic content
         </button>
       </div>
@@ -574,7 +575,8 @@ export function FlashcardWorkspaceView() {
             <div className="grid grid-cols-3 gap-2.5">
               <button
                 type="button"
-                onClick={() => handleRateCard('again')}
+                onClick={() => void handleRateCard('again')}
+                    disabled={isSavingRating}
                 className="py-3 px-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 font-extrabold text-xs flex flex-col sm:flex-row items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs"
               >
                 <XCircle className="w-4 h-4 text-rose-500" />
@@ -583,7 +585,8 @@ export function FlashcardWorkspaceView() {
 
               <button
                 type="button"
-                onClick={() => handleRateCard('good')}
+                onClick={() => void handleRateCard('good')}
+                    disabled={isSavingRating}
                 className="py-3 px-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-extrabold text-xs flex flex-col sm:flex-row items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs"
               >
                 <RotateCcw className="w-4 h-4 text-amber-500" />
@@ -592,7 +595,8 @@ export function FlashcardWorkspaceView() {
 
               <button
                 type="button"
-                onClick={() => handleRateCard('easy')}
+                onClick={() => void handleRateCard('easy')}
+                    disabled={isSavingRating}
                 className="py-3 px-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-extrabold text-xs flex flex-col sm:flex-row items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs"
               >
                 <CheckCircle2 className="w-4 h-4 text-emerald-500" />

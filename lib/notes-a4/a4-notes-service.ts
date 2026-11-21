@@ -234,7 +234,8 @@ export async function validateCurriculumHierarchy(params: {
 }
 
 /**
- * Fetches existing canonical A4 notes and evaluates 30-day freshness.
+ * Fetches the current canonical A4 notes document. Canonical content remains reusable
+ * until an explicit versioned refresh replaces it; elapsed time alone is not invalidation.
  */
 export async function getCanonicalA4NoteRecord(params: {
   examId: string;
@@ -274,10 +275,8 @@ export async function getCanonicalA4NoteRecord(params: {
     return { note: null, isFresh: false, expired: false, version: 1 };
   }
 
-  const expiresAtMs = new Date(record.expires_at).getTime();
-  const nowMs = Date.now();
-  const isFresh = expiresAtMs > nowMs;
-  const expired = !isFresh;
+  const isFresh = record.is_current === true;
+  const expired = false;
 
   const document: A4NotesDocument = {
     id: record.id,
@@ -574,7 +573,8 @@ CRITICAL RULES:
  */
 export async function saveCanonicalA4Note(document: A4NotesDocument): Promise<string> {
   const adminClient = getSupabaseAdmin();
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  // expires_at is retained for legacy schema compatibility; is_current now governs canonical freshness.
+  const expiresAt = new Date('9999-12-31T23:59:59.999Z').toISOString();
 
   // 1. Deactivate any existing current record for this exact scope
   let deactivateQuery = adminClient

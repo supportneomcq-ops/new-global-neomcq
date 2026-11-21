@@ -19,7 +19,6 @@ import {
   ActiveRecallSet,
   ActiveRecallItem,
   ActiveRecallSessionStats,
-  AnswerEvaluationResult,
 } from '@/lib/types/active-recall';
 import { ActiveRecallSetsView } from './active-recall-sets-view';
 import { ActiveRecallCard } from './active-recall-card';
@@ -58,6 +57,7 @@ export function ActiveRecallWorkspaceView({ user }: ActiveRecallWorkspaceViewPro
         isCorrect: boolean;
         isRevealed: boolean;
         evaluated: boolean;
+        feedback?: { answer: string; acceptedAnswers: string[]; explanation: string; highYieldPoint?: string; memoryHook?: string; examTip?: string };
       }
     >
   >({});
@@ -130,86 +130,54 @@ export function ActiveRecallWorkspaceView({ user }: ActiveRecallWorkspaceViewPro
   }, [activeExam?.id, activeSubject?.id, activeTopic?.id, activeSubtopic?.id, loadSetsForTopic]);
 
   // Start an Active Recall Session
-  const handleStartSession = (set: ActiveRecallSet, customItems?: ActiveRecallItem[]) => {
+  const handleStartSession = async (set: ActiveRecallSet, customItems?: ActiveRecallItem[]) => {
     const items = customItems || set.items;
     if (!items || items.length === 0) return;
-
     const newSessionId = `ars_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    setActiveSet(set);
-    setSessionItems(items);
-    setCurrentIndex(0);
-    setSessionId(newSessionId);
-    setSavedAnswers({});
-    setCurrentStreak(0);
-    setBestStreak(0);
-    setCorrectCount(0);
-    setRevealedCount(0);
-    setReviewedCount(0);
-    setCurrentView('session');
+    try {
+      const response = await fetch('/api/active-recall/session', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: newSessionId, examId: activeExam?.id, subjectId: activeSubject?.id,
+          topicId: activeTopic?.id, subtopicId: activeSubtopic?.id, versionId: set.id,
+          totalItems: items.length, correctCount: 0, revealedCount: 0, reviewedCount: 0, status: 'in_progress' }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Unable to start recall session.');
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Unable to start recall session.');
+      return;
+    }
+    setActiveSet(set); setSessionItems(items); setCurrentIndex(0); setSessionId(newSessionId);
+    setSavedAnswers({}); setCurrentStreak(0); setBestStreak(0); setCorrectCount(0);
+    setRevealedCount(0); setReviewedCount(0); setCurrentView('session');
   };
 
-  // Submit an answer evaluation
-  const handleAnswerSubmit = async (
-    answer: string,
-    evalResult: AnswerEvaluationResult,
-    isRevealed: boolean,
-    responseTimeMs: number
-  ) => {
+  const handleAnswerSubmit = async (answer: string, isRevealed: boolean, responseTimeMs: number) => {
     const currentItem = sessionItems[currentIndex];
-    if (!currentItem) return;
-
-    const isCorrect = evalResult.isCorrect && !isRevealed;
-
-    // Update Streak
+    if (!currentItem || !activeSet) throw new Error('Recall session is not ready.');
+    const response = await fetch('/api/active-recall/attempt', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ examId: activeExam?.id, subjectId: activeSubject?.id, topicId: activeTopic?.id,
+        subtopicId: activeSubtopic?.id, recallItemId: currentItem.id, sessionId, versionId: activeSet.id,
+        userAnswer: answer, isRevealed, responseTimeMs }),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || 'Unable to save your answer.');
+    const isCorrect = Boolean(data.isCorrect) && !isRevealed;
     if (isCorrect) {
-      const nextStreak = currentStreak + 1;
-      setCurrentStreak(nextStreak);
+      const nextStreak = currentStreak + 1; setCurrentStreak(nextStreak);
       if (nextStreak > bestStreak) setBestStreak(nextStreak);
       setCorrectCount((prev) => prev + 1);
     } else {
       setCurrentStreak(0);
-      if (isRevealed) {
-        setRevealedCount((prev) => prev + 1);
-      } else {
-        setReviewedCount((prev) => prev + 1);
-      }
+      if (isRevealed) setRevealedCount((prev) => prev + 1);
+      else setReviewedCount((prev) => prev + 1);
     }
-
-    setSavedAnswers((prev) => ({
-      ...prev,
-      [currentItem.id]: {
-        userAnswer: answer,
-        isCorrect,
-        isRevealed,
-        evaluated: true,
-      },
-    }));
-
-    // Asynchronously log attempt to server
-    if (user?.id) {
-      try {
-        fetch('/api/active-recall/attempt', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: user.id,
-            examId: activeExam?.id,
-            subjectId: activeSubject?.id,
-            topicId: activeTopic?.id,
-            subtopicId: activeSubtopic?.id,
-            recallItemId: currentItem.id,
-            sessionId,
-            userAnswer: answer,
-            correctAnswer: currentItem.blank,
-            isCorrect,
-            isRevealed,
-            responseTimeMs,
-          }),
-        }).catch((err) => console.warn('Attempt logging notice:', err));
-      } catch (err) {
-        console.warn('Attempt request notice:', err);
-      }
-    }
+    setSavedAnswers((prev) => ({ ...prev, [currentItem.id]: {
+      userAnswer: isRevealed ? data.feedback.answer : answer, isCorrect, isRevealed, evaluated: true,
+      feedback: data.feedback,
+    } }));
+    return { isCorrect, feedback: data.feedback };
   };
 
   // Navigate to Next
@@ -231,32 +199,18 @@ export function ActiveRecallWorkspaceView({ user }: ActiveRecallWorkspaceViewPro
 
   // Complete Active Recall Session
   const handleCompleteSession = async () => {
-    setCurrentView('completion');
-
-    // Save session summary
-    if (user?.id && activeTopic?.id) {
-      try {
-        fetch('/api/active-recall/session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sessionId,
-            userId: user.id,
-            examId: activeExam?.id,
-            subjectId: activeSubject?.id,
-            topicId: activeTopic.id,
-            subtopicId: activeSubtopic?.id,
-            versionId: activeSet?.id,
-            totalItems: sessionItems.length,
-            correctCount,
-            revealedCount,
-            reviewedCount,
-            status: 'completed',
-          }),
-        }).catch((err) => console.warn('Session logging notice:', err));
-      } catch (err) {
-        console.warn('Session request notice:', err);
-      }
+    try {
+      const response = await fetch('/api/active-recall/session', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, examId: activeExam?.id, subjectId: activeSubject?.id,
+          topicId: activeTopic?.id, subtopicId: activeSubtopic?.id, versionId: activeSet?.id,
+          totalItems: sessionItems.length, correctCount, revealedCount, reviewedCount, status: 'completed' }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Unable to save session summary.');
+      setCurrentView('completion');
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Unable to complete recall session.');
     }
   };
 

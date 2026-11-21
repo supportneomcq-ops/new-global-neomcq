@@ -3,7 +3,7 @@
  * 
  * Production-grade AI Content Orchestrator:
  * - Strict Canonical Entity Resolution (Exam -> Subject -> Topic)
- * - 30-Day Freshness Rule (Content reuse = $0 AI Cost, 0 User Credits charged)
+ * - Canonical Version Reuse (shared content is reused until an authorised version refresh)
  * - Concurrency Lock & Database-Level Idempotency (1 generation for concurrent requests)
  * - Multi-Key Load Balancing & Failover (Gemini primary -> OpenAI fallback)
  * - Strict Scope Control & Zero Duplicate Questions Fingerprinting
@@ -87,7 +87,7 @@ export interface ContentIntelligenceResult {
   served_from_cache: boolean
   is_stale?: boolean
   refresh_pending?: boolean
-  generation_reason: 'CACHE_30_DAYS' | 'FIRST_GENERATION' | 'REFRESH_30_DAYS' | 'FORCE_REFRESH' | 'ERROR'
+  generation_reason: 'CANONICAL_REUSE' | 'FIRST_GENERATION' | 'FORCE_REFRESH' | 'ERROR'
   version_number: number
   hierarchy: CanonicalHierarchyResolution
   content: ContentIntelligencePayload | null
@@ -107,9 +107,6 @@ export interface ContentIntelligenceResult {
   error_code?: string
   retry_after?: number
 }
-
-// 30 Days in Milliseconds
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
 
 /**
  * Polls the database for completion of an active AI job
@@ -664,19 +661,10 @@ export async function getOrGenerateCanonicalTopicContent({
     existingDbFlashcards.length > 0 ||
     legacyFlashcardItems.length > 0
 
-  // 3. 30-Day Freshness Check
-  let isFresh = false
+  // Canonical topic content is shared and reusable until an authorised refresh creates a new version.
+  // Age alone must never trigger duplicate AI spend for the same syllabus scope.
+  const isFresh = hasExistingContent
   const currentVersionNum = latestVersionRecord?.version || (existingDbMcqs.length > 0 ? 1 : 0)
-
-  if (hasExistingContent) {
-    if (latestVersionRecord?.created_at) {
-      const ageMs = Date.now() - new Date(latestVersionRecord.created_at).getTime()
-      if (ageMs < THIRTY_DAYS_MS) isFresh = true
-    } else if (existingDbMcqs.length > 0) {
-      const latestMcqDate = new Date(existingDbMcqs[existingDbMcqs.length - 1].created_at).getTime()
-      if (Date.now() - latestMcqDate < THIRTY_DAYS_MS) isFresh = true
-    }
-  }
 
   // Format cached content payload helper
   const getCachedPayload = (): ContentIntelligencePayload => {
@@ -799,13 +787,13 @@ export async function getOrGenerateCanonicalTopicContent({
     }
   }
 
-  // 4. Rule: If content is fresh (< 30 days old) and NOT force refreshed -> Serve immediately from DB ($0 AI Cost, 0 Credits)
+  // 4. Reuse the existing canonical version unless an authorised refresh was explicitly requested.
   if (hasExistingContent && isFresh && !forceRefresh) {
-    console.log(`[AI Content Intelligence] Serving fresh canonical content (< 30 days old) for topic: ${topic.name}`)
+    console.log(`[AI Content Intelligence] Serving reusable canonical content for topic: ${topic.name}`)
     return {
       success: true,
       served_from_cache: true,
-      generation_reason: 'CACHE_30_DAYS',
+      generation_reason: 'CANONICAL_REUSE',
       version_number: currentVersionNum,
       hierarchy,
       content: getCachedPayload(),
@@ -823,13 +811,9 @@ export async function getOrGenerateCanonicalTopicContent({
     }
   }
 
-  // 5. Rule: If content is older than 30 days, we serve the existing content immediately (non-blocking) and schedule background refresh
+  // 5. Generate a new canonical version only for first generation or an authorised explicit refresh.
   const targetVersionNum = currentVersionNum + 1
-  const generationReason = !hasExistingContent
-    ? 'FIRST_GENERATION'
-    : forceRefresh
-      ? 'FORCE_REFRESH'
-      : 'REFRESH_30_DAYS'
+  const generationReason = hasExistingContent ? 'FORCE_REFRESH' : 'FIRST_GENERATION'
 
   // Deterministic Idempotency Key
   const idempotencyKey = subtopicId
@@ -873,59 +857,6 @@ export async function getOrGenerateCanonicalTopicContent({
       }
     } catch (concurrencyErr) {
       console.warn('[AI Content Intelligence] Notice during DB concurrency check:', concurrencyErr)
-    }
-  }
-
-  // If we already have existing content and this is a 30-day refresh, return existing content non-blocking while queueing background generation
-  if (hasExistingContent && generationReason === 'REFRESH_30_DAYS') {
-    console.log(`[AI Content Intelligence] Topic ${topic.name} is >= 30 days old. Returning existing content and triggering background refresh.`)
-
-    // Trigger background generation without blocking response
-    const backgroundTask = (async () => {
-      try {
-        await executeGenerationWorkflow({
-          supabase,
-          exam,
-          subject,
-          topic,
-          subtopicName,
-          subtopicId,
-          targetVersionNum,
-          generationReason,
-          idempotencyKey,
-          existingDbMcqs,
-          difficulty,
-          language,
-          userId,
-          startTime,
-          hierarchy,
-        })
-      } catch (bgErr) {
-        console.warn('[AI Content Intelligence] Background refresh task error:', bgErr)
-      }
-    })()
-
-    // Non-blocking return of current version
-    return {
-      success: true,
-      served_from_cache: true,
-      is_stale: true,
-      refresh_pending: true,
-      generation_reason: 'CACHE_30_DAYS',
-      version_number: currentVersionNum,
-      hierarchy,
-      content: getCachedPayload(),
-      metrics: {
-        input_tokens: 0,
-        output_tokens: 0,
-        cached_tokens: 0,
-        actual_cost_usd: 0,
-        credits_deducted: 0,
-        duration_ms: Date.now() - startTime,
-        model_used: 'cache-reused-refresh-scheduled',
-        provider_used: 'supabase-db',
-      },
-      created_at: latestVersionRecord?.created_at || new Date().toISOString(),
     }
   }
 
@@ -976,7 +907,7 @@ async function executeGenerationWorkflow({
   subtopicName?: string
   subtopicId?: string
   targetVersionNum: number
-  generationReason: 'FIRST_GENERATION' | 'FORCE_REFRESH' | 'REFRESH_30_DAYS'
+  generationReason: 'FIRST_GENERATION' | 'FORCE_REFRESH'
   idempotencyKey: string
   existingDbMcqs: any[]
   difficulty: string
@@ -1209,6 +1140,8 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
 
   // 5. Atomic Database Persistence (Append-Only & Version Record)
   let contentVersionId: string | null = null
+  let flashcardDeckId: string | null = null
+  let previousCurrentDeckIds: string[] = []
 
   try {
     // 5a. Insert MCQs into mcqs table
@@ -1262,14 +1195,64 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
       if (notesInsertError) throw new Error(`Failed to persist generated notes: ${notesInsertError.message}`)
     }
 
-    // 5c. Insert Flashcards into flashcards table
+    // 5c. Persist one shared, versioned flashcard deck and attach every canonical card to it.
     if (finalPayload.flashcards.length > 0) {
+      let previousDeckQuery = supabase
+        .from('flashcard_decks')
+        .select('id')
+        .eq('topic_id', topic.id)
+        .eq('is_current', true)
+      if (subtopicId) previousDeckQuery = previousDeckQuery.eq('subtopic_id', subtopicId)
+      else previousDeckQuery = previousDeckQuery.is('subtopic_id', null)
+
+      const { data: previousDecks, error: previousDeckError } = await previousDeckQuery
+      if (previousDeckError) throw new Error(`Could not resolve the previous flashcard deck: ${previousDeckError.message}`)
+      previousCurrentDeckIds = (previousDecks || []).map((deck: any) => deck.id)
+
+      if (previousCurrentDeckIds.length > 0) {
+        const { error: deactivateError } = await supabase
+          .from('flashcard_decks')
+          .update({ is_current: false, updated_at: new Date().toISOString() })
+          .in('id', previousCurrentDeckIds)
+        if (deactivateError) throw new Error(`Could not archive the previous flashcard deck: ${deactivateError.message}`)
+      }
+
+      const { data: deckRow, error: deckInsertError } = await supabase
+        .from('flashcard_decks')
+        .insert({
+          title: `${subtopicName || topic.name} — Flashcards (v${targetVersionNum})`,
+          description: `Shared canonical flashcards for ${exam.name} · ${subject.name} · ${topic.name}`,
+          exam_id: exam.id,
+          subject_id: subject.id,
+          topic_id: topic.id,
+          subtopic_id: subtopicId || null,
+          card_count: finalPayload.flashcards.length,
+          status: 'approved',
+          version: String(targetVersionNum),
+          version_num: targetVersionNum,
+          is_current: true,
+          generation_metadata: { source: 'ai-content-intelligence', version: targetVersionNum, provider: providerUsed, model: modelUsed },
+        })
+        .select('id')
+        .single()
+
+      if (deckInsertError || !deckRow?.id) {
+        throw new Error(`Failed to persist canonical flashcard deck: ${deckInsertError?.message || 'No deck ID returned'}`)
+      }
+      flashcardDeckId = deckRow.id
+
       const flashRows = finalPayload.flashcards.map((f, idx) => ({
+        deck_id: flashcardDeckId,
         exam_id: exam.id,
         subject_id: subject.id,
         topic_id: topic.id,
+        subtopic_id: subtopicId || null,
         front: f.front,
         back: f.back,
+        explanation: (f as any).explanation || null,
+        high_yield_pearl: (f as any).high_yield_pearl || (f as any).clinical_pearl || null,
+        clinical_correlation: (f as any).clinical_correlation || null,
+        reference_notes: (f as any).reference_notes || null,
         difficulty: normalizePersistedFlashcardDifficulty(f.difficulty || difficulty),
         card_index: idx + 1,
         status: 'approved',
@@ -1335,7 +1318,7 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
           tutor_explanation: finalPayload.tutor_explanation,
           revision_sheet: finalPayload.revision_sheet,
         },
-        change_summary: `${generationReason === 'FIRST_GENERATION' ? 'Initial Canonical Asset Generation' : 'Scheduled 30-Day Refresh'} (Version ${targetVersionNum})`,
+        change_summary: `${generationReason === 'FIRST_GENERATION' ? 'Initial Canonical Asset Generation' : 'Authorised Canonical Refresh'} (Version ${targetVersionNum})`,
       })
       .select('id')
       .maybeSingle()
@@ -1394,11 +1377,19 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
       supabase.from('mcqs').delete().eq('topic_id', topic.id).eq('version', targetVersionNum).eq('ai_generated', true),
       supabase.from('notes').delete().eq('topic_id', topic.id).eq('version', targetVersionNum).eq('ai_generated', true),
       supabase.from('flashcards').delete().eq('topic_id', topic.id).eq('version', targetVersionNum).eq('ai_generated', true),
+      ...(flashcardDeckId ? [supabase.from('flashcard_decks').delete().eq('id', flashcardDeckId)] : []),
       supabase.from('revision_sheets').delete().eq('topic_id', topic.id).eq('title', `60s Revision — ${topic.name} (v${targetVersionNum})`),
       supabase.from('content_versions').delete().eq('asset_id', topic.id).eq('asset_type', 'topic').eq('version', targetVersionNum),
     ])
     for (const cleanupResult of cleanupResults) {
       if (cleanupResult.error) console.error('[AI Content Intelligence] Partial-write cleanup failed:', cleanupResult.error)
+    }
+    if (previousCurrentDeckIds.length > 0) {
+      const { error: restoreDeckError } = await supabase
+        .from('flashcard_decks')
+        .update({ is_current: true, updated_at: new Date().toISOString() })
+        .in('id', previousCurrentDeckIds)
+      if (restoreDeckError) console.error('[AI Content Intelligence] Previous flashcard deck restore failed:', restoreDeckError)
     }
 
     if (jobId) {
