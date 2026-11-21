@@ -187,6 +187,32 @@ export async function POST(req: NextRequest) {
     }
 
     const mcqRows = Array.isArray(storedMcqs) ? storedMcqs : []
+
+    let deckQuery = (supabase as any).from('flashcard_decks')
+      .select('id')
+      .eq('topic_id', topic?.id || topicId)
+      .eq('version_num', result.version_number)
+      .eq('is_current', true)
+    if (subtopicId) deckQuery = deckQuery.eq('subtopic_id', subtopicId)
+    else deckQuery = deckQuery.is('subtopic_id', null)
+    const { data: flashcardDeck, error: flashcardDeckError } = await deckQuery.maybeSingle()
+    if (flashcardDeckError) {
+      console.error('[Topic Content API] Flashcard deck lookup failed:', flashcardDeckError)
+      return NextResponse.json({ success: false, error: 'Unable to load the saved flashcard deck.' }, { status: 500 })
+    }
+    let storedFlashcards: any[] = []
+    if (flashcardDeck?.id) {
+      const { data, error } = await (supabase as any).from('flashcards')
+        .select('id,deck_id,front,back,difficulty,explanation,high_yield_pearl,clinical_correlation,reference_notes,card_index,subtopic_id')
+        .eq('deck_id', flashcardDeck.id)
+        .eq('status', 'approved')
+        .order('card_index', { ascending: true })
+      if (error) {
+        console.error('[Topic Content API] Flashcard lookup failed:', error)
+        return NextResponse.json({ success: false, error: 'Unable to load the saved flashcards.' }, { status: 500 })
+      }
+      storedFlashcards = data || []
+    }
     const byQuestion = new Map<string, any>()
     for (const row of mcqRows) {
       const key = String(row.question || '').trim().toLowerCase()
@@ -209,6 +235,15 @@ export async function POST(req: NextRequest) {
       quiz_a: Array.isArray(result.content.quiz_a) ? result.content.quiz_a.map(safeQuestion).filter((item: any) => item.id) : [],
       quiz_b: Array.isArray(result.content.quiz_b) ? result.content.quiz_b.map(safeQuestion).filter((item: any) => item.id) : [],
       // Cloze answers and rationales are delivered by the authenticated Active Recall attempt endpoint.
+      flashcards: storedFlashcards.length > 0
+        ? storedFlashcards.map((card: any) => ({
+            id: card.id, deck_id: card.deck_id, front: card.front, back: card.back,
+            difficulty: card.difficulty, explanation: card.explanation || '',
+            clinical_pearl: card.high_yield_pearl || card.clinical_correlation || '',
+            reference_notes: card.reference_notes || '', category: subject?.name || 'Study',
+            subtopic_id: card.subtopic_id,
+          }))
+        : (Array.isArray(result.content.flashcards) ? result.content.flashcards : []),
       fill_in_the_blanks: Array.isArray(result.content.fill_in_the_blanks)
         ? result.content.fill_in_the_blanks.map((item: any) => ({
             id: item.id, concept: item.concept, sentence: item.sentence,
