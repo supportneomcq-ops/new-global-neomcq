@@ -15,9 +15,9 @@ export interface StickyNoteItem {
 export interface FillInBlankItem {
   id: string;
   sentence: string;
-  blank: string;
+  blank?: string;
   concept: string;
-  explanation: string;
+  explanation?: string;
 }
 
 export interface WhiteboardPhaseItem {
