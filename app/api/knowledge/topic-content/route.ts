@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase'
 import { createClient } from '@/lib/supabase/server'
 import { checkFeatureQuota } from '@/lib/entitlements/quota-checker'
 import { getOrGenerateCanonicalTopicContent } from '@/lib/knowledge/ai-content-intelligence'
+import { verifyAdminApiSession } from '@/lib/admin-auth'
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
     const contentType = body.contentType || 'full_pack'
     const difficulty = body.difficulty || 'Intermediate'
     const language = body.language || 'en'
-    const forceRefresh = !!body.forceRefresh
+    const forceRefresh = body.forceRefresh === true
     
     // Generation is authenticated and quota-bound. Never trust a user ID supplied by the browser.
     const userClient = await createClient()
@@ -33,6 +34,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Please sign in to generate study content.' }, { status: 401 })
     }
     const activeUserId = user.id
+
+    if (forceRefresh) {
+      const adminAuth = await verifyAdminApiSession()
+      if (!adminAuth.authorized) {
+        return NextResponse.json({ success: false, error: 'Only an authorized administrator can refresh shared canonical topic content.' }, { status: 403 })
+      }
+    }
 
     // Derive quota category from the requested content type; do not accept a client-selected quota category.
     const featureKey = (contentType === 'quiz' ? 'quiz' : contentType === 'flashcards' ? 'flashcards' : 'mcq') as any
