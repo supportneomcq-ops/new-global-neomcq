@@ -172,6 +172,51 @@ export async function POST(req: NextRequest) {
 
     const { exam, subject, topic } = result.hierarchy
 
+    // Never send answer keys or rationales in the topic-content bootstrap payload.
+    // Questions are graded through the authenticated /api/mcq/submit endpoint.
+    const { data: storedMcqs, error: storedMcqsError } = await (supabase as any)
+      .from('mcqs')
+      .select('id,question,options,difficulty,tags,metadata')
+      .eq('topic_id', topic?.id || topicId)
+      .eq('version', result.version_number)
+      .order('id', { ascending: true })
+
+    if (storedMcqsError) {
+      console.error('[Topic Content API] Could not resolve persisted question IDs:', storedMcqsError)
+      return NextResponse.json({ success: false, error: 'Unable to load the saved question set.' }, { status: 500 })
+    }
+
+    const mcqRows = Array.isArray(storedMcqs) ? storedMcqs : []
+    const byQuestion = new Map<string, any>()
+    for (const row of mcqRows) {
+      const key = String(row.question || '').trim().toLowerCase()
+      if (key && !byQuestion.has(key)) byQuestion.set(key, row)
+    }
+    const safeQuestion = (question: any) => {
+      const stored = mcqRows.find((row: any) => row.id === question?.id) ||
+        byQuestion.get(String(question?.question || '').trim().toLowerCase())
+      return {
+        id: stored?.id || (typeof question?.id === 'string' ? question.id : undefined),
+        question: typeof question?.question === 'string' ? question.question : '',
+        options: Array.isArray(question?.options) ? question.options : (Array.isArray(stored?.options) ? stored.options : []),
+        high_yield_tag: question?.high_yield_tag || stored?.metadata?.high_yield_tag || (Array.isArray(stored?.tags) ? stored.tags[0] : undefined),
+        difficulty: question?.difficulty || stored?.difficulty || 'Intermediate',
+      }
+    }
+    const safeContent = {
+      ...result.content,
+      mcqs: Array.isArray(result.content.mcqs) ? result.content.mcqs.map(safeQuestion) : [],
+      quiz_a: Array.isArray(result.content.quiz_a) ? result.content.quiz_a.map(safeQuestion) : [],
+      quiz_b: Array.isArray(result.content.quiz_b) ? result.content.quiz_b.map(safeQuestion) : [],
+      // Cloze answers and rationales are delivered by the authenticated Active Recall attempt endpoint.
+      fill_in_the_blanks: Array.isArray(result.content.fill_in_the_blanks)
+        ? result.content.fill_in_the_blanks.map((item: any) => ({
+            id: item.id, concept: item.concept, sentence: item.sentence,
+            difficulty: item.difficulty, subtopic: item.subtopic, subtopicName: item.subtopicName,
+          }))
+        : [],
+    }
+
     return NextResponse.json({
       success: true,
       source: result.served_from_cache ? 'database_canonical' : 'ai_generated',
@@ -198,7 +243,7 @@ export async function POST(req: NextRequest) {
         exam_id: exam?.id || examId || null,
         examName: exam?.name || examNameInput,
       },
-      content: result.content,
+      content: safeContent,
       assetStatus: {
         mcqs: hasMcqs ? 'ready' : 'missing',
         notes: hasNotes ? 'ready' : 'missing',
