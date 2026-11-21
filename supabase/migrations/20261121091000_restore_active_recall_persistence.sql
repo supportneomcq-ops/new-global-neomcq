@@ -26,6 +26,10 @@ CREATE INDEX IF NOT EXISTS idx_active_recall_user_topic
   ON public.active_recall_attempts(user_id, topic_id);
 CREATE INDEX IF NOT EXISTS idx_active_recall_session
   ON public.active_recall_attempts(session_id);
+
+-- One canonical response per recall item in a session; prevents duplicate client submissions.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_active_recall_session_item
+  ON public.active_recall_attempts(session_id, recall_item_id);
 CREATE INDEX IF NOT EXISTS idx_active_recall_user_due
   ON public.active_recall_attempts(user_id, review_due_at);
 CREATE INDEX IF NOT EXISTS idx_active_recall_attempted_at
