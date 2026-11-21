@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
     // 3. Fetch active job status for this topic from ai_jobs
     const activeJob = await GenerationJobManager.getLatestJobForTopic(topic.id, supabase);
 
-    if (forceRefresh === true && latestVersionRecord) {
+    if (forceRefresh === true) {
       const adminAuth = await verifyAdminApiSession();
       if (!adminAuth.authorized) {
         return NextResponse.json({ success: false, error: 'Only an authorized administrator can refresh shared canonical topic content.' }, { status: 403 });
