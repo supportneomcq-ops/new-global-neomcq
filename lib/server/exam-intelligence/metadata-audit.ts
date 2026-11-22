@@ -274,7 +274,7 @@ export function buildExamMetadataAudit(input: {
   addField('question_types', exam.question_types, questionTypeKeys, { allowNotPublished: true, allowNotApplicable: true, evidencePool: currentBulletins });
   addField('exam_structure', exam.papers || exam.stages || exam.sections, structureKeys, { allowNotPublished: true, allowNotApplicable: true, evidencePool: currentBulletins });
   addField('languages', exam.languages, languageKeys, { allowNotPublished: true, allowNotApplicable: true, evidencePool: currentBulletins });
-  addField('official_subject_scope', objectValue(exam.syllabus_info).subjects || objectValue(exam.metadata).official_subjects || null, syllabusKeys, { evidencePool: currentSyllabi });
+  addField('official_subject_scope', objectValue(exam.syllabus_info).subjects || objectValue(exam.metadata).official_subjects || null, syllabusKeys, { allowNotPublished: true, allowNotApplicable: true, evidencePool: currentSyllabi });
 
   const currentVersionSourceMatches = currentVersion
     && currentVersion.source_url
