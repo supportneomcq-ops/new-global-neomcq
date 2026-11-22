@@ -449,7 +449,12 @@ function validateGeneratedContent(
 /**
  * Execute AI Generation with Multi-Key Gemini -> OpenAI Failover
  */
-async function executeMultiProviderGeneration(prompt: string, taskType: string): Promise<{
+async function executeMultiProviderGeneration(
+  prompt: string,
+  taskType: string,
+  jobId: string,
+  metadata: Record<string, unknown>
+): Promise<{
   rawPayload: any
   providerUsed: string
   modelUsed: string
@@ -458,140 +463,50 @@ async function executeMultiProviderGeneration(prompt: string, taskType: string):
   costUsd: number
   fallbackUsed: boolean
 }> {
-  const adminClient = getSupabaseAdmin()
+  // All provider execution, failover, usage accounting and platform budget settlement
+  // go through the single AIGateway pipeline. Shared canonical content is never charged
+  // to an individual learner.
+  const result = await AIGateway.generate({
+    userId: null,
+    taskType,
+    prompt,
+    systemInstruction: 'You are the Lead Master Academic Professor and Board Author for NeoMCQ. Generate strictly valid, high-yield JSON content.',
+    responseMimeType: 'application/json',
+    jobId,
+    metadata,
+    timeoutMs: 180000,
+    maxRetries: 1,
+  })
 
-  // 1. Fetch Task Routing & Model Pricing from Database
-  const [routingRes, modelsRes] = await Promise.all([
-    adminClient.from('ai_task_routing').select('*').eq('task_type', taskType).maybeSingle(),
-    adminClient
-      .from('ai_model_pricing')
-      .select('provider, model, input_cost_per_1m, output_cost_per_1m')
-      .eq('active', true)
-      .is('effective_until', null),
-  ])
-
-  const routing = routingRes.data
-  const availableModels = modelsRes.data || []
-
-  const primaryProvider = routing?.primary_provider || 'gemini'
-  const primaryModel = routing?.primary_model || 'gemini-3.8-flash'
-  const fallbackProvider = routing?.fallback_provider || 'openai'
-  const fallbackModel = routing?.fallback_model || 'gpt-4o'
-
-  let rawPayload: any = null
-  let providerUsed = primaryProvider
-  let modelUsed = primaryModel
-  let inputTokens = 0
-  let outputTokens = 0
-  let costUsd = 0
-
-  // 2. Try Gemini Provider First (if primary or active)
-  const geminiKey = KeyVault.getNextGeminiKey()
-  let geminiFailed = false
-  let geminiError = ''
-  let fallbackUsed = false
-
-  if (geminiKey && primaryProvider.toLowerCase().includes('gemini')) {
+  let rawPayload = result.parsedJson
+  if (!rawPayload) {
     try {
-      const ai = new GoogleGenAI({
-        apiKey: geminiKey,
-        httpOptions: { headers: { 'User-Agent': 'neomcq-content-intelligence-engine' } },
-      })
-
-      const response = await ai.models.generateContent({
-        model: primaryModel,
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          systemInstruction: 'You are the Lead Master Academic Professor and Board Author for NeoMCQ.com. Generate strictly valid, high-yield JSON content.',
-        },
-      })
-
-      const rawText = response.text || '{}'
-      const jsonStart = rawText.indexOf('{')
-      const jsonEnd = rawText.lastIndexOf('}')
-      if (jsonStart !== -1 && jsonEnd !== -1) {
-        rawPayload = JSON.parse(rawText.slice(jsonStart, jsonEnd + 1))
+      rawPayload = JSON.parse(result.text)
+    } catch {
+      const jsonMatch = result.text.match(/\{[\s\S]*\}/)
+      if (jsonMatch?.[0]) {
+        try {
+          rawPayload = JSON.parse(jsonMatch[0])
+        } catch {
+          rawPayload = null
+        }
       }
-
-      inputTokens = Math.max(100, (prompt.length / 4) | 0)
-      outputTokens = Math.max(100, (rawText.length / 4) | 0)
-      providerUsed = 'gemini'
-      modelUsed = primaryModel
-
-      // Calculate cost from model registry
-      const modelMeta = availableModels.find((m) =>
-        m.model === primaryModel && String(m.provider || '').toLowerCase().includes('gemini')
-      )
-      // Use the live pricing catalogue; when a newer model has no row yet, use a conservative
-      // Gemini Flash estimate instead of the obsolete underpriced fallback.
-      const inputRate = modelMeta ? Number(modelMeta.input_cost_per_1m) : 0.75
-      const outputRate = modelMeta ? Number(modelMeta.output_cost_per_1m) : 3.75
-      costUsd = (inputTokens * inputRate + outputTokens * outputRate) / 1_000_000
-
-      return { rawPayload, providerUsed, modelUsed, inputTokens, outputTokens, costUsd, fallbackUsed }
-    } catch (err: any) {
-      geminiFailed = true
-      geminiError = err.message || String(err)
-      console.warn('[AI Content Intelligence] Primary Gemini provider failed:', geminiError)
     }
   }
 
-  // 3. Fallback to OpenAI Provider
-  const openAIKey = KeyVault.getNextOpenAIKey()
-  if (openAIKey) {
-    try {
-      console.log(`[AI Content Intelligence] Routing to fallback provider OpenAI (${fallbackModel})`)
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${openAIKey}`,
-        },
-        body: JSON.stringify({
-          model: fallbackModel,
-          messages: [
-            {
-              role: 'system',
-              content: 'You are the Lead Master Academic Professor and Board Author for NeoMCQ.com. Return strictly valid JSON adhering to the requested schema.',
-            },
-            { role: 'user', content: prompt },
-          ],
-          response_format: { type: 'json_object' },
-          temperature: 0.4,
-        }),
-      })
-
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({}))
-        throw new Error(`OpenAI HTTP ${response.status}: ${errJson.error?.message || response.statusText}`)
-      }
-
-      const openAiData = await response.json()
-      const rawText = openAiData.choices?.[0]?.message?.content || '{}'
-      rawPayload = JSON.parse(rawText)
-
-      inputTokens = openAiData.usage?.prompt_tokens || Math.max(100, (prompt.length / 4) | 0)
-      outputTokens = openAiData.usage?.completion_tokens || Math.max(100, (rawText.length / 4) | 0)
-      providerUsed = 'openai'
-      modelUsed = fallbackModel
-      fallbackUsed = geminiFailed && primaryProvider.toLowerCase().includes('gemini')
-
-      const modelMeta = availableModels.find((m) =>
-        m.model === fallbackModel && String(m.provider || '').toLowerCase().includes('openai')
-      )
-      const inputRate = modelMeta ? Number(modelMeta.input_cost_per_1m) : 2.50
-      const outputRate = modelMeta ? Number(modelMeta.output_cost_per_1m) : 10.00
-      costUsd = (inputTokens * inputRate + outputTokens * outputRate) / 1_000_000
-
-      return { rawPayload, providerUsed, modelUsed, inputTokens, outputTokens, costUsd, fallbackUsed }
-    } catch (err: any) {
-      console.error('[AI Content Intelligence] Fallback OpenAI provider failed:', err.message)
-      throw new Error(`All configured AI providers failed. Gemini: ${geminiError || 'Not configured'}. OpenAI: ${err.message}`)
-    }
+  if (!rawPayload || typeof rawPayload !== 'object') {
+    throw new Error('The configured AI provider did not return valid structured JSON.')
   }
 
-  throw new Error(`No active AI provider keys configured. Gemini: ${geminiError || 'No key'}. OpenAI: No key.`)
+  return {
+    rawPayload,
+    providerUsed: result.provider,
+    modelUsed: result.model,
+    inputTokens: result.usage.inputTokens,
+    outputTokens: result.usage.outputTokens,
+    costUsd: result.cost.totalCogsUsd,
+    fallbackUsed: result.isFallback,
+  }
 }
 
 /**
