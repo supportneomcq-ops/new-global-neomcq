@@ -34,7 +34,7 @@ export function HomeInteractionManager() {
             .select('roles(name)')
             .eq('user_id', user.id);
           const roleNames = userRoles?.map((r: any) => r.roles?.name).filter(Boolean) || [];
-          if (roleNames.includes('admin') || roleNames.includes('super_admin')) router.push('/admin');
+          if (roleNames.includes('admin') || roleNames.includes('super_admin') || roleNames.includes('content_admin')) router.push('/admin');
           else if (roleNames.includes('support')) router.push('/support');
           else router.push('/dashboard');
         }
