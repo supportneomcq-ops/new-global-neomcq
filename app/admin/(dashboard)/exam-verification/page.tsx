@@ -34,6 +34,7 @@ const SOURCE_TYPES = [
   ['official_syllabus', 'Official syllabus'],
   ['official_exam_pattern', 'Official exam pattern'],
   ['official_guideline', 'Official guideline'],
+  ['official_handbook', 'Official handbook'],
 ] as const
 
 function statusClass(status: string) {
