@@ -121,11 +121,22 @@ function httpsHost(value: unknown): string | null {
   }
 }
 
-function hostMatchesAuthority(sourceUrl: unknown, authorityUrl: unknown): boolean {
+function hostMatchesAuthority(sourceUrl: unknown, authorityUrl: unknown, officialSourceDomains?: unknown): boolean {
   const sourceHost = httpsHost(sourceUrl);
   const authorityHost = httpsHost(authorityUrl);
   if (!sourceHost || !authorityHost) return false;
-  return sourceHost === authorityHost || sourceHost.endsWith(`.${authorityHost}`);
+  const trustedHosts = Array.isArray(officialSourceDomains)
+    ? officialSourceDomains.map((value) => {
+        const raw = String(value || '').trim().toLowerCase().replace(/^www\\./, '');
+        if (!raw) return null;
+        try {
+          return raw.includes('://') ? new URL(raw).hostname.toLowerCase().replace(/^www\\./, '') : raw;
+        } catch {
+          return null;
+        }
+      }).filter(Boolean) as string[]
+    : [];
+  return [authorityHost, ...trustedHosts].some((host) => sourceHost === host || sourceHost.endsWith(`.${host}`));
 }
 
 function sourceYear(value: unknown): number | null {
@@ -228,7 +239,7 @@ export function buildExamMetadataAudit(input: {
     return OFFICIAL_SOURCE_TYPES.has(type)
       && typeof item.source_url === 'string'
       && Boolean(httpsHost(item.source_url))
-      && hostMatchesAuthority(item.source_url, authorityUrl);
+      && hostMatchesAuthority(item.source_url, authorityUrl, authority?.official_source_domains);
   });
 
   const verifiedOfficialEvidence = officialCandidates.filter((item) =>
@@ -341,7 +352,7 @@ export function buildExamMetadataAudit(input: {
 
   const currentVersionSourceMatches = currentVersion
     && currentVersion.source_url
-    && hostMatchesAuthority(currentVersion.source_url, authorityUrl)
+    && hostMatchesAuthority(currentVersion.source_url, authorityUrl, authority?.official_source_domains)
     && currentVersion.is_current === true
     && versionYear !== null
     && Number(currentVersion.version_year) === versionYear;
