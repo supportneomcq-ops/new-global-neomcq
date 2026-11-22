@@ -38,38 +38,53 @@ export async function POST(req: NextRequest) {
     }
 
     const event = JSON.parse(rawBody);
-    const eventId = event.id || `evt_${Date.now()}`;
+    const eventId = event.id || `evt_${crypto.createHash('sha256').update(rawBody).digest('hex')}`;
     const eventType = event.event;
     const payload = event.payload;
 
     const admin = getSupabaseAdmin();
 
-    // 1. STRICT IDEMPOTENCY CHECK via webhook_events table
-    const { data: existingEvent } = await admin
-      .from('webhook_events')
+    // 1. STRICT IDEMPOTENCY CHECK using the production payment_events schema.
+    const { data: existingEvent, error: existingEventError } = await admin
+      .from('payment_events')
       .select('id, status')
-      .eq('event_id', eventId)
+      .eq('provider', 'razorpay')
+      .eq('provider_event_id', eventId)
       .maybeSingle();
 
-    if (existingEvent && existingEvent.status === 'processed') {
+    if (existingEventError) {
+      console.error('[Razorpay webhook] Idempotency lookup failed:', existingEventError);
+      return NextResponse.json({ error: 'Unable to verify webhook delivery status.' }, { status: 503 });
+    }
+
+    if (existingEvent?.status === 'processed') {
       return NextResponse.json({
         status: 'success',
         message: 'Event already processed (idempotent duplicate skipped)',
       });
     }
 
-    // Record receipt of webhook event
-    await admin.from('webhook_events').upsert(
+    // Persist receipt before applying payment/subscription side effects.
+    const { error: receiptError } = await admin.from('payment_events').upsert(
       {
-        event_id: eventId,
+        provider: 'razorpay',
+        provider_event_id: eventId,
         event_type: eventType,
-        entity_id: payload?.payment?.entity?.id || payload?.subscription?.entity?.id || null,
+        payload_hash: crypto.createHash('sha256').update(rawBody).digest('hex'),
         status: 'processing',
         payload: event,
         received_at: new Date().toISOString(),
+        metadata: {
+          entity_id: payload?.payment?.entity?.id || payload?.subscription?.entity?.id || null,
+        },
       },
-      { onConflict: 'event_id' }
+      { onConflict: 'provider,provider_event_id' }
     );
+
+    if (receiptError) {
+      console.error('[Razorpay webhook] Could not persist event receipt:', receiptError);
+      return NextResponse.json({ error: 'Unable to record webhook delivery.' }, { status: 503 });
+    }
 
     const paymentEntity = payload?.payment?.entity;
     const subscriptionEntity = payload?.subscription?.entity;
@@ -469,13 +484,20 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Mark webhook as processed
-    await admin
-      .from('webhook_events')
+    const { error: processedEventError } = await admin
+      .from('payment_events')
       .update({
         status: 'processed',
         processed_at: new Date().toISOString(),
+        error: null,
       })
-      .eq('event_id', eventId);
+      .eq('provider', 'razorpay')
+      .eq('provider_event_id', eventId);
+
+    if (processedEventError) {
+      console.error('[Razorpay webhook] Could not mark event processed:', processedEventError);
+      return NextResponse.json({ error: 'Payment was processed but webhook acknowledgement failed.' }, { status: 503 });
+    }
 
     return NextResponse.json({ success: true, event: eventType });
   } catch (error: any) {
