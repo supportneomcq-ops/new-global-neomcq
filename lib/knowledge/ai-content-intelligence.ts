@@ -153,6 +153,38 @@ async function waitForActiveJobCompletion(
   return null
 }
 
+function buildGenerationInProgressResult(
+  hierarchy: CanonicalHierarchyResolution,
+  versionNumber: number,
+  jobId: string,
+  startTime: number
+): ContentIntelligenceResult {
+  return {
+    success: false,
+    served_from_cache: false,
+    refresh_pending: true,
+    generation_reason: 'ERROR',
+    version_number: versionNumber,
+    hierarchy,
+    content: null,
+    job_id: jobId,
+    metrics: {
+      input_tokens: 0,
+      output_tokens: 0,
+      cached_tokens: 0,
+      actual_cost_usd: 0,
+      credits_deducted: 0,
+      duration_ms: Date.now() - startTime,
+      model_used: 'pending',
+      provider_used: 'database-job',
+    },
+    created_at: new Date().toISOString(),
+    error: 'This topic pack is already being generated. The saved shared result will be available shortly.',
+    error_code: 'GENERATION_IN_PROGRESS',
+    retry_after: 5,
+  }
+}
+
 function normalizeQuestionStem(text: string): string {
   return (text || '')
     .toLowerCase()
@@ -837,7 +869,7 @@ export async function getOrGenerateCanonicalTopicContent({
 
       if (existingActiveJob) {
         console.log(`[AI Content Intelligence] Attaching to in-flight DB job (${existingActiveJob.id}) for idempotency key: ${idempotencyKey}`)
-        const completedVersion = await waitForActiveJobCompletion(supabase, existingActiveJob.id, topic.id, targetVersionNum, 25000)
+        const completedVersion = await waitForActiveJobCompletion(supabase, existingActiveJob.id, topic.id, targetVersionNum, 5000)
         if (completedVersion?.snapshot) {
           return {
             success: true,
@@ -858,6 +890,16 @@ export async function getOrGenerateCanonicalTopicContent({
             },
             created_at: completedVersion.created_at || new Date().toISOString(),
           }
+        }
+
+        const { data: latestJob } = await supabase
+          .from('ai_jobs')
+          .select('status')
+          .eq('id', existingActiveJob.id)
+          .maybeSingle()
+
+        if (latestJob && ['queued', 'running', 'processing', 'pending', 'validating'].includes(latestJob.status)) {
+          return buildGenerationInProgressResult(hierarchy, targetVersionNum, existingActiveJob.id, startTime)
         }
       }
     } catch (concurrencyErr) {
@@ -923,54 +965,122 @@ async function executeGenerationWorkflow({
 }): Promise<ContentIntelligenceResult> {
   let jobId: string | null = null
 
-  // 1. Check for Active DB Job with Idempotency Key
-  try {
-    const { data: existingActiveJob } = await supabase
+  // 1. Atomically respect the unique idempotency key before any provider call.
+  // The database has a UNIQUE index on ai_jobs.idempotency_key. A concurrent
+  // request must attach to that job, never execute a second provider request.
+  const { data: existingJob, error: existingJobError } = await supabase
+    .from('ai_jobs')
+    .select('id, status')
+    .eq('idempotency_key', idempotencyKey)
+    .maybeSingle()
+
+  if (existingJobError) {
+    return {
+      success: false,
+      served_from_cache: false,
+      generation_reason: 'ERROR',
+      version_number: targetVersionNum,
+      hierarchy,
+      content: null,
+      metrics: {
+        input_tokens: 0, output_tokens: 0, cached_tokens: 0, actual_cost_usd: 0,
+        credits_deducted: 0, duration_ms: Date.now() - startTime,
+        model_used: 'not-started', provider_used: 'database',
+      },
+      created_at: new Date().toISOString(),
+      error: 'Could not verify the canonical generation job. No AI provider was called.',
+      error_code: 'JOB_REGISTRATION_FAILED',
+    }
+  }
+
+  if (existingJob) {
+    if (['queued', 'running', 'processing', 'pending', 'validating'].includes(existingJob.status)) {
+      return buildGenerationInProgressResult(hierarchy, targetVersionNum, existingJob.id, startTime)
+    }
+
+    return {
+      success: false,
+      served_from_cache: false,
+      generation_reason: 'ERROR',
+      version_number: targetVersionNum,
+      hierarchy,
+      content: null,
+      job_id: existingJob.id,
+      metrics: {
+        input_tokens: 0, output_tokens: 0, cached_tokens: 0, actual_cost_usd: 0,
+        credits_deducted: 0, duration_ms: Date.now() - startTime,
+        model_used: 'not-started', provider_used: 'database',
+      },
+      created_at: new Date().toISOString(),
+      error: existingJob.status === 'failed'
+        ? 'The previous generation attempt failed. An administrator must retry or reconcile this job before another provider request is allowed.'
+        : 'A job already exists for this content version, but its saved output is not available. An administrator must reconcile the job.',
+      error_code: 'GENERATION_JOB_EXISTS',
+    }
+  }
+
+  const { data: newJob, error: newJobError } = await supabase
+    .from('ai_jobs')
+    .insert({
+      user_id: userId || null,
+      exam_id: exam.id,
+      subject_id: subject.id,
+      topic_id: topic.id,
+      task: generationReason === 'FIRST_GENERATION' ? 'FIRST_GENERATION' : 'TOPIC_CONTENT_REFRESH',
+      idempotency_key: idempotencyKey,
+      priority: 5,
+      status: 'running',
+      progress_stage: 'Generating canonical high-yield content...',
+      step_percentage: 15,
+      input_payload: {
+        exam: exam.name,
+        subject: subject.name,
+        topic: topic.name,
+        subtopic: subtopicName || null,
+        subtopic_id: subtopicId || null,
+        difficulty,
+        language,
+        reason: generationReason,
+        target_version: targetVersionNum,
+      },
+      started_at: new Date().toISOString(),
+    })
+    .select('id')
+    .maybeSingle()
+
+  if (newJobError || !newJob) {
+    // A simultaneous request may have won the unique-key insert. Re-read it
+    // and return pending rather than silently generating without a tracked job.
+    const { data: conflictingJob } = await supabase
       .from('ai_jobs')
-      .select('id, status, created_at')
+      .select('id, status')
       .eq('idempotency_key', idempotencyKey)
-      .in('status', ['queued', 'running', 'processing', 'pending'])
       .maybeSingle()
 
-    if (existingActiveJob) {
-      jobId = existingActiveJob.id
-      console.log(`[AI Content Intelligence] Found existing active DB job (${jobId}) with idempotency key: ${idempotencyKey}`)
-    } else {
-      // Insert new AI job with idempotency key
-      const { data: newJob } = await supabase
-        .from('ai_jobs')
-        .insert({
-          user_id: userId || null,
-          exam_id: exam.id,
-          subject_id: subject.id,
-          topic_id: topic.id,
-          task: generationReason === 'FIRST_GENERATION' ? 'FIRST_GENERATION' : 'TOPIC_CONTENT_REFRESH',
-          idempotency_key: idempotencyKey,
-          priority: 5,
-          status: 'running',
-          progress_stage: 'Generating canonical high-yield content...',
-          step_percentage: 15,
-          input_payload: {
-            exam: exam.name,
-            subject: subject.name,
-            topic: topic.name,
-            subtopic: subtopicName || null,
-            subtopic_id: subtopicId || null,
-            difficulty,
-            language,
-            reason: generationReason,
-            target_version: targetVersionNum,
-          },
-          started_at: new Date().toISOString(),
-        })
-        .select('id')
-        .maybeSingle()
-
-      if (newJob) jobId = newJob.id
+    if (conflictingJob && ['queued', 'running', 'processing', 'pending', 'validating'].includes(conflictingJob.status)) {
+      return buildGenerationInProgressResult(hierarchy, targetVersionNum, conflictingJob.id, startTime)
     }
-  } catch (jobErr) {
-    console.warn('[AI Content Intelligence] DB idempotency job handling notice:', jobErr)
+
+    return {
+      success: false,
+      served_from_cache: false,
+      generation_reason: 'ERROR',
+      version_number: targetVersionNum,
+      hierarchy,
+      content: null,
+      job_id: conflictingJob?.id,
+      metrics: {
+        input_tokens: 0, output_tokens: 0, cached_tokens: 0, actual_cost_usd: 0,
+        credits_deducted: 0, duration_ms: Date.now() - startTime,
+        model_used: 'not-started', provider_used: 'database',
+      },
+      created_at: new Date().toISOString(),
+      error: 'Could not register a unique canonical generation job. No AI provider was called.',
+      error_code: 'JOB_REGISTRATION_FAILED',
+    }
   }
+
+  jobId = newJob.id
 
   // 2. Build Generation Prompt with Deduplication Guardrails
   const existingStemsNormalized = new Set(existingDbMcqs.map((m: any) => normalizeQuestionStem(m.question)))
