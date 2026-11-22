@@ -476,13 +476,13 @@ export function evaluateEvidenceAndStatus(options: {
     ['official_syllabus', 'official_bulletin', 'official_notification'].includes(
       String(e.source_type || '').toLowerCase()
     ) &&
-    ['valid', 'verified'].includes(String(e.verification_status || '').toLowerCase()) &&
+    ['verified'].includes(String(e.verification_status || '').toLowerCase()) &&
     isHttpUrl(e.source_url)
   )
   const officialEvidence = officialEvidenceRows[0] || null
   const secondaryEvidence = evidenceRows.find((e) =>
     ['verified_standard', 'academic_curriculum'].includes(String(e.source_type || '').toLowerCase()) &&
-    ['valid', 'verified'].includes(String(e.verification_status || '').toLowerCase()) &&
+    ['verified'].includes(String(e.verification_status || '').toLowerCase()) &&
     isHttpUrl(e.source_url)
   ) || null
 
@@ -494,7 +494,7 @@ export function evaluateEvidenceAndStatus(options: {
   const authorityRowVerified =
     String(authorityRow?.verification_status || '').toLowerCase() === 'verified' &&
     isHttpUrl(authorityRow?.official_website || authorityRow?.source_url)
-  const hasVerifiedAuthority = Boolean(authorityRowVerified || publisherAuthority)
+  const hasVerifiedAuthority = Boolean(authorityRowVerified)
 
   // Require a current, explicitly verified, sourced exam version. A historic syllabus
   // URL by itself cannot prove that the current examination pattern is still valid.
@@ -612,8 +612,16 @@ export function detectAndValidateExamRules(
   let marking_scheme: Record<string, any> = examRow?.marking_scheme || {}
   let question_types: string[] = examRow?.question_types || []
 
-  // Check evidence rows for extracted rules if not present in examRow
+  // Only explicitly verified official evidence may populate missing exam rules.
+  // AI profiles and built-in templates are provisional suggestions, never exam facts.
   for (const ev of evidenceRows) {
+    const sourceType = String(ev.source_type || '').toLowerCase()
+    const isVerifiedOfficialSource =
+      ['official_syllabus', 'official_bulletin', 'official_notification', 'official_exam_pattern', 'official_guideline'].includes(sourceType) &&
+      String(ev.verification_status || '').toLowerCase() === 'verified' &&
+      typeof ev.source_url === 'string' &&
+      ev.source_url.startsWith('https://')
+    if (!isVerifiedOfficialSource) continue
     const extracted = ev.extracted_data
     if (extracted) {
       if (duration_minutes === null && typeof extracted.duration_minutes === 'number') {
@@ -628,27 +636,8 @@ export function detectAndValidateExamRules(
     }
   }
 
-  // Only a deterministic, high-confidence built-in template may supply rules without
-  // exam-specific evidence. AI-generated profiles are hypotheses, not official facts.
-  const trustedTemplate = Boolean(fallbackSpec && Number(fallbackSpec.confidence?.overall || 0) >= 0.98)
-  if (trustedTemplate && duration_minutes === null && fallbackSpec?.exam.question_config.duration_minutes) {
-    duration_minutes = fallbackSpec.exam.question_config.duration_minutes
-  }
-  if (trustedTemplate && question_count === null && fallbackSpec?.exam.question_config.default_question_count) {
-    question_count = fallbackSpec.exam.question_config.default_question_count
-  }
-  if (trustedTemplate && Object.keys(marking_scheme).length === 0 && fallbackSpec) {
-    marking_scheme = {
-      positive_mark: fallbackSpec.exam.question_config.positive_mark,
-      negative_mark: fallbackSpec.exam.question_config.negative_mark,
-      has_negative_marking: fallbackSpec.exam.question_config.has_negative_marking,
-      answer_type: fallbackSpec.exam.question_config.answer_type,
-      option_count: fallbackSpec.exam.question_config.option_count,
-    }
-  }
-  if (trustedTemplate && question_types.length === 0 && fallbackSpec) {
-    question_types = fallbackSpec.exam.question_config.question_types || []
-  }
+  // Intentionally ignore fallbackSpec. A template cannot certify official exam rules.
+  void fallbackSpec;
 
   const hasOfficialEvidence = evidenceRows.some((ev: any) =>
     ['official_syllabus', 'official_bulletin', 'official_notification'].includes(String(ev.source_type || '').toLowerCase()) &&
