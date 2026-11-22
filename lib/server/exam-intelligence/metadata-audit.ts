@@ -25,7 +25,7 @@ function objectValue(value: any): AnyRecord {
   return {};
 }
 
-export function normalizeOfficialSyllabusSubjects(value: any): AnyRecord[] | null {
+export function normalizeOfficialSyllabusSubjects(value: any): any[] | null {
   const data = objectValue(value);
   const curriculum = objectValue(data.curriculum);
   const syllabus = objectValue(data.syllabus);
@@ -84,7 +84,7 @@ export function normalizeOfficialSyllabusSubjects(value: any): AnyRecord[] | nul
     };
   });
 
-  return normalized.every(Boolean) ? normalized as AnyRecord[] : null;
+  return normalized.every(Boolean) ? normalized as any[] : null;
 }
 
 function arrayValue(value: any): any[] {
