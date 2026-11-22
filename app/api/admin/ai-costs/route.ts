@@ -12,6 +12,11 @@ export async function GET(req: NextRequest) {
     const auth = await verifyAdminApiSession()
     if (!auth.authorized) return auth.response!
 
+    const roles = auth.roleNames || []
+    if (!roles.includes('admin') && !roles.includes('super_admin')) {
+      return NextResponse.json({ success: false, error: 'Financial administrator permission required.' }, { status: 403 })
+    }
+
     const admin = getSupabaseAdmin() as any
     const { searchParams } = new URL(req.url)
     const requestedTimeframe = searchParams.get('timeframe') || '30d'
