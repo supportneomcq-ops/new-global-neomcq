@@ -43,6 +43,7 @@ export function ActiveRecallWorkspaceView({ user }: ActiveRecallWorkspaceViewPro
   const [sets, setSets] = useState<ActiveRecallSet[]>([]);
   const [isLoadingSets, setIsLoadingSets] = useState<boolean>(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [generationMessage, setGenerationMessage] = useState<string | null>(null);
 
   // Active Session state
   const [activeSet, setActiveSet] = useState<ActiveRecallSet | null>(null);
@@ -100,8 +101,10 @@ export function ActiveRecallWorkspaceView({ user }: ActiveRecallWorkspaceViewPro
       const data = await res.json();
       if (data.success && Array.isArray(data.sets)) {
         setSets(data.sets);
+        setGenerationMessage(data.generation_message || null);
       } else {
         setSets([]);
+        setGenerationMessage(null);
         if (data.error) setFetchError(data.error);
       }
     } catch (err: any) {
@@ -233,41 +236,76 @@ export function ActiveRecallWorkspaceView({ user }: ActiveRecallWorkspaceViewPro
     }
   };
 
-  // Generate a brand new set via AI
+  // Active Recall loads the shared canonical topic pack; it does not launch a student-specific AI job.
   const handleGenerateNewSet = async () => {
     if (!activeTopic?.id) return;
 
     setIsGenerating(true);
-    setGenerationStage('Analyzing topic curriculum & exam blueprint...');
+    setGenerationMessage(null);
+    setGenerationStage('Checking shared exam-specific topic content...');
+
+    const requestBody = {
+      examId: activeExam?.id,
+      subjectId: activeSubject?.id,
+      topicId: activeTopic.id,
+      subtopicId: activeSubtopic?.id,
+    };
 
     try {
-      setTimeout(() => setGenerationStage('Selecting high-yield key entities & core concepts...'), 1200);
-      setTimeout(() => setGenerationStage('Synthesizing active recall prompts & blanks...'), 2400);
-      setTimeout(() => setGenerationStage('Validating accepted synonyms and exam tips...'), 3800);
-
-      const res = await fetch('/api/active-recall/generate', {
+      const response = await fetch('/api/active-recall/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          examId: activeExam?.id,
-          subjectId: activeSubject?.id,
-          topicId: activeTopic.id,
-          subtopicId: activeSubtopic?.id,
-          userId: user?.id,
-          difficulty: 'High Yield',
-        }),
+        body: JSON.stringify(requestBody),
       });
+      const result = await response.json();
 
-      const data = await res.json();
-      if (data.success && data.set) {
-        setSets((prev) => [data.set, ...prev]);
-        handleStartSession(data.set);
-      } else {
-        alert(data.error || 'Failed to generate active recall set.');
+      if (result.success && result.set) {
+        setSets((prev) => [result.set, ...prev.filter((item) => item.id !== result.set.id)]);
+        setGenerationMessage(null);
+        await handleStartSession(result.set);
+        return;
       }
+
+      if (['awaiting_exam_verification', 'awaiting_curriculum_validation'].includes(result.status)) {
+        setGenerationMessage(result.error || 'Official exam and curriculum verification is still pending.');
+        return;
+      }
+
+      if (!response.ok && response.status !== 202) {
+        setGenerationMessage(result.error || 'Unable to request the shared topic pack.');
+        return;
+      }
+
+      setGenerationStage(result.message || 'The shared topic pack is queued...');
+      // The canonical worker runs independently. Poll the saved shared set, not another AI endpoint.
+      for (let attempt = 0; attempt < 24; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 2500));
+        const refreshResponse = await fetch('/api/active-recall/sets', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+        });
+        const refreshData = await refreshResponse.json();
+
+        if (refreshData.success && Array.isArray(refreshData.sets) && refreshData.sets.length > 0) {
+          setSets(refreshData.sets);
+          setGenerationMessage(null);
+          await handleStartSession(refreshData.sets[0]);
+          return;
+        }
+
+        if (refreshData.generation_status === 'failed' || refreshData.generation_status === 'cancelled') {
+          setGenerationMessage(refreshData.generation_message || 'The shared content job failed and needs an administrator retry.');
+          return;
+        }
+
+        setGenerationStage(refreshData.generation_message || result.message || 'Waiting for the shared content worker...');
+      }
+
+      setGenerationMessage(result.message || 'The shared topic pack is queued. Reopen Active Recall to check for the saved batch.');
     } catch (err: any) {
-      console.error('Generation error:', err);
-      alert('Network error while generating active recall set.');
+      console.error('Shared Active Recall lookup error:', err);
+      setGenerationMessage('Unable to check shared Active Recall content. Please retry.');
     } finally {
       setIsGenerating(false);
       setGenerationStage('');
@@ -390,6 +428,7 @@ export function ActiveRecallWorkspaceView({ user }: ActiveRecallWorkspaceViewPro
           subtopicName={activeSubtopic?.name}
           isGenerating={isGenerating}
           generationStage={generationStage}
+          generationMessage={generationMessage}
           onSelectSet={(set) => handleStartSession(set)}
           onGenerateNewSet={handleGenerateNewSet}
         />
