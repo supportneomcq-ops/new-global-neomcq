@@ -44,16 +44,39 @@ export function AdminExamsManager() {
   const [creating, setCreating] = useState(false)
   const [formError, setFormError] = useState('')
   const [duplicateMatch, setDuplicateMatch] = useState<any | null>(null)
-  const [formData, setFormData] = useState({
+  const emptyForm = {
     name: '',
     description: '',
+    country: '',
+    category: '',
+    authority: '',
+    authority_code: '',
+    exam_type: '',
+    level: '',
+    current_version: '',
+    version_year: '',
     difficulty: 'Adaptive',
-    question_count: '100',
-    time_limit_mins: '120',
+    question_count: '',
+    time_limit_mins: '',
+    total_marks: '',
+    negative_marking: '',
+    passing_criteria: '',
+    eligibility: '',
+    attempt_rules: '',
+    application_information: '',
+    selection_process: '',
+    question_types: '',
+    languages: '',
+    marking_scheme: '',
+    stages: '',
+    papers: '',
     official_website: '',
+    official_notification_url: '',
+    official_syllabus_url: '',
     is_featured: false,
     aliases: '',
-  })
+  }
+  const [formData, setFormData] = useState(emptyForm)
 
   const fetchExams = useCallback(async () => {
     setLoading(true)
@@ -107,16 +130,7 @@ export function AdminExamsManager() {
 
       // Success
       setIsCreateOpen(false)
-      setFormData({
-        name: '',
-        description: '',
-        difficulty: 'Adaptive',
-        question_count: '100',
-        time_limit_mins: '120',
-        official_website: '',
-        is_featured: false,
-        aliases: '',
-      })
+      setFormData(emptyForm)
       fetchExams()
     } catch (err: any) {
       setFormError(err.message || 'Server error')
@@ -386,7 +400,7 @@ export function AdminExamsManager() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-xl bg-white dark:bg-[#0E1324] rounded-3xl border border-slate-200 dark:border-gray-800 p-6 shadow-2xl space-y-5"
+              className="w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-white dark:bg-[#0E1324] rounded-3xl border border-slate-200 dark:border-gray-800 p-6 shadow-2xl space-y-5"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -443,6 +457,117 @@ export function AdminExamsManager() {
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 font-semibold focus:outline-none focus:border-[#6D5BFF]"
                   />
+                </div>
+
+                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-3 text-[11px] leading-relaxed text-amber-700 dark:text-amber-300">
+                  New exams are saved as <strong>Pending Verification</strong>. Curriculum generation remains blocked until the authority, current version, official sources and exam-pattern fields pass review.
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {([
+                    ['country', 'Country *', 'e.g. India'],
+                    ['category', 'Exam Category *', 'e.g. Medical Licensing'],
+                    ['authority', 'Exam Authority *', 'e.g. NBEMS'],
+                    ['authority_code', 'Authority Code', 'e.g. NBEMS'],
+                    ['exam_type', 'Exam Type *', 'e.g. Licensing examination'],
+                    ['level', 'Exam Level *', 'e.g. Graduate'],
+                    ['current_version', 'Current Version *', 'e.g. October 2026'],
+                    ['version_year', 'Version Year *', '2026'],
+                  ] as const).map(([key, label, placeholder]) => (
+                    <div key={key}>
+                      <label className="block font-bold text-slate-700 dark:text-gray-300 mb-1">{label}</label>
+                      <input
+                        type={key === 'version_year' ? 'number' : 'text'}
+                        required={label.includes('*')}
+                        placeholder={placeholder}
+                        value={(formData as any)[key]}
+                        onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
+                        className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 font-semibold focus:outline-none focus:border-[#6D5BFF]"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {([
+                    ['official_website', 'Official Authority Website *', 'https://authority.example'],
+                    ['official_notification_url', 'Official Notification / Bulletin URL', 'https://authority.example/bulletin.pdf'],
+                    ['official_syllabus_url', 'Official Syllabus URL', 'https://authority.example/syllabus.pdf'],
+                  ] as const).map(([key, label, placeholder]) => (
+                    <div key={key}>
+                      <label className="block font-bold text-slate-700 dark:text-gray-300 mb-1">{label}</label>
+                      <input
+                        type="url"
+                        required={key === 'official_website'}
+                        placeholder={placeholder}
+                        value={(formData as any)[key]}
+                        onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
+                        className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 font-semibold focus:outline-none focus:border-[#6D5BFF]"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {([
+                    ['total_marks', 'Total Marks'],
+                    ['question_count', 'Question Count'],
+                    ['time_limit_mins', 'Duration (minutes)'],
+                    ['negative_marking', 'Negative Marking'],
+                  ] as const).map(([key, label]) => (
+                    <div key={key}>
+                      <label className="block font-bold text-slate-700 dark:text-gray-300 mb-1">{label}</label>
+                      <input
+                        type={['total_marks', 'question_count', 'time_limit_mins'].includes(key) ? 'number' : 'text'}
+                        placeholder="Leave blank if unknown"
+                        value={(formData as any)[key]}
+                        onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
+                        className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 font-semibold focus:outline-none focus:border-[#6D5BFF]"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {([
+                    ['passing_criteria', 'Passing Criteria'],
+                    ['eligibility', 'Eligibility'],
+                    ['attempt_rules', 'Attempt Rules / Limits'],
+                    ['application_information', 'Application / Registration Information'],
+                    ['selection_process', 'Selection / Result Process'],
+                    ['question_types', 'Question Types (comma-separated)'],
+                    ['languages', 'Exam Languages (comma-separated)'],
+                  ] as const).map(([key, label]) => (
+                    <div key={key}>
+                      <label className="block font-bold text-slate-700 dark:text-gray-300 mb-1">{label}</label>
+                      <textarea
+                        rows={2}
+                        placeholder="Leave blank if unknown; do not guess."
+                        value={(formData as any)[key]}
+                        onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
+                        className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 font-semibold focus:outline-none focus:border-[#6D5BFF]"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {([
+                    ['marking_scheme', 'Marking Scheme JSON', '{"correct":1,"incorrect":0}'],
+                    ['stages', 'Stages JSON Array', '[{"name":"Part I"}]'],
+                    ['papers', 'Papers JSON Array', '[{"name":"Paper I"}]'],
+                  ] as const).map(([key, label, placeholder]) => (
+                    <div key={key}>
+                      <label className="block font-bold text-slate-700 dark:text-gray-300 mb-1">{label}</label>
+                      <textarea
+                        rows={3}
+                        placeholder={placeholder}
+                        value={(formData as any)[key]}
+                        onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
+                        className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 font-mono text-[11px] focus:outline-none focus:border-[#6D5BFF]"
+                      />
+                    </div>
+                  ))}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
