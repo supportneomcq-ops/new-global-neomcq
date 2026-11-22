@@ -165,7 +165,7 @@ export const AIExamIntelligenceOutputSchema = z.object({
 })
 export type AIExamIntelligenceOutput = z.infer<typeof AIExamIntelligenceOutputSchema>
 
-export type CurriculumStatus = 'pending' | 'generating' | 'ready' | 'partial' | 'needs_enrichment' | 'failed'
+export type CurriculumStatus = 'pending' | 'pending_verification' | 'generating' | 'ready' | 'partial' | 'needs_enrichment' | 'failed'
 
 export type VerificationStatus = 'verified' | 'partially_verified' | 'AI_inferred' | 'needs_review'
 export type RulesStatus = 'ready' | 'partial' | 'needs_review'
