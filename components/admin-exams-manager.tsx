@@ -570,32 +570,6 @@ export function AdminExamsManager() {
                   ))}
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold text-slate-700 dark:text-gray-300 mb-1">
-                      Target Questions
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.question_count}
-                      onChange={(e) => setFormData({ ...formData, question_count: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 font-semibold focus:outline-none focus:border-[#6D5BFF]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-bold text-slate-700 dark:text-gray-300 mb-1">
-                      Time Limit (Minutes)
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.time_limit_mins}
-                      onChange={(e) => setFormData({ ...formData, time_limit_mins: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 font-semibold focus:outline-none focus:border-[#6D5BFF]"
-                    />
-                  </div>
-                </div>
-
                 <div>
                   <label className="block font-bold text-slate-700 dark:text-gray-300 mb-1">
                     Search Aliases (Comma-separated)
