@@ -39,7 +39,7 @@ export async function reservePlatformAIBudget(input: PlatformBudgetReservationIn
     const required = Number(data?.required_budget_usd || input.amountUsd)
     throw new Error(
       reason === 'ai_budget_not_funded'
-        ? `AI_BUDGET_NOT_FUNDED: available $\u0024{available.toFixed(6)}, required $\u0024{required.toFixed(6)}.`
+        ? `AI_BUDGET_NOT_FUNDED: available USD ${available.toFixed(6)}, required USD ${required.toFixed(6)}.`
         : `AI_BUDGET_RESERVATION_DENIED: ${reason}.`
     )
   }
