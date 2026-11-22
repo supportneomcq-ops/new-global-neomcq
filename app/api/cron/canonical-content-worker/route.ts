@@ -102,15 +102,15 @@ export async function GET(req: NextRequest) {
       updated_at: now,
     }, { onConflict: 'exam_id,subject_id,topic_id' })
 
-    // This is the existing canonical engine: it validates, deduplicates, persists
-    // versioned assets, and records provider costs. It never refreshes cached content
-    // merely because another student requests the same topic.
+    // This is the shared canonical engine: it validates the full learning pack,
+    // deduplicates concurrent requests, persists versioned assets and records provider costs.
+    // Student requests reuse this pack; only an authenticated admin refresh job sets force_refresh.
     const result = await getOrGenerateCanonicalTopicContent({
       examInput: examId,
       subjectInput: subjectId,
       topicInput: topicId,
       userId: null,
-      forceRefresh: false,
+      forceRefresh: payload.force_refresh === true,
       autoCreateEntities: false,
     })
 
