@@ -202,6 +202,66 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, bundle: updatedBundle, message: 'Official source verified and audit refreshed.' })
     }
 
+    if (action === 'declare_field_exception') {
+      const { field, field_status, reason, sourceId } = body
+      const allowedFields = new Set([
+        'question_count','duration_minutes','total_marks','marking_scheme','negative_marking',
+        'passing_criteria','eligibility','attempt_rules','application_information','selection_process',
+        'question_types','exam_structure','languages',
+      ])
+      if (!allowedFields.has(String(field || ''))) {
+        return NextResponse.json({ success: false, error: 'This field cannot be declared not published or not applicable.' }, { status: 400 })
+      }
+      if (!['not_published', 'not_applicable'].includes(String(field_status || '')) || !String(reason || '').trim() || !sourceId) {
+        return NextResponse.json({ success: false, error: 'Choose a valid declaration, provide a reason, and cite a verified official source.' }, { status: 400 })
+      }
+      const source = bundle.evidence.find((row: any) => row.id === sourceId)
+      if (!source || source.verification_status !== 'verified' || !OFFICIAL_TYPES.has(String(source.source_type || ''))) {
+        return NextResponse.json({ success: false, error: 'Declaration source must be verified official evidence for this exam.' }, { status: 400 })
+      }
+      const sourceType = String(source.source_type || '')
+      const syllabusField = field === 'official_subject_scope'
+      const validSourceForField = syllabusField
+        ? ['official_syllabus', 'official_guideline', 'official_handbook'].includes(sourceType)
+        : ['official_bulletin', 'official_notification', 'official_exam_pattern', 'official_guideline', 'official_handbook'].includes(sourceType)
+      if (!validSourceForField) {
+        return NextResponse.json({ success: false, error: 'Selected official source type is not suitable for this field.' }, { status: 400 })
+      }
+
+      const existingMetadata = bundle.exam.metadata || {}
+      const fieldStatuses = existingMetadata.exam_rule_field_status || {}
+      const nextMetadata = {
+        ...existingMetadata,
+        exam_rule_field_status: {
+          ...fieldStatuses,
+          [field]: {
+            status: field_status,
+            reason: String(reason).trim(),
+            source_id: sourceId,
+            declared_by: reviewerId,
+            declared_at: new Date().toISOString(),
+          },
+        },
+        exam_metadata_audit_status: 'needs_review',
+      }
+      const { error: updateError } = await admin.from('exams').update({
+        metadata: nextMetadata,
+        verification_status: 'needs_review',
+        last_verified_at: null,
+        next_verification_at: null,
+        updated_at: new Date().toISOString(),
+      }).eq('id', examId)
+      if (updateError) return NextResponse.json({ success: false, error: updateError.message }, { status: 500 })
+
+      await admin.from('exam_versions').update({
+        verification_status: 'needs_review',
+        verified_at: null,
+      }).eq('exam_id', examId).eq('is_current', true)
+
+      const updatedBundle = await runAudit(admin, bundle)
+      return NextResponse.json({ success: true, bundle: updatedBundle, message: 'Evidence-backed field declaration saved and audit refreshed.' })
+    }
+
     if (action === 'run_audit') {
       const updatedBundle = await runAudit(admin, bundle)
       return NextResponse.json({ success: true, bundle: updatedBundle, message: 'Field-level exam metadata audit completed.' })
