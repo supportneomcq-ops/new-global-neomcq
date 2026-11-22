@@ -20,6 +20,8 @@ export interface QuotaCheckParams {
   topicId?: string;
   examId?: string;
   subjectId?: string;
+  /** Do not consume paid-plan daily generation quota when serving an existing canonical asset. */
+  countDailyUsage?: boolean;
 }
 
 export interface QuotaCheckResult {
@@ -49,7 +51,7 @@ const FEATURE_NAMES: Record<FeatureKey, string> = {
  * Authoritative Server-side Quota & Entitlement Checker
  */
 export async function checkFeatureQuota(params: QuotaCheckParams): Promise<QuotaCheckResult> {
-  const { userId, feature, topicId, examId, subjectId } = params;
+  const { userId, feature, topicId, examId, subjectId, countDailyUsage = true } = params;
 
   if (!userId) {
     return { allowed: true, planCode: 'FREE' };
@@ -220,6 +222,12 @@ export async function checkFeatureQuota(params: QuotaCheckParams): Promise<Quota
     else if (feature === 'topic_switch') quotaKey = 'daily_topic_switches';
 
     const maxQuota = planLimits[quotaKey];
+
+    // Reading a previously generated shared asset must not consume a generation quota.
+    // Free-plan lifetime topic restrictions are checked above and remain enforced.
+    if (!countDailyUsage) {
+      return { allowed: true, planCode };
+    }
 
     if (maxQuota === null || maxQuota === undefined || planLimits.unlimited) {
       return { allowed: true, planCode };

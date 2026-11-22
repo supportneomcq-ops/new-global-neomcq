@@ -166,13 +166,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: hierarchy.error }, { status: 400 });
     }
 
-    // 2. Check Feature Entitlements & Quotas
+    // 3. Query existing canonical record
+    const existing = await getCanonicalA4NoteRecord({
+      examId,
+      subjectId,
+      topicId,
+      subtopicId,
+      contentScope: contentScope as ContentScope,
+    });
+
+    // 4. Check Feature Entitlements & Quotas
     const quotaResult = await checkFeatureQuota({
       userId: user.id,
       feature: 'notes',
       topicId,
       examId,
       subjectId,
+      countDailyUsage: !(existing.note && existing.isFresh && !forceRefresh),
     });
 
     if (!quotaResult.allowed) {
@@ -188,14 +198,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Query existing canonical record
-    const existing = await getCanonicalA4NoteRecord({
-      examId,
-      subjectId,
-      topicId,
-      subtopicId,
-      contentScope: contentScope as ContentScope,
-    });
+
 
     // Re-use fresh canonical document unless forceRefresh is true
     if (existing.note && existing.isFresh && !forceRefresh) {
