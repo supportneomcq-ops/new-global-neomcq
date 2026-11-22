@@ -484,9 +484,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
         rulesResult = await collectExamRulesProcess(matchedExam.id, matchedExam.name, country, category, supabase)
       }
 
-      const verificationApproved =
-        rulesResult.verificationStatus === 'verified' &&
-        rulesResult.auditStatus === 'verified'
+      const verificationApproved = rulesResult.verificationStatus === 'verified'
 
       if (!verificationApproved) {
         if (userId) {
@@ -787,7 +785,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
     // a provisional suggestion; no curriculum hierarchy is written before approval.
     const rulesResult = await collectExamRulesProcess(newExam.id, rawInput, country, category, supabase)
 
-    if (rulesResult.verificationStatus !== 'verified' || rulesResult.auditStatus !== 'verified') {
+    if (rulesResult.verificationStatus !== 'verified') {
       if (userId) {
         try {
           await supabase.from('user_exams').upsert(
@@ -1237,7 +1235,6 @@ export async function enrichCurriculumProcess(
         curriculum_source_evidence_id: officialSpecResult.source?.id || null,
         curriculum_source_url: officialSpecResult.source?.source_url || null,
         curriculum_source_version_date: officialSpecResult.source?.source_version_date || null,
-        curriculum_deactivated_out_of_scope_nodes: deactivatedOutOfScopeNodes,
       },
       updated_at: new Date().toISOString(),
     }).eq('id', examId)
@@ -1487,6 +1484,7 @@ export async function enrichCurriculumProcess(
         curriculum_source_evidence_id: officialSpecResult.source?.id || null,
         curriculum_source_url: officialSourceUrl,
         curriculum_source_version_date: officialSpecResult.source?.source_version_date || null,
+        curriculum_deactivated_out_of_scope_nodes: deactivatedOutOfScopeNodes,
         curriculum_validation_checked_at: new Date().toISOString(),
         curriculum_spec_cache: aiSpec,
         curriculum_spec_cached_at: (examRow?.metadata as any)?.curriculum_spec_cached_at || new Date().toISOString(),
