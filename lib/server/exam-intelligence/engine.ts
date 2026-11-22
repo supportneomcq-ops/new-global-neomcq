@@ -28,7 +28,7 @@ const inFlightResolutions = new Map<string, Promise<ExamResolutionResponse>>()
 
 
 // ============================================================================
-// VERIFIED CANONICAL STANDARD TEMPLATES (Instant deterministic resolution)
+// PROVISIONAL SEED TEMPLATES — never treated as official syllabus or verified exam rules
 // ============================================================================
 
 export interface StandardCurriculumTemplate {
