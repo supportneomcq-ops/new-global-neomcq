@@ -310,12 +310,14 @@ export async function GET(req: NextRequest) {
     }
     const genericLabel = /^(subject|topic|subtopic|core subject|core topic|topic number|module)\s*\d*$/i
 
-    // Validate the persisted database hierarchy against the cached exam-specific
-    // specification. This is intentionally universal: never infer subject/topic
-    // counts from a few hard-coded exams. User-added extra nodes remain allowed.
+    // Validate the persisted database hierarchy against the verified official syllabus.
+    // Unexpected AI/user-added nodes are not accepted as part of the official curriculum.
     let missingSubjects: string[] = []
     let topicCoverageFailures: string[] = []
     let subtopicCoverageFailures: string[] = []
+    let unexpectedSubjects: string[] = []
+    let unexpectedTopics: string[] = []
+    let unexpectedSubtopics: string[] = []
     let hasInvalidLabels = false
 
     if (expectedSubjects.length > 0) {
@@ -350,8 +352,8 @@ export async function GET(req: NextRequest) {
           // A topic must have at least one meaningful saved subtopic, and at
           // least 80% of its expected subtopics must be present.
           if (
-            savedSubtopics.length === 0 ||
-            (expectedSubtopics.length > 0 && matchedSubtopics / expectedSubtopics.length < 0.8)
+            savedSubtopics.length !== expectedSubtopics.length ||
+            matchedSubtopics !== expectedSubtopics.length
           ) {
             subtopicCoverageFailures.push(`${expectedSubject.name} > ${expectedTopic.name}`)
           }
@@ -359,8 +361,30 @@ export async function GET(req: NextRequest) {
 
         // Every expected subject is required; at least 80% of each subject's
         // expected topics must be present in the persisted hierarchy.
-        if (matchedTopics / expectedTopics.length < 0.8) {
+        if (matchedTopics !== expectedTopics.length) {
           topicCoverageFailures.push(String(expectedSubject.name || '(unnamed subject)'))
+        }
+      }
+    }
+
+    for (const savedSubject of subjects) {
+      const expectedSubject = findByName(expectedSubjects, savedSubject.name, 'SUBJECT')
+      if (!expectedSubject) {
+        unexpectedSubjects.push(String(savedSubject.name || '(unnamed subject)'))
+        continue
+      }
+      const expectedTopics = Array.isArray(expectedSubject.topics) ? expectedSubject.topics : []
+      for (const savedTopic of activeChildren(savedSubject.exam_topics || [])) {
+        const expectedTopic = findByName(expectedTopics, savedTopic.name, 'TOPIC', expectedSubject.name)
+        if (!expectedTopic) {
+          unexpectedTopics.push(`${savedSubject.name} > ${savedTopic.name}`)
+          continue
+        }
+        const expectedSubtopics = Array.isArray(expectedTopic.subtopics) ? expectedTopic.subtopics : []
+        for (const savedSubtopic of activeChildren(savedTopic.exam_subtopics || [])) {
+          if (!findByName(expectedSubtopics, savedSubtopic.name, 'SUBTOPIC', expectedTopic.name)) {
+            unexpectedSubtopics.push(`${savedSubject.name} > ${savedTopic.name} > ${savedSubtopic.name}`)
+          }
         }
       }
     }
@@ -384,9 +408,13 @@ export async function GET(req: NextRequest) {
       metadata.curriculum_validation_version === 4 &&
       metadata.curriculum_validation_passed === true &&
       expectedSubjects.length > 0 &&
+      subjects.length === expectedSubjects.length &&
       missingSubjects.length === 0 &&
       topicCoverageFailures.length === 0 &&
       subtopicCoverageFailures.length === 0 &&
+      unexpectedSubjects.length === 0 &&
+      unexpectedTopics.length === 0 &&
+      unexpectedSubtopics.length === 0 &&
       !hasInvalidLabels &&
       !duplicateSubjects &&
       !duplicateTopics &&
@@ -405,6 +433,9 @@ export async function GET(req: NextRequest) {
             missingSubjects: missingSubjects.slice(0, 30),
             topicCoverageFailures: topicCoverageFailures.slice(0, 30),
             subtopicCoverageFailures: subtopicCoverageFailures.slice(0, 30),
+            unexpectedSubjects: unexpectedSubjects.slice(0, 30),
+            unexpectedTopics: unexpectedTopics.slice(0, 30),
+            unexpectedSubtopics: unexpectedSubtopics.slice(0, 30),
             hasInvalidLabels,
             duplicateSubjects,
             duplicateTopics,
@@ -414,7 +445,7 @@ export async function GET(req: NextRequest) {
         updated_at: new Date().toISOString(),
       }).eq('id', examId)
       throw new Error(
-        `Curriculum failed universal saved-hierarchy validation (expected subjects=${expectedSubjects.length}, missing subjects=${missingSubjects.length}, topic coverage failures=${topicCoverageFailures.length}, subtopic coverage failures=${subtopicCoverageFailures.length}).`
+        `Curriculum failed exact official-syllabus validation (expected subjects=${expectedSubjects.length}, saved subjects=${subjects.length}, missing subjects=${missingSubjects.length}, extra subjects=${unexpectedSubjects.length}, extra topics=${unexpectedTopics.length}, extra subtopics=${unexpectedSubtopics.length}, topic failures=${topicCoverageFailures.length}, subtopic failures=${subtopicCoverageFailures.length}).`
       )
     }
 
