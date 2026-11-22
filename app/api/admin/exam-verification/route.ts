@@ -20,14 +20,14 @@ function isHttps(value: unknown): value is string {
 
 function hostMatches(source: string, authority: string, officialSourceDomains: unknown = []) {
   try {
-    const sourceHost = new URL(source).hostname.toLowerCase().replace(/^www\\./, '')
-    const authorityHost = new URL(authority).hostname.toLowerCase().replace(/^www\\./, '')
+    const sourceHost = new URL(source).hostname.toLowerCase().replace(/^www\./, '')
+    const authorityHost = new URL(authority).hostname.toLowerCase().replace(/^www\./, '')
     const trustedHosts = Array.isArray(officialSourceDomains)
       ? officialSourceDomains.map((value) => {
-          const raw = String(value || '').trim().toLowerCase().replace(/^www\\./, '')
+          const raw = String(value || '').trim().toLowerCase().replace(/^www\./, '')
           if (!raw) return null
           try {
-            return raw.includes('://') ? new URL(raw).hostname.toLowerCase().replace(/^www\\./, '') : raw
+            return raw.includes('://') ? new URL(raw).hostname.toLowerCase().replace(/^www\./, '') : raw
           } catch {
             return null
           }
