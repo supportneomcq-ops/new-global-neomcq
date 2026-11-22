@@ -7,6 +7,7 @@ import {
   AlertCircle,
   Loader2,
   Cpu,
+  Coins,
   ShieldCheck,
   DollarSign,
   FileCode,
