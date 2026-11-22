@@ -390,41 +390,8 @@ export async function resolveCanonicalSubject(
     }
   }
 
-  // 5. Auto-create if enabled
-  if (autoCreate) {
-    const capitalizedName = norm.tokens
-      .map((t) => t.charAt(0).toUpperCase() + t.slice(1))
-      .join(' ')
-
-    const { data: newSubj, error: createErr } = await supabase
-      .from('exam_subjects')
-      .insert({
-        exam_id: examId,
-        name: capitalizedName,
-        slug: norm.slug,
-        description: `Core subject domain covering ${capitalizedName}.`,
-        weight_percentage: 8.0,
-      })
-      .select('id, exam_id, name, slug, description, weight_percentage')
-      .single()
-
-    if (!createErr && newSubj) {
-      try {
-        await supabase.from('subject_aliases').insert([
-          { subject_id: newSubj.id, alias: rawTrimmed },
-          { subject_id: newSubj.id, alias: norm.canonical },
-        ])
-      } catch {
-        // Non-blocking
-      }
-
-      return {
-        subject: newSubj,
-        matchType: 'created',
-        confidence: 100.0,
-      }
-    }
-  }
+  // Canonical hierarchy is sourced from the approved official syllabus; never invent new nodes here.
+  void autoCreate
 
   return { subject: null, matchType: 'none', confidence: maxConfidence }
 }
@@ -549,41 +516,8 @@ export async function resolveCanonicalTopic(
     }
   }
 
-  // 5. Auto-create if enabled
-  if (autoCreate) {
-    const capitalizedName = norm.tokens
-      .map((t) => t.charAt(0).toUpperCase() + t.slice(1))
-      .join(' ')
-
-    const { data: newTop, error: createErr } = await supabase
-      .from('exam_topics')
-      .insert({
-        subject_id: subjectId,
-        name: capitalizedName,
-        slug: norm.slug,
-        description: `High-yield topic module for ${capitalizedName}.`,
-        level: 'topic',
-      })
-      .select('id, subject_id, name, slug, description, parent_id')
-      .single()
-
-    if (!createErr && newTop) {
-      try {
-        await supabase.from('topic_aliases').insert([
-          { topic_id: newTop.id, alias: rawTrimmed },
-          { topic_id: newTop.id, alias: norm.canonical },
-        ])
-      } catch {
-        // Non-blocking
-      }
-
-      return {
-        topic: newTop,
-        matchType: 'created',
-        confidence: 100.0,
-      }
-    }
-  }
+  // Canonical hierarchy is sourced from the approved official syllabus; never invent new nodes here.
+  void autoCreate
 
   return { topic: null, matchType: 'none', confidence: maxConfidence }
 }
@@ -682,32 +616,8 @@ export async function resolveCanonicalSubtopic(
     }
   }
 
-  // 4. Auto-create if enabled
-  if (autoCreate) {
-    const capitalizedName = norm.tokens
-      .map((t) => t.charAt(0).toUpperCase() + t.slice(1))
-      .join(' ')
-
-    const { data: newSubtop, error: createErr } = await supabase
-      .from('exam_subtopics')
-      .insert({
-        topic_id: topicId,
-        name: capitalizedName,
-        slug: norm.slug,
-        description: `Fine-grained subtopic module for ${capitalizedName}.`,
-        is_active: true,
-      })
-      .select('id, topic_id, name, slug, description')
-      .single()
-
-    if (!createErr && newSubtop) {
-      return {
-        subtopic: newSubtop,
-        matchType: 'created',
-        confidence: 100.0,
-      }
-    }
-  }
+  // Canonical hierarchy is sourced from the approved official syllabus; never invent new nodes here.
+  void autoCreate
 
   return { subtopic: null, matchType: 'none', confidence: maxConfidence }
 }
