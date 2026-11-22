@@ -20,6 +20,21 @@ const hostMatches = (source: string, authority: string) => {
   }
 }
 
+const parseArray = (value: unknown): any[] => {
+  if (Array.isArray(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    try { const parsed = JSON.parse(value); if (Array.isArray(parsed)) return parsed } catch {}
+    return value.split(',').map((item) => item.trim()).filter(Boolean)
+  }
+  return []
+}
+
+const parseJsonObject = (value: unknown): any => {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value
+  if (typeof value === 'string' && value.trim()) { try { const parsed = JSON.parse(value); return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null } catch {} }
+  return null
+}
+
 const parseNumber = (value: unknown) => {
   const number = Number(value)
   return Number.isFinite(number) && number > 0 ? number : 0
@@ -197,9 +212,23 @@ export async function POST(req: NextRequest) {
     if (authorityRow && authorityRow.official_website && !hostMatches(official_website, authorityRow.official_website)) {
       return NextResponse.json({ error: 'The authority name already exists with a different official domain. Review the authority record first.' }, { status: 409 })
     }
+    if (authorityRow && !authorityRow.official_website) {
+      const { data: updatedAuthority, error: authorityUpdateError } = await supabase.from('exam_authorities')
+        .update({ official_website, source_url: official_website, country_id: countryRow.id, verification_status: 'pending_review', last_verified_at: null })
+        .eq('id', authorityRow.id)
+        .select('*')
+        .single()
+      if (authorityUpdateError) return NextResponse.json({ error: authorityUpdateError.message }, { status: 500 })
+      authorityRow = updatedAuthority
+    }
     if (!authorityRow) {
+      const authorityName = String(authority).trim()
+      const authoritySlug = normalizeInput(authorityName).slug || authorityName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      const authorityCode = String(authority_code || authorityName.split(/\\s+/).map((part: string) => part[0] || '').join('').toUpperCase().slice(0, 12) || authoritySlug.toUpperCase().slice(0, 12))
       const createdAuthority = await supabase.from('exam_authorities').insert({
-        name: String(authority).trim(),
+        name: authorityName,
+        code: authorityCode,
+        slug: authoritySlug,
         country_id: countryRow.id,
         official_website,
         source_url: official_website,
@@ -255,11 +284,11 @@ export async function POST(req: NextRequest) {
       attempt_rules: attempt_rules || null,
       application_information: application_information || null,
       selection_process: selection_process || null,
-      marking_scheme: marking_scheme || null,
-      question_types: Array.isArray(question_types) ? question_types : [],
-      stages: Array.isArray(stages) ? stages : [],
-      papers: Array.isArray(papers) ? papers : [],
-      languages: Array.isArray(languages) ? languages : [],
+      marking_scheme: parseJsonObject(marking_scheme),
+      question_types: parseArray(question_types),
+      stages: parseArray(stages),
+      papers: parseArray(papers),
+      languages: parseArray(languages),
       official_url: official_website,
       official_notification_url: isHttpsUrl(official_notification_url) ? official_notification_url : null,
       official_syllabus_url: isHttpsUrl(official_syllabus_url) ? official_syllabus_url : null,
