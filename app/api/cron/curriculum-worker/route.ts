@@ -209,8 +209,8 @@ export async function GET(req: NextRequest) {
           examName: persisted.name,
           examVerificationStatus,
           examMetadataAuditStatus,
-          missingVerificationFields: result.exam.missing_verification_fields || [],
-          conflictingVerificationFields: result.exam.conflicting_verification_fields || [],
+          missingVerificationFields: (result.exam as any).missing_verification_fields || [],
+          conflictingVerificationFields: (result.exam as any).conflicting_verification_fields || [],
         },
         error: null,
       }).eq('id', claimed.id)
