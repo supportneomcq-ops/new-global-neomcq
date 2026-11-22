@@ -1,302 +1,226 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase/admin';
-import { AIGateway } from '@/lib/ai/ai-gateway';
-import { ActiveRecallSet, ActiveRecallItem } from '@/lib/types/active-recall';
-import { extractJsonFromAiResponse } from '@/lib/ai/json-cleaner';
-import { getExamStyleAndPattern } from '@/lib/server/content-engine/exam-style-helper';
-import { createClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from 'next/server'
+import { getSupabaseAdmin } from '@/lib/supabase/admin'
+import { ActiveRecallSet, ActiveRecallItem } from '@/lib/types/active-recall'
+import { createClient } from '@/lib/supabase/server'
+
+export const maxDuration = 15
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json().catch(() => ({}));
-    const { examId, subjectId, topicId, subtopicId, difficulty = 'High Yield' } = body;
-    const sessionClient = await createClient();
-    const { data: authData, error: authError } = await sessionClient.auth.getUser();
+    const body = await req.json().catch(() => ({}))
+    const { examId, subjectId, topicId, subtopicId } = body || {}
+
+    const sessionClient = await createClient()
+    const { data: authData, error: authError } = await sessionClient.auth.getUser()
     if (authError || !authData.user) {
-      return NextResponse.json({ success: false, error: 'Please sign in to generate active recall.' }, { status: 401 });
+      return NextResponse.json({ success: false, error: 'Please sign in to access active recall.' }, { status: 401 })
     }
-    const userId = authData.user.id;
-
     if (!topicId) {
-      return NextResponse.json(
-        { success: false, error: 'topicId is required for generating active recall items.' },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: 'topicId is required.' }, { status: 400 })
     }
 
-    const supabase = getSupabaseAdmin();
-
-    // 1. Fetch Topic, Subject, and Exam Context
-    const { data: topicData, error: topicErr } = await (supabase as any)
+    const supabase = getSupabaseAdmin()
+    const { data: topicData, error: topicError } = await (supabase as any)
       .from('exam_topics')
-      .select(`
-        id,
-        name,
-        subject_id,
-        exam_subjects (
-          id,
-          name,
-          exam_id,
-          exams (
-            id,
-            name
-          )
-        )
-      `)
+      .select('id,name,subject_id,exam_subjects(id,name,exam_id,exams(id,name,verification_status,metadata))')
       .eq('id', topicId)
-      .maybeSingle();
+      .maybeSingle()
 
-    if (topicErr || !topicData) {
-      return NextResponse.json(
-        { success: false, error: 'Topic not found in curriculum hierarchy.' },
-        { status: 404 }
-      );
+    if (topicError || !topicData) {
+      return NextResponse.json({ success: false, error: 'Topic not found in curriculum hierarchy.' }, { status: 404 })
     }
 
-    const canonicalExamId = topicData.exam_subjects?.exam_id;
-    const canonicalSubjectId = topicData.exam_subjects?.id;
+    const canonicalSubject = topicData.exam_subjects
+    const canonicalExam = canonicalSubject?.exams
+    const canonicalExamId = canonicalSubject?.exam_id
+    const canonicalSubjectId = canonicalSubject?.id
+    if (!canonicalExam || !canonicalExamId || !canonicalSubjectId) {
+      return NextResponse.json({ success: false, error: 'Topic is not attached to a complete exam hierarchy.' }, { status: 409 })
+    }
     if ((examId && examId !== canonicalExamId) || (subjectId && subjectId !== canonicalSubjectId)) {
-      return NextResponse.json({ success: false, error: 'The selected exam or subject does not match this topic.' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'The selected exam or subject does not match this topic.' }, { status: 400 })
     }
 
-    const examName = topicData.exam_subjects?.exams?.name || 'Board Exam';
-    const subjectName = topicData.exam_subjects?.name || 'Core Subject';
-    const topicName = topicData.name;
-
-    const finalExamId = canonicalExamId;
-    const styleAndPattern = await getExamStyleAndPattern(finalExamId, supabase);
-
-    // Optional Subtopic Context
-    let subtopicName = '';
+    let subtopicName = ''
     if (subtopicId) {
-      const { data: subData } = await (supabase as any)
+      const { data: subtopic } = await (supabase as any)
         .from('exam_subtopics')
-        .select('id, name, topic_id')
+        .select('id,name,topic_id')
         .eq('id', subtopicId)
-        .maybeSingle();
-      if (!subData || subData.topic_id !== topicId) {
-        return NextResponse.json({ success: false, error: 'The selected subtopic does not belong to this topic.' }, { status: 400 });
+        .maybeSingle()
+      if (!subtopic || subtopic.topic_id !== topicId) {
+        return NextResponse.json({ success: false, error: 'The selected subtopic does not belong to this topic.' }, { status: 400 })
       }
-      subtopicName = subData.name;
+      subtopicName = subtopic.name
     }
 
-    // 2. Determine Next Version Number
-    const { data: existingVersions } = await (supabase as any)
+    const { data: versionRows, error: versionError } = await (supabase as any)
       .from('content_versions')
-      .select('id, version, snapshot, created_at')
+      .select('id,version,snapshot,created_at')
       .eq('asset_id', topicId)
       .eq('asset_type', 'topic')
       .order('version', { ascending: false })
-      .limit(1);
+      .limit(1)
 
-    const nextVersion = existingVersions && existingVersions.length > 0 ? (existingVersions[0].version || 1) + 1 : 1;
-    const previousSnapshot = existingVersions && existingVersions[0]?.snapshot ? existingVersions[0].snapshot : {};
+    if (versionError) {
+      return NextResponse.json({ success: false, error: 'Unable to check the shared topic content.' }, { status: 500 })
+    }
 
-    // Reuse the canonical saved set instead of generating a fresh copy for each student.
-    const savedItems = Array.isArray(previousSnapshot.fill_in_the_blanks) ? previousSnapshot.fill_in_the_blanks : [];
+    const latestVersion = versionRows?.[0] || null
+    const savedItems = Array.isArray(latestVersion?.snapshot?.fill_in_the_blanks)
+      ? latestVersion.snapshot.fill_in_the_blanks
+      : []
     const reusableItems = subtopicName
-      ? savedItems.filter((item: any) => item?.subtopicName === subtopicName)
-      : savedItems;
-    if (reusableItems.length > 0) {
-      const safeItems = reusableItems.map((item: any) => ({
-        id: item.id,
-        concept: item.concept,
+      ? savedItems.filter((item: any) =>
+          String(item?.subtopicName || item?.subtopic || '').trim().toLowerCase() === subtopicName.toLowerCase()
+        )
+      : savedItems
+
+    if (reusableItems.length > 0 && latestVersion) {
+      const safeItems = reusableItems.map((item: any, index: number) => ({
+        id: typeof item.id === 'string' ? item.id : `fib_${latestVersion.version || 1}_${index + 1}`,
+        concept: item.concept || topicData.name,
         sentence: item.sentence,
-        difficulty: item.difficulty,
-        subtopicName: item.subtopicName,
-      })) as ActiveRecallItem[];
-      const savedVersion = existingVersions[0];
+        difficulty: item.difficulty || 'High Yield',
+        subtopicName: item.subtopicName || item.subtopic || subtopicName || undefined,
+      })) as ActiveRecallItem[]
+
       const savedSet: ActiveRecallSet = {
-        id: savedVersion.id,
+        id: latestVersion.id,
         topicId,
-        topicName,
-        subjectId: canonicalSubjectId || subjectId,
-        subjectName,
-        examId: canonicalExamId || examId,
-        examName,
+        topicName: topicData.name,
+        subjectId: canonicalSubjectId,
+        subjectName: canonicalSubject.name,
+        examId: canonicalExamId,
+        examName: canonicalExam.name,
         subtopicId,
-        subtopicName,
-        version: savedVersion.version,
-        batch: `Batch ${String(savedVersion.version).padStart(2, '0')}`,
-        updatedAt: savedVersion.created_at || new Date().toISOString(),
+        subtopicName: subtopicName || undefined,
+        version: latestVersion.version,
+        batch: `Batch ${String(latestVersion.version).padStart(2, '0')}`,
+        updatedAt: latestVersion.created_at || new Date().toISOString(),
         itemsCount: safeItems.length,
         difficulty: 'High-Yield',
         completionPercentage: 0,
         bestAccuracy: 0,
         items: safeItems,
-      };
-      return NextResponse.json({ success: true, source: 'canonical_cache', set: savedSet });
+      }
+      return NextResponse.json({ success: true, source: 'canonical_cache', set: savedSet })
     }
 
-    // 3. Construct System Prompt for Domain-Neutral Active Recall Generation
-    const prompt = `You are a Senior ${styleAndPattern.role}, Board Examination Item Writer, and Active Recall Specialist.
-Create 12 to 15 high-yield ACTIVE RECALL (Cloze / Fill-in-the-Blank) items strictly for the following curriculum scope:
-
-EXAM: ${examName}
-SUBJECT: ${subjectName}
-TOPIC: ${topicName}
-${subtopicName ? `SUBTOPIC: ${subtopicName}` : ''}
-DIFFICULTY: ${difficulty}
-
-Domain/Style Guidelines:
-- Domain: ${styleAndPattern.domain}
-- Style: ${styleAndPattern.styleDescription}
-
-RULES FOR ACTIVE RECALL GENERATION:
-1. Every blank must test a crucial high-yield target (e.g., core formula, standard definition, statutory section, main diagnostic tool, first-line choice, key mechanism, or critical trap).
-2. DO NOT create trivial grammar blanks (e.g., "is", "located in", "the"). The blank must require genuine conceptual, structural, or factual active recall.
-3. In the sentence, replace the primary test term with "[BLANK]".
-4. "blank" must be the exact canonical term.
-5. "acceptedAnswers" must include 2-4 valid synonyms, common acronyms, and alternative naming conventions or notations.
-6. "explanation" must explain the underlying theory, logic, formula derivation, statutory rationale, or domain-specific guideline.
-7. "highYieldPoint" must summarize the board exam rule, formula, or takeaway.
-8. "memoryHook" must provide a memorable mnemonic, analogy, or conceptual association.
-9. "examTip" must warn about common board exam distractors, traps, or look-alike entities.
-
-Respond strictly in valid JSON format with NO markdown wrapping:
-{
-  "fill_in_the_blanks": [
-    {
-      "concept": "Specific Target Entity / Mechanism / Principle",
-      "sentence": "The core mechanism or equation governing [BLANK] under standard conditions is [BLANK].",
-      "blank": "Governing Rule or Formula",
-      "acceptedAnswers": ["Synonym 1", "Synonym 2", "Alternate acronym"],
-      "explanation": "Why this is the standard of care or industry benchmark based on guidelines...",
-      "highYieldPoint": "Core rule to remember for board exams.",
-      "memoryHook": "Mnemonic, analogy, or conceptual association.",
-      "examTip": "Common distractor warning or trap to avoid.",
-      "difficulty": "High Yield"
+    const metadata = canonicalExam.metadata || {}
+    if (canonicalExam.verification_status !== 'verified' || metadata.exam_metadata_audit_status !== 'verified') {
+      return NextResponse.json({
+        success: false,
+        status: 'awaiting_exam_verification',
+        error: 'This exam is waiting for official source verification. Shared AI content will start after the exam is approved.',
+      }, { status: 409 })
     }
-  ]
-}`;
 
-    // 4. Generate with Multi-Provider Failover Gateway
-    let rawResultText = '';
-    try {
-      const genResult = await AIGateway.generate({
-        taskType: 'active_recall_generation',
-        prompt,
-        preferredProvider: 'gemini',
-        preferredModel: 'gemini-3.8-flash',
-        temperature: 0.2,
-      });
-      rawResultText = genResult.text;
-    } catch (genErr) {
-      console.warn('Gemini fallback to OpenAI adapter for Active Recall:', genErr);
-      try {
-        const openResult = await AIGateway.generate({
-          taskType: 'active_recall_generation',
-          prompt,
-          preferredProvider: 'openai',
-          preferredModel: 'gpt-4o-mini',
-          temperature: 0.2,
-        });
-        rawResultText = openResult.text;
-      } catch (fallbackErr: any) {
-        throw new Error(`AI generation failed across all providers: ${fallbackErr.message}`);
+    if (String(metadata.curriculum_validation_version || '') !== '4' ||
+        !(metadata.curriculum_validation_passed === true || metadata.curriculum_validation_passed === 'true')) {
+      return NextResponse.json({
+        success: false,
+        status: 'awaiting_curriculum_validation',
+        error: 'The official subject → topic → subtopic hierarchy is still being validated. Active Recall will be available after that check passes.',
+      }, { status: 409 })
+    }
+
+    // Active Recall reuses the shared canonical topic pack. It never starts a second,
+    // student-specific AI generation that could race the canonical worker or duplicate spend.
+    let idempotencyKey = `canonical-topic-prefetch:v1:${canonicalExamId}:${topicId}`
+    let { data: job } = await (supabase as any)
+      .from('ai_jobs')
+      .select('id,status,attempts,max_attempts,error,progress_stage')
+      .eq('idempotency_key', idempotencyKey)
+      .maybeSingle()
+
+    if (job?.status === 'completed' && reusableItems.length === 0) {
+      idempotencyKey = `canonical-topic-prefetch:v2:${canonicalExamId}:${topicId}:v${(latestVersion?.version || 0) + 1}`
+      const retryLookup = await (supabase as any)
+        .from('ai_jobs')
+        .select('id,status,attempts,max_attempts,error,progress_stage')
+        .eq('idempotency_key', idempotencyKey)
+        .maybeSingle()
+      job = retryLookup.data
+    }
+
+    if (!job) {
+      const { data: insertedJob, error: insertError } = await (supabase as any)
+        .from('ai_jobs')
+        .insert({
+          task: 'canonical_topic_prefetch',
+          user_id: null,
+          exam_id: canonicalExamId,
+          subject_id: canonicalSubjectId,
+          topic_id: topicId,
+          idempotency_key: idempotencyKey,
+          priority: 10,
+          status: 'queued',
+          attempts: 0,
+          max_attempts: 3,
+          progress_stage: 'Queued for shared canonical topic-pack generation',
+          step_percentage: 0,
+          input_payload: {
+            requested_by_feature: 'active_recall',
+            requested_subtopic_id: subtopicId || null,
+            requested_subtopic_name: subtopicName || null,
+          },
+        })
+        .select('id,status,attempts,max_attempts,error,progress_stage')
+        .maybeSingle()
+
+      if (insertError) {
+        const { data: racedJob } = await (supabase as any)
+          .from('ai_jobs')
+          .select('id,status,attempts,max_attempts,error,progress_stage')
+          .eq('idempotency_key', idempotencyKey)
+          .maybeSingle()
+        job = racedJob
+      } else {
+        job = insertedJob
       }
     }
 
-    // 5. Parse JSON Payload
-    let parsed: any = {};
-    try {
-      parsed = extractJsonFromAiResponse(rawResultText);
-    } catch (parseErr: any) {
-      console.error('Failed to parse AI recall JSON:', rawResultText);
-      throw new Error(`AI produced invalid JSON output: ${parseErr.message}`);
+    if (job && ['failed', 'cancelled'].includes(job.status) &&
+        Number(job.attempts || 0) < Number(job.max_attempts || 3)) {
+      const { data: requeued } = await (supabase as any)
+        .from('ai_jobs')
+        .update({
+          status: 'queued',
+          error: null,
+          started_at: null,
+          completed_at: null,
+          progress_stage: 'Requeued for shared canonical topic-pack generation',
+          step_percentage: 0,
+        })
+        .eq('id', job.id)
+        .in('status', ['failed', 'cancelled'])
+        .select('id,status,attempts,max_attempts,error,progress_stage')
+        .maybeSingle()
+      if (requeued) job = requeued
     }
 
-    const rawList = Array.isArray(parsed.fill_in_the_blanks) ? parsed.fill_in_the_blanks : [];
-    if (rawList.length === 0) {
-      throw new Error('No active recall items were returned by the generator.');
+    if (!job) {
+      return NextResponse.json({ success: false, error: 'Could not register the shared topic-pack job.' }, { status: 500 })
     }
 
-    const items: ActiveRecallItem[] = rawList.map((fib: any, idx: number) => ({
-      id: `fib_${nextVersion}_${idx + 1}`,
-      concept: fib.concept || `${topicName} Concept #${idx + 1}`,
-      sentence: fib.sentence || 'The primary presentation of [Condition] begins with [BLANK].',
-      blank: fib.blank || 'Primary Clinical Answer',
-      acceptedAnswers: Array.isArray(fib.acceptedAnswers) && fib.acceptedAnswers.length > 0
-        ? fib.acceptedAnswers
-        : [fib.blank],
-      explanation: fib.explanation || 'Evidence-based clinical protocol and board rationale.',
-      highYieldPoint: fib.highYieldPoint || 'High-yield board examination principle.',
-      memoryHook: fib.memoryHook || undefined,
-      examTip: fib.examTip || undefined,
-      difficulty: fib.difficulty || 'High Yield',
-      subtopicName: subtopicName || undefined,
-    }));
-
-    // 6. Update Topic Snapshot & Content Version
-    const updatedSnapshot = {
-      ...previousSnapshot,
-      exam_id: topicData.exam_subjects?.exams?.id || examId,
-      exam_name: examName,
-      subject_id: topicData.exam_subjects?.id || subjectId,
-      subject_name: subjectName,
-      topic_id: topicId,
-      topic_name: topicName,
-      fill_in_the_blanks: subtopicName ? [...savedItems, ...items] : items,
-    };
-
-    const { data: newVersionRow, error: saveErr } = await (supabase as any)
-      .from('content_versions')
-      .insert({
-        asset_id: topicId,
-        asset_type: 'topic',
-        version: nextVersion,
-        generation_reason: nextVersion === 1 ? 'FIRST_GENERATION' : 'FORCE_REFRESH',
-        created_by: userId,
-        snapshot: updatedSnapshot,
-      })
-      .select('id, version, created_at')
-      .single();
-
-    if (saveErr || !newVersionRow) {
-      console.error('Failed to persist active recall content version:', saveErr);
-      return NextResponse.json(
-        { success: false, error: 'The recall set could not be saved. Please retry shortly.' },
-        { status: 500 }
-      );
-    }
-
-    const safeItems = items.map((item) => ({
-      id: item.id,
-      concept: item.concept,
-      sentence: item.sentence,
-      difficulty: item.difficulty,
-      subtopicName: item.subtopicName,
-    })) as ActiveRecallItem[];
-
-    const newSet: ActiveRecallSet = {
-      id: newVersionRow?.id || `set_${nextVersion}`,
-      topicId,
-      topicName,
-      subjectId: topicData.exam_subjects?.id || subjectId,
-      subjectName,
-      examId: topicData.exam_subjects?.exams?.id || examId,
-      examName,
-      subtopicId,
-      subtopicName,
-      version: nextVersion,
-      batch: `Batch ${String(nextVersion).padStart(2, '0')}`,
-      updatedAt: newVersionRow?.created_at || new Date().toISOString(),
-      itemsCount: items.length,
-      difficulty: 'High-Yield',
-      completionPercentage: 0,
-      bestAccuracy: 0,
-      items: safeItems,
-    };
+    const status = job.status === 'processing' ? 'processing' : 'queued'
+    const message = status === 'processing'
+      ? 'The shared topic pack is being generated. Fill-in-the-blanks will appear here when it is saved.'
+      : 'The shared topic pack is queued. MCQs, notes, flashcards and fill-in-the-blanks will be generated once the worker has verified exam access and AI budget.'
 
     return NextResponse.json({
-      success: true,
-      set: newSet,
-    });
+      success: false,
+      status,
+      jobId: job.id,
+      message,
+      error: message,
+    }, { status: 202 })
   } catch (error: any) {
-    console.error('Error generating active recall set:', error);
-    return NextResponse.json(
-      { success: false, error: error.message || 'Failed to generate active recall set' },
-      { status: 500 }
-    );
+    console.error('Error preparing shared active recall content:', error)
+    return NextResponse.json({
+      success: false,
+      error: error?.message || 'Unable to prepare shared active recall content.',
+    }, { status: 500 })
   }
 }
