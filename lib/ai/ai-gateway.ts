@@ -162,7 +162,8 @@ export class AIGateway {
       maxOutputTokens: number;
     },
     userId: string | null | undefined,
-    requestId: string
+    requestId: string,
+    requestMetadata: Record<string, unknown> = {}
   ): Promise<string> {
     const rule = await TaskRouter.getRuleForTask(taskType);
     const [primaryMeta, fallbackMeta, routingResult] = await Promise.all([
@@ -200,6 +201,7 @@ export class AIGateway {
       userId,
       requestId,
       metadata: {
+        ...requestMetadata,
         fallbackProvider: route.fallbackProvider,
         fallbackModel: route.fallbackModel,
         inputTokenCap: inputCap,
@@ -279,7 +281,7 @@ export class AIGateway {
     const platformBudgetRequestId = options.jobId || randomUUID();
     let platformReservationId: string | null = null;
     try {
-      platformReservationId = await this.reservePlatformBudget(taskType, route, userId, platformBudgetRequestId);
+      platformReservationId = await this.reservePlatformBudget(taskType, route, userId, platformBudgetRequestId, options.metadata);
     } catch (budgetError) {
       await this.releaseCreditReservation(userId, reservedCredits, taskType);
       throw budgetError;
