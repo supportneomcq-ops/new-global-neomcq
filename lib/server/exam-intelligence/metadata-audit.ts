@@ -8,6 +8,7 @@ const OFFICIAL_SOURCE_TYPES = new Set([
   'official_syllabus',
   'official_exam_pattern',
   'official_guideline',
+  'official_handbook',
 ]);
 
 function objectValue(value: any): AnyRecord {
@@ -176,12 +177,12 @@ export function buildExamMetadataAudit(input: {
   const freshEvidence = verifiedOfficialEvidence.filter((item) => {
     const year = sourceYear(item.source_version_date);
     const type = String(item.source_type || '').toLowerCase();
-    const allowedAge = ['official_syllabus', 'official_guideline'].includes(type) ? 5 : 1;
+    const allowedAge = ['official_syllabus', 'official_guideline', 'official_handbook'].includes(type) ? 5 : 1;
     return year !== null && versionYear !== null && year >= versionYear - allowedAge && year <= versionYear + 1;
   });
 
   const currentBulletins = freshEvidence.filter((item) =>
-    ['official_bulletin', 'official_notification', 'official_exam_pattern'].includes(String(item.source_type || '').toLowerCase())
+    ['official_bulletin', 'official_notification', 'official_exam_pattern', 'official_guideline', 'official_handbook'].includes(String(item.source_type || '').toLowerCase())
   );
   const currentSyllabi = freshEvidence.filter((item) =>
     ['official_syllabus', 'official_guideline'].includes(String(item.source_type || '').toLowerCase())
@@ -261,17 +262,17 @@ export function buildExamMetadataAudit(input: {
   const syllabusKeys = ['subjects', 'syllabus_subjects', 'curriculum'];
 
   addField('question_count', exam.question_count, countKeys, { allowNotPublished: true, evidencePool: currentBulletins });
-  addField('duration_minutes', exam.time_limit_mins, durationKeys, { evidencePool: currentBulletins });
+  addField('duration_minutes', exam.time_limit_mins, durationKeys, { allowNotPublished: true, evidencePool: currentBulletins });
   addField('total_marks', exam.total_marks, totalMarkKeys, { allowNotPublished: true, allowNotApplicable: true, evidencePool: currentBulletins });
   addField('marking_scheme', exam.marking_scheme, markingKeys, { allowNotApplicable: true, evidencePool: currentBulletins });
   addField('negative_marking', exam.negative_marking ?? objectValue(exam.marking_scheme).has_negative_marking, negativeKeys, { allowNotApplicable: true, evidencePool: currentBulletins });
-  addField('passing_criteria', exam.passing_criteria, passingKeys, { evidencePool: currentBulletins });
-  addField('eligibility', exam.eligibility, eligibilityKeys, { allowNotApplicable: true, evidencePool: currentBulletins });
-  addField('attempt_rules', exam.attempt_rules, attemptKeys, { allowNotApplicable: true, evidencePool: currentBulletins });
-  addField('application_information', exam.application_information, applicationKeys, { evidencePool: currentBulletins });
-  addField('selection_process', exam.selection_process, selectionKeys, { evidencePool: currentBulletins });
-  addField('question_types', exam.question_types, questionTypeKeys, { evidencePool: currentBulletins });
-  addField('exam_structure', exam.papers || exam.stages || exam.sections, structureKeys, { evidencePool: currentBulletins });
+  addField('passing_criteria', exam.passing_criteria, passingKeys, { allowNotPublished: true, allowNotApplicable: true, evidencePool: currentBulletins });
+  addField('eligibility', exam.eligibility, eligibilityKeys, { allowNotPublished: true, allowNotApplicable: true, evidencePool: currentBulletins });
+  addField('attempt_rules', exam.attempt_rules, attemptKeys, { allowNotPublished: true, allowNotApplicable: true, evidencePool: currentBulletins });
+  addField('application_information', exam.application_information, applicationKeys, { allowNotPublished: true, evidencePool: currentBulletins });
+  addField('selection_process', exam.selection_process, selectionKeys, { allowNotPublished: true, evidencePool: currentBulletins });
+  addField('question_types', exam.question_types, questionTypeKeys, { allowNotPublished: true, evidencePool: currentBulletins });
+  addField('exam_structure', exam.papers || exam.stages || exam.sections, structureKeys, { allowNotPublished: true, evidencePool: currentBulletins });
   addField('languages', exam.languages, languageKeys, { allowNotPublished: true, evidencePool: currentBulletins });
   addField('official_subject_scope', objectValue(exam.syllabus_info).subjects || objectValue(exam.metadata).official_subjects || null, syllabusKeys, { evidencePool: currentSyllabi });
 
