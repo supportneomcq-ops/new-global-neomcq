@@ -471,34 +471,6 @@ export function AdminExamDetailView({ examId }: { examId: string }) {
           </div>
 
 
-              <input
-                type="number"
-                value={editForm.question_count}
-                onChange={(e) => setEditForm({ ...editForm, question_count: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 font-semibold focus:outline-none focus:border-[#6D5BFF]"
-              />
-            </div>
-
-            <div>
-              <label className="block font-bold text-slate-700 dark:text-gray-300 mb-1">Time Limit (mins)</label>
-              <input
-                type="number"
-                value={editForm.time_limit_mins}
-                onChange={(e) => setEditForm({ ...editForm, time_limit_mins: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 font-semibold focus:outline-none focus:border-[#6D5BFF]"
-              />
-            </div>
-
-            <div>
-              <label className="block font-bold text-slate-700 dark:text-gray-300 mb-1">Official Website</label>
-              <input
-                type="text"
-                value={editForm.official_website}
-                onChange={(e) => setEditForm({ ...editForm, official_website: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 font-semibold focus:outline-none focus:border-[#6D5BFF]"
-              />
-            </div>
-          </div>
 
           <div className="pt-2 flex justify-end">
             <button
