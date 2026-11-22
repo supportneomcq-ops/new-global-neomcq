@@ -53,6 +53,15 @@ export async function POST(req: NextRequest) {
       .select('id,version_id,total_items,correct_count,status')
       .eq('user_id', authData.user.id).eq('topic_id', topicId);
 
+    const { data: generationJobs } = await (supabase as any).from('ai_jobs')
+      .select('status,progress_stage,error,created_at')
+      .eq('task', 'canonical_topic_prefetch')
+      .eq('topic_id', topicId)
+      .in('status', ['queued', 'processing', 'failed', 'cancelled'])
+      .order('created_at', { ascending: false })
+      .limit(1);
+    const generationJob = generationJobs?.[0] || null;
+
     const statsByVersion: Record<string, { total: number; correct: number; completion: number }> = {};
     for (const s of sessionRows || []) {
       statsByVersion[s.version_id || 'default'] = {
@@ -75,12 +84,11 @@ export async function POST(req: NextRequest) {
         imageUrl: fib.imageUrl || fib.diagramUrl || undefined,
         imageCaption: fib.imageCaption || undefined,
         videoUrl: fib.videoUrl || undefined,
-        subtopicName: fib.subtopic || subtopicName,
+        subtopicName: fib.subtopicName || fib.subtopic || subtopicName,
       })) as ActiveRecallItem[];
-      const filtered = subtopicName
-        ? allItems.filter((it) => !it.subtopicName || it.subtopicName.toLowerCase().includes(subtopicName.toLowerCase()))
+      const items = subtopicName
+        ? allItems.filter((it) => it.subtopicName?.toLowerCase() === subtopicName.toLowerCase())
         : allItems;
-      const items = filtered.length ? filtered : allItems;
       const stats = statsByVersion[v.id] || { total: items.length, correct: 0, completion: 0 };
       sets.push({
         id: v.id, topicId, topicName,
@@ -100,6 +108,14 @@ export async function POST(req: NextRequest) {
       hierarchy: { examId: canonicalExam?.id || examId, examName, subjectId: canonicalSubject?.id || subjectId,
         subjectName, topicId, topicName, subtopicId, subtopicName },
       sets,
+      generation_status: generationJob?.status || null,
+      generation_message: generationJob?.status === 'processing'
+        ? generationJob.progress_stage || 'The shared topic pack is being generated.'
+        : generationJob?.status === 'queued'
+          ? 'The shared topic pack is queued. Fill-in-the-blanks will appear when generation completes.'
+          : generationJob?.status === 'failed' || generationJob?.status === 'cancelled'
+            ? generationJob.error || 'The shared topic-pack job needs an administrator retry.'
+            : null,
     });
   } catch (error) {
     console.error('Error fetching active recall sets:', error);
