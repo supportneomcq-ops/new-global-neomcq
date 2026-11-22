@@ -969,6 +969,7 @@ function buildOfficialCurriculumSpecFromEvidence(
       category: categoryName || 'Unspecified',
       type: examRow.exam_type || 'Unverified',
       difficulty_level: difficulty,
+      difficulty_distribution: { easy: 0, medium: 0, hard: 0 },
       question_config: {
         default_question_count: Number(examRow.question_count || 0),
         option_count: Number(marking.option_count || marking.options_count || 0),
