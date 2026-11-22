@@ -230,7 +230,7 @@ export async function POST(req: NextRequest) {
       const stored = mcqRows.find((row: any) => row.id === question?.id) ||
         byQuestion.get(String(question?.question || '').trim().toLowerCase())
       return {
-        id: stored?.id || (typeof question?.id === 'string' ? question.id : undefined),
+        id: stored?.id,
         question: typeof question?.question === 'string' ? question.question : '',
         options: Array.isArray(question?.options) ? question.options : (Array.isArray(stored?.options) ? stored.options : []),
         high_yield_tag: question?.high_yield_tag || stored?.metadata?.high_yield_tag || (Array.isArray(stored?.tags) ? stored.tags[0] : undefined),
@@ -243,15 +243,13 @@ export async function POST(req: NextRequest) {
       quiz_a: Array.isArray(result.content.quiz_a) ? result.content.quiz_a.map(safeQuestion).filter((item: any) => item.id) : [],
       quiz_b: Array.isArray(result.content.quiz_b) ? result.content.quiz_b.map(safeQuestion).filter((item: any) => item.id) : [],
       // Cloze answers and rationales are delivered by the authenticated Active Recall attempt endpoint.
-      flashcards: storedFlashcards.length > 0
-        ? storedFlashcards.map((card: any) => ({
+      flashcards: storedFlashcards.map((card: any) => ({
             id: card.id, deck_id: card.deck_id, front: card.front, back: card.back,
             difficulty: card.difficulty, explanation: card.explanation || '',
             clinical_pearl: card.high_yield_pearl || card.clinical_correlation || '',
             reference_notes: card.reference_notes || '', category: subject?.name || 'Study',
             subtopic_id: card.subtopic_id,
-          }))
-        : (Array.isArray(result.content.flashcards) ? result.content.flashcards : []),
+          })),
       fill_in_the_blanks: Array.isArray(result.content.fill_in_the_blanks)
         ? result.content.fill_in_the_blanks.map((item: any) => ({
             id: item.id, concept: item.concept, sentence: item.sentence,

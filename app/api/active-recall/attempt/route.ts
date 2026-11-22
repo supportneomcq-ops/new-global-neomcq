@@ -62,6 +62,14 @@ export async function POST(req: NextRequest) {
       review_due_at: reviewDueAt, attempted_at: new Date().toISOString(),
     });
     if (insertError) {
+      // A session may record each recall item only once. Treat the unique-index
+      // collision as a normal duplicate submission rather than an opaque server error.
+      if (insertError.code === '23505') {
+        return NextResponse.json(
+          { success: false, error: 'You have already submitted this recall item in the current session.' },
+          { status: 409 }
+        );
+      }
       console.error('Failed to persist active recall attempt:', insertError);
       return NextResponse.json({ success: false, error: 'Unable to save your attempt.' }, { status: 500 });
     }

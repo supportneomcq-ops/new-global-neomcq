@@ -592,7 +592,11 @@ export async function saveCanonicalA4Note(document: A4NotesDocument): Promise<st
     deactivateQuery = deactivateQuery.is('subtopic_id', null);
   }
 
-  await deactivateQuery;
+  const { error: deactivateError } = await deactivateQuery;
+  if (deactivateError) {
+    console.error('[A4 Notes] Failed to retire prior canonical version:', deactivateError);
+    throw new Error('Unable to prepare the canonical A4 note for publishing.');
+  }
 
   // 2. Insert new canonical document as is_current: true
   const { data, error } = await adminClient
@@ -617,8 +621,26 @@ export async function saveCanonicalA4Note(document: A4NotesDocument): Promise<st
     .select('id')
     .single();
 
+  if (error?.code === '23505') {
+    // A concurrent generator already published the canonical document for this scope.
+    let winnerQuery = adminClient
+      .from('canonical_a4_notes')
+      .select('id')
+      .eq('exam_id', document.examId)
+      .eq('subject_id', document.subjectId)
+      .eq('topic_id', document.topicId)
+      .eq('content_scope', document.contentScope)
+      .eq('is_current', true);
+    winnerQuery = document.contentScope === 'SUBTOPIC' && document.subtopicId
+      ? winnerQuery.eq('subtopic_id', document.subtopicId)
+      : winnerQuery.is('subtopic_id', null);
+    const { data: winner, error: winnerError } = await winnerQuery.maybeSingle();
+    if (!winnerError && winner?.id) return winner.id;
+  }
+
   if (error || !data) {
-    throw new Error(`Failed to store canonical A4 note in database: ${error?.message}`);
+    console.error('[A4 Notes] Canonical persistence failed:', error);
+    throw new Error('Failed to store the canonical A4 note. Please retry.');
   }
 
   return data.id;
