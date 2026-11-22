@@ -426,16 +426,23 @@ export async function PATCH(req: NextRequest) {
     if (fields.official_website !== undefined) {
       fields.official_url = fields.official_website
       delete fields.official_website
-      if (fields.authority_id || current.authority_id) {
-        await supabase.from('exam_authorities').update({
-          official_website: fields.official_url,
-          source_url: fields.official_url,
-          verification_status: 'pending_review',
-          last_verified_at: null,
-          reviewed_by: null,
-          reviewed_at: null,
-          review_notes: null,
-        }).eq('id', fields.authority_id || current.authority_id)
+      const authorityIdForWebsite = fields.authority_id || current.authority_id
+      if (authorityIdForWebsite) {
+        const { data: currentAuthority } = await supabase.from('exam_authorities')
+          .select('official_website')
+          .eq('id', authorityIdForWebsite)
+          .maybeSingle()
+        if ((currentAuthority?.official_website || null) !== (fields.official_url || null)) {
+          await supabase.from('exam_authorities').update({
+            official_website: fields.official_url || null,
+            source_url: fields.official_url || null,
+            verification_status: 'pending_review',
+            last_verified_at: null,
+            reviewed_by: null,
+            reviewed_at: null,
+            review_notes: null,
+          }).eq('id', authorityIdForWebsite)
+        }
       }
     }
 
@@ -445,15 +452,30 @@ export async function PATCH(req: NextRequest) {
     if (typeof fields.papers === 'string') fields.papers = parseArray(fields.papers)
     if (typeof fields.marking_scheme === 'string') fields.marking_scheme = parseJsonObject(fields.marking_scheme)
 
+    for (const field of ['question_count', 'time_limit_mins']) {
+      if (Object.prototype.hasOwnProperty.call(fields, field)) fields[field] = parseNumber(fields[field])
+    }
+    if (Object.prototype.hasOwnProperty.call(fields, 'total_marks')) fields.total_marks = parseNumber(fields.total_marks) || null
+    if (Object.prototype.hasOwnProperty.call(fields, 'version_year')) {
+      const year = parseInt(String(fields.version_year || ''), 10)
+      fields.version_year = Number.isInteger(year) && year > 0 ? year : null
+    }
+    for (const field of ['current_version', 'negative_marking', 'passing_criteria', 'eligibility', 'attempt_rules', 'application_information', 'selection_process']) {
+      if (Object.prototype.hasOwnProperty.call(fields, field) && typeof fields[field] === 'string' && !fields[field].trim()) fields[field] = null
+    }
+
     const verificationFields = [
       'name','category_id','country_id','authority_id','authority','exam_type','level',
       'question_count','time_limit_mins','total_marks','negative_marking','passing_criteria',
       'eligibility','attempt_rules','application_information','selection_process',
       'marking_scheme','question_types','stages','papers','languages','current_version',
       'version_year','is_current','official_url','official_notification_url','official_syllabus_url',
-      'official_reference_website','source_url','official_website',
+      'official_reference_website','source_url',
     ]
-    const requiresReaudit = verificationFields.some((field) => Object.prototype.hasOwnProperty.call(fields, field))
+    const requiresReaudit = verificationFields.some((field) =>
+      Object.prototype.hasOwnProperty.call(fields, field) &&
+      JSON.stringify(fields[field] ?? null) !== JSON.stringify(current[field] ?? null)
+    )
     const updateData: any = { updated_at: new Date().toISOString() }
 
     const allowedFields = [
