@@ -298,6 +298,54 @@ export function buildExamMetadataAudit(input: {
     });
   }
 
+  if (currentVersion && exam.version_year && currentVersion.version_year
+      && Number(exam.version_year) !== Number(currentVersion.version_year)) {
+    conflicts.push({
+      field: 'version_year',
+      exam_value: exam.version_year,
+      version_record_value: currentVersion.version_year,
+      reason: 'Exam row and current exam-version record refer to different version years.',
+    });
+  }
+
+  if (currentVersion?.version_label && exam.current_version
+      && String(currentVersion.version_label).trim().toLowerCase() !== String(exam.current_version).trim().toLowerCase()) {
+    conflicts.push({
+      field: 'current_version',
+      exam_value: exam.current_version,
+      version_record_value: currentVersion.version_label,
+      reason: 'Exam row and current exam-version record use different version labels.',
+    });
+  }
+
+  const versionQuestionCount = Number(currentVersion?.question_count || 0);
+  const versionDuration = Number(currentVersion?.time_limit_mins || 0);
+  const versionTotalMarks = Number(currentVersion?.total_marks || 0);
+  if (versionQuestionCount > 0 && Number(exam.question_count || 0) > 0 && versionQuestionCount !== Number(exam.question_count)) {
+    conflicts.push({
+      field: 'question_count',
+      exam_value: Number(exam.question_count),
+      version_record_value: versionQuestionCount,
+      reason: 'Exam row and current exam-version record disagree on question count.',
+    });
+  }
+  if (versionDuration > 0 && Number(exam.time_limit_mins || 0) > 0 && versionDuration !== Number(exam.time_limit_mins)) {
+    conflicts.push({
+      field: 'duration_minutes',
+      exam_value: Number(exam.time_limit_mins),
+      version_record_value: versionDuration,
+      reason: 'Exam row and current exam-version record disagree on duration.',
+    });
+  }
+  if (versionTotalMarks > 0 && Number(exam.total_marks || 0) > 0 && versionTotalMarks !== Number(exam.total_marks)) {
+    conflicts.push({
+      field: 'total_marks',
+      exam_value: Number(exam.total_marks),
+      version_record_value: versionTotalMarks,
+      reason: 'Exam row and current exam-version record disagree on total marks.',
+    });
+  }
+
   const paperQuestionSum = sumArrayValues(exam.papers, ['question_count', 'total_questions', 'questions']);
   const stageQuestionSum = sumArrayValues(exam.stages, ['question_count', 'total_questions', 'questions']);
   const structureQuestionSum = paperQuestionSum ?? stageQuestionSum;
