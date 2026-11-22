@@ -56,36 +56,21 @@ export function ActiveRecallSetsView({
 
         <div className="space-y-2">
           <span className="text-xs font-mono font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
-            AI Content Intelligence
+            Shared Canonical Content
           </span>
           <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
-            Constructing Active Recall Batch
+            Checking Shared Topic Pack
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
             {examName} • {subjectName} • {topicName}
           </p>
         </div>
 
-        {/* Dynamic Multi-Stage Tracker */}
-        <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 text-left space-y-2.5">
-          {[
-            { label: 'Analyzing exam syllabus & high-yield blueprints', active: true },
-            { label: 'Selecting high-yield recall targets & core concepts', active: true },
-            { label: 'Synthesizing cloze sentences & integrated blanks', active: true },
-            { label: 'Validating accepted synonyms & standard abbreviations', active: true },
-            { label: 'Finalizing active recall workspace', active: true },
-          ].map((stage, idx) => (
-            <div key={idx} className="flex items-center gap-2.5 text-xs">
-              <RotateCw className="w-3.5 h-3.5 text-indigo-500 animate-spin shrink-0" />
-              <span className="text-slate-700 dark:text-slate-300 font-medium">
-                {stage.label}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        <div className="text-xs font-mono text-indigo-600 dark:text-indigo-400 font-semibold animate-pulse">
-          {generationStage || 'Processing high-yield active recall targets...'}
+        <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 text-left">
+          <div className="flex items-center gap-3 text-xs text-slate-700 dark:text-slate-300 font-medium">
+            <RotateCw className="w-4 h-4 text-indigo-500 animate-spin shrink-0" />
+            <span>{generationStage || 'Waiting for the shared topic-content worker...'}</span>
+          </div>
         </div>
       </div>
     );
