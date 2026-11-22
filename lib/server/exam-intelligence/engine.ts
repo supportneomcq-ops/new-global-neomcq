@@ -785,63 +785,12 @@ export async function resolveOrInitializeExamIntelligence(options: {
     // a provisional suggestion; no curriculum hierarchy is written before approval.
     const rulesResult = await collectExamRulesProcess(newExam.id, rawInput, country, category, supabase)
 
-    if (rulesResult.verificationStatus !== 'verified') {
-      if (userId) {
-        try {
-          await supabase.from('user_exams').upsert(
-            { user_id: userId, exam_id: newExam.id, status: 'in_progress' },
-            { onConflict: 'user_id,exam_id' }
-          )
-        } catch (ueErr) {
-          console.warn('[Exam Intelligence] user_exams link note:', ueErr)
-        }
-      }
-
-      return {
-        success: true,
-        reused: false,
-        exam: {
-          id: newExam.id,
-          name: newExam.name,
-          slug: newExam.slug,
-          short_name: (newExam as any).short_name || newExam.name.split(' ')[0],
-          level: (newExam as any).level || level || null,
-          description: newExam.description,
-          difficulty: newExam.difficulty,
-          question_count: null,
-          time_limit_mins: null,
-          country: intelligenceProfile.country,
-          flag: country === 'India' ? '🇮🇳' : country === 'United States' ? '🇺🇸' : '🌐',
-          curriculum_status: 'pending_verification',
-          verification_status: 'needs_review',
-          rules_status: rulesResult.rulesStatus,
-          coverage_percentage: 0,
-          evidence_scope: 'Official exam metadata review is required before curriculum generation.',
-          authority_name: null,
-          subjectCount: 0,
-          topicCount: 0,
-          subtopicCount: 0,
-          exam_subjects: [],
-          marking_scheme: null,
-          question_types: [],
-          exam_metadata_audit_status: rulesResult.auditStatus,
-          missing_verification_fields: rulesResult.missingFields || [],
-          conflicting_verification_fields: rulesResult.conflictingFields || [],
-        },
-        message: `"${newExam.name}" has been saved for official verification. Curriculum generation is blocked until the exam pattern and sources are approved.`,
-      }
-    }
-
-    const curriculumResult = await enrichCurriculumProcess(newExam.id, rawInput, country, category, supabase)
-
+    // A newly submitted exam is never auto-approved. The admin must verify its
+    // official authority, current version, pattern fields and structured syllabus.
     if (userId) {
       try {
         await supabase.from('user_exams').upsert(
-          {
-            user_id: userId,
-            exam_id: newExam.id,
-            status: 'in_progress',
-          },
+          { user_id: userId, exam_id: newExam.id, status: 'in_progress' },
           { onConflict: 'user_id,exam_id' }
         )
       } catch (ueErr) {
@@ -860,25 +809,27 @@ export async function resolveOrInitializeExamIntelligence(options: {
         level: (newExam as any).level || level || null,
         description: newExam.description,
         difficulty: newExam.difficulty,
-        question_count: rulesResult.question_count,
-        time_limit_mins: rulesResult.duration_minutes,
+        question_count: null,
+        time_limit_mins: null,
         country: intelligenceProfile.country,
         flag: country === 'India' ? '🇮🇳' : country === 'United States' ? '🇺🇸' : '🌐',
-        curriculum_status: curriculumResult.curriculumStatus,
-        verification_status: curriculumResult.verificationStatus,
+        curriculum_status: 'pending_verification',
+        verification_status: 'needs_review',
         rules_status: rulesResult.rulesStatus,
-        coverage_percentage: curriculumResult.coveragePercentage,
-        evidence_scope: curriculumResult.evidenceScope,
-        authority_name: curriculumResult.authorityName,
-        subjectCount: curriculumResult.subjectCount,
-        topicCount: curriculumResult.topicCount,
-        subtopicCount: curriculumResult.subtopicCount,
-        profile: intelligenceProfile,
-        exam_subjects: curriculumResult.subjects,
-        marking_scheme: rulesResult.marking_scheme,
-        question_types: rulesResult.question_types,
+        coverage_percentage: 0,
+        evidence_scope: 'Official exam metadata review is required before curriculum generation.',
+        authority_name: null,
+        subjectCount: 0,
+        topicCount: 0,
+        subtopicCount: 0,
+        exam_subjects: [],
+        marking_scheme: null,
+        question_types: [],
+        exam_metadata_audit_status: rulesResult.auditStatus,
+        missing_verification_fields: rulesResult.missingFields || [],
+        conflicting_verification_fields: rulesResult.conflictingFields || [],
       },
-      message: `Initialized canonical exam intelligence and curriculum for '${newExam.name}'.`,
+      message: `"${newExam.name}" has been saved for official verification. Curriculum generation is blocked until the exam pattern and sources are approved.`,
     }
   })()
 
