@@ -790,6 +790,8 @@ export async function generateAIExamIntelligence(
   categoryHint?: string,
   levelHint?: string
 ): Promise<AIExamIntelligenceOutput | null> {
+  throw new Error('Direct AI exam curriculum synthesis is disabled. Use the budget-controlled AI gateway for extraction, and only reconcile curriculum from verified structured official syllabus evidence.')
+
   if (!process.env.GEMINI_API_KEY && !process.env.OPENAI_API_KEY) {
     console.warn('[Exam Intelligence] No supported AI provider key is configured for curriculum synthesis.')
     return null
