@@ -32,10 +32,32 @@ export function AdminExamDetailView({ examId }: { examId: string }) {
   const [editForm, setEditForm] = useState({
     name: '',
     description: '',
+    country: '',
+    category: '',
+    authority: '',
+    exam_type: '',
+    level: '',
+    current_version: '',
+    version_year: '',
     difficulty: 'Adaptive',
-    question_count: '100',
-    time_limit_mins: '120',
+    question_count: '',
+    time_limit_mins: '',
+    total_marks: '',
+    negative_marking: '',
+    passing_criteria: '',
+    eligibility: '',
+    attempt_rules: '',
+    application_information: '',
+    selection_process: '',
+    marking_scheme: '',
+    question_types: '',
+    stages: '',
+    papers: '',
+    languages: '',
     official_website: '',
+    official_notification_url: '',
+    official_syllabus_url: '',
+    source_url: '',
     status: 'active',
   })
 
@@ -54,13 +76,36 @@ export function AdminExamDetailView({ examId }: { examId: string }) {
       const json = await res.json()
       if (json.success) {
         setData(json)
+        const currentVersion = (json.examVersions || []).find((version: any) => version.is_current) || {}
         setEditForm({
           name: json.exam?.name || '',
           description: json.exam?.description || '',
+          country: json.exam?.countries?.name || '',
+          category: json.exam?.exam_categories?.name || '',
+          authority: json.exam?.exam_authorities?.name || json.exam?.authority || '',
+          exam_type: json.exam?.exam_type || '',
+          level: json.exam?.level || '',
+          current_version: json.exam?.current_version || currentVersion.version_label || '',
+          version_year: String(json.exam?.version_year || currentVersion.version_year || ''),
           difficulty: json.exam?.difficulty || 'Adaptive',
-          question_count: String(json.exam?.question_count || 100),
-          time_limit_mins: String(json.exam?.time_limit_mins || 120),
-          official_website: json.exam?.official_website || '',
+          question_count: json.exam?.question_count ? String(json.exam.question_count) : '',
+          time_limit_mins: json.exam?.time_limit_mins ? String(json.exam.time_limit_mins) : '',
+          total_marks: json.exam?.total_marks ? String(json.exam.total_marks) : '',
+          negative_marking: json.exam?.negative_marking || '',
+          passing_criteria: json.exam?.passing_criteria || '',
+          eligibility: json.exam?.eligibility || '',
+          attempt_rules: json.exam?.attempt_rules || '',
+          application_information: json.exam?.application_information || '',
+          selection_process: json.exam?.selection_process || '',
+          marking_scheme: json.exam?.marking_scheme ? JSON.stringify(json.exam.marking_scheme, null, 2) : '',
+          question_types: json.exam?.question_types ? JSON.stringify(json.exam.question_types, null, 2) : '',
+          stages: json.exam?.stages ? JSON.stringify(json.exam.stages, null, 2) : '',
+          papers: json.exam?.papers ? JSON.stringify(json.exam.papers, null, 2) : '',
+          languages: json.exam?.languages ? JSON.stringify(json.exam.languages, null, 2) : '',
+          official_website: json.exam?.exam_authorities?.official_website || json.exam?.official_url || '',
+          official_notification_url: json.exam?.official_notification_url || '',
+          official_syllabus_url: json.exam?.official_syllabus_url || '',
+          source_url: json.exam?.source_url || currentVersion.source_url || '',
           status: json.exam?.status || 'active',
         })
       }
@@ -301,9 +346,143 @@ export function AdminExamDetailView({ examId }: { examId: string }) {
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-[11px] text-amber-700 dark:text-amber-300">
+            Changing any identity, version, rule or source field resets exam verification. Curriculum generation stays blocked until the new audit is approved.
+          </div>
+
+          <div className="text-xs font-black uppercase tracking-wide text-slate-400">Identity & current version</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {([
+              ['country', 'Country'],
+              ['category', 'Exam Category'],
+              ['authority', 'Exam Authority'],
+              ['exam_type', 'Exam Type'],
+              ['level', 'Level'],
+              ['current_version', 'Current Version'],
+              ['version_year', 'Version Year'],
+            ] as const).map(([key, label]) => (
+              <div key={key}>
+                <label className="block font-bold text-slate-700 dark:text-gray-300 mb-1">{label}</label>
+                <input
+                  type={key === 'version_year' ? 'number' : 'text'}
+                  value={(editForm as any)[key]}
+                  onChange={(e) => setEditForm({ ...editForm, [key]: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 font-semibold focus:outline-none focus:border-[#6D5BFF]"
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="text-xs font-black uppercase tracking-wide text-slate-400">Official sources</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {([
+              ['official_website', 'Authority Website'],
+              ['official_notification_url', 'Official Notification / Bulletin URL'],
+              ['official_syllabus_url', 'Official Syllabus URL'],
+              ['source_url', 'Current Version Source URL'],
+            ] as const).map(([key, label]) => (
+              <div key={key}>
+                <label className="block font-bold text-slate-700 dark:text-gray-300 mb-1">{label}</label>
+                <input
+                  type="url"
+                  value={(editForm as any)[key]}
+                  onChange={(e) => setEditForm({ ...editForm, [key]: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 font-semibold focus:outline-none focus:border-[#6D5BFF]"
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="text-xs font-black uppercase tracking-wide text-slate-400">Exam pattern & rules</div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {([
+              ['question_count', 'Question Count'],
+              ['time_limit_mins', 'Duration (minutes)'],
+              ['total_marks', 'Total Marks'],
+              ['negative_marking', 'Negative Marking'],
+            ] as const).map(([key, label]) => (
+              <div key={key}>
+                <label className="block font-bold text-slate-700 dark:text-gray-300 mb-1">{label}</label>
+                <input
+                  type={['question_count', 'time_limit_mins', 'total_marks'].includes(key) ? 'number' : 'text'}
+                  value={(editForm as any)[key]}
+                  onChange={(e) => setEditForm({ ...editForm, [key]: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 font-semibold focus:outline-none focus:border-[#6D5BFF]"
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {([
+              ['passing_criteria', 'Passing Criteria'],
+              ['eligibility', 'Eligibility'],
+              ['attempt_rules', 'Attempt Rules / Limits'],
+              ['application_information', 'Application / Registration'],
+              ['selection_process', 'Selection / Result Process'],
+            ] as const).map(([key, label]) => (
+              <div key={key}>
+                <label className="block font-bold text-slate-700 dark:text-gray-300 mb-1">{label}</label>
+                <textarea
+                  rows={2}
+                  value={(editForm as any)[key]}
+                  onChange={(e) => setEditForm({ ...editForm, [key]: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 font-semibold focus:outline-none focus:border-[#6D5BFF]"
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {([
+              ['marking_scheme', 'Marking Scheme JSON'],
+              ['question_types', 'Question Types JSON'],
+              ['stages', 'Stages JSON'],
+              ['papers', 'Papers JSON'],
+              ['languages', 'Languages JSON'],
+            ] as const).map(([key, label]) => (
+              <div key={key}>
+                <label className="block font-bold text-slate-700 dark:text-gray-300 mb-1">{label}</label>
+                <textarea
+                  rows={4}
+                  value={(editForm as any)[key]}
+                  onChange={(e) => setEditForm({ ...editForm, [key]: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 font-mono text-[11px] focus:outline-none focus:border-[#6D5BFF]"
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="text-xs font-black uppercase tracking-wide text-slate-400">Other settings</div>
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block font-bold text-slate-700 dark:text-gray-300 mb-1">Target Questions</label>
+              <label className="block font-bold text-slate-700 dark:text-gray-300 mb-1">Difficulty</label>
+              <input
+                type="text"
+                value={editForm.difficulty}
+                onChange={(e) => setEditForm({ ...editForm, difficulty: e.target.value })}
+                className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 font-semibold focus:outline-none focus:border-[#6D5BFF]"
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-slate-700 dark:text-gray-300 mb-1">Status</label>
+              <select
+                value={editForm.status}
+                onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 font-semibold focus:outline-none focus:border-[#6D5BFF]"
+              >
+                <option value="active">Active</option>
+                <option value="draft">Draft</option>
+                <option value="archived">Archived</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="text-[10px] text-slate-400">
+            Current official verification status: <strong>{exam.verification_status || 'pending_review'}</strong>. Use the <Link href="/admin/exam-verification" className="text-[#6D5BFF] font-bold underline">Exam Verification queue</Link> to review sources and approve the new audit.
+          </div>
+
+
               <input
                 type="number"
                 value={editForm.question_count}
