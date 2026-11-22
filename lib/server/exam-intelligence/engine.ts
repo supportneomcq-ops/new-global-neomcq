@@ -1815,46 +1815,64 @@ export async function resolveOrInitializeExamIntelligence(options: {
       .maybeSingle()
     if (catRow) categoryId = catRow.id
 
-    // Generate Structured Exam Intelligence & Curriculum
-    const aiSpec = await generateAIExamIntelligence(rawInput, country, category, level)
-    if (!aiSpec) {
-      throw new Error(`AI could not produce a sufficiently complete exam-specific curriculum for "${rawInput}". No generic placeholder curriculum was saved; retry after the AI provider is available.`)
+    // A student-supplied exam name is not enough evidence to infer an official pattern.
+    // Create a minimal provisional record without calling an AI provider or inventing rules.
+    const emptyQuestionConfig = {
+      default_question_count: 0,
+      option_count: 0,
+      answer_type: 'single' as const,
+      single_correct: true,
+      multiple_correct: false,
+      has_negative_marking: false,
+      positive_mark: 0,
+      negative_mark: 0,
+      total_marks: null,
+      duration_minutes: null,
+      time_per_question_seconds: null,
+      has_image_questions: false,
+      has_video_questions: false,
+      has_audio_questions: false,
+      has_case_based_questions: false,
+      has_clinical_vignettes: false,
+      has_calculation_questions: false,
+      has_matching_questions: false,
+      has_true_false_questions: false,
+      question_types: [],
     }
-
-    // A model's confidence score is not official evidence. This path always
-    // creates an AI-generated exam; it must remain pending review until an
-    // official source is independently verified.
-    const isVerifiedTemplate = false
 
     const intelligenceProfile: ExamIntelligenceProfile = {
       exam_id: '',
-      exam_code: aiSpec.exam.code || norm.slug.toUpperCase(),
+      exam_code: norm.slug.toUpperCase(),
       exam_name: rawInput,
-      official_name: aiSpec.exam.official_name || rawInput,
-      country: aiSpec.exam.country || country || 'Global',
-      region: aiSpec.exam.region || null,
-      exam_category: category || aiSpec.exam.category || 'general-academics',
-      exam_type: aiSpec.exam.type || 'Certification',
-      specialty_or_domain: aiSpec.exam.specialty_or_domain || null,
-      difficulty_level: aiSpec.exam.difficulty_level || 'Intermediate',
-      difficulty_distribution: aiSpec.exam.difficulty_distribution || { easy: 20, medium: 60, hard: 20 },
-      question_config: aiSpec.exam.question_config,
+      official_name: null,
+      country: country || 'Unspecified',
+      region: null,
+      exam_category: category || 'Unspecified',
+      exam_type: 'Unverified',
+      specialty_or_domain: null,
+      difficulty_level: 'Adaptive',
+      difficulty_distribution: { easy: 0, medium: 0, hard: 0 },
+      question_config: emptyQuestionConfig,
       content_language: 'en',
-      syllabus_source: isVerifiedTemplate ? 'verified_standard' : 'ai_inferred',
-      syllabus_confidence: aiSpec.confidence.curriculum,
-      ai_generated: !isVerifiedTemplate,
-      ai_generation_version: '3.0.0-evidence-hardened',
+      syllabus_source: 'user_custom',
+      syllabus_confidence: 0,
+      ai_generated: false,
+      ai_generation_version: 'provisional-input-only',
       curriculum_status: 'pending_verification',
-      content_generation_rules: aiSpec.content_generation_rules,
-      confidence: aiSpec.confidence,
+      content_generation_rules: {
+        mcq: {}, quiz: {}, flashcard: {}, ai_tutor: {},
+        fill_in_blank: {}, notes: {}, flowchart: {},
+      },
+      confidence: { overall: 0, curriculum: 0, exam_rules: 0 },
       provenance: {
-        rules_verified: isVerifiedTemplate,
-        rules_inferred: !isVerifiedTemplate,
-        source: isVerifiedTemplate ? 'Verified Global Standard Template' : 'AI Curriculum Engine v3',
+        rules_verified: false,
+        rules_inferred: false,
+        source: 'User-provided exam name only; no official pattern or syllabus inferred',
         last_updated_at: new Date().toISOString(),
       },
       metadata: {
         generated_from_query: rawInput,
+        provisional_only: true,
         timestamp: new Date().toISOString(),
       },
     }
@@ -1864,8 +1882,8 @@ export async function resolveOrInitializeExamIntelligence(options: {
       slug: querySlug,
       description: `Draft exam profile for ${rawInput}; official pattern and syllabus verification are pending.`,
       difficulty: intelligenceProfile.difficulty_level,
-      exam_type: intelligenceProfile.exam_type,
-      authority: aiSpec.exam.authority || null,
+      exam_type: null,
+      authority: null,
       question_count: 0,
       time_limit_mins: 0,
       total_marks: null,
@@ -1890,22 +1908,22 @@ export async function resolveOrInitializeExamIntelligence(options: {
       next_verification_at: null,
       status: 'active',
       is_featured: false,
-      created_by_ai: true,
+      created_by_ai: false,
       verification_status: 'pending_review',
       metadata: {
         exam_intelligence: intelligenceProfile,
         content_generation_rules: intelligenceProfile.content_generation_rules,
-        proposed_authority: aiSpec.exam.authority || null,
+        proposed_authority: null,
         provisional_exam_rules: {
           question_config: intelligenceProfile.question_config,
-          source: 'ai_inferred',
+          source: 'user_input_only',
           status: 'unverified_until_official_evidence_review',
         },
         exam_metadata_audit_status: 'needs_review',
         curriculum_status: 'pending_verification',
       },
       syllabus_info: {
-        source: 'ai_inferred',
+        source: 'user_custom',
         confidence: intelligenceProfile.syllabus_confidence,
         provenance: intelligenceProfile.provenance,
       },
@@ -1963,13 +1981,10 @@ export async function resolveOrInitializeExamIntelligence(options: {
 
     // Register Aliases in `exam_aliases`
     try {
-      await supabase.from('exam_aliases').insert([
-        { exam_id: newExam.id, alias: rawInput.trim() },
-        { exam_id: newExam.id, alias: cleanQuery },
-        ...(aiSpec.exam.official_name && aiSpec.exam.official_name !== rawInput
-          ? [{ exam_id: newExam.id, alias: aiSpec.exam.official_name }]
-          : []),
-      ])
+      await supabase.from('exam_aliases').upsert([
+        { exam_id: newExam.id, alias: rawInput.trim().toLowerCase() },
+        { exam_id: newExam.id, alias: cleanQuery.toLowerCase() },
+      ], { onConflict: 'exam_id,alias' })
     } catch (aliasErr) {
       console.warn('[Exam Intelligence] Alias registration note:', aliasErr)
     }
@@ -2025,7 +2040,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
       }
     }
 
-    const curriculumResult = await enrichCurriculumProcess(newExam.id, rawInput, country, category, supabase, aiSpec)
+    const curriculumResult = await enrichCurriculumProcess(newExam.id, rawInput, country, category, supabase)
 
     if (userId) {
       try {
