@@ -69,7 +69,7 @@ export interface StandardCurriculumTemplate {
   }>
 }
 
-export const VERIFIED_EXAM_TEMPLATES: Record<string, StandardCurriculumTemplate> = {
+export const PROVISIONAL_EXAM_STARTER_TEMPLATES: Record<string, StandardCurriculumTemplate> = {
   jlpt: {
     name: 'JLPT N1 / N2 (Japanese-Language Proficiency Test - 日本語能力試験)',
     official_name: 'Japanese-Language Proficiency Test (日本語能力試験)',
@@ -1168,7 +1168,7 @@ export function buildFallbackCurriculum(
   const slugKey = norm.slug.toLowerCase()
 
   // Match known verified standard template if possible
-  for (const [key, template] of Object.entries(VERIFIED_EXAM_TEMPLATES)) {
+  for (const [key, template] of Object.entries(PROVISIONAL_EXAM_STARTER_TEMPLATES)) {
     if (slugKey.includes(key) || key.includes(slugKey)) {
       return {
         exam: {
