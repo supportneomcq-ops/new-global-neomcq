@@ -166,28 +166,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: hierarchy.error }, { status: 400 });
     }
 
-    // 2. Check Feature Entitlements & Quotas
-    const quotaResult = await checkFeatureQuota({
-      userId: user.id,
-      feature: 'notes',
-      topicId,
-      examId,
-      subjectId,
-    });
-
-    if (!quotaResult.allowed) {
-      return NextResponse.json(
-        {
-          error: quotaResult.upgradeMessage || quotaResult.reason,
-          limitReached: true,
-          limitType: quotaResult.limitType,
-          upgradeRequired: true,
-          planCode: quotaResult.planCode,
-        },
-        { status: 403 }
-      );
-    }
-
     // 3. Query existing canonical record
     const existing = await getCanonicalA4NoteRecord({
       examId,
@@ -216,6 +194,30 @@ export async function POST(req: NextRequest) {
         userData,
       });
     }
+
+    // 3. Check Feature Entitlements & Quotas
+    const quotaResult = await checkFeatureQuota({
+      userId: user.id,
+      feature: 'notes',
+      topicId,
+      examId,
+      subjectId,
+      countDailyUsage: !(existing.note && existing.isFresh && !forceRefresh),
+    });
+
+    if (!quotaResult.allowed) {
+      return NextResponse.json(
+        {
+          error: quotaResult.upgradeMessage || quotaResult.reason,
+          limitReached: true,
+          limitType: quotaResult.limitType,
+          upgradeRequired: true,
+          planCode: quotaResult.planCode,
+        },
+        { status: 403 }
+      );
+    }
+
 
     // 4. Job Concurrency Locking via ai_jobs
     const adminClient = getSupabaseAdmin();
