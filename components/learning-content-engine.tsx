@@ -1192,7 +1192,24 @@ export function LearningContentEngine({
                       ) : (
                         (() => {
                           const mcq = (contentPayload?.mcqs || [])[activeMcqIndex]
-                          if (!mcq) return null
+                          if (!mcq) {
+                            return (
+                              <div className="p-8 rounded-3xl bg-white dark:bg-[#0B0F19] border border-slate-200/80 dark:border-[#1E293B] text-center space-y-3">
+                                <h3 className="text-sm font-black text-slate-900 dark:text-white">Exam-specific MCQs are not ready</h3>
+                                <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                                  {refreshNotice || `No saved questions are available for ${selectedTopic?.name || 'this topic'} yet.`}
+                                </p>
+                                <button
+                                  type="button"
+                                  disabled={!selectedTopic?.id || loadingContent}
+                                  onClick={() => selectedTopic?.id && fetchTopicContent(selectedTopic.id, selectedTopic.name)}
+                                  className="px-4 py-2 rounded-xl bg-[#6D5BFF] text-white text-xs font-bold disabled:opacity-50"
+                                >
+                                  Check content again
+                                </button>
+                              </div>
+                            )
+                          }
 
                           const selectedOpt = selectedAnswers[activeMcqIndex]
                           const isAnswered = selectedOpt !== undefined
@@ -1398,8 +1415,8 @@ export function LearningContentEngine({
                         {/* ruled paragraphs */}
                         <div className="prose max-w-none text-amber-950 dark:text-amber-100/90 leading-loose text-xs font-sans space-y-4 whitespace-pre-line">
                           {contentPayload?.notes || (
-                            <p>
-                              • High-yield notes will stream in this beautifully optimized handwriting layout.
+                            <p className="text-slate-500 dark:text-slate-400">
+                              {refreshNotice || 'Exam-specific notes have not been generated for this topic yet.'}
                             </p>
                           )}
                         </div>
