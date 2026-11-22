@@ -1072,7 +1072,7 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
       .eq('task_type', 'MCQ_GENERATION')
       .maybeSingle()
 
-    const reservationAmount = Number(budgetRule?.cost_ceiling || 0)
+    const reservationAmount = Number((Number(budgetRule?.cost_ceiling || 0) * 1.05).toFixed(6))
     if (budgetRuleError || !Number.isFinite(reservationAmount) || reservationAmount <= 0) {
       throw new Error('A verified MCQ_GENERATION platform budget ceiling is required.')
     }
