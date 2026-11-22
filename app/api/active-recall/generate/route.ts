@@ -204,6 +204,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Could not register the shared topic-pack job.' }, { status: 500 })
     }
 
+    if (job.status === 'completed') {
+      return NextResponse.json({
+        success: false,
+        status: 'content_pack_missing_fill_in_blanks',
+        error: 'The saved topic pack completed without a usable fill-in-the-blanks set. This is a content-quality issue and needs an administrator review before another generation is started.',
+      }, { status: 409 })
+    }
+
+    if (['failed', 'cancelled'].includes(job.status) &&
+        Number(job.attempts || 0) >= Number(job.max_attempts || 3)) {
+      return NextResponse.json({
+        success: false,
+        status: 'generation_failed',
+        error: job.error || 'The shared topic-pack job exhausted its retry limit and needs an administrator retry.',
+      }, { status: 503 })
+    }
+
+    if (!['queued', 'processing'].includes(job.status)) {
+      return NextResponse.json({
+        success: false,
+        status: 'generation_unavailable',
+        error: 'The shared topic-pack job is in an unsupported state and needs administrator review.',
+      }, { status: 409 })
+    }
+
     const status = job.status === 'processing' ? 'processing' : 'queued'
     const message = status === 'processing'
       ? 'The shared topic pack is being generated. Fill-in-the-blanks will appear here when it is saved.'
