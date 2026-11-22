@@ -112,6 +112,7 @@ export async function GET(req: NextRequest) {
       userId: null,
       forceRefresh: payload.force_refresh === true,
       autoCreateEntities: false,
+      parentJobId: job.id,
     })
 
     if (!result.success || !result.content) {
