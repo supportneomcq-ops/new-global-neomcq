@@ -155,7 +155,7 @@ export function ActiveRecallSetsView({
           className="px-4 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 self-start sm:self-center shrink-0 border border-slate-200 dark:border-slate-700"
         >
           <PlusCircle className="w-4 h-4 text-indigo-500" />
-          <span>Check for Shared Updates</span>
+          <span>Start Shared Recall Session</span>
         </button>
       </div>
 
