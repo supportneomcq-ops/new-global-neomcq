@@ -230,7 +230,7 @@ export default function ExamVerificationPage() {
                   <div className="flex flex-wrap gap-2 shrink-0">
                     <button
                       onClick={() => runAction(exam.id, 'verify_authority')}
-                      disabled={isBusy || authorityVerified}
+                      disabled={isBusy || authorityVerified || !bundle.authority?.id || !bundle.authority?.official_website}
                       className="px-3 py-2 rounded-xl border border-slate-200 dark:border-gray-700 text-xs font-bold disabled:opacity-40"
                     >
                       <ShieldCheck className="w-3.5 h-3.5 inline mr-1" />
