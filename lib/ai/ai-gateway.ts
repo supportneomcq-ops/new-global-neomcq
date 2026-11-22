@@ -189,7 +189,7 @@ export class AIGateway {
     const fallbackMaxCost =
       (inputCap * fallbackMeta.input_price + outputCap * fallbackMeta.output_price) / 1_000_000;
     const configuredCeiling = Number(routingResult.data?.cost_ceiling || 0);
-    const reservationAmount = Math.max(configuredCeiling, (primaryMaxCost + fallbackMaxCost) * 1.5, 0.005);
+    const reservationAmount = Math.max(configuredCeiling * 1.05, (primaryMaxCost + fallbackMaxCost) * 1.5 * 1.05, 0.005);
 
     return reservePlatformAIBudget({
       idempotencyKey: `ai-gateway:${requestId}`,
