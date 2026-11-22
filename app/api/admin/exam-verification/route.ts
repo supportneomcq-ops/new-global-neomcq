@@ -18,16 +18,26 @@ function isHttps(value: unknown): value is string {
   try { return new URL(value).protocol === 'https:' } catch { return false }
 }
 
-function hostMatches(source: string, authority: string) {
+function hostMatches(source: string, authority: string, officialSourceDomains: unknown = []) {
   try {
-    const sourceHost = new URL(source).hostname.toLowerCase().replace(/^www\./, '')
-    const authorityHost = new URL(authority).hostname.toLowerCase().replace(/^www\./, '')
-    return sourceHost === authorityHost || sourceHost.endsWith(`.${authorityHost}`)
+    const sourceHost = new URL(source).hostname.toLowerCase().replace(/^www\\./, '')
+    const authorityHost = new URL(authority).hostname.toLowerCase().replace(/^www\\./, '')
+    const trustedHosts = Array.isArray(officialSourceDomains)
+      ? officialSourceDomains.map((value) => {
+          const raw = String(value || '').trim().toLowerCase().replace(/^www\\./, '')
+          if (!raw) return null
+          try {
+            return raw.includes('://') ? new URL(raw).hostname.toLowerCase().replace(/^www\\./, '') : raw
+          } catch {
+            return null
+          }
+        }).filter(Boolean) as string[]
+      : []
+    return [authorityHost, ...trustedHosts].some((host) => sourceHost === host || sourceHost.endsWith(`.${host}`))
   } catch {
     return false
   }
 }
-
 function parseObject(value: unknown) {
   if (value && typeof value === 'object' && !Array.isArray(value)) return value
   if (typeof value === 'string' && value.trim()) {
@@ -150,7 +160,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: 'Choose an official source type and provide a valid HTTPS URL.' }, { status: 400 })
       }
       const authorityUrl = bundle.authority?.official_website
-      if (bundle.authority?.verification_status !== 'verified' || !authorityUrl || !hostMatches(source_url, authorityUrl)) {
+      if (bundle.authority?.verification_status !== 'verified' || !authorityUrl || !hostMatches(source_url, authorityUrl, bundle.authority?.official_source_domains)) {
         return NextResponse.json({ success: false, error: 'Source URL must belong to the verified authority domain.' }, { status: 400 })
       }
 
@@ -194,7 +204,7 @@ export async function POST(req: NextRequest) {
       if (!OFFICIAL_TYPES.has(String(source.source_type || '')) || !isHttps(source.source_url)) {
         return NextResponse.json({ success: false, error: 'Only HTTPS official source records can be verified.' }, { status: 400 })
       }
-      if (bundle.authority?.verification_status !== 'verified' || !bundle.authority?.official_website || !hostMatches(source.source_url, bundle.authority.official_website)) {
+      if (bundle.authority?.verification_status !== 'verified' || !bundle.authority?.official_website || !hostMatches(source.source_url, bundle.authority.official_website, bundle.authority.official_source_domains)) {
         return NextResponse.json({ success: false, error: 'Evidence domain does not match the exam authority official website.' }, { status: 400 })
       }
       if (!source.source_version_date) {
