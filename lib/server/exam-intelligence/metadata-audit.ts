@@ -269,8 +269,8 @@ export function buildExamMetadataAudit(input: {
   addField('passing_criteria', exam.passing_criteria, passingKeys, { allowNotPublished: true, allowNotApplicable: true, evidencePool: currentBulletins });
   addField('eligibility', exam.eligibility, eligibilityKeys, { allowNotPublished: true, allowNotApplicable: true, evidencePool: currentBulletins });
   addField('attempt_rules', exam.attempt_rules, attemptKeys, { allowNotPublished: true, allowNotApplicable: true, evidencePool: currentBulletins });
-  addField('application_information', exam.application_information, applicationKeys, { allowNotPublished: true, evidencePool: currentBulletins });
-  addField('selection_process', exam.selection_process, selectionKeys, { allowNotPublished: true, evidencePool: currentBulletins });
+  addField('application_information', exam.application_information, applicationKeys, { allowNotPublished: true, allowNotApplicable: true, evidencePool: currentBulletins });
+  addField('selection_process', exam.selection_process, selectionKeys, { allowNotPublished: true, allowNotApplicable: true, evidencePool: currentBulletins });
   addField('question_types', exam.question_types, questionTypeKeys, { allowNotPublished: true, allowNotApplicable: true, evidencePool: currentBulletins });
   addField('exam_structure', exam.papers || exam.stages || exam.sections, structureKeys, { allowNotPublished: true, allowNotApplicable: true, evidencePool: currentBulletins });
   addField('languages', exam.languages, languageKeys, { allowNotPublished: true, allowNotApplicable: true, evidencePool: currentBulletins });
