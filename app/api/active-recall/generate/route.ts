@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
     // 2. Determine Next Version Number
     const { data: existingVersions } = await (supabase as any)
       .from('content_versions')
-      .select('id, version, snapshot')
+      .select('id, version, snapshot, created_at')
       .eq('asset_id', topicId)
       .eq('asset_type', 'topic')
       .order('version', { ascending: false })
@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
         subtopicName,
         version: savedVersion.version,
         batch: `Batch ${String(savedVersion.version).padStart(2, '0')}`,
-        updatedAt: new Date().toISOString(),
+        updatedAt: savedVersion.created_at || new Date().toISOString(),
         itemsCount: safeItems.length,
         difficulty: 'High-Yield',
         completionPercentage: 0,
@@ -236,7 +236,7 @@ Respond strictly in valid JSON format with NO markdown wrapping:
       subject_name: subjectName,
       topic_id: topicId,
       topic_name: topicName,
-      fill_in_the_blanks: items,
+      fill_in_the_blanks: subtopicName ? [...savedItems, ...items] : items,
     };
 
     const { data: newVersionRow, error: saveErr } = await (supabase as any)
