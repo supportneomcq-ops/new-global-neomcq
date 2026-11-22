@@ -109,6 +109,19 @@ export async function POST(req: NextRequest) {
     if (!subject || !exam) {
       return NextResponse.json({ success: false, error: 'The selected topic is not attached to a complete exam hierarchy.' }, { status: 409 })
     }
+    const { data: currentVersion, error: currentVersionError } = await supabase
+      .from('exam_versions')
+      .select('verification_status,verified_at,is_current')
+      .eq('exam_id', exam.id)
+      .eq('is_current', true)
+      .maybeSingle()
+    if (currentVersionError) {
+      return NextResponse.json({ success: false, error: 'Unable to verify the current exam version.' }, { status: 500 })
+    }
+    const examSourcesVerified = exam.verification_status === 'verified' &&
+      exam.metadata?.exam_metadata_audit_status === 'verified' &&
+      currentVersion?.verification_status === 'verified' &&
+      Boolean(currentVersion?.verified_at)
     if ((subjectId && subjectId !== subject.id) || (examId && examId !== subject.exam_id)) {
       return NextResponse.json({ success: false, error: 'The selected exam or subject does not match this topic.' }, { status: 400 })
     }
@@ -149,8 +162,7 @@ export async function POST(req: NextRequest) {
     // Shared content is read-only for learners. A user request never invokes an AI provider
     // and never consumes that learner's generation credits.
     if (snapshotComplete && !forceRefresh &&
-        exam.verification_status === 'verified' &&
-        exam.metadata?.exam_metadata_audit_status === 'verified' &&
+        examSourcesVerified &&
         String(exam.metadata?.curriculum_validation_version || '') === '4' &&
         (exam.metadata?.curriculum_validation_passed === true || exam.metadata?.curriculum_validation_passed === 'true')) {
 
@@ -271,7 +283,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (exam.verification_status !== 'verified' || exam.metadata?.exam_metadata_audit_status !== 'verified') {
+    if (!examSourcesVerified) {
       return NextResponse.json({
         success: false,
         pending: false,
