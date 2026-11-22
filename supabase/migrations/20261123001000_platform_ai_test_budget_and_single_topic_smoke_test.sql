@@ -285,7 +285,7 @@ INSERT INTO public.platform_ai_test_budget_grants
   (purpose,authorization_reference,authorized_cap_usd,max_reservations,status,expires_at)
 VALUES
   ('Single shared FMGE topic-pack smoke test: MCQs, quizzes, notes, flashcards and fill-in-the-blanks',
-   'chat-approval-2026-11-23-neomcq-test-cap-5usd',5.000000,1,'active',now()+interval '48 hours')
+   'chat-approval-2026-11-23-neomcq-test-cap-5usd',5.000000,1,'active',now()+interval '7 days')
 ON CONFLICT (authorization_reference) DO NOTHING;
 
 INSERT INTO public.ai_task_routing
