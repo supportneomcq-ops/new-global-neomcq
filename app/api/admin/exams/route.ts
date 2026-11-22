@@ -426,7 +426,7 @@ export async function PATCH(req: NextRequest) {
     if (fields.official_website !== undefined) {
       fields.official_url = fields.official_website
       delete fields.official_website
-      if (current.authority_id) {
+      if (fields.authority_id || current.authority_id) {
         await supabase.from('exam_authorities').update({
           official_website: fields.official_url,
           source_url: fields.official_url,
@@ -438,6 +438,12 @@ export async function PATCH(req: NextRequest) {
         }).eq('id', fields.authority_id || current.authority_id)
       }
     }
+
+    if (typeof fields.question_types === 'string') fields.question_types = parseArray(fields.question_types)
+    if (typeof fields.languages === 'string') fields.languages = parseArray(fields.languages)
+    if (typeof fields.stages === 'string') fields.stages = parseArray(fields.stages)
+    if (typeof fields.papers === 'string') fields.papers = parseArray(fields.papers)
+    if (typeof fields.marking_scheme === 'string') fields.marking_scheme = parseJsonObject(fields.marking_scheme)
 
     const verificationFields = [
       'name','category_id','country_id','authority_id','authority','exam_type','level',
