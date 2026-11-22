@@ -87,7 +87,10 @@ export interface ContentIntelligencePayload {
     deduplication: boolean
     answers: boolean
     flashcards?: boolean
+    sticky_notes?: boolean
     fill_in_the_blanks?: boolean
+    tutor_explanation?: boolean
+    revision_sheet?: boolean
     score: number
   }
 }
@@ -402,8 +405,12 @@ function validateGeneratedContent(
   const finalScore = Math.max(0, Math.min(100, score))
 
   const hasMinimumFlashcards = validFlashcards.length >= 10
+  const hasMinimumStickyNotes = validStickyNotes.length >= 3
   const hasMinimumFillInBlanks = validFillInBlanks.length >= 8
   const hasMinimumWhiteboardPhases = validWhiteboardPhases.length >= 1
+  const hasTutorExplanation = validTutor.trim().length >= 100
+  const hasRevisionSheet = validRev.trim().length >= 100
+  const hasQuizSets = quizA.length >= 5 && quizB.length >= 5
 
   const payload: ContentIntelligencePayload = {
     mcqs: validMcqs,
@@ -423,13 +430,18 @@ function validateGeneratedContent(
       deduplication: isDeduplication,
       answers: isAnswers,
       flashcards: hasMinimumFlashcards,
+      sticky_notes: hasMinimumStickyNotes,
       fill_in_the_blanks: hasMinimumFillInBlanks,
+      tutor_explanation: hasTutorExplanation,
+      revision_sheet: hasRevisionSheet,
       score: finalScore,
     },
   }
 
   const isValid = validMcqs.length >= 10 && Boolean(validNotes) &&
-    hasMinimumFlashcards && hasMinimumFillInBlanks && hasMinimumWhiteboardPhases
+    hasQuizSets && hasMinimumFlashcards && hasMinimumStickyNotes &&
+    hasMinimumFillInBlanks && hasMinimumWhiteboardPhases &&
+    hasTutorExplanation && hasRevisionSheet
 
   return { isValid, payload, report: payload.validation_report }
 }
@@ -752,11 +764,20 @@ export async function getOrGenerateCanonicalTopicContent({
   const snapshotMcqCount = Array.isArray(latestSnapshot.mcqs) ? latestSnapshot.mcqs.length
     : legacyMainItems.length + legacyQuizAItems.length + legacyQuizBItems.length
   const snapshotFlashcardCount = Array.isArray(latestSnapshot.flashcards) ? latestSnapshot.flashcards.length : legacyFlashcardItems.length
+  const snapshotStickyNoteCount = Array.isArray(latestSnapshot.sticky_notes) ? latestSnapshot.sticky_notes.length : 0
+  const snapshotQuizACount = Array.isArray(latestSnapshot.quiz_a) ? latestSnapshot.quiz_a.length : legacyQuizAItems.length
+  const snapshotQuizBCount = Array.isArray(latestSnapshot.quiz_b) ? latestSnapshot.quiz_b.length : legacyQuizBItems.length
+  const snapshotWhiteboardCount = Array.isArray(latestSnapshot.whiteboard_phases) ? latestSnapshot.whiteboard_phases.length : 0
   const snapshotFillBlankItems = Array.isArray(latestSnapshot.fill_in_the_blanks) ? latestSnapshot.fill_in_the_blanks : []
   const snapshotNotesText = typeof latestSnapshot.notes === 'string' ? latestSnapshot.notes : legacyNotesContent
+  const snapshotTutorText = typeof latestSnapshot.tutor_explanation === 'string' ? latestSnapshot.tutor_explanation : ''
+  const snapshotRevisionText = typeof latestSnapshot.revision_sheet === 'string' ? latestSnapshot.revision_sheet : ''
   const hasCompleteCanonicalPack =
     Math.max(existingDbMcqs.length, snapshotMcqCount) >= 10 &&
+    snapshotQuizACount >= 5 && snapshotQuizBCount >= 5 &&
     Math.max(existingDbFlashcards.length, snapshotFlashcardCount) >= 10 &&
+    snapshotStickyNoteCount >= 3 && snapshotWhiteboardCount >= 1 &&
+    snapshotTutorText.trim().length >= 100 && snapshotRevisionText.trim().length >= 100 &&
     snapshotFillBlankItems.length >= 8 &&
     snapshotFillBlankItems.every((item: any) =>
       typeof item?.sentence === 'string' && (item.sentence.match(/\[BLANK\]/g) || []).length === 1 &&
@@ -1185,7 +1206,7 @@ CRITICAL RULES:
 3. ZERO DUPLICATE QUESTIONS:
 ${existingSummaries ? `Existing questions in database (DO NOT REWRITE OR DUPLICATE):\n${existingSummaries}\n` : 'No prior questions in database.'}
 4. Fill-in-the-blanks are a required deliverable: generate 8–12 items. Every sentence must contain exactly one literal [BLANK] token, and the canonical answer must not appear elsewhere in that sentence. Include the canonical answer plus valid synonyms in acceptedAnswers. Assign subtopicName to an exact name from Available Subtopics; if this request targets one subtopic, use that exact name.
-5. Generate at least 10 MCQs, 10 flashcards and 1 whiteboard lesson phase. Do not return empty arrays for required learning assets.
+5. Generate at least 10 MCQs (enough for two quizzes with at least 5 each), 10 flashcards, 3 sticky notes and 1 whiteboard lesson phase. The tutor explanation and 60-second revision sheet must each contain at least 100 useful characters. Do not return empty arrays for required learning assets.
 6. REQUIRED JSON STRUCTURE:
 {
   "mcqs": [
