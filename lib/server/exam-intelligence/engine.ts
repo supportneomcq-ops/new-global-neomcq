@@ -2381,7 +2381,11 @@ export async function enrichCurriculumProcess(
         curriculum_validation_version: 0,
         curriculum_source_status: 'incomplete_structured_official_syllabus',
         curriculum_source_requirement: reason,
+        curriculum_spec_cache: null,
+        curriculum_spec_cached_at: null,
         curriculum_source_evidence_id: officialSpecResult.source?.id || null,
+        curriculum_source_url: officialSpecResult.source?.source_url || null,
+        curriculum_source_version_date: officialSpecResult.source?.source_version_date || null,
       },
       updated_at: new Date().toISOString(),
     }).eq('id', examId)
