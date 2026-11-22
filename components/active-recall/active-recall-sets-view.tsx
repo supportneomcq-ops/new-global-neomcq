@@ -26,6 +26,7 @@ interface ActiveRecallSetsViewProps {
   subtopicName?: string;
   isGenerating: boolean;
   generationStage: string;
+  generationMessage?: string | null;
   onSelectSet: (set: ActiveRecallSet) => void;
   onGenerateNewSet: () => void;
 }
@@ -38,6 +39,7 @@ export function ActiveRecallSetsView({
   subtopicName,
   isGenerating,
   generationStage,
+  generationMessage,
   onSelectSet,
   onGenerateNewSet,
 }: ActiveRecallSetsViewProps) {
@@ -105,9 +107,13 @@ export function ActiveRecallSetsView({
             No Recall Batch Found
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
-            Generate an exam-aligned active recall batch for{' '}
-            <strong className="text-slate-800 dark:text-slate-200">{topicName}</strong>
-            {subtopicName ? ` (${subtopicName})` : ''} with integrated blank slots and high-precision evaluation.
+            {generationMessage || (
+              <>
+                Shared exam-aligned recall content for{' '}
+                <strong className="text-slate-800 dark:text-slate-200">{topicName}</strong>
+                {subtopicName ? ` (${subtopicName})` : ''} will appear here after the canonical topic pack is ready.
+              </>
+            )}
           </p>
         </div>
 
@@ -128,7 +134,7 @@ export function ActiveRecallSetsView({
           className="px-8 py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold tracking-wide transition-all shadow-md hover:shadow-indigo-500/20 cursor-pointer inline-flex items-center gap-2"
         >
           <Sparkles className="w-4 h-4" />
-          <span>Generate Active Recall Set</span>
+          <span>{generationMessage ? 'Check Shared Content Again' : 'Prepare Shared Recall Content'}</span>
         </button>
       </div>
     );
@@ -164,7 +170,7 @@ export function ActiveRecallSetsView({
           className="px-4 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 self-start sm:self-center shrink-0 border border-slate-200 dark:border-slate-700"
         >
           <PlusCircle className="w-4 h-4 text-indigo-500" />
-          <span>Generate New Batch</span>
+          <span>Check for Shared Updates</span>
         </button>
       </div>
 
