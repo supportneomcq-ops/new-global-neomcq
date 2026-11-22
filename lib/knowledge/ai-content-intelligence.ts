@@ -16,6 +16,8 @@ import { GoogleGenAI } from '@google/genai'
 import { resolveCanonicalHierarchy, CanonicalHierarchyResolution } from './canonical-resolver'
 import { KeyVault } from '@/lib/ai-gateway'
 import { getExamStyleAndPattern } from '@/lib/server/content-engine/exam-style-helper'
+import { randomUUID } from 'crypto'
+import { reservePlatformAIBudget, settlePlatformAIBudget, releasePlatformAIBudget } from '@/lib/ai/platform-budget'
 
 export interface GeneratedMCQ {
   id?: string
@@ -372,6 +374,7 @@ async function executeMultiProviderGeneration(prompt: string, taskType: string):
   inputTokens: number
   outputTokens: number
   costUsd: number
+  fallbackUsed: boolean
 }> {
   const adminClient = getSupabaseAdmin()
 
@@ -404,6 +407,7 @@ async function executeMultiProviderGeneration(prompt: string, taskType: string):
   const geminiKey = KeyVault.getNextGeminiKey()
   let geminiFailed = false
   let geminiError = ''
+  let fallbackUsed = false
 
   if (geminiKey && primaryProvider.toLowerCase().includes('gemini')) {
     try {
@@ -443,7 +447,7 @@ async function executeMultiProviderGeneration(prompt: string, taskType: string):
       const outputRate = modelMeta ? Number(modelMeta.output_cost_per_1m) : 3.75
       costUsd = (inputTokens * inputRate + outputTokens * outputRate) / 1_000_000
 
-      return { rawPayload, providerUsed, modelUsed, inputTokens, outputTokens, costUsd }
+      return { rawPayload, providerUsed, modelUsed, inputTokens, outputTokens, costUsd, fallbackUsed }
     } catch (err: any) {
       geminiFailed = true
       geminiError = err.message || String(err)
@@ -489,6 +493,7 @@ async function executeMultiProviderGeneration(prompt: string, taskType: string):
       outputTokens = openAiData.usage?.completion_tokens || Math.max(100, (rawText.length / 4) | 0)
       providerUsed = 'openai'
       modelUsed = fallbackModel
+      fallbackUsed = geminiFailed && primaryProvider.toLowerCase().includes('gemini')
 
       const modelMeta = availableModels.find((m) =>
         m.model === fallbackModel && String(m.provider || '').toLowerCase().includes('openai')
@@ -497,7 +502,7 @@ async function executeMultiProviderGeneration(prompt: string, taskType: string):
       const outputRate = modelMeta ? Number(modelMeta.output_cost_per_1m) : 10.00
       costUsd = (inputTokens * inputRate + outputTokens * outputRate) / 1_000_000
 
-      return { rawPayload, providerUsed, modelUsed, inputTokens, outputTokens, costUsd }
+      return { rawPayload, providerUsed, modelUsed, inputTokens, outputTokens, costUsd, fallbackUsed }
     } catch (err: any) {
       console.error('[AI Content Intelligence] Fallback OpenAI provider failed:', err.message)
       throw new Error(`All configured AI providers failed. Gemini: ${geminiError || 'Not configured'}. OpenAI: ${err.message}`)
@@ -1056,11 +1061,101 @@ ${existingSummaries ? `Existing questions in database (DO NOT REWRITE OR DUPLICA
 
 Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill in the blanks, and whiteboard lesson phases tailored specifically to ${exam.name}. Respond strictly in valid JSON format.`
 
+  // Reserve the shared platform AI pool before contacting a provider.
+  // The canonical worker's queue gate and this atomic reservation are separate safeguards.
+  let platformReservationId: string | null = null
+  const platformBudgetRequestId = jobId || randomUUID()
+  try {
+    const { data: budgetRule, error: budgetRuleError } = await supabase
+      .from('ai_task_routing')
+      .select('cost_ceiling')
+      .eq('task_type', 'MCQ_GENERATION')
+      .maybeSingle()
+
+    const reservationAmount = Number(budgetRule?.cost_ceiling || 0)
+    if (budgetRuleError || !Number.isFinite(reservationAmount) || reservationAmount <= 0) {
+      throw new Error('A verified MCQ_GENERATION platform budget ceiling is required.')
+    }
+
+    platformReservationId = await reservePlatformAIBudget({
+      idempotencyKey: `canonical-topic:${platformBudgetRequestId}:${idempotencyKey}`,
+      taskType: 'MCQ_GENERATION',
+      provider: 'gemini',
+      model: 'configured-primary',
+      amountUsd: reservationAmount,
+      userId: userId || null,
+      requestId: platformBudgetRequestId,
+      metadata: {
+        canonicalIdempotencyKey: idempotencyKey,
+        topicId: topic.id,
+        targetVersion: targetVersionNum,
+      },
+    })
+  } catch (budgetError: any) {
+    const message = String(budgetError?.message || 'Platform AI budget reservation failed.')
+    if (jobId) {
+      await supabase.from('ai_jobs').update({
+        status: 'failed',
+        error: message.slice(0, 1500),
+        completed_at: new Date().toISOString(),
+      }).eq('id', jobId)
+    }
+    return {
+      success: false,
+      served_from_cache: false,
+      generation_reason: 'ERROR',
+      version_number: targetVersionNum,
+      hierarchy,
+      content: null,
+      job_id: jobId || undefined,
+      metrics: {
+        input_tokens: 0,
+        output_tokens: 0,
+        cached_tokens: 0,
+        actual_cost_usd: 0,
+        credits_deducted: 0,
+        duration_ms: Date.now() - startTime,
+        model_used: 'none',
+        provider_used: 'none',
+      },
+      created_at: new Date().toISOString(),
+      error: message,
+      error_code: 'AI_BUDGET_BLOCKED',
+      retry_after: 60,
+    }
+  }
+
   // 3. Execute AI Generation with Multi-Provider Failover
   let generationOutput: any = null
   try {
     generationOutput = await executeMultiProviderGeneration(prompt, 'MCQ_GENERATION')
   } catch (genError: any) {
+    // If no provider request could start, release the reservation. Once a provider
+    // request was attempted, retain the reservation as uncertain until billing is reconciled.
+    if (platformReservationId) {
+      const message = String(genError?.message || '')
+      if (message.includes('No active AI provider keys configured')) {
+        try {
+          await releasePlatformAIBudget(platformReservationId, 'no_provider_keys_configured')
+        } catch (releaseError) {
+          console.error('[AI Content Intelligence] Could not release unused platform budget:', releaseError)
+        }
+      } else {
+        try {
+          await settlePlatformAIBudget({
+            reservationId: platformReservationId,
+            actualCostUsd: 0,
+            provider: 'unknown',
+            model: 'unknown',
+            requestId: platformBudgetRequestId,
+            uncertain: true,
+            metadata: { providerFailure: message.slice(0, 1000), reconciliationRequired: true },
+          })
+        } catch (settleError) {
+          console.error('[AI Content Intelligence] Failed provider attempt remains held:', settleError)
+        }
+      }
+    }
     // Fail the job in database
     if (jobId) {
       const { error: jobUpdateError } = await supabase
@@ -1097,7 +1192,51 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
     }
   }
 
-  const { rawPayload, providerUsed, modelUsed, inputTokens, outputTokens, costUsd } = generationOutput
+  const { rawPayload, providerUsed, modelUsed, inputTokens, outputTokens, costUsd, fallbackUsed } = generationOutput
+
+  // Record actual provider COGS atomically with the reservation before validation or persistence.
+  // Gemini usage is estimated from prompt/response length; that limitation is explicitly audited.
+  try {
+    await settlePlatformAIBudget({
+      reservationId: platformReservationId,
+      actualCostUsd: costUsd,
+      provider: providerUsed,
+      model: modelUsed,
+      inputTokens,
+      outputTokens,
+      requestId: platformBudgetRequestId,
+      uncertain: fallbackUsed,
+      metadata: {
+        usageEstimated: providerUsed === 'gemini',
+        fallbackUsed,
+        costSource: providerUsed === 'gemini' ? 'prompt_response_length_estimate' : 'provider_usage',
+      },
+    })
+  } catch (settlementError: any) {
+    return {
+      success: false,
+      served_from_cache: false,
+      generation_reason: 'ERROR',
+      version_number: targetVersionNum,
+      hierarchy,
+      content: null,
+      job_id: jobId || undefined,
+      metrics: {
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        cached_tokens: 0,
+        actual_cost_usd: costUsd,
+        credits_deducted: 0,
+        duration_ms: Date.now() - startTime,
+        model_used: modelUsed,
+        provider_used: providerUsed,
+      },
+      created_at: new Date().toISOString(),
+      error: settlementError.message || 'Provider cost could not be recorded.',
+      error_code: 'AI_BUDGET_SETTLEMENT_FAILED',
+      retry_after: 60,
+    }
+  }
 
   // 4. Validate Generated Content
   const validation = validateGeneratedContent(rawPayload, topic.name, subject.name, existingStemsNormalized)
@@ -1327,25 +1466,6 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
       throw new Error(`Failed to persist content version: ${versionInsertError?.message || 'No version ID returned'}`)
     }
     contentVersionId = versionData.id
-
-    // 5f. Log Financial Event in ai_cost_events
-    const { error: costEventError } = await supabase.from('ai_cost_events').insert({
-      user_id: userId || null,
-      request_id: jobId || idempotencyKey,
-      idempotency_key: idempotencyKey,
-      task_type: generationReason === 'FIRST_GENERATION' ? 'FIRST_GENERATION' : 'TOPIC_CONTENT_REFRESH',
-      provider: providerUsed,
-      model: modelUsed,
-      input_tokens: inputTokens,
-      cached_input_tokens: 0,
-      output_tokens: outputTokens,
-      reasoning_tokens: 0,
-      actual_provider_cost: costUsd,
-      revenue_allocated: costUsd * 2.5, // 60% gross margin target
-      ai_infrastructure_cost: costUsd * 0.05,
-      credits_deducted: 0,
-    })
-    if (costEventError) console.error('[AI Content Intelligence] AI cost event could not be recorded:', costEventError)
 
     // 5h. Mark Job as Completed in ai_jobs
     if (jobId) {
