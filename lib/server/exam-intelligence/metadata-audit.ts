@@ -25,6 +25,68 @@ function objectValue(value: any): AnyRecord {
   return {};
 }
 
+export function normalizeOfficialSyllabusSubjects(value: any): AnyRecord[] | null {
+  const data = objectValue(value);
+  const curriculum = objectValue(data.curriculum);
+  const syllabus = objectValue(data.syllabus);
+  const rawSubjects = Array.isArray(data.subjects)
+    ? data.subjects
+    : Array.isArray(curriculum.subjects)
+      ? curriculum.subjects
+      : Array.isArray(syllabus.subjects)
+        ? syllabus.subjects
+        : Array.isArray(data.syllabus_subjects)
+          ? data.syllabus_subjects
+          : null;
+
+  if (!rawSubjects?.length) return null;
+
+  const normalized = rawSubjects.map((subject: any) => {
+    const subjectRow = objectValue(subject);
+    const subjectName = String(subjectRow.name || subjectRow.subject || subjectRow.title || '').trim();
+    const rawTopics = Array.isArray(subjectRow.topics) ? subjectRow.topics : [];
+    if (!subjectName || !rawTopics.length) return null;
+
+    const topics = rawTopics.map((topic: any) => {
+      const topicRow = objectValue(topic);
+      const topicName = String(topicRow.name || topicRow.topic || topicRow.title || '').trim();
+      const rawSubtopics = Array.isArray(topicRow.subtopics)
+        ? topicRow.subtopics
+        : Array.isArray(topicRow.sub_topics)
+          ? topicRow.sub_topics
+          : [];
+      if (!topicName || !rawSubtopics.length) return null;
+
+      const subtopics = rawSubtopics.map((subtopic: any) => {
+        const subtopicRow = objectValue(subtopic);
+        const name = typeof subtopic === 'string'
+          ? subtopic.trim()
+          : String(subtopicRow.name || subtopicRow.title || subtopicRow.subtopic || '').trim();
+        return name ? { name, description: String(subtopicRow.description || '') } : null;
+      });
+      if (subtopics.some((item: any) => !item)) return null;
+
+      return {
+        name: topicName,
+        description: String(topicRow.description || ''),
+        subtopics,
+      };
+    });
+    if (topics.some((item: any) => !item)) return null;
+
+    const weightageValue = Number(subjectRow.weightage ?? subjectRow.weight_percentage ?? 0);
+    return {
+      name: subjectName,
+      code: String(subjectRow.code || ''),
+      description: String(subjectRow.description || ''),
+      weightage: Number.isFinite(weightageValue) && weightageValue > 0 ? weightageValue : 0,
+      topics,
+    };
+  });
+
+  return normalized.every(Boolean) ? normalized as AnyRecord[] : null;
+}
+
 function arrayValue(value: any): any[] {
   if (Array.isArray(value)) return value;
   if (typeof value === 'string') {
@@ -185,7 +247,8 @@ export function buildExamMetadataAudit(input: {
     ['official_bulletin', 'official_notification', 'official_exam_pattern', 'official_guideline', 'official_handbook'].includes(String(item.source_type || '').toLowerCase())
   );
   const currentSyllabi = freshEvidence.filter((item) =>
-    ['official_syllabus', 'official_guideline'].includes(String(item.source_type || '').toLowerCase())
+    ['official_syllabus', 'official_guideline', 'official_handbook'].includes(String(item.source_type || '').toLowerCase())
+      && Boolean(normalizeOfficialSyllabusSubjects(item.extracted_data))
   );
 
   const metadata = objectValue(exam.metadata);
