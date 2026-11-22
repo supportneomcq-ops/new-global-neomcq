@@ -299,6 +299,7 @@ export class AIGateway {
     let isFallback = false;
     let fallbackReason: string | undefined = undefined;
     let providerRequestAttempted = false;
+    let primaryRequestAttempted = false;
     let executionResult: any;
     let finalProvider: AIProviderId = route.primaryProvider;
     let finalModel: string = route.primaryModel;
@@ -325,6 +326,7 @@ export class AIGateway {
       }
 
       providerRequestAttempted = true;
+      primaryRequestAttempted = true;
       executionResult = await primaryAdapter.generate(generationPayload);
       finalProvider = route.primaryProvider;
       finalModel = route.primaryModel;
@@ -408,22 +410,27 @@ export class AIGateway {
     // 5. Settle provider COGS and the platform reservation in one database transaction.
     // A fallback after a failed primary keeps the unspent remainder held for reconciliation.
     if (platformReservationId) {
-      await settlePlatformAIBudget({
-        reservationId: platformReservationId,
-        actualCostUsd: costMetrics.totalProviderCostUsd,
-        provider: finalProvider,
-        model: finalModel,
-        inputTokens: executionResult.usage.inputTokens,
-        cachedInputTokens: executionResult.usage.cachedInputTokens,
-        outputTokens: executionResult.usage.outputTokens,
-        reasoningTokens: executionResult.usage.reasoningTokens || 0,
-        revenueAllocatedUsd: userId ? costMetrics.revenueAllocatedUsd : 0,
-        infrastructureCostUsd: costMetrics.infrastructureCostUsd,
-        creditsDeducted: userId ? effectiveCreditCost : 0,
-        requestId: executionResult.requestId || options.jobId || platformBudgetRequestId,
-        uncertain: isFallback,
-        metadata: { fallbackUsed: isFallback, fallbackReason: fallbackReason || null },
-      });
+      try {
+        await settlePlatformAIBudget({
+          reservationId: platformReservationId,
+          actualCostUsd: costMetrics.totalProviderCostUsd,
+          provider: finalProvider,
+          model: finalModel,
+          inputTokens: executionResult.usage.inputTokens,
+          cachedInputTokens: executionResult.usage.cachedInputTokens,
+          outputTokens: executionResult.usage.outputTokens,
+          reasoningTokens: executionResult.usage.reasoningTokens || 0,
+          revenueAllocatedUsd: userId ? costMetrics.revenueAllocatedUsd : 0,
+          infrastructureCostUsd: costMetrics.infrastructureCostUsd,
+          creditsDeducted: userId ? effectiveCreditCost : 0,
+          requestId: executionResult.requestId || options.jobId || platformBudgetRequestId,
+          uncertain: isFallback && primaryRequestAttempted,
+          metadata: { fallbackUsed: isFallback, fallbackReason: fallbackReason || null },
+        });
+      } catch (settlementError) {
+        await this.releaseCreditReservation(userId, reservedCredits, taskType);
+        throw settlementError;
+      }
     }
 
     // 6. Consume the user credit reservation.
