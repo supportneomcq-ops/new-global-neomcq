@@ -246,7 +246,7 @@ Respond strictly in valid JSON format with NO markdown wrapping:
         asset_type: 'topic',
         version: nextVersion,
         generation_reason: nextVersion === 1 ? 'FIRST_GENERATION' : 'FORCE_REFRESH',
-        requested_by: userId || null,
+        created_by: userId,
         snapshot: updatedSnapshot,
       })
       .select('id, version, created_at')
