@@ -127,10 +127,10 @@ function hostMatchesAuthority(sourceUrl: unknown, authorityUrl: unknown, officia
   if (!sourceHost || !authorityHost) return false;
   const trustedHosts = Array.isArray(officialSourceDomains)
     ? officialSourceDomains.map((value) => {
-        const raw = String(value || '').trim().toLowerCase().replace(/^www\\./, '');
+        const raw = String(value || '').trim().toLowerCase().replace(/^www\./, '');
         if (!raw) return null;
         try {
-          return raw.includes('://') ? new URL(raw).hostname.toLowerCase().replace(/^www\\./, '') : raw;
+          return raw.includes('://') ? new URL(raw).hostname.toLowerCase().replace(/^www\./, '') : raw;
         } catch {
           return null;
         }
