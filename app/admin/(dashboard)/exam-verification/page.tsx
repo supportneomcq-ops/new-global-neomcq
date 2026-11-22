@@ -59,6 +59,7 @@ export default function ExamVerificationPage() {
     extracted_data: '{}',
   })
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({})
+  const [exceptionForms, setExceptionForms] = useState<Record<string, { field: string; field_status: string; sourceId: string; reason: string }>>({})
 
   const fetchQueue = useCallback(async () => {
     setLoading(true)
@@ -314,6 +315,67 @@ export default function ExamVerificationPage() {
                         </div>
                       </div>
                     )}
+
+                    {(() => {
+                      const exceptionFields = missing.filter((field: string) => [
+                        'question_count','duration_minutes','total_marks','marking_scheme','negative_marking',
+                        'passing_criteria','eligibility','attempt_rules','application_information','selection_process',
+                        'question_types','exam_structure','languages','official_subject_scope',
+                      ].includes(field))
+                      const form = exceptionForms[exam.id] || { field: exceptionFields[0] || '', field_status: 'not_published', sourceId: '', reason: '' }
+                      const verifiedSources = bundle.evidence.filter((source: any) => source.verification_status === 'verified')
+                      if (!exceptionFields.length || !verifiedSources.length) return null
+                      return (
+                        <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3 space-y-2">
+                          <div className="text-xs font-extrabold text-blue-700 dark:text-blue-300">Document a rule the official source does not publish</div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <select
+                              value={form.field}
+                              onChange={(e) => setExceptionForms((prev) => ({ ...prev, [exam.id]: { ...form, field: e.target.value } }))}
+                              className="px-3 py-2 rounded-lg border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs"
+                            >
+                              {exceptionFields.map((field: string) => <option key={field} value={field}>{field.replaceAll('_', ' ')}</option>)}
+                            </select>
+                            <select
+                              value={form.field_status}
+                              onChange={(e) => setExceptionForms((prev) => ({ ...prev, [exam.id]: { ...form, field_status: e.target.value } }))}
+                              className="px-3 py-2 rounded-lg border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs"
+                            >
+                              <option value="not_published">Not published by authority</option>
+                              <option value="not_applicable">Not applicable to this exam</option>
+                            </select>
+                          </div>
+                          <select
+                            value={form.sourceId}
+                            onChange={(e) => setExceptionForms((prev) => ({ ...prev, [exam.id]: { ...form, sourceId: e.target.value } }))}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs"
+                          >
+                            <option value="">Select verified official evidence</option>
+                            {verifiedSources.map((source: any) => (
+                              <option key={source.id} value={source.id}>{source.source_type} · {source.source_reference || source.source_url}</option>
+                            ))}
+                          </select>
+                          <input
+                            value={form.reason}
+                            onChange={(e) => setExceptionForms((prev) => ({ ...prev, [exam.id]: { ...form, reason: e.target.value } }))}
+                            placeholder="Explain what the official source states and why this field is not published / not applicable"
+                            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs"
+                          />
+                          <button
+                            onClick={() => runAction(exam.id, 'declare_field_exception', {
+                              field: form.field,
+                              field_status: form.field_status,
+                              sourceId: form.sourceId,
+                              reason: form.reason,
+                            })}
+                            disabled={isBusy || !form.field || !form.sourceId || !form.reason.trim()}
+                            className="px-3 py-2 rounded-lg bg-blue-600 text-white text-xs font-bold disabled:opacity-40"
+                          >
+                            Save evidence-backed declaration & rerun audit
+                          </button>
+                        </div>
+                      )
+                    })()}
 
                     {conflicts.length > 0 && (
                       <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3">
