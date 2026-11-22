@@ -221,7 +221,7 @@ export function buildExamMetadataAudit(input: {
   const authorityVerified = String(authority?.verification_status || '').toLowerCase() === 'verified'
     && Boolean(httpsHost(authorityUrl))
     && Boolean(authority?.last_verified_at)
-    && (Date.now() - new Date(authority.last_verified_at).getTime()) <= 366 * 24 * 60 * 60 * 1000;
+    && (Date.now() - new Date(authority?.last_verified_at || 0).getTime()) <= 366 * 24 * 60 * 60 * 1000;
 
   const officialCandidates = allEvidence.filter((item) => {
     const type = String(item.source_type || '').toLowerCase();
