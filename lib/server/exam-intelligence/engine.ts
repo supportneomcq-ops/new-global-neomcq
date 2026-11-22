@@ -1,5 +1,4 @@
 import { getSupabaseAdmin } from '@/lib/supabase'
-import { randomUUID } from 'crypto'
 import { buildExamMetadataAudit, normalizeOfficialSyllabusSubjects } from './metadata-audit'
 import { normalizeInput, calculateLevenshteinSimilarity } from '@/lib/knowledge/normalizer'
 import { classifyUserInput } from '@/lib/knowledge/classifier'
@@ -87,77 +86,6 @@ function isCurriculumSpecComprehensive(examName: string, spec: AIExamIntelligenc
 
   return true
 }
-
-async function recordCurriculumAiCost(
-  provider: 'gemini' | 'openai',
-  model: string,
-  usage: any,
-  examName: string
-): Promise<void> {
-  try {
-    const inputTokens = Number(usage?.promptTokenCount ?? usage?.prompt_tokens ?? 0)
-    const outputTokens = Number(usage?.candidatesTokenCount ?? usage?.completion_tokens ?? 0)
-    const cachedInputTokens = Math.min(
-      inputTokens,
-      Number(usage?.cachedContentTokenCount ?? usage?.prompt_tokens_details?.cached_tokens ?? 0)
-    )
-    const reasoningTokens = Number(usage?.thoughtsTokenCount ?? usage?.completion_tokens_details?.reasoning_tokens ?? 0)
-    if (inputTokens <= 0 && outputTokens <= 0) return
-
-    const admin = getSupabaseAdmin()
-    const pricingProvider = provider === 'gemini' ? 'Google Gemini AI' : 'OpenAI'
-    const { data: pricing, error: pricingError } = await admin
-      .from('ai_model_pricing')
-      .select('input_cost_per_1m, cached_input_cost_per_1m, output_cost_per_1m')
-      .eq('provider', pricingProvider)
-      .eq('model', model)
-      .eq('active', true)
-      .is('effective_until', null)
-      .order('effective_from', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (pricingError || !pricing) {
-      console.warn('[Exam Intelligence] Curriculum pricing not found; cost event skipped:', pricingError?.message || model)
-      return
-    }
-
-    const billableInput = Math.max(0, inputTokens - cachedInputTokens)
-    const costUsd = (
-      billableInput * Number(pricing.input_cost_per_1m || 0) +
-      cachedInputTokens * Number(pricing.cached_input_cost_per_1m || 0) +
-      outputTokens * Number(pricing.output_cost_per_1m || 0)
-    ) / 1_000_000
-    const idempotencyKey = `curriculum:${randomUUID()}`
-    const { error: insertError } = await admin.from('ai_cost_events').insert({
-      user_id: null,
-      request_id: idempotencyKey,
-      idempotency_key: idempotencyKey,
-      task_type: 'CURRICULUM_GENERATION',
-      provider: provider === 'gemini' ? 'Gemini' : 'OpenAI',
-      model,
-      input_tokens: inputTokens,
-      cached_input_tokens: cachedInputTokens,
-      output_tokens: outputTokens,
-      reasoning_tokens: reasoningTokens,
-      actual_provider_cost: costUsd,
-      revenue_allocated: 0,
-      ai_infrastructure_cost: costUsd * 0.05,
-      credits_deducted: 0,
-    })
-    if (insertError) {
-      console.error('[Exam Intelligence] Curriculum AI cost event insert failed:', insertError.message)
-    } else {
-      console.log(`[Exam Intelligence] Recorded ${provider} curriculum cost for ${examName}: ${costUsd.toFixed(6)}`)
-    }
-  } catch (error: any) {
-    console.error('[Exam Intelligence] Curriculum cost tracking failed:', error?.message || error)
-  }
-}
-
-// ============================================================================
-// AI STRUCTURED EXAM INTELLIGENCE GENERATOR
-// ============================================================================
 
 /**
  * Direct model-based curriculum synthesis is disabled.
