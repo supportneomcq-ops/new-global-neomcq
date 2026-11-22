@@ -121,6 +121,7 @@ export async function POST(req: NextRequest) {
     let finalExamId: string | null = null
     let studyPlanReady = false
     let curriculumPending = false
+    let examVerificationPending = true
 
     if (targetUserId) {
       let resolvedCountryId: string | null = null
@@ -192,9 +193,13 @@ export async function POST(req: NextRequest) {
           // Only trust a curriculum that passed the current hierarchy quality gate.
           // A single topic or a generic placeholder is not proof of a complete syllabus.
           const examMetadata = selectedExam.metadata || {}
-          curriculumReady =
+          const examVerified =
             String(selectedExam.verification_status || 'pending_review').toLowerCase() === 'verified' &&
-            examMetadata.curriculum_validation_version === 3 &&
+            examMetadata.exam_metadata_audit_status === 'verified'
+          examVerificationPending = !examVerified
+          curriculumReady =
+            examVerified &&
+            examMetadata.curriculum_validation_version === 4 &&
             examMetadata.curriculum_validation_passed === true
         }
       }
@@ -221,7 +226,7 @@ export async function POST(req: NextRequest) {
           language_id: resolvedLanguageId,
           timezone: resolvedTimezone,
           current_exam_id: finalExamId,
-          exam_locked: true,
+          exam_locked: curriculumReady,
           exam_selected_at: new Date().toISOString(),
           exam_switch_count: 0,
           updated_at: new Date().toISOString(),
@@ -232,7 +237,7 @@ export async function POST(req: NextRequest) {
       if (profileError || !updatedProfile) {
         console.error('[Onboarding] Profile update failed or no profile row matched:', profileError)
         return NextResponse.json(
-          { success: false, error: 'Your exam was verified, but we could not save your profile. Please retry onboarding.' },
+          { success: false, error: 'We could not save your profile. Please retry onboarding.' },
           { status: 500 }
         )
       }
@@ -295,7 +300,7 @@ export async function POST(req: NextRequest) {
       if (preferencesError) {
         console.error('[Onboarding] Study preferences save failed:', preferencesError)
         return NextResponse.json(
-          { success: false, error: 'Your exam was verified, but we could not save your study preferences. Please retry onboarding.' },
+          { success: false, error: 'We could not save your study preferences. Please retry onboarding.' },
           { status: 500 }
         )
       }
@@ -317,6 +322,7 @@ export async function POST(req: NextRequest) {
         const pendingMetadata = {
           ...(authRecord?.user?.user_metadata || user?.user_metadata || {}),
           neo_curriculum_status: 'pending',
+          neo_exam_verification_status: examVerificationPending ? 'pending' : 'verified',
           neo_exam_name: examName,
           neo_exam_country: examCountry || country || null,
           neo_exam_category: examCategory || null,
@@ -469,12 +475,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: curriculumPending
-        ? 'Account saved. Your exam curriculum is being validated in the background.'
+        ? (examVerificationPending
+            ? 'Account saved. Your exam is waiting for official verification; curriculum generation will begin after approval.'
+            : 'Account saved. Your verified exam curriculum is being validated in the background.')
         : 'Onboarding preferences saved',
       userId: targetUserId,
       examId: finalExamId,
       studyPlanReady,
-      curriculumStatus: curriculumPending ? 'pending' : 'ready',
+      curriculumStatus: curriculumPending ? (examVerificationPending ? 'verification_pending' : 'pending') : 'ready',
     })
   } catch (err: any) {
     // Keep database table names, SQL details, and provider internals out of the signup UI.
