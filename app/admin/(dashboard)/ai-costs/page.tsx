@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import {
   BadgeDollarSign,
   RefreshCw,
@@ -10,8 +10,6 @@ import {
   ShieldCheck,
   DollarSign,
   FileCode,
-  AlertTriangle,
-  CheckCircle2,
 } from 'lucide-react';
 
 function formatUsd(value: unknown, digits = 6) {
