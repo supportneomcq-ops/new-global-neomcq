@@ -1,4 +1,4 @@
-import { after, NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { z } from 'zod'
@@ -432,42 +432,12 @@ export async function POST(req: NextRequest) {
           jobToKick = resetJob
         }
 
-        // Vercel Hobby cron runs only once daily. Kick off this learner's exact
-        // durable job after returning the onboarding response instead of making
-        // the learner wait for tomorrow's cron. The CRON_SECRET stays server-side.
+        // Do not run curriculum generation inside the signup request lifecycle.
+        // Supabase pg_cron claims durable curriculum jobs independently every minute.
+        // Keeping the worker out of after() prevents long AI work from extending the
+        // onboarding request and causing Vercel function timeouts.
         if (jobToKick.status === 'queued' || jobToKick.status === 'failed') {
-          const jobIdForKickoff = jobToKick.id as string
-          const workerOrigin = new URL(req.url).origin
-          after(async () => {
-            const cronSecret = process.env.CRON_SECRET
-            if (!cronSecret) {
-              console.error('[Onboarding] CRON_SECRET is missing; curriculum job remains queued for cron recovery.')
-              return
-            }
-            try {
-              const workerResponse = await fetch(
-                `${workerOrigin}/api/cron/curriculum-worker?jobId=${encodeURIComponent(jobIdForKickoff)}`,
-                {
-                  method: 'GET',
-                  headers: { authorization: `Bearer ${cronSecret}` },
-                  cache: 'no-store',
-                }
-              )
-              const workerResult = await workerResponse.json().catch(() => ({}))
-              if (!workerResponse.ok || workerResult.success === false) {
-                console.error('[Onboarding] Immediate curriculum worker did not complete successfully:', {
-                  jobId: jobIdForKickoff,
-                  status: workerResponse.status,
-                  error: workerResult.error || workerResult.message || 'Unknown worker failure',
-                })
-              }
-            } catch (kickoffError: any) {
-              console.error('[Onboarding] Immediate curriculum worker request failed:', {
-                jobId: jobIdForKickoff,
-                error: kickoffError?.message || 'Unknown kickoff error',
-              })
-            }
-          })
+          console.info('[Onboarding] Curriculum job persisted for the scheduled worker:', jobToKick.id)
         }
       }
     }
