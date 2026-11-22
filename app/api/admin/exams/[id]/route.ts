@@ -21,7 +21,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .select(`
         *,
         countries(id, name, iso2, flag_emoji),
-        exam_categories(id, name, slug)
+        exam_categories(id, name, slug),
+        exam_authorities(id, name, code, slug, official_website, verification_status, last_verified_at)
       `)
       .eq('id', examId)
       .single()
@@ -29,6 +30,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (examError || !exam) {
       return NextResponse.json({ error: examError?.message || 'Exam not found' }, { status: 404 })
     }
+
+    const [{ data: versions }, { data: evidence }, { data: audits }] = await Promise.all([
+      (supabase as any).from('exam_versions').select('*').eq('exam_id', examId).order('version_year', { ascending: false }),
+      (supabase as any).from('exam_evidence').select('*').eq('exam_id', examId).order('retrieved_at', { ascending: false }),
+      (supabase as any).from('exam_verification_audits').select('*').eq('exam_id', examId).eq('is_current', true).order('checked_at', { ascending: false }).limit(1),
+    ])
 
     // 2. Fetch Subjects & Topics
     const { data: subjects } = await (supabase as any)
@@ -61,7 +68,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .order('created_at', { ascending: false })
       .limit(20)
 
-    const pendingJobs = aiJobs?.filter((j: any) => j.status === 'queued' || j.status === 'running' || j.status === 'pending' || j.status === 'processing') || []
+    const pendingJobs = aiJobs?.filter((j: any) => j.status === 'queued' || j.status === 'running' || j.status === 'pending' || j.status === 'processing' || j.status === 'waiting_verification') || []
     const failedJobs = aiJobs?.filter((j: any) => j.status === 'failed') || []
 
     // 6. Fetch Study Sessions / Analytics
@@ -98,6 +105,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({
       success: true,
       exam,
+      examVersions: versions || [],
+      examEvidence: evidence || [],
+      verificationAudit: (audits || [])[0] || null,
       subjects: subjects || [],
       aliases: aliases || [],
       enrolledUsers: userExams || [],
