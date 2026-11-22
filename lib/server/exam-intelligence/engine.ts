@@ -2274,23 +2274,50 @@ export async function enrichCurriculumProcess(
     .eq('exam_id', examId)
     .order('display_order', { ascending: true })
 
-  // 2. Query authority, evidence, and versions
-  const [{ data: examRow }, { data: evidenceRows }, { data: versionRows }] = await Promise.all([
-    supabase.from('exams').select('id, name, authority_id, authority, metadata, syllabus_info, verification_status, current_version, version_year, is_current, last_verified_at, next_verification_at').eq('id', examId).maybeSingle(),
-    supabase.from('exam_evidence').select('*').eq('exam_id', examId),
-    supabase.from('exam_versions').select('*').eq('exam_id', examId),
-  ])
-
-  let authorityRow: any = null
-  if (examRow?.authority_id) {
-    const { data: authData } = await supabase.from('exam_authorities').select('*').eq('id', examRow.authority_id).maybeSingle()
-    authorityRow = authData
+  // 2. Query exam record, authority, official evidence and current version.
+  const { data: examRow } = await supabase.from('exams').select('*').eq('id', examId).maybeSingle()
+  if (!examRow) {
+    return {
+      subjectCount: 0, topicCount: 0, subtopicCount: 0, subjects: [],
+      curriculumStatus: 'needs_enrichment', verificationStatus: 'needs_review',
+      coveragePercentage: 0, evidenceScope: 'Exam record not found.',
+      authorityName: null,
+    }
   }
 
-  // Defense in depth: the curriculum engine itself refuses to generate or persist
-  // hierarchy unless the current exam version has an approved field-level audit.
-  const examMetadataAuditStatus = String((examRow?.metadata as any)?.exam_metadata_audit_status || '')
-  if (examRow?.verification_status !== 'verified' || examMetadataAuditStatus !== 'verified') {
+  const [{ data: evidenceRows }, { data: versionRows }, { data: authorityRow }, { data: countryRow }, { data: categoryRow }] = await Promise.all([
+    supabase.from('exam_evidence').select('*').eq('exam_id', examId),
+    supabase.from('exam_versions').select('*').eq('exam_id', examId),
+    examRow.authority_id
+      ? supabase.from('exam_authorities').select('*').eq('id', examRow.authority_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    examRow.country_id
+      ? supabase.from('countries').select('id,name').eq('id', examRow.country_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    examRow.category_id
+      ? supabase.from('exam_categories').select('id,name').eq('id', examRow.category_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ])
+
+  const currentVersion = (versionRows || []).find((version: any) => version.is_current === true) || null
+  const examMetadata = examRow.metadata || {}
+  const examMetadataAuditStatus = String(examMetadata.exam_metadata_audit_status || '')
+  const authorityVerified = authorityRow?.verification_status === 'verified'
+    && Boolean(authorityRow?.official_website)
+    && Boolean(authorityRow?.last_verified_at)
+    && (Date.now() - new Date(authorityRow.last_verified_at).getTime()) <= 366 * 24 * 60 * 60 * 1000
+  const currentVersionVerified = currentVersion?.verification_status === 'verified'
+    && Boolean(currentVersion?.verified_at)
+    && Number(currentVersion?.version_year || 0) === Number(examRow.version_year || 0)
+    && Boolean(currentVersion?.source_url)
+  const nextVerificationAt = examRow.next_verification_at ? new Date(examRow.next_verification_at).getTime() : 0
+  const auditApproved = examRow.verification_status === 'verified'
+    && examMetadataAuditStatus === 'verified'
+    && authorityVerified
+    && currentVersionVerified
+    && nextVerificationAt > Date.now()
+
+  if (!auditApproved) {
     return {
       subjectCount: 0,
       topicCount: 0,
@@ -2299,64 +2326,90 @@ export async function enrichCurriculumProcess(
       curriculumStatus: 'needs_enrichment',
       verificationStatus: 'needs_review',
       coveragePercentage: 0,
-      evidenceScope: 'Blocked: official exam metadata verification has not been approved.',
+      evidenceScope: 'Blocked: current authority, exam version and field-level official metadata audit are not all verified.',
       authorityName: authorityRow?.name || null,
     }
   }
 
-  // 3. Obtain expected syllabus specification
-  // Reuse the exam-scoped syllabus specification saved on the exam record.
-  // Subsequent signups can reconcile from this cache without another model call.
-  const cachedSpecResult = AIExamIntelligenceOutputSchema.safeParse(
-    (examRow?.metadata as any)?.curriculum_spec_cache
+  // 3. Curriculum hierarchy is sourced only from a verified official syllabus.
+  // Cached AI guesses and starter templates are deliberately ignored.
+  const officialSpecResult = buildOfficialCurriculumSpecFromEvidence(
+    examRow,
+    evidenceRows || [],
+    authorityRow,
+    countryRow?.name || countryHint || null,
+    categoryRow?.name || categoryHint || null
   )
-  const cachedSpecIsComprehensive = cachedSpecResult.success &&
-    isCurriculumSpecComprehensive(examName, cachedSpecResult.data)
-  const generatedSpec = specOverride || (
-    cachedSpecIsComprehensive
-      ? cachedSpecResult.data
-      : await generateAIExamIntelligence(examName, countryHint, categoryHint)
-  )
-  if (generatedSpec && !isCurriculumSpecComprehensive(examName, generatedSpec)) {
-    const generatedTopicCount = (generatedSpec.subjects || []).reduce((total, subject) => total + (subject.topics || []).length, 0)
-    const generatedSubtopicCount = (generatedSpec.subjects || []).reduce(
-      (total, subject) => total + (subject.topics || []).reduce((sum, topic) => sum + (topic.subtopics || []).length, 0),
-      0
-    )
-    throw new Error(
-      `AI returned an incomplete curriculum for "${examName}" (subjects=${generatedSpec.subjects?.length || 0}, topics=${generatedTopicCount}, subtopics=${generatedSubtopicCount}). The partial specification was not cached or persisted; retry after provider repair.`
-    )
-  }
 
-  if (!generatedSpec) {
-    const subjects = existingSubjects || []
-    const topicCount = subjects.reduce((n: number, s: any) => n + (s.exam_topics || []).length, 0)
-    const subtopicCount = subjects.reduce((n: number, s: any) => n + (s.exam_topics || []).reduce((m: number, t: any) => m + (t.exam_subtopics || []).length, 0), 0)
-    console.error(`[Curriculum Intelligence] AI did not return a complete valid syllabus for ${examName}; refusing to write fallback filler.`)
-    return { subjectCount: subjects.length, topicCount, subtopicCount, subjects, curriculumStatus: 'needs_enrichment', verificationStatus: 'needs_review', coveragePercentage: 0, evidenceScope: 'AI syllabus generation incomplete; official curriculum verification required', authorityName: null }
-  }
-  const aiSpec = generatedSpec
+  const existing = existingSubjects || []
+  const existingTopicCount = existing.reduce((n: number, subject: any) => n + (subject.exam_topics || []).length, 0)
+  const existingSubtopicCount = existing.reduce((n: number, subject: any) =>
+    n + (subject.exam_topics || []).reduce((m: number, topic: any) => m + (topic.exam_subtopics || []).length, 0), 0)
 
-  // Cache before reconciliation so a failed DB write can be retried without
-  // paying to synthesize the same syllabus again.
-  if (!cachedSpecIsComprehensive || specOverride) {
-    const { error: cacheError } = await supabase
-      .from('exams')
-      .update({
-        metadata: {
-          ...(examRow?.metadata || {}),
-          curriculum_spec_cache: aiSpec,
-          curriculum_spec_cached_at: new Date().toISOString(),
-        },
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', examId)
-    if (cacheError) {
-      console.warn('[Curriculum Intelligence] Could not cache generated syllabus:', cacheError.message)
+  if (!officialSpecResult.spec) {
+    const nextMetadata = {
+      ...examMetadata,
+      curriculum_status: 'needs_enrichment',
+      curriculum_validation_passed: false,
+      curriculum_validation_version: 0,
+      curriculum_source_status: 'missing_structured_official_syllabus',
+      curriculum_source_requirement: officialSpecResult.reason,
+    }
+    await supabase.from('exams').update({ metadata: nextMetadata, updated_at: new Date().toISOString() }).eq('id', examId)
+    return {
+      subjectCount: existing.length,
+      topicCount: existingTopicCount,
+      subtopicCount: existingSubtopicCount,
+      subjects: existing,
+      curriculumStatus: 'needs_enrichment',
+      verificationStatus: 'needs_review',
+      coveragePercentage: 0,
+      evidenceScope: officialSpecResult.reason || 'OFFICIAL_SYLLABUS_STRUCTURE_MISSING',
+      authorityName: authorityRow?.name || null,
     }
   }
 
-  const isVerifiedTemplate = aiSpec.confidence.overall > 0.98
+  const aiSpec = officialSpecResult.spec
+  if (!isCurriculumSpecComprehensive(examName, aiSpec)) {
+    const reason = 'OFFICIAL_SYLLABUS_STRUCTURE_INCOMPLETE: Official source structure does not meet the required subject, topic and subtopic coverage threshold. No AI-inferred hierarchy was persisted.'
+    await supabase.from('exams').update({
+      metadata: {
+        ...examMetadata,
+        curriculum_status: 'needs_enrichment',
+        curriculum_validation_passed: false,
+        curriculum_validation_version: 0,
+        curriculum_source_status: 'incomplete_structured_official_syllabus',
+        curriculum_source_requirement: reason,
+        curriculum_source_evidence_id: officialSpecResult.source?.id || null,
+      },
+      updated_at: new Date().toISOString(),
+    }).eq('id', examId)
+    return {
+      subjectCount: existing.length,
+      topicCount: existingTopicCount,
+      subtopicCount: existingSubtopicCount,
+      subjects: existing,
+      curriculumStatus: 'needs_enrichment',
+      verificationStatus: 'needs_review',
+      coveragePercentage: 0,
+      evidenceScope: reason,
+      authorityName: authorityRow?.name || null,
+    }
+  }
+
+  const { error: cacheError } = await supabase.from('exams').update({
+    metadata: {
+      ...examMetadata,
+      curriculum_spec_cache: aiSpec,
+      curriculum_spec_cached_at: new Date().toISOString(),
+      curriculum_source_status: 'verified_official_syllabus',
+      curriculum_source_evidence_id: officialSpecResult.source?.id || null,
+      curriculum_source_url: officialSpecResult.source?.source_url || null,
+      curriculum_source_version_date: officialSpecResult.source?.source_version_date || null,
+    },
+    updated_at: new Date().toISOString(),
+  }).eq('id', examId)
+  if (cacheError) console.warn('[Curriculum Intelligence] Could not cache official syllabus spec:', cacheError.message)
 
   // 4. Run Reusable Curriculum Comparison Layer
   let comparisonReport = compareCurricula(examId, examName, aiSpec, existingSubjects || [])
