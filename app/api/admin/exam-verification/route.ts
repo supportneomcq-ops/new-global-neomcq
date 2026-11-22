@@ -207,7 +207,7 @@ export async function POST(req: NextRequest) {
       const allowedFields = new Set([
         'question_count','duration_minutes','total_marks','marking_scheme','negative_marking',
         'passing_criteria','eligibility','attempt_rules','application_information','selection_process',
-        'question_types','exam_structure','languages',
+        'question_types','exam_structure','languages','official_subject_scope',
       ])
       if (!allowedFields.has(String(field || ''))) {
         return NextResponse.json({ success: false, error: 'This field cannot be declared not published or not applicable.' }, { status: 400 })
