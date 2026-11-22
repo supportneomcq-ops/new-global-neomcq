@@ -60,6 +60,9 @@ export async function GET(req: NextRequest) {
   if (costError) {
     return json(503, { success: false, paused: true, error: 'Could not verify today’s AI provider spend.' })
   }
+  if ((costRows || []).length >= 10000) {
+    return json(503, { success: false, paused: true, error: 'Daily AI spend records exceeded the safety-query limit; refusing to estimate spend from a truncated result.' })
+  }
   const spentToday = (costRows || []).reduce((total: number, row: any) => {
     const cost = Number(row.actual_provider_cost || 0)
     return total + (Number.isFinite(cost) && cost > 0 ? cost : 0)
