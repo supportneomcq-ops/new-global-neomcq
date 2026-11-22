@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
           short_name,
           slug,
           level,
+          verification_status,
           difficulty,
           question_count,
           time_limit_mins,
