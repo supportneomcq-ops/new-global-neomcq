@@ -623,16 +623,18 @@ export async function saveCanonicalA4Note(document: A4NotesDocument): Promise<st
 
   if (error?.code === '23505') {
     // A concurrent generator already published the canonical document for this scope.
-    const { data: winner, error: winnerError } = await adminClient
+    let winnerQuery = adminClient
       .from('canonical_a4_notes')
       .select('id')
       .eq('exam_id', document.examId)
       .eq('subject_id', document.subjectId)
       .eq('topic_id', document.topicId)
       .eq('content_scope', document.contentScope)
-      .eq('is_current', true)
-      .eq('subtopic_id', document.contentScope === 'SUBTOPIC' ? document.subtopicId : null)
-      .maybeSingle();
+      .eq('is_current', true);
+    winnerQuery = document.contentScope === 'SUBTOPIC' && document.subtopicId
+      ? winnerQuery.eq('subtopic_id', document.subtopicId)
+      : winnerQuery.is('subtopic_id', null);
+    const { data: winner, error: winnerError } = await winnerQuery.maybeSingle();
     if (!winnerError && winner?.id) return winner.id;
   }
 
