@@ -1224,38 +1224,28 @@ ${existingSummaries ? `Existing questions in database (DO NOT REWRITE OR DUPLICA
 
 Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill in the blanks, and whiteboard lesson phases tailored specifically to ${exam.name}. Respond strictly in valid JSON format.`
 
-  // Reserve the shared platform AI pool before contacting a provider.
-  // The canonical worker's queue gate and this atomic reservation are separate safeguards.
-  let platformReservationId = ''
-  const platformBudgetRequestId = jobId || randomUUID()
+  // 3. Execute through the central AI Gateway. The gateway owns the atomic
+  // platform-budget reservation, provider failover, cost settlement and audit trail.
+  let generationOutput: any = null
+  const generationRequestId = `${jobId}:attempt:${jobAttempt}`
   try {
-    const { data: budgetRule, error: budgetRuleError } = await supabase
-      .from('ai_task_routing')
-      .select('cost_ceiling')
-      .eq('task_type', 'MCQ_GENERATION')
-      .maybeSingle()
-
-    const reservationAmount = Number((Number(budgetRule?.cost_ceiling || 0) * 1.05).toFixed(6))
-    if (budgetRuleError || !Number.isFinite(reservationAmount) || reservationAmount <= 0) {
-      throw new Error('A verified MCQ_GENERATION platform budget ceiling is required.')
-    }
-
-    platformReservationId = await reservePlatformAIBudget({
-      idempotencyKey: `canonical-topic:${platformBudgetRequestId}:${idempotencyKey}`,
-      taskType: 'MCQ_GENERATION',
-      provider: 'gemini',
-      model: 'configured-primary',
-      amountUsd: reservationAmount,
-      userId: userId || null,
-      requestId: platformBudgetRequestId,
-      metadata: {
-        canonicalIdempotencyKey: idempotencyKey,
+    generationOutput = await executeMultiProviderGeneration(
+      prompt,
+      'MCQ_GENERATION',
+      jobId as string,
+      generationRequestId,
+      {
+        examId: exam.id,
+        subjectId: subject.id,
         topicId: topic.id,
+        subtopicId: subtopicId || null,
         targetVersion: targetVersionNum,
-      },
-    })
-  } catch (budgetError: any) {
-    const message = String(budgetError?.message || 'Platform AI budget reservation failed.')
+        canonicalIdempotencyKey: idempotencyKey,
+        parentJobId: parentJobId || null,
+      }
+    )
+  } catch (genError: any) {
+    const message = String(genError?.message || 'AI generation failed.')
     if (jobId) {
       await supabase.from('ai_jobs').update({
         status: 'failed',
@@ -1263,6 +1253,8 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
         completed_at: new Date().toISOString(),
       }).eq('id', jobId)
     }
+
+    const budgetBlocked = /budget|reservation denied|not funded/i.test(message)
     return {
       success: false,
       served_from_cache: false,
@@ -1278,130 +1270,19 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
         actual_cost_usd: 0,
         credits_deducted: 0,
         duration_ms: Date.now() - startTime,
-        model_used: 'none',
-        provider_used: 'none',
+        model_used: 'not-started',
+        provider_used: 'ai-gateway',
       },
       created_at: new Date().toISOString(),
-      error: message,
-      error_code: 'AI_BUDGET_BLOCKED',
-      retry_after: 60,
+      error: budgetBlocked
+        ? 'Platform AI budget is not available for this shared topic pack.'
+        : `AI generation temporarily unavailable: ${message}`,
+      error_code: budgetBlocked ? 'AI_BUDGET_BLOCKED' : 'PROVIDER_EXHAUSTED',
+      retry_after: budgetBlocked ? 60 : 30,
     }
   }
 
-  // 3. Execute AI Generation with Multi-Provider Failover
-  let generationOutput: any = null
-  try {
-    generationOutput = await executeMultiProviderGeneration(prompt, 'MCQ_GENERATION')
-  } catch (genError: any) {
-    // If no provider request could start, release the reservation. Once a provider
-    // request was attempted, retain the reservation as uncertain until billing is reconciled.
-    if (platformReservationId) {
-      const message = String(genError?.message || '')
-      if (message.includes('No active AI provider keys configured')) {
-        try {
-          await releasePlatformAIBudget(platformReservationId, 'no_provider_keys_configured')
-        } catch (releaseError) {
-          console.error('[AI Content Intelligence] Could not release unused platform budget:', releaseError)
-        }
-      } else {
-        try {
-          await settlePlatformAIBudget({
-            reservationId: platformReservationId,
-            actualCostUsd: 0,
-            provider: 'unknown',
-            model: 'unknown',
-            requestId: platformBudgetRequestId,
-            uncertain: true,
-            metadata: { providerFailure: message.slice(0, 1000), reconciliationRequired: true },
-          })
-        } catch (settleError) {
-          console.error('[AI Content Intelligence] Failed provider attempt remains held:', settleError)
-        }
-      }
-    }
-    // Fail the job in database
-    if (jobId) {
-      const { error: jobUpdateError } = await supabase
-        .from('ai_jobs')
-        .update({
-          status: 'failed',
-          error: genError.message || 'Generation failed',
-          completed_at: new Date().toISOString(),
-        })
-        .eq('id', jobId)
-    }
-
-    return {
-      success: false,
-      served_from_cache: false,
-      generation_reason: 'ERROR',
-      version_number: targetVersionNum,
-      hierarchy,
-      content: null,
-      metrics: {
-        input_tokens: 0,
-        output_tokens: 0,
-        cached_tokens: 0,
-        actual_cost_usd: 0,
-        credits_deducted: 0,
-        duration_ms: Date.now() - startTime,
-        model_used: 'none',
-        provider_used: 'none',
-      },
-      created_at: new Date().toISOString(),
-      error: `AI generation temporarily unavailable: ${genError.message}`,
-      error_code: 'PROVIDER_EXHAUSTED',
-      retry_after: 30,
-    }
-  }
-
-  const { rawPayload, providerUsed, modelUsed, inputTokens, outputTokens, costUsd, fallbackUsed } = generationOutput
-
-  // Record actual provider COGS atomically with the reservation before validation or persistence.
-  // Gemini usage is estimated from prompt/response length; that limitation is explicitly audited.
-  try {
-    await settlePlatformAIBudget({
-      reservationId: platformReservationId,
-      actualCostUsd: costUsd,
-      provider: providerUsed,
-      model: modelUsed,
-      inputTokens,
-      outputTokens,
-      revenueAllocatedUsd: costUsd * 2.5,
-      infrastructureCostUsd: costUsd * 0.05,
-      requestId: platformBudgetRequestId,
-      uncertain: fallbackUsed,
-      metadata: {
-        usageEstimated: providerUsed === 'gemini',
-        fallbackUsed,
-        costSource: providerUsed === 'gemini' ? 'prompt_response_length_estimate' : 'provider_usage',
-      },
-    })
-  } catch (settlementError: any) {
-    return {
-      success: false,
-      served_from_cache: false,
-      generation_reason: 'ERROR',
-      version_number: targetVersionNum,
-      hierarchy,
-      content: null,
-      job_id: jobId || undefined,
-      metrics: {
-        input_tokens: inputTokens,
-        output_tokens: outputTokens,
-        cached_tokens: 0,
-        actual_cost_usd: costUsd,
-        credits_deducted: 0,
-        duration_ms: Date.now() - startTime,
-        model_used: modelUsed,
-        provider_used: providerUsed,
-      },
-      created_at: new Date().toISOString(),
-      error: settlementError.message || 'Provider cost could not be recorded.',
-      error_code: 'AI_BUDGET_SETTLEMENT_FAILED',
-      retry_after: 60,
-    }
-  }
+  const { rawPayload, providerUsed, modelUsed, inputTokens, outputTokens, costUsd } = generationOutput
 
   // 4. Validate Generated Content
   const validation = validateGeneratedContent(rawPayload, topic.name, subject.name, existingStemsNormalized, allowedSubtopicNames)
