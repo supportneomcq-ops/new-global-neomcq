@@ -95,23 +95,31 @@ export async function GET() {
     if (response) return response
 
     const admin = getSupabaseAdmin() as any
-    const { data: exams, error } = await admin
+    const { data: allExams, error } = await admin
       .from('exams')
       .select('*')
-      .in('verification_status', ['pending_review', 'needs_review', 'pending', 'unverified', 'outdated'])
+      .neq('status', 'archived')
       .order('updated_at', { ascending: false })
-      .limit(200)
+      .limit(300)
 
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
 
-    const bundles = await Promise.all((exams || []).map((exam: any) => loadExamBundle(admin, exam.id)))
+    const reviewStatuses = new Set(['pending_review', 'needs_review', 'pending', 'unverified', 'outdated'])
+    const curriculumNeedsReview = new Set(['missing_structured_official_syllabus', 'incomplete_structured_official_syllabus'])
+    const exams = (allExams || []).filter((exam: any) =>
+      reviewStatuses.has(String(exam.verification_status || '').toLowerCase()) ||
+      curriculumNeedsReview.has(String(exam.metadata?.curriculum_source_status || '')) ||
+      exam.metadata?.curriculum_status === 'needs_enrichment'
+    )
+
+    const bundles = await Promise.all(exams.map((exam: any) => loadExamBundle(admin, exam.id)))
     return NextResponse.json({
       success: true,
       exams: bundles.filter(Boolean),
       counts: {
-        total: (exams || []).length,
+        total: exams.length,
         readyForReview: bundles.filter((bundle: any) => bundle?.audit?.status === 'ready_for_review').length,
-        needsReview: bundles.filter((bundle: any) => bundle?.audit?.status === 'needs_review' || !bundle?.audit).length,
+        needsReview: bundles.filter((bundle: any) => bundle?.audit?.status !== 'ready_for_review').length,
       },
     })
   } catch (err: any) {
