@@ -1722,7 +1722,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
             country: matchedExam.countries?.name || 'Unspecified',
             flag: matchedExam.countries?.flag_emoji || '🌐',
             curriculum_status: 'pending_verification',
-            verification_status: matchedExam.verification_status || rulesResult.verificationStatus || 'needs_review',
+            verification_status: 'needs_review',
             rules_status: rulesResult.rulesStatus,
             coverage_percentage: 0,
             evidence_scope: 'Official exam metadata review is required before curriculum generation.',
@@ -1844,7 +1844,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
       syllabus_confidence: aiSpec.confidence.curriculum,
       ai_generated: !isVerifiedTemplate,
       ai_generation_version: '3.0.0-evidence-hardened',
-      curriculum_status: 'ready',
+      curriculum_status: 'pending_verification',
       content_generation_rules: aiSpec.content_generation_rules,
       confidence: aiSpec.confidence,
       provenance: {
@@ -1862,32 +1862,50 @@ export async function resolveOrInitializeExamIntelligence(options: {
     const examPayload: any = {
       name: rawInput,
       slug: querySlug,
-      description: isVerifiedTemplate
-        ? `Official preparation syllabus and curriculum for ${rawInput}.`
-        : `AI-generated draft curriculum for ${rawInput}; official syllabus verification is pending.`,
+      description: `Draft exam profile for ${rawInput}; official pattern and syllabus verification are pending.`,
       difficulty: intelligenceProfile.difficulty_level,
-      question_count: intelligenceProfile.question_config.default_question_count || 100,
-      time_limit_mins: intelligenceProfile.question_config.duration_minutes || 120,
+      exam_type: intelligenceProfile.exam_type,
+      authority: aiSpec.exam.authority || null,
+      question_count: 0,
+      time_limit_mins: 0,
+      total_marks: null,
+      negative_marking: null,
+      passing_criteria: null,
+      eligibility: null,
+      attempt_rules: null,
+      application_information: null,
+      selection_process: null,
+      marking_scheme: null,
+      question_types: [],
+      stages: [],
+      papers: [],
+      languages: [],
       country_id: countryId,
       category_id: categoryId,
       level: level?.trim() || null,
+      current_version: null,
+      version_year: null,
+      is_current: false,
+      last_verified_at: null,
+      next_verification_at: null,
       status: 'active',
       is_featured: false,
-      created_by_ai: !isVerifiedTemplate,
-      verification_status: isVerifiedTemplate ? 'verified' : 'pending_review',
-      marking_scheme: {
-        positive_mark: intelligenceProfile.question_config.positive_mark,
-        negative_mark: intelligenceProfile.question_config.negative_mark,
-        has_negative_marking: intelligenceProfile.question_config.has_negative_marking,
-        answer_type: intelligenceProfile.question_config.answer_type,
-        option_count: intelligenceProfile.question_config.option_count,
-      },
-      question_types: intelligenceProfile.question_config.question_types,
+      created_by_ai: true,
+      verification_status: 'pending_review',
       metadata: {
         exam_intelligence: intelligenceProfile,
-        content_generation_rules: intelligenceProfile.content_generation_rules,      },
+        content_generation_rules: intelligenceProfile.content_generation_rules,
+        proposed_authority: aiSpec.exam.authority || null,
+        provisional_exam_rules: {
+          question_config: intelligenceProfile.question_config,
+          source: 'ai_inferred',
+          status: 'unverified_until_official_evidence_review',
+        },
+        exam_metadata_audit_status: 'needs_review',
+        curriculum_status: 'pending_verification',
+      },
       syllabus_info: {
-        source: intelligenceProfile.syllabus_source,
+        source: 'ai_inferred',
         confidence: intelligenceProfile.syllabus_confidence,
         provenance: intelligenceProfile.provenance,
       },
@@ -1956,9 +1974,57 @@ export async function resolveOrInitializeExamIntelligence(options: {
       console.warn('[Exam Intelligence] Alias registration note:', aliasErr)
     }
 
-    // Run Process B first so question format, timing, scoring and evidence conflicts
-    // are checked and persisted before Process A reconciles the curriculum hierarchy.
+    // Collect and persist official exam-rule evidence first. An AI profile is only
+    // a provisional suggestion; no curriculum hierarchy is written before approval.
     const rulesResult = await collectExamRulesProcess(newExam.id, rawInput, country, category, supabase)
+
+    if (rulesResult.verificationStatus !== 'verified' || rulesResult.auditStatus !== 'verified') {
+      if (userId) {
+        try {
+          await supabase.from('user_exams').upsert(
+            { user_id: userId, exam_id: newExam.id, status: 'in_progress' },
+            { onConflict: 'user_id,exam_id' }
+          )
+        } catch (ueErr) {
+          console.warn('[Exam Intelligence] user_exams link note:', ueErr)
+        }
+      }
+
+      return {
+        success: true,
+        reused: false,
+        exam: {
+          id: newExam.id,
+          name: newExam.name,
+          slug: newExam.slug,
+          short_name: (newExam as any).short_name || newExam.name.split(' ')[0],
+          level: (newExam as any).level || level || null,
+          description: newExam.description,
+          difficulty: newExam.difficulty,
+          question_count: null,
+          time_limit_mins: null,
+          country: intelligenceProfile.country,
+          flag: country === 'India' ? '🇮🇳' : country === 'United States' ? '🇺🇸' : '🌐',
+          curriculum_status: 'pending_verification',
+          verification_status: 'needs_review',
+          rules_status: rulesResult.rulesStatus,
+          coverage_percentage: 0,
+          evidence_scope: 'Official exam metadata review is required before curriculum generation.',
+          authority_name: null,
+          subjectCount: 0,
+          topicCount: 0,
+          subtopicCount: 0,
+          exam_subjects: [],
+          marking_scheme: null,
+          question_types: [],
+          exam_metadata_audit_status: rulesResult.auditStatus,
+          missing_verification_fields: rulesResult.missingFields || [],
+          conflicting_verification_fields: rulesResult.conflictingFields || [],
+        },
+        message: `"${newExam.name}" has been saved for official verification. Curriculum generation is blocked until the exam pattern and sources are approved.`,
+      }
+    }
+
     const curriculumResult = await enrichCurriculumProcess(newExam.id, rawInput, country, category, supabase, aiSpec)
 
     if (userId) {
