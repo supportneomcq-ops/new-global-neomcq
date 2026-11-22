@@ -175,7 +175,9 @@ export function buildExamMetadataAudit(input: {
   const versionYear = Number(currentVersion?.version_year || exam.version_year || 0) || null;
   const freshEvidence = verifiedOfficialEvidence.filter((item) => {
     const year = sourceYear(item.source_version_date);
-    return year !== null && versionYear !== null && year >= versionYear - 1 && year <= versionYear + 1;
+    const type = String(item.source_type || '').toLowerCase();
+    const allowedAge = ['official_syllabus', 'official_guideline'].includes(type) ? 5 : 1;
+    return year !== null && versionYear !== null && year >= versionYear - allowedAge && year <= versionYear + 1;
   });
 
   const currentBulletins = freshEvidence.filter((item) =>
