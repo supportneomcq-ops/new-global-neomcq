@@ -12,12 +12,9 @@
  */
 
 import { getSupabaseAdmin } from '@/lib/supabase'
-import { GoogleGenAI } from '@google/genai'
+import { AIGateway } from '@/lib/ai/ai-gateway'
 import { resolveCanonicalHierarchy, CanonicalHierarchyResolution } from './canonical-resolver'
-import { KeyVault } from '@/lib/ai-gateway'
 import { getExamStyleAndPattern } from '@/lib/server/content-engine/exam-style-helper'
-import { randomUUID } from 'crypto'
-import { reservePlatformAIBudget, settlePlatformAIBudget, releasePlatformAIBudget } from '@/lib/ai/platform-budget'
 
 export interface GeneratedMCQ {
   id?: string
@@ -453,6 +450,7 @@ async function executeMultiProviderGeneration(
   prompt: string,
   taskType: string,
   jobId: string,
+  requestId: string,
   metadata: Record<string, unknown>
 ): Promise<{
   rawPayload: any
@@ -473,6 +471,7 @@ async function executeMultiProviderGeneration(
     systemInstruction: 'You are the Lead Master Academic Professor and Board Author for NeoMCQ. Generate strictly valid, high-yield JSON content.',
     responseMimeType: 'application/json',
     jobId,
+    requestId,
     metadata,
     timeoutMs: 180000,
     maxRetries: 1,
@@ -522,6 +521,7 @@ export async function getOrGenerateCanonicalTopicContent({
   language = 'en',
   forceRefresh = false,
   autoCreateEntities = true,
+  parentJobId = null,
 }: {
   examInput: string
   subjectInput: string
@@ -532,6 +532,7 @@ export async function getOrGenerateCanonicalTopicContent({
   language?: string
   forceRefresh?: boolean
   autoCreateEntities?: boolean
+  parentJobId?: string | null
 }): Promise<ContentIntelligenceResult> {
   const supabase = getSupabaseAdmin()
   const startTime = Date.now()
@@ -853,9 +854,10 @@ export async function getOrGenerateCanonicalTopicContent({
   const generationReason = hasExistingContent ? 'FORCE_REFRESH' : 'FIRST_GENERATION'
 
   // Deterministic Idempotency Key
+  const parentScope = parentJobId || 'manual'
   const idempotencyKey = subtopicId
-    ? `canonical_topic:${exam.id}:${subject.id}:${topic.id}:${subtopicId}:full_pack:v${targetVersionNum}`
-    : `canonical_topic:${exam.id}:${subject.id}:${topic.id}:full_pack:v${targetVersionNum}`
+    ? `canonical_topic:${exam.id}:${subject.id}:${topic.id}:${subtopicId}:full_pack:v${targetVersionNum}:parent:${parentScope}`
+    : `canonical_topic:${exam.id}:${subject.id}:${topic.id}:full_pack:v${targetVersionNum}:parent:${parentScope}`
 
   // Concurrency Check: If an active DB job is already executing for this exact idempotency key, attach to it
   if (!forceRefresh) {
@@ -922,6 +924,7 @@ export async function getOrGenerateCanonicalTopicContent({
     difficulty,
     language,
     userId,
+    parentJobId,
     startTime,
     hierarchy,
   })
@@ -944,6 +947,7 @@ async function executeGenerationWorkflow({
   difficulty,
   language,
   userId,
+  parentJobId,
   startTime,
   hierarchy,
 }: {
@@ -960,6 +964,7 @@ async function executeGenerationWorkflow({
   difficulty: string
   language: string
   userId?: string | null
+  parentJobId?: string | null
   startTime: number
   hierarchy: CanonicalHierarchyResolution
 }): Promise<ContentIntelligenceResult> {
