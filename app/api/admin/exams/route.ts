@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
       name, description, category_id, category, country_id, country,
       difficulty, question_count, time_limit_mins, official_website,
       official_notification_url, official_syllabus_url, authority, authority_id,
-      exam_type, level, current_version, version_year, aliases,
+      exam_type, level, current_version, version_year, aliases, authority_code, is_featured,
       total_marks, negative_marking, passing_criteria, eligibility,
       attempt_rules, application_information, selection_process,
       marking_scheme, question_types, stages, papers, languages,
