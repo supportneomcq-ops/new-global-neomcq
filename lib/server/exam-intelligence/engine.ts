@@ -1366,6 +1366,19 @@ export async function resolveOrInitializeExamIntelligence(options: {
       metadata,
       syllabus_info,
       verification_status,
+      authority_id,
+      country_id,
+      category_id,
+      exam_type,
+      current_version,
+      version_year,
+      is_current,
+      last_verified_at,
+      next_verification_at,
+      official_url,
+      official_notification_url,
+      official_syllabus_url,
+      source_url,
       countries (
         id,
         name,
@@ -1640,15 +1653,94 @@ export async function resolveOrInitializeExamIntelligence(options: {
     // --------------------------------------------------------------------------
     // EXISTING EXAM PATH: Reconcile or reuse existing structure via Process A & B
     // --------------------------------------------------------------------------
-    if (matchedExam) {
-      console.log(`[Exam Intelligence] Reusing existing canonical exam: "${matchedExam.name}" (${matchedExam.id})`)
+    if (matchedExam?.id) {
+      // Fuzzy matching may return a compact projection. Reload the canonical record
+      // with every field required by the official verification gate.
+      const { data: fullMatchedExam } = await supabase
+        .from('exams')
+        .select(selectQuery)
+        .eq('id', matchedExam.id)
+        .maybeSingle()
+      if (fullMatchedExam) matchedExam = fullMatchedExam
+    }
 
-      // These processes both update exams.metadata. Run sequentially so the
-      // second write reads the first process's latest metadata instead of overwriting it.
-      // Validate exam rules and existing evidence BEFORE reconciling or writing curriculum rows.
-      // Missing or conflicting rules are recorded for review; they must not be silently
-      // treated as official facts.
-      const rulesResult = await collectExamRulesProcess(matchedExam.id, matchedExam.name, country, category, supabase)
+    if (matchedExam) {
+      console.log(`[Exam Intelligence] Reusing canonical exam: "${matchedExam.name}" (${matchedExam.id})`)
+
+      const matchedMetadata = matchedExam.metadata || {}
+      const auditApproved =
+        matchedExam.verification_status === 'verified' &&
+        matchedMetadata.exam_metadata_audit_status === 'verified' &&
+        Boolean(matchedExam.next_verification_at) &&
+        new Date(matchedExam.next_verification_at).getTime() > Date.now()
+
+      let rulesResult: any
+      if (auditApproved) {
+        // Reuse the last admin-approved official audit until its re-verification date.
+        rulesResult = {
+          rulesStatus: 'ready',
+          verificationStatus: 'verified',
+          auditStatus: 'verified',
+          question_count: Number(matchedExam.question_count || 0) || null,
+          duration_minutes: Number(matchedExam.time_limit_mins || 0) || null,
+          marking_scheme: matchedExam.marking_scheme || null,
+          question_types: matchedExam.question_types || [],
+        }
+      } else {
+        rulesResult = await collectExamRulesProcess(matchedExam.id, matchedExam.name, country, category, supabase)
+      }
+
+      const verificationApproved =
+        rulesResult.verificationStatus === 'verified' &&
+        rulesResult.auditStatus === 'verified'
+
+      if (!verificationApproved) {
+        if (userId) {
+          try {
+            await supabase.from('user_exams').upsert(
+              { user_id: userId, exam_id: matchedExam.id, status: 'in_progress' },
+              { onConflict: 'user_id,exam_id' }
+            )
+          } catch (ueErr) {
+            console.warn('[Exam Intelligence] user_exams upsert note:', ueErr)
+          }
+        }
+
+        return {
+          success: true,
+          reused: true,
+          exam: {
+            id: matchedExam.id,
+            name: matchedExam.name,
+            slug: matchedExam.slug,
+            short_name: matchedExam.short_name || matchedExam.name.split(' ')[0],
+            level: matchedExam.level || null,
+            description: matchedExam.description || `Exam profile for ${matchedExam.name}`,
+            difficulty: matchedExam.difficulty || 'Intermediate',
+            question_count: null,
+            time_limit_mins: null,
+            country: matchedExam.countries?.name || 'Unspecified',
+            flag: matchedExam.countries?.flag_emoji || '🌐',
+            curriculum_status: 'pending_verification',
+            verification_status: matchedExam.verification_status || rulesResult.verificationStatus || 'needs_review',
+            rules_status: rulesResult.rulesStatus,
+            coverage_percentage: 0,
+            evidence_scope: 'Official exam metadata review is required before curriculum generation.',
+            authority_name: null,
+            subjectCount: 0,
+            topicCount: 0,
+            subtopicCount: 0,
+            exam_subjects: [],
+            marking_scheme: null,
+            question_types: [],
+            exam_metadata_audit_status: rulesResult.auditStatus,
+            missing_verification_fields: rulesResult.missingFields || [],
+            conflicting_verification_fields: rulesResult.conflictingFields || [],
+          },
+          message: `"${matchedExam.name}" is selected. Official exam verification is pending; curriculum generation is blocked until the pattern and source evidence are approved.`,
+        }
+      }
+
       const curriculumResult = await enrichCurriculumProcess(matchedExam.id, matchedExam.name, country, category, supabase)
 
       if (userId) {
@@ -1682,7 +1774,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
           country: matchedExam.countries?.name || 'Global',
           flag: matchedExam.countries?.flag_emoji || '🌐',
           curriculum_status: curriculumResult.curriculumStatus,
-          verification_status: curriculumResult.verificationStatus,
+          verification_status: 'verified',
           rules_status: rulesResult.rulesStatus,
           coverage_percentage: curriculumResult.coveragePercentage,
           evidence_scope: curriculumResult.evidenceScope,
@@ -1694,7 +1786,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
           marking_scheme: rulesResult.marking_scheme,
           question_types: rulesResult.question_types,
         },
-        message: `Resolved canonical exam '${matchedExam.name}'.`,
+        message: `Resolved verified canonical exam '${matchedExam.name}'.`,
       }
     }
 
