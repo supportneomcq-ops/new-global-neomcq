@@ -122,12 +122,7 @@ export function LearningContentEngine({
   // Notes Search & Fullscreen Reading
   const [noteSearch, setNoteSearch] = useState('')
   const [isFullscreenNotes, setIsFullscreenNotes] = useState(false)
-  const [notesTableOfContents, setNotesTableOfContents] = useState([
-    { label: 'Coronary Anatomy Overview', id: 'sec-1' },
-    { label: 'Clinical Pathology of Infarcts', id: 'sec-2' },
-    { label: 'ECG Localization of Ischemia', id: 'sec-3' },
-    { label: 'First-Line Emergency Pharmacotherapy', id: 'sec-4' },
-  ])
+  const [notesTableOfContents, setNotesTableOfContents] = useState<Array<{ label: string; id: string }>>([])
 
   // Flashcards State
   const [flippedCards, setFlippedCards] = useState<Record<number, boolean>>({})
@@ -139,29 +134,7 @@ export function LearningContentEngine({
   // Sticky Notes State
   const [stickyNotes, setStickyNotes] = useState<
     Array<{ id: string; text: string; color: string; pinned: boolean; size: 'sm' | 'md' | 'lg' }>
-  >([
-    {
-      id: '1',
-      text: '📌 High-yield rule: Always look for clinical buzzwords in the stem before reading options!',
-      color: 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200',
-      pinned: true,
-      size: 'md',
-    },
-    {
-      id: '2',
-      text: '⚡ Recall: First-line pharmacotherapy for acute attacks.',
-      color: 'bg-cyan-50 dark:bg-cyan-950/60 border-cyan-300 dark:border-cyan-700 text-cyan-900 dark:text-cyan-200',
-      pinned: false,
-      size: 'sm',
-    },
-    {
-      id: '3',
-      text: '🧠 LAD supplies anterior 2/3 of septum. Block causes LAD pathology.',
-      color: 'bg-rose-50 dark:bg-rose-950/60 border-rose-300 dark:border-rose-700 text-rose-900 dark:text-rose-200',
-      pinned: false,
-      size: 'md',
-    },
-  ])
+  >([])
   const [newStickyText, setNewStickyText] = useState('')
 
   // Revision Sheet Fill-in-the-blanks State
@@ -199,6 +172,9 @@ export function LearningContentEngine({
   const fetchTopicContent = useCallback(
     async (topicId: string, topicNameParam?: string, forceRefresh = false) => {
       setLoadingContent(true)
+      setContentPayload(null)
+      setFlashcardDeck([])
+      setRefreshNotice(null)
       try {
         const res = await fetch('/api/knowledge/topic-content', {
           method: 'POST',
@@ -218,6 +194,7 @@ export function LearningContentEngine({
         const data = await res.json()
         if (data.success && data.content) {
           setContentPayload(data.content)
+          setRefreshNotice(null)
           setIsRefreshing(Boolean(data.isRefreshing))
           if (data.topicState) {
             setTopicState(data.topicState)
@@ -233,84 +210,17 @@ export function LearningContentEngine({
             setFlashcardDeck(data.content.flashcards)
           }
         } else {
-          // Fallback robust structured data
-          const fallbackContent = {
-            mcqs: [
-              {
-                question:
-                  'A 45-year-old male presents with acute severe chest pain radiating to the jaw. ECG shows ST elevation in leads II, III, and aVF. Which artery is most likely occluded?',
-                options: [
-                  'Left anterior descending artery (LAD)',
-                  'Right coronary artery (RCA)',
-                  'Left circumflex artery (LCX)',
-                  'Marginal artery',
-                ],
-                correct_index: 1,
-                explanation:
-                  'ST elevation in inferior leads II, III, and aVF strongly indicates an inferior wall myocardial infarction, supplied by the Right Coronary Artery (RCA) in 85-90% of individuals.',
-                high_yield_tag: 'Cardiology - Inferior MI',
-                difficulty: 'Medium',
-              },
-              {
-                question:
-                  'Which cranial nerve passes through the jugular foramen along with the internal jugular vein?',
-                options: [
-                  'Cranial Nerves IX, X, XI',
-                  'Cranial Nerves VII, VIII',
-                  'Cranial Nerves V1, V2, V3',
-                  'Cranial Nerves III, IV, VI',
-                ],
-                correct_index: 0,
-                explanation:
-                  'The jugular foramen transmits CN IX (Glossopharyngeal), CN X (Vagus), and CN XI (Accessory) along with the internal jugular vein.',
-                high_yield_tag: 'Neuroanatomy - Foramina',
-                difficulty: 'Hard',
-              },
-              {
-                question:
-                  'A 54-year-old female presents with persistent dry cough and fatigue. Laboratory findings indicate elevated serum calcium and elevated ACE levels. A chest X-ray reveals bilateral hilar adenopathy. Which histological feature is most characteristic of this condition?',
-                options: [
-                  'Caseating granulomas with Langhans giant cells',
-                  'Non-caseating granulomas with asteroid bodies',
-                  'Intrabronchial mucus plugs with eosinophils',
-                  'Fibroblastic foci with honeycomb lung appearance',
-                ],
-                correct_index: 1,
-                explanation:
-                  'Bilateral hilar lymphadenopathy, elevated ACE, hypercalcemia, and dry cough point towards Sarcoidosis. Histology classically shows non-caseating granulomas containing Schaumann or asteroid bodies.',
-                high_yield_tag: 'Pulmonology - Sarcoidosis',
-                difficulty: 'Hard',
-              },
-            ],
-            notes:
-              '📚 CORONARY CIRCULATION PRINCIPLES\n\n• High-Yield Anatomy:\n- LAD supplies anterior 2/3 of the interventricular septum, anterior LV wall, and the apex of the heart.\n- RCA supplies inferior LV wall, posterior 1/3 of the septum, and the RV wall in 85% of cases (right dominance).\n- LCX supplies lateral LV wall.\n\n• Clinical Correlation:\nInferior MI is highly associated with sinus bradycardia and heart block because the RCA supplies both the Sinoatrial (SA) and Atrioventricular (AV) nodes in most patients.\n\n⭐ MEMORY TRICK / MNEMONIC:\n"L-A-D" stands for "Left Anterior Descent" which goes straight down the front like a tie, feeding the powerhouse anterior wall of the LV! Look for ST elevations in V1-V4.',
-            flashcards: [
-              {
-                front: 'What artery supplies the Inferior Wall of the Left Ventricle?',
-                back: 'Right Coronary Artery (RCA) in right-dominant hearts (~85%).',
-                category: 'Anatomy',
-              },
-              {
-                front: 'Which cranial nerve provides parasympathetic innervation to the heart?',
-                back: 'Vagus Nerve (CN X).',
-                category: 'Physiology',
-              },
-              {
-                front: 'What is the classic histological finding in Sarcoidosis?',
-                back: 'Non-caseating granulomas with Schaumann and Asteroid bodies.',
-                category: 'Pathology',
-              },
-            ],
-            tutor_explanation:
-              'Hello! I am your Neo private professor. Let us decompose this topic systematically. Let us look at the cardiac ischemia profiles, anatomical margins, and the diagnostic pathognomonic cues.',
-            revision_sheet:
-              'Rapid Review Sheet for ' + (topicNameParam || 'Topic'),
-          }
-          setContentPayload(fallbackContent)
-          setFlashcardDeck(fallbackContent.flashcards)
+          // Never substitute generic sample questions for a learner's selected exam.
+          setContentPayload(null)
+          setFlashcardDeck([])
+          setTopicState(data.topicState || null)
+          setRefreshNotice(data.error || 'Exam-specific content is not available yet. Check the generation status and try again when it is ready.')
         }
       } catch (err) {
         console.error('Failed to load topic content:', err)
+        setContentPayload(null)
+        setFlashcardDeck([])
+        setRefreshNotice('Unable to load this topic content. Please retry after checking your connection.')
       } finally {
         setLoadingContent(false)
       }
@@ -1481,7 +1391,7 @@ export function LearningContentEngine({
                             ✍️ {selectedTopic?.name || 'Topic Core Study Manual'}
                           </h2>
                           <span className="text-[10px] font-black text-amber-700/80 dark:text-amber-400 uppercase tracking-widest block pt-0.5">
-                            USMLE High-Yield Series • Section 12-A
+                            {examName} • {subjectName}
                           </span>
                         </div>
 
@@ -1494,15 +1404,6 @@ export function LearningContentEngine({
                           )}
                         </div>
 
-                        {/* highlighter highlighted box representation */}
-                        <div className="p-4 rounded-2xl bg-yellow-100/60 dark:bg-yellow-950/30 border border-yellow-300/40 dark:border-yellow-800/40 text-amber-900 dark:text-yellow-200/90 space-y-1.5 shadow-sm">
-                          <span className="font-black text-[11px] text-amber-800 dark:text-yellow-400 flex items-center gap-1">
-                            <Zap className="w-3.5 h-3.5" /> High-Yield Diagnostic rule (RCA vs LAD):
-                          </span>
-                          <p className="text-[11px] leading-relaxed">
-                            LAD block causes ST elevations in anterior leads V1-V4, with severe potential cardiogenic shock. RCA blocks present in inferior leads II, III, and aVF with significant bradyarrhythmia. Check SA nodal branches immediately!
-                          </p>
-                        </div>
                       </div>
                     </div>
                   </div>
