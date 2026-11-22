@@ -1063,7 +1063,7 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
 
   // Reserve the shared platform AI pool before contacting a provider.
   // The canonical worker's queue gate and this atomic reservation are separate safeguards.
-  let platformReservationId: string | null = null
+  let platformReservationId = ''
   const platformBudgetRequestId = jobId || randomUUID()
   try {
     const { data: budgetRule, error: budgetRuleError } = await supabase
@@ -1204,6 +1204,8 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
       model: modelUsed,
       inputTokens,
       outputTokens,
+      revenueAllocatedUsd: costUsd * 2.5,
+      infrastructureCostUsd: costUsd * 0.05,
       requestId: platformBudgetRequestId,
       uncertain: fallbackUsed,
       metadata: {
