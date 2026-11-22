@@ -53,11 +53,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const canonicalExamId = topicData.exam_subjects?.exam_id;
+    const canonicalSubjectId = topicData.exam_subjects?.id;
+    if ((examId && examId !== canonicalExamId) || (subjectId && subjectId !== canonicalSubjectId)) {
+      return NextResponse.json({ success: false, error: 'The selected exam or subject does not match this topic.' }, { status: 400 });
+    }
+
     const examName = topicData.exam_subjects?.exams?.name || 'Board Exam';
     const subjectName = topicData.exam_subjects?.name || 'Core Subject';
     const topicName = topicData.name;
 
-    const finalExamId = examId || topicData.exam_subjects?.exam_id;
+    const finalExamId = canonicalExamId;
     const styleAndPattern = await getExamStyleAndPattern(finalExamId, supabase);
 
     // Optional Subtopic Context
@@ -65,18 +71,19 @@ export async function POST(req: NextRequest) {
     if (subtopicId) {
       const { data: subData } = await (supabase as any)
         .from('exam_subtopics')
-        .select('id, name')
+        .select('id, name, topic_id')
         .eq('id', subtopicId)
         .maybeSingle();
-      if (subData) {
-        subtopicName = subData.name;
+      if (!subData || subData.topic_id !== topicId) {
+        return NextResponse.json({ success: false, error: 'The selected subtopic does not belong to this topic.' }, { status: 400 });
       }
+      subtopicName = subData.name;
     }
 
     // 2. Determine Next Version Number
     const { data: existingVersions } = await (supabase as any)
       .from('content_versions')
-      .select('version, snapshot')
+      .select('id, version, snapshot')
       .eq('asset_id', topicId)
       .eq('asset_type', 'topic')
       .order('version', { ascending: false })
@@ -84,6 +91,42 @@ export async function POST(req: NextRequest) {
 
     const nextVersion = existingVersions && existingVersions.length > 0 ? (existingVersions[0].version || 1) + 1 : 1;
     const previousSnapshot = existingVersions && existingVersions[0]?.snapshot ? existingVersions[0].snapshot : {};
+
+    // Reuse the canonical saved set instead of generating a fresh copy for each student.
+    const savedItems = Array.isArray(previousSnapshot.fill_in_the_blanks) ? previousSnapshot.fill_in_the_blanks : [];
+    const reusableItems = subtopicName
+      ? savedItems.filter((item: any) => item?.subtopicName === subtopicName)
+      : savedItems;
+    if (reusableItems.length > 0) {
+      const safeItems = reusableItems.map((item: any) => ({
+        id: item.id,
+        concept: item.concept,
+        sentence: item.sentence,
+        difficulty: item.difficulty,
+        subtopicName: item.subtopicName,
+      })) as ActiveRecallItem[];
+      const savedVersion = existingVersions[0];
+      const savedSet: ActiveRecallSet = {
+        id: savedVersion.id,
+        topicId,
+        topicName,
+        subjectId: canonicalSubjectId || subjectId,
+        subjectName,
+        examId: canonicalExamId || examId,
+        examName,
+        subtopicId,
+        subtopicName,
+        version: savedVersion.version,
+        batch: `Batch ${String(savedVersion.version).padStart(2, '0')}`,
+        updatedAt: new Date().toISOString(),
+        itemsCount: safeItems.length,
+        difficulty: 'High-Yield',
+        completionPercentage: 0,
+        bestAccuracy: 0,
+        items: safeItems,
+      };
+      return NextResponse.json({ success: true, source: 'canonical_cache', set: savedSet });
+    }
 
     // 3. Construct System Prompt for Domain-Neutral Active Recall Generation
     const prompt = `You are a Senior ${styleAndPattern.role}, Board Examination Item Writer, and Active Recall Specialist.
