@@ -274,8 +274,6 @@ export function buildExamMetadataAudit(input: {
     && currentVersion.source_url
     && hostMatchesAuthority(currentVersion.source_url, authorityUrl)
     && currentVersion.is_current === true
-    && String(currentVersion.verification_status || '').toLowerCase() === 'verified'
-    && Boolean(currentVersion.verified_at)
     && versionYear !== null
     && Number(currentVersion.version_year) === versionYear;
 
