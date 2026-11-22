@@ -12,7 +12,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { normalizeInput, calculateLevenshteinSimilarity } from './normalizer'
 import { classifyUserInput } from './classifier'
-import { VERIFIED_EXAM_TEMPLATES, resolveOrInitializeExamIntelligence } from '@/lib/server/exam-intelligence/engine'
+import { resolveOrInitializeExamIntelligence } from '@/lib/server/exam-intelligence/engine'
 
 export interface ResolvedExam {
   id: string
@@ -69,6 +69,22 @@ export interface CanonicalHierarchyResolution {
 const CONFIDENCE_THRESHOLD = 70.0
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+async function isExamCurriculumReady(supabase: any, examId: string): Promise<boolean> {
+  const { data: exam } = await supabase
+    .from('exams')
+    .select('status,verification_status,next_verification_at,metadata')
+    .eq('id', examId)
+    .maybeSingle()
+  if (!exam || exam.status === 'archived' || exam.verification_status !== 'verified') return false
+  const metadata = exam.metadata || {}
+  const nextVerificationAt = exam.next_verification_at ? new Date(exam.next_verification_at).getTime() : 0
+  return metadata.exam_metadata_audit_status === 'verified'
+    && metadata.curriculum_source_status === 'verified_official_syllabus'
+    && metadata.curriculum_validation_version === 4
+    && metadata.curriculum_validation_passed === true
+    && nextVerificationAt > Date.now()
+}
 
 /**
  * Resolves or creates a Canonical Exam with alias support and duplicate prevention
@@ -173,25 +189,7 @@ export async function resolveCanonicalExam(
     // Non-blocking if table throws
   }
 
-  // 4. Check known VERIFIED_EXAM_TEMPLATES
-  const templateKey = norm.extractedCode?.toLowerCase() || norm.slug || norm.tokens[0]?.toLowerCase()
-  if (templateKey && VERIFIED_EXAM_TEMPLATES[templateKey]) {
-    const tmpl = VERIFIED_EXAM_TEMPLATES[templateKey]
-    // Check if exam already in DB by template code or name
-    const { data: tmplMatch } = await supabase
-      .from('exams')
-      .select('id, name, slug, code, description, difficulty, status')
-      .or(`code.ilike.${tmpl.code},slug.eq.${templateKey},name.ilike.%${tmpl.name}%`)
-      .maybeSingle()
-
-    if (tmplMatch) {
-      return {
-        exam: tmplMatch,
-        matchType: 'exact',
-        confidence: 100.0,
-      }
-    }
-  }
+  // No hard-coded exam templates are treated as verified data. New exams go through official review.
 
   // 5. Fuzzy match across active exams
   const { data: allExams } = await supabase
@@ -230,46 +228,19 @@ export async function resolveCanonicalExam(
     }
   }
 
-  // 6. Auto-create if explicitly enabled
+  // 5. Auto-create only through the verification-gated exam intelligence workflow.
   if (autoCreate) {
-    const capitalizedName = norm.extractedCode || norm.tokens
-      .map((t) => t.charAt(0).toUpperCase() + t.slice(1))
-      .join(' ')
-
-    const examCode = norm.extractedCode || norm.tokens[0]?.toUpperCase().slice(0, 8) || 'EXAM'
-    const examSlug = norm.extractedCode?.toLowerCase() || norm.slug
-
-    const { data: newExam, error: createErr } = await supabase
-      .from('exams')
-      .insert({
-        name: capitalizedName,
-        slug: examSlug,
-        code: examCode,
-        description: `Comprehensive canonical curriculum and question bank for ${capitalizedName}.`,
-        difficulty: 'Advanced',
-        created_by_ai: true,
-        status: 'published',
-      })
-      .select('id, name, slug, code, description, difficulty, status')
-      .single()
-
-    if (!createErr && newExam) {
-      // Register alias
-      try {
-        await supabase.from('exam_aliases').insert([
-          { exam_id: newExam.id, alias: rawTrimmed },
-          { exam_id: newExam.id, alias: norm.canonical },
-          { exam_id: newExam.id, alias: examCode },
-        ])
-      } catch {
-        // Non-blocking
+    try {
+      const resolution = await resolveOrInitializeExamIntelligence({ examQuery: rawTrimmed })
+      if (resolution.success && resolution.exam) {
+        return {
+          exam: resolution.exam as ResolvedExam,
+          matchType: resolution.reused ? 'exact' : 'created',
+          confidence: resolution.reused ? 95.0 : 80.0,
+        }
       }
-
-      return {
-        exam: newExam,
-        matchType: 'created',
-        confidence: 100.0,
-      }
+    } catch (error) {
+      console.warn('[CanonicalResolver] Provisional exam creation was blocked:', error)
     }
   }
 
@@ -286,6 +257,9 @@ export async function resolveCanonicalSubject(
   autoCreate = false
 ): Promise<{ subject: ResolvedSubject | null; matchType: 'exact' | 'slug' | 'alias' | 'fuzzy' | 'created' | 'none'; confidence: number }> {
   if (!rawSubjectInput || !examId) {
+    return { subject: null, matchType: 'none', confidence: 0 }
+  }
+  if (!(await isExamCurriculumReady(supabase, examId))) {
     return { subject: null, matchType: 'none', confidence: 0 }
   }
 
@@ -467,6 +441,10 @@ export async function resolveCanonicalTopic(
   if (!rawTopicInput || !subjectId) {
     return { topic: null, matchType: 'none', confidence: 0 }
   }
+  const { data: topicSubject } = await supabase.from('exam_subjects').select('exam_id').eq('id', subjectId).maybeSingle()
+  if (!topicSubject?.exam_id || !(await isExamCurriculumReady(supabase, topicSubject.exam_id))) {
+    return { topic: null, matchType: 'none', confidence: 0 }
+  }
 
   const rawTrimmed = rawTopicInput.trim()
 
@@ -620,6 +598,12 @@ export async function resolveCanonicalSubtopic(
   autoCreate = false
 ): Promise<{ subtopic: ResolvedSubtopic | null; matchType: 'exact' | 'slug' | 'alias' | 'fuzzy' | 'created' | 'none'; confidence: number }> {
   if (!rawSubtopicInput || !topicId) {
+    return { subtopic: null, matchType: 'none', confidence: 0 }
+  }
+  const { data: subtopicTopic } = await supabase.from('exam_topics').select('subject_id').eq('id', topicId).maybeSingle()
+  if (!subtopicTopic?.subject_id) return { subtopic: null, matchType: 'none', confidence: 0 }
+  const { data: subtopicSubject } = await supabase.from('exam_subjects').select('exam_id').eq('id', subtopicTopic.subject_id).maybeSingle()
+  if (!subtopicSubject?.exam_id || !(await isExamCurriculumReady(supabase, subtopicSubject.exam_id))) {
     return { subtopic: null, matchType: 'none', confidence: 0 }
   }
 
