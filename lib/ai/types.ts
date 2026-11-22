@@ -87,6 +87,7 @@ export interface AIGenerationOptions {
   responseSchema?: any; // JSON schema or Gemini Type
   jobId?: string | null;
   contentVersionId?: string | null;
+  metadata?: Record<string, unknown>;
   timeoutMs?: number;
   maxRetries?: number;
 }
