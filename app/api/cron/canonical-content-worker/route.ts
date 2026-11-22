@@ -95,7 +95,7 @@ export async function GET(req: NextRequest) {
       exam_id: examId,
       subject_id: subjectId,
       topic_id: topicId,
-      refresh_status: 'processing',
+      refresh_status: 'in_progress',
       refresh_job_id: job.id,
       last_refresh_error: null,
       updated_at: now,
