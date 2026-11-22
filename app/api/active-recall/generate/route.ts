@@ -108,11 +108,23 @@ export async function POST(req: NextRequest) {
     }
 
     const metadata = canonicalExam.metadata || {}
-    if (canonicalExam.verification_status !== 'verified' || metadata.exam_metadata_audit_status !== 'verified') {
+    const { data: currentVersion, error: currentVersionError } = await (supabase as any)
+      .from('exam_versions')
+      .select('verification_status,verified_at')
+      .eq('exam_id', canonicalExamId)
+      .eq('is_current', true)
+      .maybeSingle()
+    if (currentVersionError) {
+      return NextResponse.json({ success: false, error: 'Unable to verify the current exam version.' }, { status: 500 })
+    }
+    if (canonicalExam.verification_status !== 'verified' ||
+        metadata.exam_metadata_audit_status !== 'verified' ||
+        currentVersion?.verification_status !== 'verified' ||
+        !currentVersion?.verified_at) {
       return NextResponse.json({
         success: false,
         status: 'awaiting_exam_verification',
-        error: 'This exam is waiting for official source verification. Shared AI content will start after the exam is approved.',
+        error: 'This exam and its current version are waiting for official source verification. Shared AI content will start after approval.',
       }, { status: 409 })
     }
 
