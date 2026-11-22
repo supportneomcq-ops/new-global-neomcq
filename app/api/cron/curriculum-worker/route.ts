@@ -183,10 +183,41 @@ export async function GET(req: NextRequest) {
     if (verifyError || !persisted) throw new Error('Could not verify the saved curriculum.')
 
     const metadata = persisted.metadata || {}
-    // Structural curriculum completeness is not proof of official exam verification.
-    // Keep the learner-facing status pending until the canonical exam record is verified.
     const examVerificationStatus = String(persisted.verification_status || 'pending_review').toLowerCase()
-    const examVerified = examVerificationStatus === 'verified'
+    const examMetadataAuditStatus = String(metadata.exam_metadata_audit_status || '')
+    const examVerified = examVerificationStatus === 'verified' && examMetadataAuditStatus === 'verified'
+
+    // Do not build or validate curriculum against an unapproved exam pattern.
+    // Park the durable job without consuming retries; admin approval will requeue it.
+    if (!examVerified) {
+      await admin.from('ai_jobs').update({
+        status: 'waiting_verification',
+        completed_at: null,
+        progress_stage: 'Waiting for official exam metadata verification',
+        step_percentage: 0,
+        output_payload: {
+          examId,
+          examName: persisted.name,
+          examVerificationStatus,
+          examMetadataAuditStatus,
+          missingVerificationFields: result.exam.missing_verification_fields || [],
+          conflictingVerificationFields: result.exam.conflicting_verification_fields || [],
+        },
+        error: null,
+      }).eq('id', claimed.id)
+
+      return json(200, {
+        success: true,
+        waitingForVerification: true,
+        jobId: claimed.id,
+        examId,
+        examName: persisted.name,
+        examVerificationStatus,
+        examMetadataAuditStatus,
+        message: 'Curriculum is paused until the official exam pattern and source evidence are approved.',
+      })
+    }
+
     const spec = metadata.curriculum_spec_cache
     const expectedSubjects = Array.isArray(spec?.subjects) ? spec.subjects : []
     const allSubjects = persisted.exam_subjects || []
@@ -284,7 +315,7 @@ export async function GET(req: NextRequest) {
       hasDuplicateNames(activeChildren(topic.exam_subtopics || []))
     )
     const validated =
-      metadata.curriculum_validation_version === 3 &&
+      metadata.curriculum_validation_version === 4 &&
       metadata.curriculum_validation_passed === true &&
       expectedSubjects.length > 0 &&
       missingSubjects.length === 0 &&
