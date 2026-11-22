@@ -220,6 +220,9 @@ export interface ExamResolutionResponse {
     curriculum_status: CurriculumStatus
     rules_status?: RulesStatus
     verification_status?: VerificationStatus
+    exam_metadata_audit_status?: string
+    missing_verification_fields?: string[]
+    conflicting_verification_fields?: string[]
     coverage_percentage?: number
     evidence_scope?: string
     authority_name?: string | null
