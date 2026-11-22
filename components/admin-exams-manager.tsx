@@ -178,6 +178,13 @@ export function AdminExamsManager() {
             <RefreshCw className={`w-4 h-4 text-slate-500 ${loading ? 'animate-spin' : ''}`} />
           </button>
 
+          <Link
+            href="/admin/exam-verification"
+            className="px-4 py-2.5 rounded-2xl border border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-300 font-extrabold text-xs flex items-center gap-2 hover:bg-amber-500/10"
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>Verification queue ({stats.pendingReviewCount})</span>
+          </Link>
           <button
             onClick={() => setIsCreateOpen(true)}
             className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-[#6D5BFF] to-[#A855F7] text-white font-extrabold text-xs shadow-md shadow-[#6D5BFF]/20 flex items-center gap-2 hover:opacity-95 cursor-pointer"
