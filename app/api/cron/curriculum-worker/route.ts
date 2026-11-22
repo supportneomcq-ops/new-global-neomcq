@@ -177,12 +177,16 @@ export async function GET(req: NextRequest) {
     examId = result.exam.id
 
     const { data: persisted, error: verifyError } = await admin.from('exams')
-      .select('id, name, metadata, exam_subjects(id, name, active, is_active, exam_topics(id, name, active, is_active, exam_subtopics(id, name, is_active)))')
+      .select('id, name, metadata, verification_status, exam_subjects(id, name, active, is_active, exam_topics(id, name, active, is_active, exam_subtopics(id, name, is_active)))')
       .eq('id', examId)
       .maybeSingle()
     if (verifyError || !persisted) throw new Error('Could not verify the saved curriculum.')
 
     const metadata = persisted.metadata || {}
+    // Structural curriculum completeness is not proof of official exam verification.
+    // Keep the learner-facing status pending until the canonical exam record is verified.
+    const examVerificationStatus = String(persisted.verification_status || 'pending_review').toLowerCase()
+    const examVerified = examVerificationStatus === 'verified'
     const spec = metadata.curriculum_spec_cache
     const expectedSubjects = Array.isArray(spec?.subjects) ? spec.subjects : []
     const allSubjects = persisted.exam_subjects || []
@@ -342,7 +346,8 @@ export async function GET(req: NextRequest) {
       const { error: authUpdateError } = await admin.auth.admin.updateUserById(learnerId, {
         user_metadata: {
           ...(authRecord?.user?.user_metadata || {}),
-          neo_curriculum_status: 'ready',
+          neo_curriculum_status: examVerified ? 'ready' : 'pending_verification',
+          neo_exam_verification_status: examVerificationStatus,
           neo_exam_id: examId,
           neo_exam_name: persisted.name,
           neo_curriculum_ready_at: new Date().toISOString(),
@@ -354,7 +359,7 @@ export async function GET(req: NextRequest) {
     const { error: finishError } = await admin.from('ai_jobs').update({
       status: 'completed',
       completed_at: new Date().toISOString(),
-      progress_stage: 'Curriculum saved and verified',
+      progress_stage: examVerified ? 'Curriculum saved; exam verified' : 'Curriculum saved; official exam verification pending',
       step_percentage: 100,
       output_payload: {
         examId,
@@ -364,15 +369,17 @@ export async function GET(req: NextRequest) {
         subtopicCount,
         curriculumValidationVersion: metadata.curriculum_validation_version,
         curriculumValidationPassed: metadata.curriculum_validation_passed,
+        examVerificationStatus,
+        examVerified,
       },
       error: null,
     }).eq('id', claimed.id)
     if (finishError) throw new Error('Curriculum was verified but job completion could not be recorded.')
 
-    console.log(`[Curriculum Worker] Verified ${persisted.name}: ${subjects.length} subjects, ${topicCount} topics, ${subtopicCount} subtopics.`)
+    console.log(`[Curriculum Worker] Saved ${persisted.name}: ${subjects.length} subjects, ${topicCount} topics, ${subtopicCount} subtopics; exam verification=${examVerificationStatus}.`)
     return json(200, {
       success: true,
-      processed: { examId, examName: persisted.name, subjects: subjects.length, topics: topicCount, subtopics: subtopicCount },
+      processed: { examId, examName: persisted.name, subjects: subjects.length, topics: topicCount, subtopics: subtopicCount, examVerificationStatus, examVerified },
       examsQueued: jobs.length,
     })
   } catch (error: any) {
