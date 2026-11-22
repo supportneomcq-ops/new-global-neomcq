@@ -14,6 +14,8 @@ import { ModelRegistry } from './model-registry';
 import { TaskRouter } from './task-router';
 import { ProviderAdapter, AIProviderError } from './adapters/provider-adapter';
 import { validateServerAIEnvironment } from './env-validator';
+import { randomUUID } from 'crypto';
+import { reservePlatformAIBudget, settlePlatformAIBudget, releasePlatformAIBudget } from './platform-budget';
 
 export class AIGateway {
   private static geminiProvider = new GoogleGeminiProvider();
@@ -150,6 +152,63 @@ export class AIGateway {
     };
   }
 
+  private static async reservePlatformBudget(
+    taskType: string,
+    route: {
+      primaryProvider: AIProviderId;
+      primaryModel: string;
+      fallbackProvider: AIProviderId;
+      fallbackModel: string;
+      maxOutputTokens: number;
+    },
+    userId: string | null | undefined,
+    requestId: string
+  ): Promise<string> {
+    const rule = await TaskRouter.getRuleForTask(taskType);
+    const [primaryMeta, fallbackMeta, routingResult] = await Promise.all([
+      ModelRegistry.getModel(route.primaryProvider, route.primaryModel),
+      ModelRegistry.getModel(route.fallbackProvider, route.fallbackModel),
+      (getSupabaseAdmin() as any)
+        .from('ai_task_routing')
+        .select('cost_ceiling')
+        .eq('task_type', taskType)
+        .maybeSingle(),
+    ]);
+
+    if (routingResult.error) {
+      throw new Error('AI platform budget configuration could not be verified.');
+    }
+    if (!primaryMeta || !fallbackMeta) {
+      throw new Error('Verified model pricing is unavailable; AI generation was blocked.');
+    }
+
+    const inputCap = Math.max(1, Number(rule.max_input_tokens || 8192));
+    const outputCap = Math.max(1, Number(route.maxOutputTokens || rule.max_output_tokens || 4096));
+    const primaryMaxCost =
+      (inputCap * primaryMeta.input_price + outputCap * primaryMeta.output_price) / 1_000_000;
+    const fallbackMaxCost =
+      (inputCap * fallbackMeta.input_price + outputCap * fallbackMeta.output_price) / 1_000_000;
+    const configuredCeiling = Number(routingResult.data?.cost_ceiling || 0);
+    const reservationAmount = Math.max(configuredCeiling, (primaryMaxCost + fallbackMaxCost) * 1.5, 0.005);
+
+    return reservePlatformAIBudget({
+      idempotencyKey: `ai-gateway:${requestId}`,
+      taskType,
+      provider: route.primaryProvider,
+      model: route.primaryModel,
+      amountUsd: Number(reservationAmount.toFixed(6)),
+      userId,
+      requestId,
+      metadata: {
+        fallbackProvider: route.fallbackProvider,
+        fallbackModel: route.fallbackModel,
+        inputTokenCap: inputCap,
+        outputTokenCap: outputCap,
+        configuredCostCeilingUsd: configuredCeiling || null,
+      },
+    });
+  }
+
   /**
    * CANONICAL EXECUTION PIPELINE
    * AI Task -> Task Router -> Model Registry -> AI Gateway -> Provider Adapter -> Provider API
@@ -215,11 +274,23 @@ export class AIGateway {
       reservedCredits = effectiveCreditCost;
     }
 
+    // Reserve the platform's 60% AI pool before any provider request. Student credits
+    // and platform cash budget are separate controls and both must pass.
+    const platformBudgetRequestId = randomUUID();
+    let platformReservationId: string | null = null;
+    try {
+      platformReservationId = await this.reservePlatformBudget(taskType, route, userId, platformBudgetRequestId);
+    } catch (budgetError) {
+      await this.releaseCreditReservation(userId, reservedCredits, taskType);
+      throw budgetError;
+    }
+
     // 3. Execution with Fallback Hierarchy
     let primaryAdapter: ProviderAdapter;
     try {
       primaryAdapter = this.getAdapter(route.primaryProvider);
     } catch (providerErr) {
+      if (platformReservationId) await releasePlatformAIBudget(platformReservationId, 'provider_adapter_resolution_failed_before_request');
       await this.releaseCreditReservation(userId, reservedCredits, taskType);
       const detail = providerErr instanceof Error ? providerErr.message : String(providerErr);
       throw new Error(`AI routing configuration error: ${detail}`);
@@ -227,6 +298,7 @@ export class AIGateway {
 
     let isFallback = false;
     let fallbackReason: string | undefined = undefined;
+    let providerRequestAttempted = false;
     let executionResult: any;
     let finalProvider: AIProviderId = route.primaryProvider;
     let finalModel: string = route.primaryModel;
@@ -252,6 +324,7 @@ export class AIGateway {
         });
       }
 
+      providerRequestAttempted = true;
       executionResult = await primaryAdapter.generate(generationPayload);
       finalProvider = route.primaryProvider;
       finalModel = route.primaryModel;
@@ -271,19 +344,54 @@ export class AIGateway {
             ...generationPayload,
             preferredModel: route.fallbackModel,
           };
+          providerRequestAttempted = true;
           executionResult = await fallbackAdapter.generate(fallbackPayload);
           finalProvider = route.fallbackProvider;
           finalModel = route.fallbackModel;
         } catch (fallbackErr: any) {
           const fallbackMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
-          // Release reservation
+          // A provider request was sent but failed without reliable usage details.
+          // Keep the unused reservation held until an operator reconciles the provider bill.
+          if (platformReservationId && providerRequestAttempted) {
+            try {
+              await settlePlatformAIBudget({
+                reservationId: platformReservationId,
+                actualCostUsd: 0,
+                provider: finalProvider,
+                model: finalModel,
+                requestId: platformBudgetRequestId,
+                uncertain: true,
+                metadata: { providerFailure: true, primaryError: primaryMsg, fallbackError: fallbackMsg },
+              });
+            } catch (budgetError) {
+              console.error('AIGateway: Could not mark failed provider spend uncertain:', budgetError);
+            }
+          } else if (platformReservationId) {
+            await releasePlatformAIBudget(platformReservationId, 'provider_requests_not_started');
+          }
           await this.releaseCreditReservation(userId, reservedCredits, taskType);
           throw new Error(
             `AIGateway Failover Error: All configured providers failed. Primary: ${primaryMsg}. Fallback: ${fallbackMsg}`
           );
         }
       } else {
-        // Fallback not configured or failed
+        if (platformReservationId && providerRequestAttempted) {
+          try {
+            await settlePlatformAIBudget({
+              reservationId: platformReservationId,
+              actualCostUsd: 0,
+              provider: finalProvider,
+              model: finalModel,
+              requestId: platformBudgetRequestId,
+              uncertain: true,
+              metadata: { providerFailure: true, primaryError: primaryMsg },
+            });
+          } catch (budgetError) {
+            console.error('AIGateway: Could not mark failed provider spend uncertain:', budgetError);
+          }
+        } else if (platformReservationId) {
+          await releasePlatformAIBudget(platformReservationId, 'provider_requests_not_started');
+        }
         await this.releaseCreditReservation(userId, reservedCredits, taskType);
         throw new Error(`AIGateway Error: ${primaryMsg}`);
       }
@@ -297,7 +405,28 @@ export class AIGateway {
       effectiveCreditCost
     );
 
-    // 5. Consume the reservation and write the authoritative ledger entry.
+    // 5. Settle provider COGS and the platform reservation in one database transaction.
+    // A fallback after a failed primary keeps the unspent remainder held for reconciliation.
+    if (platformReservationId) {
+      await settlePlatformAIBudget({
+        reservationId: platformReservationId,
+        actualCostUsd: costMetrics.totalProviderCostUsd,
+        provider: finalProvider,
+        model: finalModel,
+        inputTokens: executionResult.usage.inputTokens,
+        cachedInputTokens: executionResult.usage.cachedInputTokens,
+        outputTokens: executionResult.usage.outputTokens,
+        reasoningTokens: executionResult.usage.reasoningTokens || 0,
+        revenueAllocatedUsd: userId ? costMetrics.revenueAllocatedUsd : 0,
+        infrastructureCostUsd: costMetrics.infrastructureCostUsd,
+        creditsDeducted: userId ? effectiveCreditCost : 0,
+        requestId: executionResult.requestId || options.jobId || platformBudgetRequestId,
+        uncertain: isFallback,
+        metadata: { fallbackUsed: isFallback, fallbackReason: fallbackReason || null },
+      });
+    }
+
+    // 6. Consume the user credit reservation.
     if (userId && reservedCredits > 0) {
       const { error: consumeError } = await (supabase as any).rpc('credit_consume', {
         p_user_id: userId,
@@ -312,30 +441,6 @@ export class AIGateway {
         await this.releaseCreditReservation(userId, reservedCredits, taskType);
         throw new Error('AI output could not be finalized against your credit balance. Please retry.');
       }
-    }
-
-    // 6. Record immutable AI Cost Event
-    try {
-      const supabaseAdmin: any = supabase;
-      await supabaseAdmin.from('ai_cost_events').insert({
-        user_id: userId || null,
-        task_type: taskType,
-        provider: finalProvider,
-        model: finalModel,
-        input_tokens: executionResult.usage.inputTokens,
-        cached_input_tokens: executionResult.usage.cachedInputTokens,
-        output_tokens: executionResult.usage.outputTokens,
-        reasoning_tokens: executionResult.usage.reasoningTokens || 0,
-        actual_provider_cost: costMetrics.totalProviderCostUsd,
-        revenue_allocated: userId ? costMetrics.revenueAllocatedUsd : 0,
-        ai_infrastructure_cost: costMetrics.infrastructureCostUsd,
-        credits_deducted: userId ? effectiveCreditCost : 0,
-        created_at: new Date().toISOString(),
-        request_id: executionResult.requestId || options.jobId || null,
-        idempotency_key: options.jobId || null,
-      });
-    } catch (err) {
-      console.warn('AIGateway: Could not record ai_cost_events ledger:', err);
     }
 
     return {
