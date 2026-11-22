@@ -318,9 +318,10 @@ export function buildExamMetadataAudit(input: {
     });
   }
 
-  const versionQuestionCount = Number(currentVersion?.question_count || 0);
-  const versionDuration = Number(currentVersion?.time_limit_mins || 0);
-  const versionTotalMarks = Number(currentVersion?.total_marks || 0);
+  const versionPattern = objectValue(currentVersion?.pattern_summary);
+  const versionQuestionCount = Number(versionPattern.question_count || versionPattern.total_questions || 0);
+  const versionDuration = Number(versionPattern.duration_minutes || versionPattern.time_limit_mins || 0);
+  const versionTotalMarks = Number(versionPattern.total_marks || versionPattern.maximum_marks || 0);
   if (versionQuestionCount > 0 && Number(exam.question_count || 0) > 0 && versionQuestionCount !== Number(exam.question_count)) {
     conflicts.push({
       field: 'question_count',
