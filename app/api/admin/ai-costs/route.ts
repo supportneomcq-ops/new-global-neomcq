@@ -1,139 +1,242 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase';
-import { verifyAdminApiSession } from '@/lib/admin-auth';
+import { NextRequest, NextResponse } from 'next/server'
+import { getSupabaseAdmin } from '@/lib/supabase'
+import { verifyAdminApiSession } from '@/lib/admin-auth'
 
-// GET: AI Financials, COGS Accounting, and the 60% AI Cost Budget Rule
+function round(value: number, digits = 4) {
+  return Number(value.toFixed(digits))
+}
+
+// GET: auditable AI COGS, 20/20/60 allocation, FX and reservation health.
 export async function GET(req: NextRequest) {
   try {
-    const auth = await verifyAdminApiSession();
-    if (!auth.authorized) return auth.response!;
+    const auth = await verifyAdminApiSession()
+    if (!auth.authorized) return auth.response!
 
-    const adminClient = getSupabaseAdmin();
-    const { searchParams } = new URL(req.url);
+    const admin = getSupabaseAdmin() as any
+    const { searchParams } = new URL(req.url)
+    const requestedTimeframe = searchParams.get('timeframe') || '30d'
+    const timeframe = ['today', '7d', '30d', '90d'].includes(requestedTimeframe)
+      ? requestedTimeframe
+      : '30d'
 
-    const timeframe = searchParams.get('timeframe') || '30d';
-
-    let startDate = new Date();
+    const startDate = new Date()
     if (timeframe === 'today') {
-      startDate.setHours(0, 0, 0, 0);
-    } else if (timeframe === '7d') {
-      startDate.setDate(startDate.getDate() - 7);
+      startDate.setHours(0, 0, 0, 0)
     } else {
-      // 30d default
-      startDate.setDate(startDate.getDate() - 30);
+      const days = timeframe === '7d' ? 7 : timeframe === '90d' ? 90 : 30
+      startDate.setDate(startDate.getDate() - days)
     }
 
-    // Fetch payments for actual realized revenue
-    const [paymentsRes, costEventsRes, jobsRes] = await Promise.all([
-      adminClient
-        .from('payments')
-        .select('*')
-        .in('status', ['captured', 'succeeded', 'paid', 'completed'])
+    const [
+      budgetStatusResult,
+      allocationsResult,
+      costEventsResult,
+      jobsResult,
+      reservationsResult,
+    ] = await Promise.all([
+      admin.rpc('get_platform_ai_budget_status'),
+      admin
+        .from('platform_profit_allocations')
+        .select('currency,allocation_status,payment_category,net_collected_amount,owner_profit_amount,operations_amount,ai_budget_amount,ai_budget_amount_usd,created_at')
         .gte('created_at', startDate.toISOString()),
-      adminClient
+      admin
         .from('ai_cost_events')
         .select('*')
         .gte('created_at', startDate.toISOString())
-        .order('created_at', { ascending: false }),
-      adminClient
+        .order('created_at', { ascending: false })
+        .limit(500),
+      admin
         .from('ai_jobs')
-        .select('*')
+        .select('id,task,status,created_at')
         .gte('created_at', startDate.toISOString()),
-    ]);
+      admin
+        .from('ai_budget_reservations')
+        .select('id,task_type,provider,model,reserved_amount_usd,actual_cost_usd,status,created_at,metadata')
+        .in('status', ['reserved', 'uncertain'])
+        .order('created_at', { ascending: false })
+        .limit(50),
+    ])
 
-    const payments = paymentsRes.data || [];
-    const costEvents = costEventsRes.data || [];
-    const jobs = jobsRes.data || [];
+    const queryErrors = [
+      budgetStatusResult.error,
+      allocationsResult.error,
+      costEventsResult.error,
+      jobsResult.error,
+      reservationsResult.error,
+    ].filter(Boolean)
 
-    // Calculate Realized Net Eligible Revenue in USD
-    // Payments are usually in INR (paise) or USD. Normalize to USD approx: if > 1000 and currency INR, divide by 87
-    let totalRevenueUsd = 0;
-    payments.forEach((p: any) => {
-      const amt = Number(p.amount || 0);
-      const cur = (p.currency || 'INR').toUpperCase();
-      if (cur === 'INR') {
-        totalRevenueUsd += amt > 100 ? (amt / 100) / 87 : amt / 87; // paise or rupees to USD
-      } else {
-        totalRevenueUsd += amt > 100 ? amt / 100 : amt;
+    if (queryErrors.length) {
+      console.error('[Admin AI Costs] Failed to load financial records:', queryErrors)
+      return NextResponse.json(
+        { success: false, error: 'AI financial records could not be loaded consistently.' },
+        { status: 503 }
+      )
+    }
+
+    const budget = budgetStatusResult.data || {}
+    const allocations = allocationsResult.data || []
+    const costEvents = costEventsResult.data || []
+    const jobs = jobsResult.data || []
+    const reservations = reservationsResult.data || []
+
+    const fundedAiBudgetUsd = Number(budget.funded_ai_budget_usd || 0)
+    const eligibleNetRevenueUsd = Number(budget.eligible_net_revenue_usd || 0)
+    const providerSpendUsd = Number(budget.provider_spend_usd || 0)
+    const infrastructureSpendUsd = Number(budget.infrastructure_spend_usd || 0)
+    const totalSpendUsd = Number(budget.total_spend_usd || providerSpendUsd + infrastructureSpendUsd)
+    const heldBudgetUsd = Number(budget.held_budget_usd || 0)
+    const availableBudgetUsd = Number(budget.available_budget_usd || 0)
+    const aiCostRatioPercent = eligibleNetRevenueUsd > 0
+      ? (totalSpendUsd / eligibleNetRevenueUsd) * 100
+      : 0
+    const grossMarginPercent = eligibleNetRevenueUsd > 0
+      ? ((eligibleNetRevenueUsd - totalSpendUsd) / eligibleNetRevenueUsd) * 100
+      : 0
+
+    let budgetHealth: 'Normal' | 'Caution' | 'Critical' = 'Normal'
+    if (availableBudgetUsd < 0 || aiCostRatioPercent > 55) {
+      budgetHealth = 'Critical'
+    } else if (
+      aiCostRatioPercent > 50
+      || (fundedAiBudgetUsd > 0 && availableBudgetUsd / fundedAiBudgetUsd < 0.10)
+      || Number(budget.uncertain_reservations || 0) > 0
+    ) {
+      budgetHealth = 'Caution'
+    }
+
+    let timeframeAiBudgetUsd = 0
+    let timeframeNetRevenueUsd = 0
+    const allocationByCurrency: Record<string, {
+      paymentCount: number
+      statuses: Record<string, number>
+      netCollected: number
+      ownerProfit: number
+      operations: number
+      aiBudget: number
+      aiBudgetUsd: number
+    }> = {}
+
+    for (const allocation of allocations) {
+      const currency = String(allocation.currency || 'UNKNOWN').toUpperCase()
+      const status = String(allocation.allocation_status || 'unknown')
+      if (!allocationByCurrency[currency]) {
+        allocationByCurrency[currency] = {
+          paymentCount: 0,
+          statuses: {},
+          netCollected: 0,
+          ownerProfit: 0,
+          operations: 0,
+          aiBudget: 0,
+          aiBudgetUsd: 0,
+        }
       }
-    });
+      const row = allocationByCurrency[currency]
+      row.paymentCount += 1
+      row.statuses[status] = (row.statuses[status] || 0) + 1
+      row.netCollected += Number(allocation.net_collected_amount || 0)
+      row.ownerProfit += Number(allocation.owner_profit_amount || 0)
+      row.operations += Number(allocation.operations_amount || 0)
+      row.aiBudget += Number(allocation.ai_budget_amount || 0)
+      row.aiBudgetUsd += Number(allocation.ai_budget_amount_usd || 0)
 
-    // If cost events have revenue_allocated from credit packages, incorporate that
-    let totalCreditRevenueUsd = 0;
-    let totalActualProviderCostUsd = 0;
-    let totalInfraCostUsd = 0;
-    let totalCreditsDeducted = 0;
+      if (status === 'allocated' && allocation.ai_budget_amount_usd != null) {
+        timeframeAiBudgetUsd += Number(allocation.ai_budget_amount_usd)
+      }
+    }
+    timeframeNetRevenueUsd = timeframeAiBudgetUsd / 0.60
 
-    const costByProvider: Record<string, number> = {};
-    const costByModel: Record<string, number> = {};
-    const costByTask: Record<string, number> = {};
+    let timeframeProviderCostUsd = 0
+    let timeframeInfrastructureCostUsd = 0
+    let totalCreditsDeducted = 0
+    const costByProvider: Record<string, number> = {}
+    const costByModel: Record<string, number> = {}
+    const costByTask: Record<string, number> = {}
 
-    costEvents.forEach((ev: any) => {
-      const pCost = Number(ev.actual_provider_cost || 0);
-      const iCost = Number(ev.ai_infrastructure_cost || 0);
-      const credits = Number(ev.credits_deducted || 0);
-      const rev = Number(ev.revenue_allocated || 0);
+    for (const event of costEvents) {
+      const providerCost = Number(event.actual_provider_cost || 0)
+      const infrastructureCost = Number(event.ai_infrastructure_cost || 0)
+      const credits = Number(event.credits_deducted || 0)
+      const provider = String(event.provider || 'unknown')
+      const model = String(event.model || 'unknown')
+      const task = String(event.task_type || 'unknown')
 
-      totalActualProviderCostUsd += pCost;
-      totalInfraCostUsd += iCost;
-      totalCreditsDeducted += credits;
-      totalCreditRevenueUsd += rev;
-
-      const provider = ev.provider || 'Google Gemini AI';
-      const model = ev.model || 'gemini-3.5-flash';
-      const task = ev.task_type || 'MCQ_GENERATION';
-
-      costByProvider[provider] = (costByProvider[provider] || 0) + pCost + iCost;
-      costByModel[model] = (costByModel[model] || 0) + pCost + iCost;
-      costByTask[task] = (costByTask[task] || 0) + pCost + iCost;
-    });
-
-    const totalCogsUsd = totalActualProviderCostUsd + totalInfraCostUsd;
-    const effectiveRevenueUsd = Math.max(totalRevenueUsd, totalCreditRevenueUsd);
-
-    // 60% Rule Calculation: AI Cost must be <= 60% of Net Revenue
-    const aiBudgetAllowanceUsd = effectiveRevenueUsd * 0.60;
-    const remainingAiBudgetUsd = aiBudgetAllowanceUsd - totalCogsUsd;
-    const aiCostRatioPercent = effectiveRevenueUsd > 0 ? (totalCogsUsd / effectiveRevenueUsd) * 100 : 0;
-    const grossMarginPercent = effectiveRevenueUsd > 0 ? ((effectiveRevenueUsd - totalCogsUsd) / effectiveRevenueUsd) * 100 : 0;
-
-    // Budget Health status
-    let budgetHealth: 'Normal' | 'Caution' | 'Critical' = 'Normal';
-    if (aiCostRatioPercent > 55) {
-      budgetHealth = 'Critical';
-    } else if (aiCostRatioPercent > 50) {
-      budgetHealth = 'Caution';
+      timeframeProviderCostUsd += providerCost
+      timeframeInfrastructureCostUsd += infrastructureCost
+      totalCreditsDeducted += credits
+      costByProvider[provider] = (costByProvider[provider] || 0) + providerCost + infrastructureCost
+      costByModel[model] = (costByModel[model] || 0) + providerCost + infrastructureCost
+      costByTask[task] = (costByTask[task] || 0) + providerCost + infrastructureCost
     }
 
     return NextResponse.json({
       success: true,
       timeframe,
       rule60: {
-        effectiveRevenueUsd: Number(effectiveRevenueUsd.toFixed(2)),
-        aiBudgetAllowanceUsd: Number(aiBudgetAllowanceUsd.toFixed(2)),
-        totalActualCogsUsd: Number(totalCogsUsd.toFixed(4)),
-        providerCostUsd: Number(totalActualProviderCostUsd.toFixed(4)),
-        infrastructureCostUsd: Number(totalInfraCostUsd.toFixed(4)),
-        remainingAiBudgetUsd: Number(remainingAiBudgetUsd.toFixed(2)),
-        aiCostRatioPercent: Number(aiCostRatioPercent.toFixed(2)),
-        grossMarginPercent: Number(grossMarginPercent.toFixed(2)),
+        effectiveRevenueUsd: round(eligibleNetRevenueUsd, 2),
+        aiBudgetAllowanceUsd: round(fundedAiBudgetUsd, 6),
+        totalActualCogsUsd: round(totalSpendUsd, 6),
+        providerCostUsd: round(providerSpendUsd, 6),
+        infrastructureCostUsd: round(infrastructureSpendUsd, 6),
+        reservedBudgetUsd: round(heldBudgetUsd, 6),
+        remainingAiBudgetUsd: round(availableBudgetUsd, 6),
+        aiCostRatioPercent: round(aiCostRatioPercent, 2),
+        grossMarginPercent: round(grossMarginPercent, 2),
+        ownerShareUsd: round(Number(budget.owner_share_usd || 0), 6),
+        operationsShareUsd: round(Number(budget.operations_share_usd || 0), 6),
         budgetHealth,
-        ruleTarget: 'Max 60% AI Cost of Eligible Revenue',
+        ruleTarget: '20% Owner / 20% Operations / 60% AI Budget of net collected revenue',
+      },
+      allocation: {
+        timeframeNetRevenueUsd: round(timeframeNetRevenueUsd, 2),
+        timeframeAiBudgetUsd: round(timeframeAiBudgetUsd, 6),
+        pendingFxAllocations: Number(budget.pending_fx_allocations || 0),
+        pendingSettlementAllocations: Number(budget.pending_settlement_allocations || 0),
+        byCurrency: Object.fromEntries(Object.entries(allocationByCurrency).map(([currency, row]) => [
+          currency,
+          {
+            ...row,
+            netCollected: round(row.netCollected, 2),
+            ownerProfit: round(row.ownerProfit, 2),
+            operations: round(row.operations, 2),
+            aiBudget: round(row.aiBudget, 2),
+            aiBudgetUsd: round(row.aiBudgetUsd, 6),
+          },
+        ])),
+        summary: budget.allocation_breakdown || [],
+      },
+      fx: {
+        latestRates: budget.latest_fx_rates || [],
+        source: 'Frankfurter v2 blended daily reference rates',
+      },
+      reservations: {
+        activeCount: Number(budget.active_reservations || 0),
+        uncertainCount: Number(budget.uncertain_reservations || 0),
+        heldBudgetUsd: round(heldBudgetUsd, 6),
+        recent: reservations,
       },
       metrics: {
         totalCostEvents: costEvents.length,
         totalJobsLogged: jobs.length,
         totalCreditsDeducted,
-        avgCostPerJobUsd: costEvents.length > 0 ? Number((totalCogsUsd / costEvents.length).toFixed(6)) : 0,
+        timeframeProviderCostUsd: round(timeframeProviderCostUsd, 6),
+        timeframeInfrastructureCostUsd: round(timeframeInfrastructureCostUsd, 6),
+        timeframeCogsUsd: round(timeframeProviderCostUsd + timeframeInfrastructureCostUsd, 6),
+        avgCostPerEventUsd: costEvents.length > 0
+          ? round((timeframeProviderCostUsd + timeframeInfrastructureCostUsd) / costEvents.length, 6)
+          : 0,
       },
       breakdowns: {
-        byProvider: Object.fromEntries(Object.entries(costByProvider).map(([k, v]) => [k, Number(v.toFixed(4))])),
-        byModel: Object.fromEntries(Object.entries(costByModel).map(([k, v]) => [k, Number(v.toFixed(4))])),
-        byTask: Object.fromEntries(Object.entries(costByTask).map(([k, v]) => [k, Number(v.toFixed(4))])),
+        byProvider: Object.fromEntries(Object.entries(costByProvider).map(([key, value]) => [key, round(value, 6)])),
+        byModel: Object.fromEntries(Object.entries(costByModel).map(([key, value]) => [key, round(value, 6)])),
+        byTask: Object.fromEntries(Object.entries(costByTask).map(([key, value]) => [key, round(value, 6)])),
       },
       recentEvents: costEvents.slice(0, 15),
-    });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
+    })
+  } catch (error: any) {
+    console.error('[Admin AI Costs] Unexpected failure:', error)
+    return NextResponse.json(
+      { success: false, error: error?.message || 'Server error' },
+      { status: 500 }
+    )
   }
 }
