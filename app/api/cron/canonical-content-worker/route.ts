@@ -71,7 +71,8 @@ export async function GET(req: NextRequest) {
     const verified = String(exam.verification_status || '').toLowerCase() === 'verified'
       && String(currentVersion?.verification_status || '').toLowerCase() === 'verified'
       && Boolean(currentVersion?.verified_at)
-      && metadata.curriculum_validation_version === 3
+      && metadata.exam_metadata_audit_status === 'verified'
+      && metadata.curriculum_validation_version === 4
       && metadata.curriculum_validation_passed === true
 
     if (!verified) {
