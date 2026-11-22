@@ -468,7 +468,7 @@ export function evaluateEvidenceAndStatus(options: {
 }): EvidenceEvaluationResult {
   const { authorityRow, evidenceRows = [], versionRows = [], comparisonReport, subjectCount, topicCount } = options
   const isHttpUrl = (value: unknown): value is string =>
-    typeof value === 'string' && /^https?:\\/\\//i.test(value.trim())
+    typeof value === 'string' && /^https?:\/\//i.test(value.trim())
 
   // Notification evidence is authoritative alongside official syllabi and bulletins.
   // Reject pending, invalid, or URL-less records from the verification decision.
