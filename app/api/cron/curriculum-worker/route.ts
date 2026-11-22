@@ -190,7 +190,16 @@ export async function GET(req: NextRequest) {
     // Do not build or validate curriculum against an unapproved exam pattern.
     // Park the durable job without consuming retries; admin approval will requeue it.
     if (!examVerified) {
+      const waitingPayload = {
+        ...payload,
+        examId,
+        examName: persisted.name,
+        examVerificationStatus,
+        examMetadataAuditStatus,
+      }
       await admin.from('ai_jobs').update({
+        exam_id: examId,
+        input_payload: waitingPayload,
         status: 'waiting_verification',
         completed_at: null,
         progress_stage: 'Waiting for official exam metadata verification',
@@ -205,6 +214,18 @@ export async function GET(req: NextRequest) {
         },
         error: null,
       }).eq('id', claimed.id)
+
+      if (payload.userId) {
+        const { error: pendingProfileError } = await admin.from('profiles').update({
+          current_exam_id: examId,
+          exam_locked: false,
+          exam_selected_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq('id', payload.userId)
+        if (pendingProfileError) {
+          console.warn('[Curriculum Worker] Could not persist pending exam selection on profile:', pendingProfileError.message)
+        }
+      }
 
       return json(200, {
         success: true,
