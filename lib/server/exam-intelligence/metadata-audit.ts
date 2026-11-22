@@ -87,7 +87,10 @@ function evidencePayload(evidence: AnyRecord): AnyRecord {
 function evidenceFor(evidence: AnyRecord[], keys: string[]): AnyRecord[] {
   return evidence.filter((item) => {
     const payload = evidencePayload(item);
-    return keys.some((key) => Object.prototype.hasOwnProperty.call(payload, key) && payload[key] !== null);
+    return keys.some((key) =>
+      (Object.prototype.hasOwnProperty.call(payload, key) && payload[key] !== null) ||
+      (Object.prototype.hasOwnProperty.call(item, key) && item[key] !== null)
+    );
   });
 }
 
