@@ -41,6 +41,9 @@ export async function POST(req: NextRequest) {
           slug,
           level,
           verification_status,
+          metadata,
+          current_version,
+          version_year,
           difficulty,
           question_count,
           time_limit_mins,
@@ -97,7 +100,15 @@ export async function POST(req: NextRequest) {
       }
 
       if (matchedExam) {
-        const subjects = matchedExam.exam_subjects || []
+        const metadata = matchedExam.metadata || {}
+        const examVerified =
+          String(matchedExam.verification_status || '').toLowerCase() === 'verified' &&
+          metadata.exam_metadata_audit_status === 'verified'
+        const curriculumReady =
+          examVerified &&
+          metadata.curriculum_validation_version === 4 &&
+          metadata.curriculum_validation_passed === true
+        const subjects = curriculumReady ? (matchedExam.exam_subjects || []) : []
         const subjectCount = subjects.length
         let topicCount = 0
         let subtopicCount = 0
@@ -116,21 +127,28 @@ export async function POST(req: NextRequest) {
             id: matchedExam.id,
             name: matchedExam.name,
             shortName: matchedExam.short_name || matchedExam.name,
-            country: matchedExam.countries?.name || 'Global',
+            country: matchedExam.countries?.name || 'Unspecified',
             flag: matchedExam.countries?.flag_emoji || '🌐',
-            category: matchedExam.exam_categories?.name || 'Professional Licensing',
+            category: matchedExam.exam_categories?.name || 'Unspecified',
             level: matchedExam.level || null,
-            difficulty: matchedExam.difficulty || 'Advanced',
-            question_count: matchedExam.question_count || 100,
-            time_limit_mins: matchedExam.time_limit_mins || 120,
-            marking_scheme: matchedExam.marking_scheme || null,
-            verificationStatus: matchedExam.verification_status || 'pending_review',
+            difficulty: matchedExam.difficulty || 'Unspecified',
+            question_count: examVerified && Number(matchedExam.question_count || 0) > 0 ? matchedExam.question_count : null,
+            time_limit_mins: examVerified && Number(matchedExam.time_limit_mins || 0) > 0 ? matchedExam.time_limit_mins : null,
+            current_version: matchedExam.current_version || null,
+            version_year: matchedExam.version_year || null,
+            marking_scheme: examVerified ? matchedExam.marking_scheme || null : null,
+            verificationStatus: examVerified ? 'verified' : 'needs_review',
+            examMetadataAuditStatus: metadata.exam_metadata_audit_status || 'needs_review',
             subjectCount,
             topicCount,
             subtopicCount,
             exam_subjects: subjects,
           },
-          curriculumStatus: matchedExam.verification_status === 'verified' ? 'verified_during_signup' : 'verification_pending',
+          curriculumStatus: curriculumReady
+            ? 'verified_during_signup'
+            : examVerified
+              ? 'curriculum_pending'
+              : 'verification_pending',
         })
       }
 
@@ -141,12 +159,12 @@ export async function POST(req: NextRequest) {
           id: null,
           name: examQuery.trim(),
           shortName: examQuery.trim(),
-          country: typeof country === 'string' && country.trim() ? country.trim() : 'Global',
+          country: typeof country === 'string' && country.trim() ? country.trim() : 'Unspecified',
           flag: '🌐',
-          category: typeof category === 'string' && category.trim() ? category.trim() : 'Professional Licensing',
+          category: typeof category === 'string' && category.trim() ? category.trim() : 'Unspecified',
           level: typeof level === 'string' && level.trim() ? level.trim().slice(0, 80) : null,
         },
-        curriculumStatus: 'prepared_during_signup',
+        curriculumStatus: 'verification_pending',
       })
     }
 
