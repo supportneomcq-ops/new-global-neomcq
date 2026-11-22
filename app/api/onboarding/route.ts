@@ -162,7 +162,7 @@ export async function POST(req: NextRequest) {
       if (validation.data.examId) {
         const { data: selectedExam, error: selectedExamError } = await (admin as any)
           .from('exams')
-          .select('id, name, short_name, slug, status, metadata')
+          .select('id, name, short_name, slug, status, verification_status, metadata')
           .eq('id', validation.data.examId)
           .maybeSingle()
 

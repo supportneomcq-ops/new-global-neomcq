@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
           short_name,
           slug,
           level,
+          verification_status,
           difficulty,
           question_count,
           time_limit_mins,
@@ -123,12 +124,13 @@ export async function POST(req: NextRequest) {
             question_count: matchedExam.question_count || 100,
             time_limit_mins: matchedExam.time_limit_mins || 120,
             marking_scheme: matchedExam.marking_scheme || null,
+            verificationStatus: matchedExam.verification_status || 'pending_review',
             subjectCount,
             topicCount,
             subtopicCount,
             exam_subjects: subjects,
           },
-          curriculumStatus: 'verified_during_signup',
+          curriculumStatus: matchedExam.verification_status === 'verified' ? 'verified_during_signup' : 'verification_pending',
         })
       }
 
