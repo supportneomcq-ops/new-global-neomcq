@@ -491,6 +491,9 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (requiresReaudit) {
+      if (updateData.current_version || updateData.version_year || updateData.source_url || updateData.official_notification_url || updateData.official_syllabus_url) {
+        updateData.is_current = true
+      }
       updateData.verification_status = 'needs_review'
       updateData.last_verified_at = null
       updateData.next_verification_at = null
