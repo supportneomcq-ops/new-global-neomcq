@@ -2,6 +2,7 @@ import { GoogleGenAI } from '@google/genai'
 import OpenAI from 'openai'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { randomUUID } from 'crypto'
+import { buildExamMetadataAudit } from './metadata-audit'
 import { normalizeInput, calculateLevenshteinSimilarity } from '@/lib/knowledge/normalizer'
 import { classifyUserInput } from '@/lib/knowledge/classifier'
 import {
@@ -2286,6 +2287,11 @@ export async function collectExamRulesProcess(
   supabaseClient?: any
 ): Promise<{
   rulesStatus: 'ready' | 'partial' | 'needs_review'
+  verificationStatus: 'needs_review'
+  auditStatus: 'needs_review' | 'ready_for_review'
+  auditId: string | null
+  missingFields: string[]
+  conflictingFields: any[]
   marking_scheme: any
   question_types: any[]
   duration_minutes: number | null
@@ -2293,207 +2299,141 @@ export async function collectExamRulesProcess(
 }> {
   const supabase = supabaseClient || getSupabaseAdmin()
 
-  const [{ data: examRow }, { data: versionRows }, { data: evidenceRows }] = await Promise.all([
+  const [{ data: examRow, error: examError }, { data: versionRows }, { data: evidenceRows }] = await Promise.all([
     supabase.from('exams').select('*').eq('id', examId).single(),
     supabase.from('exam_versions').select('*').eq('exam_id', examId),
     supabase.from('exam_evidence').select('*').eq('exam_id', examId),
   ])
 
+  if (examError || !examRow) {
+    throw new Error(`Cannot audit exam rules for ${examName}: ${examError?.message || 'exam not found'}`)
+  }
+
   const [{ data: countryRow }, { data: categoryRow }, { data: authorityRow }] = await Promise.all([
-    examRow?.country_id
+    examRow.country_id
       ? supabase.from('countries').select('id, name, iso2').eq('id', examRow.country_id).maybeSingle()
       : Promise.resolve({ data: null }),
-    examRow?.category_id
+    examRow.category_id
       ? supabase.from('exam_categories').select('id, name, slug').eq('id', examRow.category_id).maybeSingle()
       : Promise.resolve({ data: null }),
-    examRow?.authority_id
-      ? supabase.from('exam_authorities').select('id, name, official_website, source_url, verification_status').eq('id', examRow.authority_id).maybeSingle()
+    examRow.authority_id
+      ? supabase.from('exam_authorities').select('*').eq('id', examRow.authority_id).maybeSingle()
       : Promise.resolve({ data: null }),
   ])
 
-  const fallbackSpec = buildFallbackCurriculum(examName, countryHint, categoryHint)
-
-  // Detect and validate exam rules without inventing fake numbers
+  // Rules may be read from the stored record for audit comparison, but no fallback
+  // template or AI-generated profile is allowed to supply official exam facts.
   const rulesValidation = detectAndValidateExamRules(
     examRow,
     versionRows || [],
     evidenceRows || [],
-    fallbackSpec
+    undefined
   )
 
-  const currentYear = new Date().getFullYear()
-  const existingCurrentVersion = (versionRows || []).find((v: any) => v.is_current)
+  const audit = buildExamMetadataAudit({
+    exam: examRow,
+    country: countryRow,
+    category: categoryRow,
+    authority: authorityRow,
+    versions: versionRows || [],
+    evidence: evidenceRows || [],
+  })
 
-  // Save rules to `exams` row
-  try {
-    await supabase
-      .from('exams')
-      .update({
-        marking_scheme: rulesValidation.marking_scheme,
-        question_types: rulesValidation.question_types,
-        time_limit_mins: rulesValidation.duration_minutes,
-        question_count: rulesValidation.question_count,
-        metadata: {
-          ...(examRow?.metadata || {}),
-          rules_conflicts: rulesValidation.conflictDetails,
-          rules_status: rulesValidation.rulesStatus,
-          exam_metadata_audit: (() => {
-            const officialEvidence = (evidenceRows || []).filter((e: any) =>
-              ['official_syllabus', 'official_bulletin', 'official_notification'].includes(String(e.source_type || '').toLowerCase()) &&
-              ['valid', 'verified'].includes(String(e.verification_status || '').toLowerCase()) &&
-              typeof e.source_url === 'string' && /^https?:\/\//i.test(e.source_url)
-            )
-            const currentVersion = (versionRows || []).find((v: any) => v.is_current) || null
-            const evidenceFor = (keys: string[]) => officialEvidence.find((e: any) =>
-              keys.some((key) => e.extracted_data && e.extracted_data[key] !== undefined && e.extracted_data[key] !== null)
-            ) || null
-            const field = (value: any, evidence: any = null) => ({
-              value: value === undefined || value === '' ? null : value,
-              status: value === undefined || value === '' || value === null
-                ? 'unknown'
-                : evidence?.source_url ? 'verified' : 'needs_verification',
-              source: evidence?.source_url || null,
-            })
-            const countryEvidence = evidenceFor(['country', 'jurisdiction', 'country_name'])
-            const authorityEvidence = evidenceFor(['authority', 'exam_authority', 'publisher_authority'])
-            const categoryEvidence = evidenceFor(['category', 'exam_category'])
-            const levelEvidence = evidenceFor(['level', 'credential_level', 'exam_level'])
-            const countEvidence = evidenceFor(['question_count', 'total_questions', 'questions'])
-            const durationEvidence = evidenceFor(['duration_minutes', 'time_limit_mins', 'duration'])
-            const typeEvidence = evidenceFor(['question_types', 'question_format', 'sections'])
-            const positiveEvidence = evidenceFor(['positive_mark', 'marks_per_question', 'correct_mark'])
-            const negativeEvidence = evidenceFor(['negative_mark', 'negative_marking', 'has_negative_marking'])
-            const totalMarksEvidence = evidenceFor(['total_marks', 'maximum_marks', 'max_marks'])
-            const passingEvidence = evidenceFor(['passing_criteria', 'pass_mark', 'passing_score'])
-            const eligibilityEvidence = evidenceFor(['eligibility', 'eligibility_requirements'])
-            const attemptsEvidence = evidenceFor(['attempt_rules', 'attempt_limit', 'maximum_attempts'])
-            const selectionEvidence = evidenceFor(['selection_process', 'selection_criteria'])
-            const evidenceSource = officialEvidence[0]?.source_url || null
-            const hasVerifiedSource = officialEvidence.length > 0
-            return {
-              audit_version: 1,
-              audited_at: new Date().toISOString(),
-              overall_status: hasVerifiedSource ? 'partial_verification' : 'needs_verification',
-              canonical_exam_name: field(examRow?.name, null),
-              country: field(countryRow?.name || countryHint || null, countryEvidence),
-              country_iso2: field(countryRow?.iso2 || null, countryEvidence),
-              country_id: field(examRow?.country_id || null, countryEvidence),
-              authority: field(
-                examRow?.authority || authorityRow?.name || null,
-                authorityEvidence || (
-                  String(authorityRow?.verification_status || '').toLowerCase() === 'verified' &&
-                  (authorityRow?.official_website || authorityRow?.source_url)
-                    ? { source_url: authorityRow.official_website || authorityRow.source_url }
-                    : null
-                )
-              ),
-              authority_source_url: field(authorityRow?.official_website || authorityRow?.source_url || null, authorityRow?.verification_status === 'verified' ? { source_url: authorityRow?.official_website || authorityRow?.source_url } : null),
-              category: field(categoryRow?.name || categoryHint || null, categoryEvidence),
-              category_id: field(examRow?.category_id || null, categoryEvidence),
-              exam_type: field(examRow?.exam_type || null, null),
-              level: field(examRow?.level || null, levelEvidence),
-              stages: field(examRow?.stages || null, 'exams.stages'),
-              papers: field(examRow?.papers || null, 'exams.papers'),
-              question_count: field(rulesValidation.question_count, countEvidence),
-              duration_minutes: field(rulesValidation.duration_minutes, durationEvidence),
-              question_types: field(rulesValidation.question_types?.length ? rulesValidation.question_types : null, typeEvidence),
-              total_marks: field(examRow?.total_marks ?? null, totalMarksEvidence),
-              positive_mark: field(rulesValidation.marking_scheme?.positive_mark ?? null, positiveEvidence),
-              negative_marking: field(
-                rulesValidation.marking_scheme && typeof rulesValidation.marking_scheme.has_negative_marking === 'boolean'
-                  ? rulesValidation.marking_scheme.has_negative_marking
-                  : examRow?.negative_marking || null,
-                negativeEvidence
-              ),
-              passing_criteria: field(examRow?.passing_criteria || null, passingEvidence),
-              eligibility: field(examRow?.eligibility || null, eligibilityEvidence),
-              attempt_rules: field(examRow?.attempt_rules || null, attemptsEvidence),
-              selection_process: field(examRow?.selection_process || null, selectionEvidence),
-              version_year: field(currentVersion?.version_year || examRow?.version_year || null, currentVersion?.source_url || evidenceSource),
-              official_sources: officialEvidence.map((e: any) => ({
-                url: e.source_url,
-                type: e.source_type,
-                publisher: e.publisher_authority || null,
-                version_date: e.source_version_date || null,
-                verification_status: e.verification_status,
-                retrieved_at: e.retrieved_at || null,
-              })),
-              missing_or_unverified_fields: [
-                ['canonical_exam_name', examRow?.name, null],
-                ['country', countryRow?.name || countryHint || null, countryEvidence],
-                ['authority', examRow?.authority || authorityRow?.name || null,
-                  authorityEvidence || (
-                    String(authorityRow?.verification_status || '').toLowerCase() === 'verified' &&
-                    (authorityRow?.official_website || authorityRow?.source_url)
-                      ? { source_url: authorityRow.official_website || authorityRow.source_url }
-                      : null
-                  )],
-                ['category', categoryRow?.name || categoryHint || null, categoryEvidence],
-                ['level', examRow?.level || null, levelEvidence],
-                ['stages', examRow?.stages || null, evidenceFor(['stages', 'exam_stages'])],
-                ['papers', examRow?.papers || null, evidenceFor(['papers', 'paper_pattern'])],
-                ['question_count', rulesValidation.question_count, countEvidence],
-                ['duration_minutes', rulesValidation.duration_minutes, durationEvidence],
-                ['question_types', rulesValidation.question_types?.length ? rulesValidation.question_types : null, typeEvidence],
-                ['total_marks', examRow?.total_marks ?? null, totalMarksEvidence],
-                ['positive_mark', rulesValidation.marking_scheme?.positive_mark ?? null, positiveEvidence],
-                ['negative_marking', rulesValidation.marking_scheme?.has_negative_marking ?? examRow?.negative_marking ?? null, negativeEvidence],
-                ['passing_criteria', examRow?.passing_criteria || null, passingEvidence],
-                ['eligibility', examRow?.eligibility || null, eligibilityEvidence],
-                ['attempt_rules', examRow?.attempt_rules || null, attemptsEvidence],
-                ['selection_process', examRow?.selection_process || null, selectionEvidence],
-                ['official_source', evidenceSource, evidenceSource ? { source_url: evidenceSource } : null],
-                ['version_year', currentVersion?.version_year || examRow?.version_year || null,
-                  currentVersion?.verification_status === 'verified' && currentVersion?.source_url
-                    ? { source_url: currentVersion.source_url }
-                    : null],
-              ].filter(([, value, evidence]) =>
-                value === undefined || value === null || value === '' || !evidence?.source_url
-              ).map(([name]) => name),
-            }
-          })(),
-        },
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', examId)
-  } catch (upErr) {
-    console.warn('[Exam Rules Process B] Update exams note:', upErr)
+  const previousAuditUpdate = await supabase
+    .from('exam_verification_audits')
+    .update({ is_current: false, updated_at: new Date().toISOString() })
+    .eq('exam_id', examId)
+    .eq('is_current', true)
+
+  if (previousAuditUpdate.error) {
+    console.error('[Exam Rules Process B] Could not close prior metadata audit:', previousAuditUpdate.error)
   }
 
-  // Preserve historical versions. The schema requires a source_url, so do not
-  // fabricate a URL or create a version row until a valid official source exists.
-  if (!existingCurrentVersion) {
-    const officialEvidence = (evidenceRows || []).find((e: any) =>
-      ['official_syllabus', 'official_bulletin'].includes(e.source_type) &&
-      e.verification_status === 'valid' &&
-      typeof e.source_url === 'string' &&
-      (e.source_url.startsWith('https://') || e.source_url.startsWith('http://'))
-    )
-    if (officialEvidence?.source_url) {
-      const patternSummary = `${examName} | ${rulesValidation.duration_minutes || 'N/A'} mins | ${rulesValidation.question_count || 'N/A'} questions | Marking: +${rulesValidation.marking_scheme?.positive_mark || 1}, ${rulesValidation.marking_scheme?.has_negative_marking ? '-' + (rulesValidation.marking_scheme?.negative_mark || 0.25) : 'no penalty'}`
-      const { error: versionInsertError } = await supabase.from('exam_versions').insert({
-        exam_id: examId,
-        version_year: currentYear,
-        is_current: true,
-        source_url: officialEvidence.source_url,
-        pattern_summary: patternSummary,
-        verified_at: new Date().toISOString(),
-        verification_status: 'verified',
-      })
-      if (versionInsertError) {
-        console.warn('[Exam Rules Process B] exam_versions insert note:', versionInsertError)
-      }
-    } else {
-      console.info('[Exam Rules Process B] No valid official source URL; skipping exam_versions row until evidence is available.')
-    }
+  const { data: auditRow, error: auditInsertError } = await supabase
+    .from('exam_verification_audits')
+    .insert({
+      exam_id: examId,
+      exam_version_id: audit.current_exam_version_id,
+      audit_version: audit.audit_version,
+      status: audit.status,
+      field_results: audit.field_results,
+      missing_fields: audit.missing_fields,
+      conflicting_fields: audit.conflicting_fields,
+      source_ids: audit.source_ids,
+      source_urls: audit.source_urls,
+      checked_at: audit.checked_at,
+      is_current: true,
+    })
+    .select('id')
+    .single()
+
+  if (auditInsertError) {
+    console.error('[Exam Rules Process B] Failed to persist field-level audit:', auditInsertError)
+  }
+
+  const auditStatus = auditInsertError ? 'needs_review' : audit.status
+  const rulesStatus: 'ready' | 'partial' | 'needs_review' =
+    auditStatus === 'ready_for_review' ? 'ready' : 'needs_review'
+  const auditId = auditRow?.id || null
+  const combinedConflicts = [
+    ...(rulesValidation.conflictDetails || []).map((reason: string) => ({ reason })),
+    ...(audit.conflicting_fields || []),
+  ]
+
+  const metadata = {
+    ...(examRow.metadata || {}),
+    rules_conflicts: combinedConflicts,
+    rules_status: rulesStatus,
+    exam_metadata_audit_status: auditStatus,
+    exam_metadata_audit_id: auditId,
+    exam_metadata_audit_checked_at: audit.checked_at,
+    exam_metadata_audit_summary: {
+      status: auditStatus,
+      missing_fields: audit.missing_fields,
+      conflicting_fields: audit.conflicting_fields,
+      source_urls: audit.source_urls,
+      authority_domain: audit.authority_domain,
+      current_exam_version_id: audit.current_exam_version_id,
+      current_version_year: audit.current_version_year,
+      official_evidence_count: audit.official_evidence_count,
+      candidate_official_evidence_count: audit.candidate_official_evidence_count,
+    },
+    provisional_exam_rules: {
+      question_count: rulesValidation.question_count,
+      duration_minutes: rulesValidation.duration_minutes,
+      marking_scheme: rulesValidation.marking_scheme,
+      question_types: rulesValidation.question_types,
+      status: 'unverified_until_official_audit_approval',
+      source: 'stored_exam_fields_or_verified_evidence_only',
+    },
+  }
+
+  const { error: examUpdateError } = await supabase
+    .from('exams')
+    .update({
+      verification_status: 'needs_review',
+      last_verified_at: null,
+      next_verification_at: null,
+      metadata,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', examId)
+
+  if (examUpdateError) {
+    console.error('[Exam Rules Process B] Failed to persist exam metadata audit summary:', examUpdateError)
   }
 
   return {
-    rulesStatus: rulesValidation.rulesStatus,
-    marking_scheme: rulesValidation.marking_scheme,
-    question_types: rulesValidation.question_types,
-    duration_minutes: rulesValidation.duration_minutes,
-    question_count: rulesValidation.question_count,
+    rulesStatus,
+    verificationStatus: 'needs_review',
+    auditStatus,
+    auditId,
+    missingFields: audit.missing_fields || [],
+    conflictingFields: audit.conflicting_fields || [],
+    marking_scheme: null,
+    question_types: [],
+    duration_minutes: null,
+    question_count: null,
   }
 }
 
