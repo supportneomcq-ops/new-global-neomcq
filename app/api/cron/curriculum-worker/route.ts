@@ -197,7 +197,7 @@ export async function GET(req: NextRequest) {
         examVerificationStatus,
         examMetadataAuditStatus,
       }
-      await admin.from('ai_jobs').update({
+      const { error: waitingJobError } = await admin.from('ai_jobs').update({
         exam_id: examId,
         input_payload: waitingPayload,
         status: 'waiting_verification',
@@ -214,6 +214,10 @@ export async function GET(req: NextRequest) {
         },
         error: null,
       }).eq('id', claimed.id)
+
+      if (waitingJobError) {
+        throw new Error(`Could not park curriculum job for verification: ${waitingJobError.message}`)
+      }
 
       if (payload.userId) {
         const { error: pendingProfileError } = await admin.from('profiles').update({
