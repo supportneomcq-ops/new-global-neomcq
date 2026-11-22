@@ -341,7 +341,8 @@ function validateGeneratedContent(
       const sentence = fib.sentence.trim()
       const blank = fib.blank.trim()
       const blankTokens = sentence.match(/\[BLANK\]/g) || []
-      if (!sentence || !blank || blankTokens.length !== 1) continue
+      if (!sentence || !blank || blankTokens.length !== 1 ||
+          sentence.toLocaleLowerCase().includes(blank.toLocaleLowerCase())) continue
 
       const rawSubtopic = String(fib.subtopicName || fib.subtopic || '').trim()
       const matchedSubtopic = allowedSubtopics.find((name) => name.toLowerCase() === rawSubtopic.toLowerCase())
@@ -351,6 +352,7 @@ function validateGeneratedContent(
         ? Array.from(new Set(fib.acceptedAnswers.map((answer: unknown) => String(answer || '').trim()).filter(Boolean))).slice(0, 5)
         : []
       if (!acceptedAnswers.some((answer) => answer.toLowerCase() === blank.toLowerCase())) acceptedAnswers.unshift(blank)
+      if (acceptedAnswers.length < 2) continue
 
       validFillInBlanks.push({
         id: fib.id || ('fib_' + Math.random().toString(36).slice(2, 9)),
