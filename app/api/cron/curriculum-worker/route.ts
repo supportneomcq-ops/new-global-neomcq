@@ -349,8 +349,7 @@ export async function GET(req: NextRequest) {
             Boolean(findByName(savedSubtopics, expectedSubtopic.name, 'SUBTOPIC', expectedTopic.name))
           ).length
 
-          // A topic must have at least one meaningful saved subtopic, and at
-          // least 80% of its expected subtopics must be present.
+          // Every expected subtopic must be present; partial coverage is not official.
           if (
             savedSubtopics.length !== expectedSubtopics.length ||
             matchedSubtopics !== expectedSubtopics.length
@@ -359,8 +358,7 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        // Every expected subject is required; at least 80% of each subject's
-        // expected topics must be present in the persisted hierarchy.
+        // Every expected topic for every subject must be present exactly.
         if (matchedTopics !== expectedTopics.length) {
           topicCoverageFailures.push(String(expectedSubject.name || '(unnamed subject)'))
         }
