@@ -42,6 +42,7 @@ import {
   Terminal,
   Lock,
   ShieldAlert,
+  ShieldCheck,
   Key,
   Loader2,
   Play,
@@ -90,6 +91,7 @@ export function AdminShell({ userEmail, roles, children }: AdminShellProps) {
     aiJobs: 0,
     failedJobs: 0,
     notifications: 0,
+    examReview: 0,
   });
 
   useEffect(() => {
@@ -121,14 +123,20 @@ export function AdminShell({ userEmail, roles, children }: AdminShellProps) {
         const { count: pendingJobsCount } = await supabase
           .from('ai_jobs')
           .select('*', { count: 'exact', head: true })
-          .in('status', ['pending', 'processing']);
+          .in('status', ['queued', 'processing', 'waiting_verification']);
         if (pendingJobsCount !== null) pendingCount = pendingJobsCount;
+
+        const { count: examReviewCount } = await supabase
+          .from('exams')
+          .select('*', { count: 'exact', head: true })
+          .in('verification_status', ['pending_review', 'needs_review', 'outdated']);
 
         setBadges((prev) => ({
           ...prev,
           supportAccounts: supportCount,
           failedJobs: failedCount,
           aiJobs: pendingCount,
+          examReview: examReviewCount || 0,
         }));
       } catch (err) {
         console.error('Silent bypass: Failed to fetch live badge counts', err);
@@ -174,6 +182,7 @@ export function AdminShell({ userEmail, roles, children }: AdminShellProps) {
       title: 'EXAM & KNOWLEDGE',
       items: [
         { label: 'Exams', href: '/admin/exams', icon: BookOpen },
+        { label: 'Exam Verification', href: '/admin/exam-verification', icon: ShieldCheck, badge: badges.examReview, badgeType: 'amber' },
         { label: 'Exam Switches ($2)', href: '/admin/exam-switches', icon: Lock },
         { label: 'Subjects', href: '/admin/subjects', icon: FolderTree },
         { label: 'Topics', href: '/admin/topics', icon: FileText },
