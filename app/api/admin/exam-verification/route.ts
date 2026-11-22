@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { verifyAdminApiSession } from '@/lib/admin-auth'
 import { collectExamRulesProcess } from '@/lib/server/exam-intelligence/engine'
+import { normalizeOfficialSyllabusSubjects } from '@/lib/server/exam-intelligence/metadata-audit'
 
 const OFFICIAL_TYPES = new Set([
   'official_bulletin',
@@ -145,11 +146,11 @@ export async function POST(req: NextRequest) {
     if (!bundle) return NextResponse.json({ success: false, error: 'Exam not found.' }, { status: 404 })
 
     if (action === 'add_source') {
-      if (!OFFICIAL_TYPES.has(String(source_type || '')) || !isHttps(source_url)) {
+      if (!OFFICIAL_TYPES.has(String(source_type || '')) || !isHttps(source_url) || !source_version_date) {
         return NextResponse.json({ success: false, error: 'Choose an official source type and provide a valid HTTPS URL.' }, { status: 400 })
       }
       const authorityUrl = bundle.authority?.official_website
-      if (!authorityUrl || !hostMatches(source_url, authorityUrl)) {
+      if (bundle.authority?.verification_status !== 'verified' || !authorityUrl || !hostMatches(source_url, authorityUrl)) {
         return NextResponse.json({ success: false, error: 'Source URL must belong to the verified authority domain.' }, { status: 400 })
       }
 
@@ -193,11 +194,14 @@ export async function POST(req: NextRequest) {
       if (!OFFICIAL_TYPES.has(String(source.source_type || '')) || !isHttps(source.source_url)) {
         return NextResponse.json({ success: false, error: 'Only HTTPS official source records can be verified.' }, { status: 400 })
       }
-      if (!bundle.authority?.official_website || !hostMatches(source.source_url, bundle.authority.official_website)) {
+      if (bundle.authority?.verification_status !== 'verified' || !bundle.authority?.official_website || !hostMatches(source.source_url, bundle.authority.official_website)) {
         return NextResponse.json({ success: false, error: 'Evidence domain does not match the exam authority official website.' }, { status: 400 })
       }
       if (!source.source_version_date) {
         return NextResponse.json({ success: false, error: 'Add the document/source version date before verifying this evidence.' }, { status: 400 })
+      }
+      if (['official_syllabus', 'official_guideline', 'official_handbook'].includes(String(source.source_type || '')) && !normalizeOfficialSyllabusSubjects(source.extracted_data)) {
+        return NextResponse.json({ success: false, error: 'A syllabus source must contain structured subjects, topics and subtopics before it can be verified.' }, { status: 400 })
       }
       const { error } = await admin.from('exam_evidence').update({
         verification_status: 'verified',
