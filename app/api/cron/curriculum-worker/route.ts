@@ -243,6 +243,47 @@ export async function GET(req: NextRequest) {
       })
     }
 
+    const curriculumSourceStatus = String(metadata.curriculum_source_status || '')
+    if (curriculumSourceStatus === 'missing_structured_official_syllabus' || curriculumSourceStatus === 'incomplete_structured_official_syllabus') {
+      const waitingPayload = { ...payload, examId, examName: persisted.name }
+      const { error: waitingJobError } = await admin.from('ai_jobs').update({
+        exam_id: examId,
+        input_payload: waitingPayload,
+        status: 'waiting_verification',
+        completed_at: null,
+        progress_stage: 'Waiting for structured official syllabus evidence',
+        step_percentage: 0,
+        output_payload: {
+          examId,
+          examName: persisted.name,
+          curriculumSourceStatus,
+          requirement: metadata.curriculum_source_requirement || 'Add verified official syllabus data with structured subjects, topics and subtopics.',
+        },
+        error: null,
+      }).eq('id', claimed.id)
+      if (waitingJobError) throw new Error(`Could not park curriculum job for official syllabus evidence: ${waitingJobError.message}`)
+
+      if (payload.userId) {
+        const { error: pendingProfileError } = await admin.from('profiles').update({
+          current_exam_id: examId,
+          exam_locked: false,
+          exam_selected_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq('id', payload.userId)
+        if (pendingProfileError) console.warn('[Curriculum Worker] Could not persist pending syllabus selection:', pendingProfileError.message)
+      }
+
+      return json(200, {
+        success: true,
+        waitingForOfficialSyllabus: true,
+        jobId: claimed.id,
+        examId,
+        examName: persisted.name,
+        curriculumSourceStatus,
+        message: 'Curriculum generation is paused until the verified official syllabus has structured subjects, topics and subtopics.',
+      })
+    }
+
     const spec = metadata.curriculum_spec_cache
     const expectedSubjects = Array.isArray(spec?.subjects) ? spec.subjects : []
     const allSubjects = persisted.exam_subjects || []
