@@ -270,10 +270,13 @@ export class OpenAIProvider extends ProviderAdapter {
         };
 
         if (options.maxOutputTokens) {
-          // O1/O3 reasoning models use max_completion_tokens
-          if (model.startsWith('o1') || model.startsWith('o3')) {
+          // Reasoning and GPT-5 family models use max_completion_tokens.
+          // GPT-5 Chat Completions rejects the legacy max_tokens parameter.
+          const usesCompletionTokenLimit =
+            model.startsWith('o1') || model.startsWith('o3') || model.startsWith('gpt-5');
+          if (usesCompletionTokenLimit) {
             params.max_completion_tokens = options.maxOutputTokens;
-            // reasoning models do not take custom temperature
+            // Reasoning/GPT-5 models use their default sampling configuration here.
             delete (params as any).temperature;
           } else {
             params.max_tokens = options.maxOutputTokens;
