@@ -50,8 +50,14 @@ export interface GeneratedFillInBlank {
   id?: string
   sentence: string
   blank: string
+  acceptedAnswers: string[]
   concept: string
   explanation: string
+  highYieldPoint?: string
+  memoryHook?: string
+  examTip?: string
+  difficulty?: string
+  subtopicName?: string
 }
 
 export interface GeneratedWhiteboardPhase {
@@ -80,6 +86,8 @@ export interface ContentIntelligencePayload {
     scope: boolean
     deduplication: boolean
     answers: boolean
+    flashcards?: boolean
+    fill_in_the_blanks?: boolean
     score: number
   }
 }
@@ -207,7 +215,8 @@ function validateGeneratedContent(
   rawPayload: any,
   topicName: string,
   subjectName: string,
-  existingStems: Set<string>
+  existingStems: Set<string>,
+  allowedSubtopics: string[] = []
 ): { isValid: boolean; payload: ContentIntelligencePayload; report: any } {
   let isStructural = true
   let isScope = true
@@ -323,19 +332,39 @@ function validateGeneratedContent(
     }
   }
 
-  // Fill in the blanks validation / extraction
+  // Fill-in-the-blanks must be usable in the learner's actual recall workflow.
+  // Require one explicit [BLANK], a canonical answer, accepted synonyms and a valid topic scope.
   const validFillInBlanks: GeneratedFillInBlank[] = []
   if (Array.isArray(rawPayload?.fill_in_the_blanks)) {
     for (const fib of rawPayload.fill_in_the_blanks) {
-      if (fib && typeof fib.sentence === 'string' && typeof fib.blank === 'string' && fib.sentence.trim() && fib.blank.trim()) {
-        validFillInBlanks.push({
-          id: fib.id || `fib_${Math.random().toString(36).slice(2, 9)}`,
-          sentence: fib.sentence.trim(),
-          blank: fib.blank.trim(),
-          concept: fib.concept ? String(fib.concept).trim() : topicName,
-          explanation: fib.explanation ? String(fib.explanation).trim() : 'High-yield recall point.',
-        })
-      }
+      if (!fib || typeof fib.sentence !== 'string' || typeof fib.blank !== 'string') continue
+      const sentence = fib.sentence.trim()
+      const blank = fib.blank.trim()
+      const blankTokens = sentence.match(/\[BLANK\]/g) || []
+      if (!sentence || !blank || blankTokens.length !== 1) continue
+
+      const rawSubtopic = String(fib.subtopicName || fib.subtopic || '').trim()
+      const matchedSubtopic = allowedSubtopics.find((name) => name.toLowerCase() === rawSubtopic.toLowerCase())
+      if (allowedSubtopics.length > 0 && !matchedSubtopic) continue
+
+      const acceptedAnswers = Array.isArray(fib.acceptedAnswers)
+        ? Array.from(new Set(fib.acceptedAnswers.map((answer: unknown) => String(answer || '').trim()).filter(Boolean))).slice(0, 5)
+        : []
+      if (!acceptedAnswers.some((answer) => answer.toLowerCase() === blank.toLowerCase())) acceptedAnswers.unshift(blank)
+
+      validFillInBlanks.push({
+        id: fib.id || ('fib_' + Math.random().toString(36).slice(2, 9)),
+        sentence,
+        blank,
+        acceptedAnswers,
+        concept: fib.concept ? String(fib.concept).trim() : topicName,
+        explanation: fib.explanation ? String(fib.explanation).trim() : 'High-yield recall point.',
+        highYieldPoint: fib.highYieldPoint ? String(fib.highYieldPoint).trim() : undefined,
+        memoryHook: fib.memoryHook ? String(fib.memoryHook).trim() : undefined,
+        examTip: fib.examTip ? String(fib.examTip).trim() : undefined,
+        difficulty: fib.difficulty ? String(fib.difficulty).trim() : 'High Yield',
+        subtopicName: matchedSubtopic || rawSubtopic || undefined,
+      })
     }
   }
 
@@ -370,6 +399,10 @@ function validateGeneratedContent(
 
   const finalScore = Math.max(0, Math.min(100, score))
 
+  const hasMinimumFlashcards = validFlashcards.length >= 10
+  const hasMinimumFillInBlanks = validFillInBlanks.length >= 8
+  const hasMinimumWhiteboardPhases = validWhiteboardPhases.length >= 1
+
   const payload: ContentIntelligencePayload = {
     mcqs: validMcqs,
     quiz_a: quizA,
@@ -387,11 +420,14 @@ function validateGeneratedContent(
       scope: isScope,
       deduplication: isDeduplication,
       answers: isAnswers,
+      flashcards: hasMinimumFlashcards,
+      fill_in_the_blanks: hasMinimumFillInBlanks,
       score: finalScore,
     },
   }
 
-  const isValid = validMcqs.length >= 3 && Boolean(validNotes)
+  const isValid = validMcqs.length >= 10 && Boolean(validNotes) &&
+    hasMinimumFlashcards && hasMinimumFillInBlanks && hasMinimumWhiteboardPhases
 
   return { isValid, payload, report: payload.validation_report }
 }
@@ -636,6 +672,17 @@ export async function getOrGenerateCanonicalTopicContent({
     }
   }
 
+  const { data: topicSubtopicRows } = await supabase
+    .from('exam_subtopics')
+    .select('id,name,is_active,display_order')
+    .eq('topic_id', topic.id)
+    .order('display_order', { ascending: true })
+  const topicSubtopicNames = (topicSubtopicRows || [])
+    .filter((row: any) => row.is_active !== false)
+    .map((row: any) => String(row.name || '').trim())
+    .filter(Boolean)
+  const allowedSubtopicNames = subtopicName ? [subtopicName] : topicSubtopicNames
+
   // 2. Fetch Existing Content & Content Versions
   let latestVersionRecord: any = null
   let existingDbMcqs: any[] = []
@@ -700,7 +747,22 @@ export async function getOrGenerateCanonicalTopicContent({
 
   // Canonical topic content is shared and reusable until an authorised refresh creates a new version.
   // Age alone must never trigger duplicate AI spend for the same syllabus scope.
-  const isFresh = hasExistingContent
+  const snapshotMcqCount = Array.isArray(latestSnapshot.mcqs) ? latestSnapshot.mcqs.length
+    : legacyMainItems.length + legacyQuizAItems.length + legacyQuizBItems.length
+  const snapshotFlashcardCount = Array.isArray(latestSnapshot.flashcards) ? latestSnapshot.flashcards.length : legacyFlashcardItems.length
+  const snapshotFillBlankItems = Array.isArray(latestSnapshot.fill_in_the_blanks) ? latestSnapshot.fill_in_the_blanks : []
+  const snapshotNotesText = typeof latestSnapshot.notes === 'string' ? latestSnapshot.notes : legacyNotesContent
+  const hasCompleteCanonicalPack =
+    Math.max(existingDbMcqs.length, snapshotMcqCount) >= 10 &&
+    Math.max(existingDbFlashcards.length, snapshotFlashcardCount) >= 10 &&
+    snapshotFillBlankItems.length >= 8 &&
+    snapshotFillBlankItems.every((item: any) =>
+      typeof item?.sentence === 'string' && (item.sentence.match(/\[BLANK\]/g) || []).length === 1 &&
+      typeof item?.blank === 'string' && item.blank.trim().length > 0 &&
+      Array.isArray(item?.acceptedAnswers) && item.acceptedAnswers.length > 0
+    ) &&
+    (existingDbNotes.length > 0 || (typeof snapshotNotesText === 'string' && snapshotNotesText.trim().length > 20))
+  const isFresh = hasExistingContent && hasCompleteCanonicalPack
   const currentVersionNum = latestVersionRecord?.version || (existingDbMcqs.length > 0 ? 1 : 0)
 
   // Format cached content payload helper
@@ -1111,6 +1173,7 @@ CANONICAL TARGET SCOPE:
 - Canonical Subject: ${subject.name}
 - Canonical Topic: ${topic.name}
 ${subtopicName ? `- Focused Subtopic: ${subtopicName}` : '- Subtopic: Comprehensive Topic Coverage'}
+- Available Subtopics: ${allowedSubtopicNames.length ? allowedSubtopicNames.join(', ') : 'No separate subtopic list is configured'}
 - Target Difficulty: ${difficulty}
 - Language: ${language}
 
@@ -1119,7 +1182,9 @@ CRITICAL RULES:
 2. STRICT SCOPE CONSTRAINT: Generate content strictly within the bounds of ${subtopicName ? `"${subtopicName}" under topic "${topic.name}"` : `"${topic.name}"`} in "${subject.name}" for "${exam.name}".
 3. ZERO DUPLICATE QUESTIONS:
 ${existingSummaries ? `Existing questions in database (DO NOT REWRITE OR DUPLICATE):\n${existingSummaries}\n` : 'No prior questions in database.'}
-4. REQUIRED JSON STRUCTURE:
+4. Fill-in-the-blanks are a required deliverable: generate 8–12 items. Every sentence must contain exactly one literal [BLANK] token, and the canonical answer must not appear elsewhere in that sentence. Include the canonical answer plus valid synonyms in acceptedAnswers. Assign subtopicName to an exact name from Available Subtopics; if this request targets one subtopic, use that exact name.
+5. Generate at least 10 MCQs, 10 flashcards and 1 whiteboard lesson phase. Do not return empty arrays for required learning assets.
+6. REQUIRED JSON STRUCTURE:
 {
   "mcqs": [
     {
@@ -1150,10 +1215,16 @@ ${existingSummaries ? `Existing questions in database (DO NOT REWRITE OR DUPLICA
   ],
   "fill_in_the_blanks": [
     {
-      "sentence": "The core governing principle, standard, or equation for [Key Concept] is [Standard Target].",
-      "blank": "Standard Target",
+      "sentence": "The key exam principle for [BLANK] is tested using this exact statement.",
+      "blank": "Canonical answer",
+      "acceptedAnswers": ["Canonical answer", "Accepted synonym", "Common abbreviation"],
       "concept": "${subtopicName || topic.name}",
-      "explanation": "High-yield foundational rule."
+      "subtopicName": "${subtopicName || 'Exact subtopic name from Available Subtopics'}",
+      "explanation": "Why the canonical answer is correct.",
+      "highYieldPoint": "The exam rule to remember.",
+      "memoryHook": "A concise mnemonic or association.",
+      "examTip": "A common distractor or confusion to avoid.",
+      "difficulty": "High Yield"
     }
   ],
   "whiteboard_phases": [
@@ -1351,7 +1422,7 @@ Generate high-yield MCQs, comprehensive A4 notes, flashcards, sticky notes, fill
   }
 
   // 4. Validate Generated Content
-  const validation = validateGeneratedContent(rawPayload, topic.name, subject.name, existingStemsNormalized)
+  const validation = validateGeneratedContent(rawPayload, topic.name, subject.name, existingStemsNormalized, allowedSubtopicNames)
   if (!validation.isValid) {
     if (jobId) {
       await supabase
