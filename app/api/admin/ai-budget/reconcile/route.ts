@@ -13,6 +13,10 @@ export async function POST(req: NextRequest) {
     if (!roles.includes('admin') && !roles.includes('super_admin')) {
       return NextResponse.json({ success: false, error: 'Financial administrator permission required.' }, { status: 403 })
     }
+    const adminUserId = auth.user?.id
+    if (!adminUserId) {
+      return NextResponse.json({ success: false, error: 'Authenticated administrator identity is missing.' }, { status: 401 })
+    }
 
     const body = await req.json()
     const reservationId = String(body?.reservationId || '')
@@ -39,7 +43,7 @@ export async function POST(req: NextRequest) {
       p_final_provider_cost_usd: finalProviderCostUsd,
       p_final_infrastructure_cost_usd: finalInfrastructureCostUsd,
       p_reason: reason,
-      p_reconciled_by: auth.user.id,
+      p_reconciled_by: adminUserId,
     })
 
     if (error || !data?.success) {
@@ -51,7 +55,7 @@ export async function POST(req: NextRequest) {
     }
 
     await logRevenueAuditEvent({
-      admin_id: auth.user.id,
+      admin_id: adminUserId,
       action: 'ai_budget_reservation_reconciled',
       entityType: 'ai_budget_reservation',
       entityId: reservationId,
