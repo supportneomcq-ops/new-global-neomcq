@@ -445,6 +445,8 @@ export interface EvidenceEvaluationResult {
   hasOfficialEvidence: boolean
   hasSecondaryEvidence: boolean
   hasAiInference: boolean
+  hasVerifiedAuthority: boolean
+  hasCurrentVerifiedVersion: boolean
   evidenceScope: string
   authorityName: string | null
   sourceUrl: string | null
@@ -452,8 +454,8 @@ export interface EvidenceEvaluationResult {
 }
 
 /**
- * Distinguishes official evidence, secondary verified standards, and AI inference.
- * Never reports verified / 100% without authentic evidence.
+ * Evidence-first exam verification. A complete AI curriculum is not proof that
+ * the exam, its publisher, or its current pattern has been verified.
  */
 export function evaluateEvidenceAndStatus(options: {
   authorityRow?: any
@@ -464,28 +466,59 @@ export function evaluateEvidenceAndStatus(options: {
   topicCount: number
   subtopicCount: number
 }): EvidenceEvaluationResult {
-  const { authorityRow, evidenceRows = [], comparisonReport, subjectCount, topicCount } = options
+  const { authorityRow, evidenceRows = [], versionRows = [], comparisonReport, subjectCount, topicCount } = options
+  const isHttpUrl = (value: unknown): value is string =>
+    typeof value === 'string' && /^https?:\\/\\//i.test(value.trim())
 
-  const officialEvidence = evidenceRows.find(
-    (e) => e.source_type === 'official_syllabus' || e.source_type === 'official_bulletin'
+  // Notification evidence is authoritative alongside official syllabi and bulletins.
+  // Reject pending, invalid, or URL-less records from the verification decision.
+  const officialEvidenceRows = evidenceRows.filter((e) =>
+    ['official_syllabus', 'official_bulletin', 'official_notification'].includes(
+      String(e.source_type || '').toLowerCase()
+    ) &&
+    ['valid', 'verified'].includes(String(e.verification_status || '').toLowerCase()) &&
+    isHttpUrl(e.source_url)
   )
-  const secondaryEvidence = evidenceRows.find(
-    (e) => e.source_type === 'verified_standard' || e.source_type === 'academic_curriculum'
-  )
+  const officialEvidence = officialEvidenceRows[0] || null
+  const secondaryEvidence = evidenceRows.find((e) =>
+    ['verified_standard', 'academic_curriculum'].includes(String(e.source_type || '').toLowerCase()) &&
+    ['valid', 'verified'].includes(String(e.verification_status || '').toLowerCase()) &&
+    isHttpUrl(e.source_url)
+  ) || null
 
-  const hasOfficialEvidence = Boolean(officialEvidence && officialEvidence.verification_status === 'valid')
-  const hasSecondaryEvidence = Boolean(secondaryEvidence && secondaryEvidence.verification_status === 'valid')
+  const hasOfficialEvidence = officialEvidenceRows.length > 0
+  const hasSecondaryEvidence = Boolean(secondaryEvidence)
+  const publisherAuthority = officialEvidenceRows.find((e) =>
+    typeof e.publisher_authority === 'string' && e.publisher_authority.trim().length > 0
+  )?.publisher_authority?.trim() || null
+  const authorityRowVerified =
+    String(authorityRow?.verification_status || '').toLowerCase() === 'verified' &&
+    isHttpUrl(authorityRow?.official_website || authorityRow?.source_url)
+  const hasVerifiedAuthority = Boolean(authorityRowVerified || publisherAuthority)
+
+  // Require a current, explicitly verified, sourced exam version. A historic syllabus
+  // URL by itself cannot prove that the current examination pattern is still valid.
+  const currentVerifiedVersion = versionRows.find((version) =>
+    version.is_current === true &&
+    String(version.verification_status || '').toLowerCase() === 'verified' &&
+    isHttpUrl(version.source_url) &&
+    Boolean(version.verified_at)
+  ) || null
+  const hasCurrentVerifiedVersion = Boolean(currentVerifiedVersion)
   const hasAiInference = !hasOfficialEvidence && !hasSecondaryEvidence
 
-  const authorityName = authorityRow?.name || officialEvidence?.publisher_authority || null
+  const authorityName = authorityRow?.name || publisherAuthority || officialEvidence?.publisher_authority || null
   const sourceUrl = officialEvidence?.source_url || secondaryEvidence?.source_url || null
+  const coverage = comparisonReport
+    ? comparisonReport.coveragePercentage
+    : subjectCount > 0 && topicCount > 0 ? 95 : 50
 
-  const coverage = comparisonReport ? comparisonReport.coveragePercentage : (subjectCount > 0 && topicCount > 0 ? 95 : 50)
+  const hasConflict = evidenceRows.some((e) => Boolean(e.extracted_data?.rules_conflict))
+  const hasCompleteOfficialVerification =
+    hasOfficialEvidence && hasVerifiedAuthority && hasCurrentVerifiedVersion && coverage >= 90 && !hasConflict
 
-  // Determine verification_status honestly
   let verificationStatus: 'verified' | 'partially_verified' | 'AI_inferred' | 'needs_review'
-
-  if (hasOfficialEvidence && coverage >= 90) {
+  if (hasCompleteOfficialVerification) {
     verificationStatus = 'verified'
   } else if (hasOfficialEvidence || (hasSecondaryEvidence && coverage >= 75)) {
     verificationStatus = 'partially_verified'
@@ -495,30 +528,27 @@ export function evaluateEvidenceAndStatus(options: {
     verificationStatus = 'needs_review'
   }
 
-  // Determine curriculum_status
   let curriculumStatus: CurriculumStatus
   if (subjectCount === 0) {
     curriculumStatus = 'needs_enrichment'
   } else if (comparisonReport?.hasGaps && coverage < 70) {
     curriculumStatus = 'partial'
-  } else if (coverage >= 70 && subjectCount > 0 && topicCount >= subjectCount) {
+  } else if (coverage >= 70 && topicCount >= subjectCount) {
     curriculumStatus = 'ready'
   } else {
     curriculumStatus = 'partial'
   }
 
-  // Determine rules_status
-  let rulesStatus: 'ready' | 'partial' | 'needs_review' = 'ready'
-  const hasConflict = evidenceRows.some((e) => e.extracted_data?.rules_conflict)
-  if (hasConflict) {
-    rulesStatus = 'needs_review'
-  }
+  const rulesStatus: 'ready' | 'partial' | 'needs_review' =
+    hasConflict ? 'needs_review' : hasCompleteOfficialVerification ? 'ready' : 'partial'
 
-  const evidenceScope = hasOfficialEvidence
-    ? 'Official Statutory Authority Syllabus'
-    : hasSecondaryEvidence
-    ? 'Secondary Verified Academic Standard'
-    : 'AI Synthesized Curriculum Profile'
+  const evidenceScope = hasCompleteOfficialVerification
+    ? 'Current Official Exam Version and Authority Evidence'
+    : hasOfficialEvidence
+      ? 'Official Evidence Present; Authority or Current Version Verification Incomplete'
+      : hasSecondaryEvidence
+        ? 'Secondary Verified Academic Standard'
+        : 'AI Synthesized Curriculum Profile'
 
   return {
     curriculumStatus,
@@ -527,6 +557,8 @@ export function evaluateEvidenceAndStatus(options: {
     hasOfficialEvidence,
     hasSecondaryEvidence,
     hasAiInference,
+    hasVerifiedAuthority,
+    hasCurrentVerifiedVersion,
     evidenceScope,
     authorityName,
     sourceUrl,
