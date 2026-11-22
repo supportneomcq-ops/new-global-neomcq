@@ -2,7 +2,7 @@ import { GoogleGenAI } from '@google/genai'
 import OpenAI from 'openai'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { randomUUID } from 'crypto'
-import { buildExamMetadataAudit } from './metadata-audit'
+import { buildExamMetadataAudit, normalizeOfficialSyllabusSubjects } from './metadata-audit'
 import { normalizeInput, calculateLevenshteinSimilarity } from '@/lib/knowledge/normalizer'
 import { classifyUserInput } from '@/lib/knowledge/classifier'
 import {
@@ -2101,6 +2101,131 @@ export async function resolveOrInitializeExamIntelligence(options: {
 // ============================================================================
 // EXAM-AGNOSTIC CURRICULUM INTELLIGENCE & RECONCILIATION ENGINE (PROCESS A)
 // ============================================================================
+
+function buildOfficialCurriculumSpecFromEvidence(
+  examRow: any,
+  evidenceRows: any[],
+  authorityRow: any,
+  countryName: string | null,
+  categoryName: string | null
+): { spec: AIExamIntelligenceOutput | null; source: any | null; reason: string | null } {
+  const versionYear = Number(examRow.version_year || 0);
+  const authorityUrl = authorityRow?.official_website || authorityRow?.source_url || null;
+
+  const officialSources = (evidenceRows || [])
+    .filter((source: any) => {
+      const sourceType = String(source.source_type || '').toLowerCase();
+      if (!['official_syllabus', 'official_guideline', 'official_handbook'].includes(sourceType)) return false;
+      if (String(source.verification_status || '').toLowerCase() !== 'verified') return false;
+      if (!source.source_version_date || !source.source_url || !authorityUrl) return false;
+      try {
+        const sourceUrl = new URL(source.source_url);
+        const authority = new URL(authorityUrl);
+        if (sourceUrl.protocol !== 'https:' || authority.protocol !== 'https:') return false;
+        const sourceHost = sourceUrl.hostname.toLowerCase().replace(/^www\./, '');
+        const authorityHost = authority.hostname.toLowerCase().replace(/^www\./, '');
+        if (!(sourceHost === authorityHost || sourceHost.endsWith(`.${authorityHost}`))) return false;
+      } catch {
+        return false;
+      }
+      const year = new Date(String(source.source_version_date)).getUTCFullYear();
+      return Number.isFinite(year) && versionYear > 0 && year >= versionYear - 5 && year <= versionYear + 1;
+    })
+    .sort((a: any, b: any) => new Date(String(b.source_version_date)).getTime() - new Date(String(a.source_version_date)).getTime());
+
+  let selectedSource: any = null;
+  let subjects: any[] | null = null;
+  for (const source of officialSources) {
+    const normalized = normalizeOfficialSyllabusSubjects(source.extracted_data);
+    if (normalized?.length) {
+      selectedSource = source;
+      subjects = normalized;
+      break;
+    }
+  }
+
+  if (!selectedSource || !subjects?.length) {
+    return {
+      spec: null,
+      source: null,
+      reason: 'OFFICIAL_SYLLABUS_STRUCTURE_MISSING: A verified official syllabus source with structured subjects, topics and subtopics is required. AI-generated guesses and starter templates are not accepted as the official curriculum.',
+    };
+  }
+
+  const marking = examRow.marking_scheme && typeof examRow.marking_scheme === 'object'
+    ? examRow.marking_scheme
+    : {};
+  const questionTypes = Array.isArray(examRow.question_types) ? examRow.question_types : [];
+  const questionTypeText = questionTypes.map((item: any) => String(item)).join(' ').toLowerCase();
+  const negativeText = String(examRow.negative_marking || '').toLowerCase();
+  const hasNegativeMarking = typeof marking.has_negative_marking === 'boolean'
+    ? marking.has_negative_marking
+    : typeof examRow.negative_marking === 'boolean'
+      ? examRow.negative_marking
+      : /yes|true|deduct|minus|negative/.test(negativeText) && !/no negative|none|not applicable|false/.test(negativeText);
+  const answerType = String(marking.answer_type || '').toLowerCase() === 'multiple' ? 'multiple' : 'single';
+  const difficulty = ['Beginner', 'Intermediate', 'Advanced', 'Expert', 'Adaptive'].includes(String(examRow.difficulty))
+    ? examRow.difficulty
+    : 'Adaptive';
+
+  const rawSpec = {
+    exam: {
+      name: examRow.name,
+      official_name: examRow.official_name || examRow.name,
+      code: examRow.short_name || examRow.code || normalizeInput(examRow.name).slug.toUpperCase(),
+      country: countryName || 'Unspecified',
+      category: categoryName || 'Unspecified',
+      type: examRow.exam_type || 'Unverified',
+      difficulty_level: difficulty,
+      question_config: {
+        default_question_count: Number(examRow.question_count || 0),
+        option_count: Number(marking.option_count || marking.options_count || 0),
+        answer_type: answerType,
+        single_correct: marking.single_correct ?? answerType === 'single',
+        multiple_correct: marking.multiple_correct ?? answerType === 'multiple',
+        has_negative_marking: hasNegativeMarking,
+        positive_mark: Number(marking.positive_mark ?? marking.marks_per_question ?? marking.correct_mark ?? 0),
+        negative_mark: Number(marking.negative_mark ?? marking.negative_mark_value ?? 0),
+        total_marks: Number(examRow.total_marks || 0),
+        duration_minutes: Number(examRow.time_limit_mins || 0),
+        time_per_question_seconds: null,
+        has_image_questions: /image|diagram|picture/.test(questionTypeText),
+        has_video_questions: /video/.test(questionTypeText),
+        has_audio_questions: /audio|listening/.test(questionTypeText),
+        has_case_based_questions: /case|scenario/.test(questionTypeText),
+        has_clinical_vignettes: /clinical|vignette/.test(questionTypeText),
+        has_calculation_questions: /calculation|numerical/.test(questionTypeText),
+        has_matching_questions: /matching/.test(questionTypeText),
+        has_true_false_questions: /true.?false/.test(questionTypeText),
+        question_types: questionTypes,
+      },
+    },
+    subjects,
+    content_generation_rules: {
+      mcq: {}, quiz: {}, flashcard: {}, ai_tutor: {},
+      fill_in_blank: {}, notes: {}, flowchart: {},
+    },
+    confidence: { overall: 1, curriculum: 1, exam_rules: 1 },
+    metadata: {
+      curriculum_source: 'verified_official_syllabus',
+      source_id: selectedSource.id,
+      source_url: selectedSource.source_url,
+      source_version_date: selectedSource.source_version_date,
+      extracted_by: 'admin_verified_structured_evidence',
+    },
+  };
+
+  const parsed = AIExamIntelligenceOutputSchema.safeParse(rawSpec);
+  if (!parsed.success) {
+    return {
+      spec: null,
+      source: selectedSource,
+      reason: `OFFICIAL_SYLLABUS_STRUCTURE_INCOMPLETE: Structured syllabus evidence failed schema validation: ${parsed.error.issues.slice(0, 5).map((issue) => issue.message).join('; ')}`,
+    };
+  }
+
+  return { spec: parsed.data, source: selectedSource, reason: null };
+}
 
 export async function enrichCurriculumProcess(
   examId: string,
