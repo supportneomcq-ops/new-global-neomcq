@@ -382,10 +382,62 @@ export async function PATCH(req: NextRequest) {
 
     const supabase = getSupabaseAdmin() as any
     const { data: current, error: currentError } = await supabase.from('exams')
-      .select('id,name,metadata')
+      .select('*')
       .eq('id', examId)
       .maybeSingle()
     if (currentError || !current) return NextResponse.json({ error: 'Exam record not found.' }, { status: 404 })
+
+    // Resolve human-readable identity fields to canonical catalog records.
+    if (fields.country) {
+      const { data: countryRow } = await supabase.from('countries').select('id,name').ilike('name', String(fields.country)).maybeSingle()
+      if (!countryRow) return NextResponse.json({ error: 'Country not found in the country catalog.' }, { status: 400 })
+      fields.country_id = countryRow.id
+      delete fields.country
+    }
+    if (fields.category) {
+      const { data: categoryRow } = await supabase.from('exam_categories').select('id,name').ilike('name', String(fields.category)).maybeSingle()
+      if (!categoryRow) return NextResponse.json({ error: 'Category not found in the category catalog.' }, { status: 400 })
+      fields.category_id = categoryRow.id
+      delete fields.category
+    }
+    if (fields.authority) {
+      const { data: authorityRow } = await supabase.from('exam_authorities').select('*').ilike('name', String(fields.authority)).maybeSingle()
+      if (!authorityRow) {
+        const authorityName = String(fields.authority).trim()
+        const authoritySlug = authorityName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+        const authorityCode = authorityName.split(/\\s+/).map((part: string) => part[0] || '').join('').toUpperCase().slice(0, 12) || authoritySlug.toUpperCase().slice(0, 12)
+        const { data: createdAuthority, error: authorityCreateError } = await supabase.from('exam_authorities').insert({
+          name: authorityName,
+          code: authorityCode,
+          slug: authoritySlug,
+          country_id: fields.country_id || current.country_id,
+          official_website: fields.official_website || fields.official_url || null,
+          source_url: fields.official_website || fields.official_url || null,
+          verification_status: 'pending_review',
+          last_verified_at: null,
+        }).select('*').single()
+        if (authorityCreateError) return NextResponse.json({ error: authorityCreateError.message }, { status: 500 })
+        fields.authority_id = createdAuthority.id
+      } else {
+        fields.authority_id = authorityRow.id
+      }
+      fields.authority = String(fields.authority).trim()
+    }
+    if (fields.official_website !== undefined) {
+      fields.official_url = fields.official_website
+      delete fields.official_website
+      if (current.authority_id) {
+        await supabase.from('exam_authorities').update({
+          official_website: fields.official_url,
+          source_url: fields.official_url,
+          verification_status: 'pending_review',
+          last_verified_at: null,
+          reviewed_by: null,
+          reviewed_at: null,
+          review_notes: null,
+        }).eq('id', fields.authority_id || current.authority_id)
+      }
+    }
 
     const verificationFields = [
       'name','category_id','country_id','authority_id','authority','exam_type','level',
@@ -393,13 +445,13 @@ export async function PATCH(req: NextRequest) {
       'eligibility','attempt_rules','application_information','selection_process',
       'marking_scheme','question_types','stages','papers','languages','current_version',
       'version_year','is_current','official_url','official_notification_url','official_syllabus_url',
-      'official_reference_website','source_url',
+      'official_reference_website','source_url','official_website',
     ]
     const requiresReaudit = verificationFields.some((field) => Object.prototype.hasOwnProperty.call(fields, field))
     const updateData: any = { updated_at: new Date().toISOString() }
 
     const allowedFields = [
-      'name','description','category_id','country_id','authority_id','authority','exam_type','level',
+      'name','description','category_id','country_id','authority_id','authority','category','country','exam_type','level',
       'difficulty','question_count','time_limit_mins','total_marks','negative_marking','passing_criteria',
       'eligibility','attempt_rules','application_information','selection_process','marking_scheme',
       'question_types','stages','papers','languages','current_version','version_year','is_current',
@@ -433,6 +485,48 @@ export async function PATCH(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     if (requiresReaudit) {
+      const versionYear = Number(updated.version_year || 0)
+      const versionLabel = updated.current_version || (versionYear ? String(versionYear) : null)
+      const versionSourceUrl = updated.source_url || updated.official_notification_url || updated.official_syllabus_url
+      if (versionYear > 0 && versionLabel && isHttpsUrl(versionSourceUrl)) {
+        const { data: currentVersion } = await supabase.from('exam_versions')
+          .select('id')
+          .eq('exam_id', examId)
+          .eq('is_current', true)
+          .maybeSingle()
+
+        const versionPayload = {
+          version_year: versionYear,
+          version_label: versionLabel,
+          source_url: versionSourceUrl,
+          pattern_summary: 'Awaiting field-level official exam-pattern verification.',
+          verification_status: 'needs_review',
+          verified_at: null,
+          is_current: true,
+          question_count: parseNumber(updated.question_count) || null,
+          time_limit_mins: parseNumber(updated.time_limit_mins) || null,
+          total_marks: parseNumber(updated.total_marks) || null,
+          negative_marking: updated.negative_marking || null,
+          passing_criteria: updated.passing_criteria || null,
+          eligibility: updated.eligibility || null,
+          attempt_rules: updated.attempt_rules || null,
+          application_information: updated.application_information || null,
+          selection_process: updated.selection_process || null,
+          marking_scheme: updated.marking_scheme || null,
+          question_types: updated.question_types || [],
+          stages: updated.stages || [],
+          papers: updated.papers || [],
+          languages: updated.languages || [],
+          metadata: { admin_updated: true, verification_pending: true },
+          updated_at: new Date().toISOString(),
+        }
+        if (currentVersion?.id) {
+          await supabase.from('exam_versions').update(versionPayload).eq('id', currentVersion.id)
+        } else {
+          await supabase.from('exam_versions').insert({ ...versionPayload, exam_id: examId })
+        }
+      }
+
       await collectExamRulesProcess(examId, updated.name, undefined, undefined, supabase)
     }
 
