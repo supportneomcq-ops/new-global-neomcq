@@ -9,6 +9,7 @@ const OFFICIAL_TYPES = new Set([
   'official_syllabus',
   'official_exam_pattern',
   'official_guideline',
+  'official_handbook',
 ])
 
 function isHttps(value: unknown): value is string {
