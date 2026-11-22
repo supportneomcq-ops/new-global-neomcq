@@ -345,7 +345,8 @@ export default function ExamVerificationPage() {
                       <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">Official source evidence</h3>
                       <button
                         onClick={() => setActiveSourceExamId(activeSourceExamId === exam.id ? null : exam.id)}
-                        className="inline-flex items-center gap-1.5 text-xs font-bold text-[#6D5BFF]"
+                        disabled={!bundle.authority?.id || !bundle.authority?.official_website}
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-[#6D5BFF] disabled:opacity-40"
                       >
                         <FilePlus2 className="w-4 h-4" /> Add source
                       </button>
@@ -419,7 +420,7 @@ export default function ExamVerificationPage() {
                                 {source.verification_status !== 'verified' && (
                                   <button
                                     onClick={() => runAction(exam.id, 'verify_source', { evidenceId: source.id })}
-                                    disabled={isBusy}
+                                    disabled={isBusy || !source.source_version_date}
                                     className="px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white text-[10px] font-bold disabled:opacity-40"
                                   >
                                     Verify source
