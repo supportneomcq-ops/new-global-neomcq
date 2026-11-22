@@ -168,59 +168,94 @@ export function LearningContentEngine({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
-  // Fetch topic learning content package from cache / AI route
+  // Read the shared canonical topic pack. Missing packs are queued once and polled;
+  // the browser never starts a per-student AI generation.
   const fetchTopicContent = useCallback(
     async (topicId: string, topicNameParam?: string, forceRefresh = false) => {
       setLoadingContent(true)
       setContentPayload(null)
       setFlashcardDeck([])
       setRefreshNotice(null)
+
+      const requestBody = {
+        topicId,
+        topicName: topicNameParam || selectedTopic?.name,
+        subjectId: selection.subject?.id,
+        subjectName: selection.subject?.name,
+        examId: selection.exam?.id,
+        examName: selection.exam?.name,
+        contentType: 'full_pack',
+        difficulty: 'Intermediate',
+        forceRefresh,
+      }
+
+      const applyReadyContent = (data: any) => {
+        setContentPayload(data.content)
+        setTopicState(data.topicState || null)
+        setIsRefreshing(Boolean(data.isRefreshing))
+        setFlashcardDeck(Array.isArray(data.content?.flashcards) ? data.content.flashcards : [])
+        setRefreshNotice(data.isRefreshing
+          ? 'Shared topic content is refreshing in the background. Your saved pack remains available.'
+          : null)
+      }
+
       try {
-        const res = await fetch('/api/knowledge/topic-content', {
+        let response = await fetch('/api/knowledge/topic-content', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            topicId,
-            topicName: topicNameParam || selectedTopic?.name,
-            subjectId: selection.subject?.id,
-            subjectName: selection.subject?.name,
-            examId: selection.exam?.id,
-            examName: selection.exam?.name,
-            contentType: 'full_pack',
-            difficulty: 'Intermediate',
-            forceRefresh,
-          }),
+          body: JSON.stringify(requestBody),
         })
-        const data = await res.json()
+        let data = await response.json()
+
         if (data.success && data.content) {
-          setContentPayload(data.content)
-          setRefreshNotice(null)
-          setIsRefreshing(Boolean(data.isRefreshing))
-          if (data.topicState) {
-            setTopicState(data.topicState)
-          }
-          if (data.isRefreshing) {
-            setRefreshNotice(
-              '⚡ 15-Day Auto-Refresh Active: Appending fresh MCQs in background while you study existing questions.'
-            )
-          } else {
-            setRefreshNotice(null)
-          }
-          if (data.content.flashcards) {
-            setFlashcardDeck(data.content.flashcards)
-          }
-        } else {
-          // Never substitute generic sample questions for a learner's selected exam.
-          setContentPayload(null)
-          setFlashcardDeck([])
-          setTopicState(data.topicState || null)
-          setRefreshNotice(data.error || 'Exam-specific content is not available yet. Check the generation status and try again when it is ready.')
+          applyReadyContent(data)
+          return
         }
-      } catch (err) {
-        console.error('Failed to load topic content:', err)
+
+        if (data.pending || response.status === 202) {
+          setTopicState(data.topicState || null)
+          setRefreshNotice(data.message || data.error || 'Shared topic content is queued for generation.')
+          const pollBody = { ...requestBody, forceRefresh: false }
+
+          for (let attempt = 0; attempt < 12; attempt += 1) {
+            await new Promise((resolve) => setTimeout(resolve, 5000))
+            response = await fetch('/api/knowledge/topic-content', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(pollBody),
+            })
+            data = await response.json()
+
+            if (data.success && data.content) {
+              applyReadyContent(data)
+              return
+            }
+
+            setTopicState(data.topicState || null)
+            if (['awaiting_exam_verification', 'awaiting_curriculum_validation', 'generation_failed', 'content_pack_incomplete'].includes(data.status)) {
+              setRefreshNotice(data.error || data.message || 'Shared content is blocked and requires review.')
+              return
+            }
+            if (!response.ok && response.status !== 202) {
+              setRefreshNotice(data.error || 'Unable to load the shared topic pack.')
+              return
+            }
+            setRefreshNotice(data.message || data.error || 'Waiting for the shared topic-content worker...')
+          }
+
+          setRefreshNotice(data.message || 'The shared topic pack is still queued. Reopen this topic to check for the saved content.')
+          return
+        }
+
         setContentPayload(null)
         setFlashcardDeck([])
-        setRefreshNotice('Unable to load this topic content. Please retry after checking your connection.')
+        setTopicState(data.topicState || null)
+        setRefreshNotice(data.error || 'Exam-specific content is not available yet. Check the generation status and try again when it is ready.')
+      } catch (err) {
+        console.error('Failed to load shared topic content:', err)
+        setContentPayload(null)
+        setFlashcardDeck([])
+        setRefreshNotice('Unable to load shared topic content. Please retry after checking your connection.')
       } finally {
         setLoadingContent(false)
       }
