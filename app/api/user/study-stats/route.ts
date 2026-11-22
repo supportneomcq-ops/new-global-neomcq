@@ -1,42 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin, getSupabaseClient } from '@/lib/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase';
 import { createClient } from '@/lib/supabase/server';
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const examId = searchParams.get('examId');
-    const authHeader = req.headers.get('authorization');
+    const requestedUserId = searchParams.get('userId');
 
+    // This route uses the service-role client to aggregate private learning data.
+    // Always derive the subject from a verified session; never trust a query-string ID.
+    const sessionClient = await createClient();
+    const { data: { user }, error: authError } = await sessionClient.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ success: false, error: 'Authentication required.' }, { status: 401 });
+    }
+    if (requestedUserId && requestedUserId !== user.id) {
+      return NextResponse.json({ success: false, error: 'User identity could not be verified.' }, { status: 403 });
+    }
+
+    const userId = user.id;
     const admin: any = getSupabaseAdmin();
-    let userId: string | null = searchParams.get('userId');
-
-    if (!userId && authHeader) {
-      const token = authHeader.replace('Bearer ', '');
-      const supabase = getSupabaseClient();
-      const { data: { user } } = await supabase.auth.getUser(token);
-      if (user) userId = user.id;
-    }
-
-    if (!userId) {
-      // Return unauthenticated baseline (0 metrics)
-      return NextResponse.json({
-        success: true,
-        stats: {
-          streakDays: 0,
-          completedHoursToday: 0,
-          targetHours: 2,
-          readinessPercentage: 0,
-          questionsSolved: 0,
-          correctAnswers: 0,
-          overallAccuracy: 0,
-          recentActivities: [],
-          subjectMastery: [],
-          weaknessGap: null,
-          sevenDayConsistency: [false, false, false, false, false, false, false],
-        },
-      });
-    }
 
     // 1. Fetch study preferences
     const { data: pref } = await admin
