@@ -175,27 +175,7 @@ export async function POST(req: NextRequest) {
       contentScope: contentScope as ContentScope,
     });
 
-    // Re-use fresh canonical document unless forceRefresh is true
-    if (existing.note && existing.isFresh && !forceRefresh) {
-      existing.note.examName = hierarchy.examName || '';
-      existing.note.subjectName = hierarchy.subjectName || '';
-      existing.note.topicName = hierarchy.topicName || '';
-      existing.note.subtopicName = hierarchy.subtopicName || null;
-      existing.note.availableSubtopics = hierarchy.availableSubtopics || [];
-
-      const userData = await getUserA4NotesData(user.id, existing.note.id);
-
-      return NextResponse.json({
-        status: 'READY',
-        source: 'cache',
-        isFresh: true,
-        version: existing.version,
-        document: existing.note,
-        userData,
-      });
-    }
-
-    // 3. Check Feature Entitlements & Quotas
+    // 4. Check Feature Entitlements & Quotas
     const quotaResult = await checkFeatureQuota({
       userId: user.id,
       feature: 'notes',
@@ -218,6 +198,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
+
+
+    // Re-use fresh canonical document unless forceRefresh is true
+    if (existing.note && existing.isFresh && !forceRefresh) {
+      existing.note.examName = hierarchy.examName || '';
+      existing.note.subjectName = hierarchy.subjectName || '';
+      existing.note.topicName = hierarchy.topicName || '';
+      existing.note.subtopicName = hierarchy.subtopicName || null;
+      existing.note.availableSubtopics = hierarchy.availableSubtopics || [];
+
+      const userData = await getUserA4NotesData(user.id, existing.note.id);
+
+      return NextResponse.json({
+        status: 'READY',
+        source: 'cache',
+        isFresh: true,
+        version: existing.version,
+        document: existing.note,
+        userData,
+      });
+    }
 
     // 4. Job Concurrency Locking via ai_jobs
     const adminClient = getSupabaseAdmin();
