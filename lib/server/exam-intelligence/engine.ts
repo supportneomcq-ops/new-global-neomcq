@@ -1021,6 +1021,63 @@ function buildOfficialCurriculumSpecFromEvidence(
   return { spec: parsed.data, source: selectedSource, reason: null };
 }
 
+async function deactivateNodesOutsideOfficialSyllabus(
+  examId: string,
+  officialSpec: AIExamIntelligenceOutput,
+  supabase: any
+): Promise<{ subjects: number; topics: number; subtopics: number }> {
+  const { data: savedSubjects } = await supabase
+    .from('exam_subjects')
+    .select('id,name,is_active,exam_topics(id,name,is_active,exam_subtopics(id,name,is_active))')
+    .eq('exam_id', examId)
+
+  let deactivatedSubjects = 0
+  let deactivatedTopics = 0
+  let deactivatedSubtopics = 0
+  const expectedSubjects = officialSpec.subjects || []
+
+  for (const savedSubject of savedSubjects || []) {
+    const expectedSubject = findMatchingSubjectInList(savedSubject.name, expectedSubjects)
+    if (!expectedSubject) {
+      if (savedSubject.is_active !== false) {
+        const { error } = await supabase.from('exam_subjects').update({ is_active: false }).eq('id', savedSubject.id)
+        if (error) throw new Error(`Could not deactivate subject outside official syllabus: ${error.message}`)
+        deactivatedSubjects += 1
+      }
+      continue
+    }
+
+    const expectedTopics = expectedSubject.topics || []
+    for (const savedTopic of savedSubject.exam_topics || []) {
+      const expectedTopic = findMatchingTopicInList(savedTopic.name, expectedTopics, expectedSubject.name)
+      if (!expectedTopic) {
+        if (savedTopic.is_active !== false) {
+          const { error } = await supabase.from('exam_topics').update({ is_active: false }).eq('id', savedTopic.id)
+          if (error) throw new Error(`Could not deactivate topic outside official syllabus: ${error.message}`)
+          deactivatedTopics += 1
+        }
+        continue
+      }
+
+      const expectedSubtopics = expectedTopic.subtopics || []
+      for (const savedSubtopic of savedTopic.exam_subtopics || []) {
+        const expectedSubtopic = findMatchingSubtopicInList(savedSubtopic.name, expectedSubtopics, expectedTopic.name)
+        if (!expectedSubtopic && savedSubtopic.is_active !== false) {
+          const { error } = await supabase.from('exam_subtopics').update({ is_active: false }).eq('id', savedSubtopic.id)
+          if (error) throw new Error(`Could not deactivate subtopic outside official syllabus: ${error.message}`)
+          deactivatedSubtopics += 1
+        }
+      }
+    }
+  }
+
+  return {
+    subjects: deactivatedSubjects,
+    topics: deactivatedTopics,
+    subtopics: deactivatedSubtopics,
+  }
+}
+
 export async function enrichCurriculumProcess(
   examId: string,
   examName: string,
