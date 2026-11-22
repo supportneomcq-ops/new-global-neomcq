@@ -2136,7 +2136,7 @@ export async function enrichCurriculumProcess(
 
   // 2. Query authority, evidence, and versions
   const [{ data: examRow }, { data: evidenceRows }, { data: versionRows }] = await Promise.all([
-    supabase.from('exams').select('id, name, authority_id, authority, metadata, syllabus_info').eq('id', examId).maybeSingle(),
+    supabase.from('exams').select('id, name, authority_id, authority, metadata, syllabus_info, verification_status, current_version, version_year, is_current, last_verified_at, next_verification_at').eq('id', examId).maybeSingle(),
     supabase.from('exam_evidence').select('*').eq('exam_id', examId),
     supabase.from('exam_versions').select('*').eq('exam_id', examId),
   ])
@@ -2145,6 +2145,23 @@ export async function enrichCurriculumProcess(
   if (examRow?.authority_id) {
     const { data: authData } = await supabase.from('exam_authorities').select('*').eq('id', examRow.authority_id).maybeSingle()
     authorityRow = authData
+  }
+
+  // Defense in depth: the curriculum engine itself refuses to generate or persist
+  // hierarchy unless the current exam version has an approved field-level audit.
+  const examMetadataAuditStatus = String((examRow?.metadata as any)?.exam_metadata_audit_status || '')
+  if (examRow?.verification_status !== 'verified' || examMetadataAuditStatus !== 'verified') {
+    return {
+      subjectCount: 0,
+      topicCount: 0,
+      subtopicCount: 0,
+      subjects: [],
+      curriculumStatus: 'needs_enrichment',
+      verificationStatus: 'needs_review',
+      coveragePercentage: 0,
+      evidenceScope: 'Blocked: official exam metadata verification has not been approved.',
+      authorityName: authorityRow?.name || null,
+    }
   }
 
   // 3. Obtain expected syllabus specification
@@ -2369,20 +2386,11 @@ export async function enrichCurriculumProcess(
     }
   }
 
-  // 8. Persist the exam's curriculum status using the production DB's allowed values.
-  // Internal evaluation statuses (AI_inferred / partially_verified) are not accepted
-  // by the exams.verification_status CHECK constraint.
-  const persistedVerificationStatus =
-    evalResult.verificationStatus === 'verified'
-      ? 'verified'
-      : evalResult.verificationStatus === 'needs_review'
-        ? 'needs_review'
-        : 'pending_review'
-
+  // 8. Persist curriculum validation separately from official exam-pattern approval.
+  // The latter is owned by the field-level audit and admin approval workflow.
   const { error: examStatusError } = await supabase
     .from('exams')
     .update({
-      verification_status: persistedVerificationStatus,
       syllabus_info: {
         ...(examRow?.syllabus_info || {}),
         source: 'ai_inferred',
@@ -2392,15 +2400,15 @@ export async function enrichCurriculumProcess(
       },
       metadata: {
         ...(examRow?.metadata || {}),
-        curriculum_status: hierarchyTargetsMet ? 'ready' : 'needs_enrichment',
-        curriculum_validation_version: 3,
-        curriculum_validation_passed: hierarchyTargetsMet,
+        curriculum_status: hierarchyTargetsMet && examMetadataAuditStatus === 'verified' ? 'ready' : 'needs_enrichment',
+        curriculum_validation_version: 4,
+        curriculum_validation_passed: hierarchyTargetsMet && examMetadataAuditStatus === 'verified',
         curriculum_validation_checked_at: new Date().toISOString(),
         curriculum_spec_cache: aiSpec,
         curriculum_spec_cached_at: (examRow?.metadata as any)?.curriculum_spec_cached_at || new Date().toISOString(),
         rules_status: (examRow?.metadata || {}).rules_status || 'needs_review',
-        verification_status: evalResult.verificationStatus,
-        verification_audit: {
+        curriculum_verification_status: evalResult.verificationStatus,
+        curriculum_verification_audit: {
           official_evidence_present: evalResult.hasOfficialEvidence,
           authority_verified: evalResult.hasVerifiedAuthority,
           current_exam_version_verified: evalResult.hasCurrentVerifiedVersion,
