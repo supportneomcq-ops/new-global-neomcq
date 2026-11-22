@@ -194,6 +194,8 @@ export default function ExamVerificationPage() {
             const exam = bundle.exam
             const audit = bundle.audit
             const auditStatus = audit?.status || 'needs_review'
+            const curriculumStatus = exam.metadata?.curriculum_status || 'not_started'
+            const curriculumSourceStatus = exam.metadata?.curriculum_source_status || ''
             const fieldResults = audit?.field_results || {}
             const missing = audit?.missing_fields || []
             const conflicts = audit?.conflicting_fields || []
@@ -209,6 +211,7 @@ export default function ExamVerificationPage() {
                       <h2 className="text-lg font-black text-slate-900 dark:text-white">{exam.name}</h2>
                       <span className={`px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase ${statusClass(auditStatus)}`}>{auditStatus.replaceAll('_', ' ')}</span>
                       <span className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-gray-700 text-[10px] font-bold text-slate-500">{exam.verification_status || 'pending_review'}</span>
+                      <span className={`px-2.5 py-1 rounded-lg border text-[10px] font-bold ${statusClass(curriculumStatus === 'ready' ? 'verified' : 'needs_review')}`}>Curriculum: {String(curriculumStatus).replaceAll('_', ' ')}</span>
                     </div>
                     <div className="mt-2 text-xs text-slate-500 flex flex-wrap gap-x-4 gap-y-1">
                       <span>Country: <strong className="text-slate-700 dark:text-gray-300">{bundle.country?.name || 'Missing'}</strong></span>
@@ -273,6 +276,12 @@ export default function ExamVerificationPage() {
 
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 p-5">
                   <div className="space-y-4">
+                    {curriculumSourceStatus && curriculumSourceStatus !== 'verified_official_syllabus' && (
+                      <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
+                        <div className="text-xs font-extrabold text-amber-700 dark:text-amber-300">Official curriculum structure required</div>
+                        <div className="text-[11px] text-amber-700 dark:text-amber-200 mt-1">{exam.metadata?.curriculum_source_requirement || 'Add a verified official syllabus source containing structured subjects, topics and subtopics.'}</div>
+                      </div>
+                    )}
                     <div>
                       <div className="flex items-center justify-between mb-2">
                         <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">Field-level audit</h3>
@@ -449,7 +458,7 @@ export default function ExamVerificationPage() {
                           rows={5}
                           value={sourceForm.extracted_data}
                           onChange={(e) => setSourceForm({ ...sourceForm, extracted_data: e.target.value })}
-                          placeholder='JSON object with official fields, e.g. {"question_count":300,"duration_minutes":300}'
+                          placeholder='Structured JSON: {"subjects":[{"name":"Anatomy","topics":[{"name":"General Anatomy","subtopics":[{"name":"Tissues"}]}]}],"question_count":300,"duration_minutes":300}'
                           className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-[11px] font-mono"
                         />
                         <div className="flex justify-end gap-2">
