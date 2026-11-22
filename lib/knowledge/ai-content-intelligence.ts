@@ -970,23 +970,19 @@ async function executeGenerationWorkflow({
 }): Promise<ContentIntelligenceResult> {
   let jobId: string | null = null
 
-  // 1. Atomically respect the unique idempotency key before any provider call.
-  // The database has a UNIQUE index on ai_jobs.idempotency_key. A concurrent
-  // request must attach to that job, never execute a second provider request.
+  // 1. Atomically register one canonical generation job for this parent worker job.
+  // Failed jobs may retry within their bounded attempt count; active jobs are attached, never duplicated.
+  let jobAttempt = 1
   const { data: existingJob, error: existingJobError } = await supabase
     .from('ai_jobs')
-    .select('id, status')
+    .select('id,status,attempts,max_attempts')
     .eq('idempotency_key', idempotencyKey)
     .maybeSingle()
 
   if (existingJobError) {
     return {
-      success: false,
-      served_from_cache: false,
-      generation_reason: 'ERROR',
-      version_number: targetVersionNum,
-      hierarchy,
-      content: null,
+      success: false, served_from_cache: false, generation_reason: 'ERROR',
+      version_number: targetVersionNum, hierarchy, content: null,
       metrics: {
         input_tokens: 0, output_tokens: 0, cached_tokens: 0, actual_cost_usd: 0,
         credits_deducted: 0, duration_ms: Date.now() - startTime,
@@ -998,94 +994,137 @@ async function executeGenerationWorkflow({
     }
   }
 
-  if (existingJob) {
-    if (['queued', 'running', 'processing', 'pending', 'validating'].includes(existingJob.status)) {
-      return buildGenerationInProgressResult(hierarchy, targetVersionNum, existingJob.id, startTime)
-    }
-
-    return {
-      success: false,
-      served_from_cache: false,
-      generation_reason: 'ERROR',
-      version_number: targetVersionNum,
-      hierarchy,
-      content: null,
-      job_id: existingJob.id,
-      metrics: {
-        input_tokens: 0, output_tokens: 0, cached_tokens: 0, actual_cost_usd: 0,
-        credits_deducted: 0, duration_ms: Date.now() - startTime,
-        model_used: 'not-started', provider_used: 'database',
-      },
-      created_at: new Date().toISOString(),
-      error: existingJob.status === 'failed'
-        ? 'The previous generation attempt failed. An administrator must retry or reconcile this job before another provider request is allowed.'
-        : 'A job already exists for this content version, but its saved output is not available. An administrator must reconcile the job.',
-      error_code: 'GENERATION_JOB_EXISTS',
-    }
+  if (existingJob && ['queued', 'running', 'processing', 'pending', 'validating'].includes(existingJob.status)) {
+    return buildGenerationInProgressResult(hierarchy, targetVersionNum, existingJob.id, startTime)
   }
 
-  const { data: newJob, error: newJobError } = await supabase
-    .from('ai_jobs')
-    .insert({
-      user_id: userId || null,
-      exam_id: exam.id,
-      subject_id: subject.id,
-      topic_id: topic.id,
-      task: generationReason === 'FIRST_GENERATION' ? 'FIRST_GENERATION' : 'TOPIC_CONTENT_REFRESH',
-      idempotency_key: idempotencyKey,
-      priority: 5,
-      status: 'running',
-      progress_stage: 'Generating canonical high-yield content...',
-      step_percentage: 15,
-      input_payload: {
-        exam: exam.name,
-        subject: subject.name,
-        topic: topic.name,
-        subtopic: subtopicName || null,
-        subtopic_id: subtopicId || null,
-        difficulty,
-        language,
-        reason: generationReason,
-        target_version: targetVersionNum,
-      },
-      started_at: new Date().toISOString(),
-    })
-    .select('id')
-    .maybeSingle()
+  if (existingJob && ['failed', 'cancelled'].includes(existingJob.status)) {
+    const attempts = Number(existingJob.attempts || 0)
+    const maxAttempts = Number(existingJob.max_attempts || 3)
+    if (attempts >= maxAttempts) {
+      return {
+        success: false, served_from_cache: false, generation_reason: 'ERROR',
+        version_number: targetVersionNum, hierarchy, content: null, job_id: existingJob.id,
+        metrics: {
+          input_tokens: 0, output_tokens: 0, cached_tokens: 0, actual_cost_usd: 0,
+          credits_deducted: 0, duration_ms: Date.now() - startTime,
+          model_used: 'not-started', provider_used: 'database',
+        },
+        created_at: new Date().toISOString(),
+        error: 'The canonical generation job exhausted its retry limit. An administrator must reconcile it before another provider request.',
+        error_code: 'GENERATION_RETRY_LIMIT',
+      }
+    }
 
-  if (newJobError || !newJob) {
-    // A simultaneous request may have won the unique-key insert. Re-read it
-    // and return pending rather than silently generating without a tracked job.
-    const { data: conflictingJob } = await supabase
+    jobAttempt = attempts + 1
+    const { data: retriedJob, error: retryError } = await supabase
       .from('ai_jobs')
-      .select('id, status')
-      .eq('idempotency_key', idempotencyKey)
+      .update({
+        status: 'running',
+        attempts: jobAttempt,
+        error: null,
+        started_at: new Date().toISOString(),
+        completed_at: null,
+        progress_stage: 'Retrying canonical topic-pack generation...',
+        step_percentage: 15,
+      })
+      .eq('id', existingJob.id)
+      .in('status', ['failed', 'cancelled'])
+      .select('id,attempts')
       .maybeSingle()
 
-    if (conflictingJob && ['queued', 'running', 'processing', 'pending', 'validating'].includes(conflictingJob.status)) {
-      return buildGenerationInProgressResult(hierarchy, targetVersionNum, conflictingJob.id, startTime)
+    if (retryError || !retriedJob) {
+      const { data: currentJob } = await supabase.from('ai_jobs')
+        .select('id,status')
+        .eq('id', existingJob.id)
+        .maybeSingle()
+      if (currentJob && ['queued', 'running', 'processing', 'pending', 'validating'].includes(currentJob.status)) {
+        return buildGenerationInProgressResult(hierarchy, targetVersionNum, currentJob.id, startTime)
+      }
+      return {
+        success: false, served_from_cache: false, generation_reason: 'ERROR',
+        version_number: targetVersionNum, hierarchy, content: null, job_id: existingJob.id,
+        metrics: {
+          input_tokens: 0, output_tokens: 0, cached_tokens: 0, actual_cost_usd: 0,
+          credits_deducted: 0, duration_ms: Date.now() - startTime,
+          model_used: 'not-started', provider_used: 'database',
+        },
+        created_at: new Date().toISOString(),
+        error: 'Could not safely retry the existing canonical generation job.',
+        error_code: 'JOB_RETRY_REGISTRATION_FAILED',
+      }
     }
-
+    jobId = retriedJob.id
+  } else if (existingJob) {
     return {
-      success: false,
-      served_from_cache: false,
-      generation_reason: 'ERROR',
-      version_number: targetVersionNum,
-      hierarchy,
-      content: null,
-      job_id: conflictingJob?.id,
+      success: false, served_from_cache: false, generation_reason: 'ERROR',
+      version_number: targetVersionNum, hierarchy, content: null, job_id: existingJob.id,
       metrics: {
         input_tokens: 0, output_tokens: 0, cached_tokens: 0, actual_cost_usd: 0,
         credits_deducted: 0, duration_ms: Date.now() - startTime,
         model_used: 'not-started', provider_used: 'database',
       },
       created_at: new Date().toISOString(),
-      error: 'Could not register a unique canonical generation job. No AI provider was called.',
-      error_code: 'JOB_REGISTRATION_FAILED',
+      error: 'A canonical generation job already exists for this version but has no reusable output. Administrator reconciliation is required.',
+      error_code: 'GENERATION_JOB_EXISTS',
     }
-  }
+  } else {
+    const { data: newJob, error: newJobError } = await supabase
+      .from('ai_jobs')
+      .insert({
+        user_id: null,
+        exam_id: exam.id,
+        subject_id: subject.id,
+        topic_id: topic.id,
+        task: generationReason === 'FIRST_GENERATION' ? 'FIRST_GENERATION' : 'TOPIC_CONTENT_REFRESH',
+        idempotency_key: idempotencyKey,
+        priority: 5,
+        status: 'running',
+        attempts: 1,
+        max_attempts: 3,
+        progress_stage: 'Generating canonical high-yield content...',
+        step_percentage: 15,
+        input_payload: {
+          exam: exam.name,
+          subject: subject.name,
+          topic: topic.name,
+          subtopic: subtopicName || null,
+          subtopic_id: subtopicId || null,
+          difficulty,
+          language,
+          reason: generationReason,
+          target_version: targetVersionNum,
+          parent_job_id: parentJobId || null,
+        },
+        started_at: new Date().toISOString(),
+      })
+      .select('id,attempts')
+      .maybeSingle()
 
-  jobId = newJob.id
+    if (newJobError || !newJob) {
+      const { data: conflictingJob } = await supabase
+        .from('ai_jobs')
+        .select('id,status')
+        .eq('idempotency_key', idempotencyKey)
+        .maybeSingle()
+      if (conflictingJob && ['queued', 'running', 'processing', 'pending', 'validating'].includes(conflictingJob.status)) {
+        return buildGenerationInProgressResult(hierarchy, targetVersionNum, conflictingJob.id, startTime)
+      }
+      return {
+        success: false, served_from_cache: false, generation_reason: 'ERROR',
+        version_number: targetVersionNum, hierarchy, content: null, job_id: conflictingJob?.id,
+        metrics: {
+          input_tokens: 0, output_tokens: 0, cached_tokens: 0, actual_cost_usd: 0,
+          credits_deducted: 0, duration_ms: Date.now() - startTime,
+          model_used: 'not-started', provider_used: 'database',
+        },
+        created_at: new Date().toISOString(),
+        error: 'Could not register a unique canonical generation job. No AI provider was called.',
+        error_code: 'JOB_REGISTRATION_FAILED',
+      }
+    }
+    jobId = newJob.id
+  }
 
   // 2. Build Generation Prompt with Deduplication Guardrails
   const existingStemsNormalized = new Set(existingDbMcqs.map((m: any) => normalizeQuestionStem(m.question)))
