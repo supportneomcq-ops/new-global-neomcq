@@ -1237,6 +1237,7 @@ export async function enrichCurriculumProcess(
         curriculum_source_evidence_id: officialSpecResult.source?.id || null,
         curriculum_source_url: officialSpecResult.source?.source_url || null,
         curriculum_source_version_date: officialSpecResult.source?.source_version_date || null,
+        curriculum_deactivated_out_of_scope_nodes: deactivatedOutOfScopeNodes,
       },
       updated_at: new Date().toISOString(),
     }).eq('id', examId)
@@ -1309,12 +1310,13 @@ export async function enrichCurriculumProcess(
     comparisonReport = compareCurricula(examId, examName, aiSpec, refreshedSubjects || [])
   }
 
+  const deactivatedOutOfScopeNodes = await deactivateNodesOutsideOfficialSyllabus(examId, aiSpec, supabase)
   await deactivateGenericCurriculumNodes(examId, supabase)
 
   // Acceptance gate: compare against the expected tree AND absolute breadth/depth.
   // Relative coverage alone can falsely bless a tiny AI-generated syllabus.
   const specIsComprehensive = isCurriculumSpecComprehensive(examName, aiSpec)
-  const hierarchyTargetsMet =
+  let hierarchyTargetsMet =
     specIsComprehensive &&
     comparisonReport.totalExpectedSubjects > 0 &&
     comparisonReport.subjects.length === comparisonReport.totalExpectedSubjects &&
@@ -1369,6 +1371,27 @@ export async function enrichCurriculumProcess(
           exam_subtopics: (topic.exam_subtopics || []).filter((subtopic: any) => subtopic.is_active !== false),
         })),
     }))
+
+  const exactOfficialHierarchy =
+    finalSubjects.length === aiSpec.subjects.length &&
+    aiSpec.subjects.every((expectedSubject: any) => {
+      const savedSubject = findMatchingSubjectInList(expectedSubject.name, finalSubjects)
+      if (!savedSubject) return false
+      const expectedTopics = expectedSubject.topics || []
+      const savedTopics = savedSubject.exam_topics || []
+      if (savedTopics.length !== expectedTopics.length) return false
+      return expectedTopics.every((expectedTopic: any) => {
+        const savedTopic = findMatchingTopicInList(expectedTopic.name, savedTopics, expectedSubject.name)
+        if (!savedTopic) return false
+        const expectedSubtopics = expectedTopic.subtopics || []
+        const savedSubtopics = savedTopic.exam_subtopics || []
+        if (savedSubtopics.length !== expectedSubtopics.length) return false
+        return expectedSubtopics.every((expectedSubtopic: any) =>
+          Boolean(findMatchingSubtopicInList(expectedSubtopic.name, savedSubtopics, expectedTopic.name))
+        )
+      })
+    })
+  hierarchyTargetsMet = hierarchyTargetsMet && exactOfficialHierarchy
 
   let finalTopicCount = 0
   let finalSubtopicCount = 0
