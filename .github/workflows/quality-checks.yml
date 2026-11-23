@@ -30,6 +30,8 @@ jobs:
         run: bun test lib/server/exam-intelligence/__tests__/batch3-evidence-comparator.test.ts
       - name: Official exam metadata value verification tests
         run: bun test lib/server/exam-intelligence/__tests__/metadata-audit.test.ts
+      - name: Versioned curriculum reconciliation tests
+        run: bun test lib/server/curriculum/__tests__/versioned-reconciliation.test.ts
       - name: TypeScript type check
         run: bun run type-check
       - name: ESLint
