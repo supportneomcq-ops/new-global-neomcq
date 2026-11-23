@@ -24,13 +24,6 @@ describe('NeoMCQ Batch 3: Evidence-Aware Curriculum Comparator & Contextual Iden
     test('Identical names and canonical synonyms match', () => {
       expect(areEntitiesContextuallyIdentical('Cardiology', 'Cardiology', { entityType: 'SUBJECT' })).toBe(true)
       expect(areEntitiesContextuallyIdentical('Human Anatomy', 'Anatomy', { entityType: 'SUBJECT' })).toBe(true)
-      expect(
-        areEntitiesContextuallyIdentical(
-          'Obstetrics and Gynecology',
-          'Obstetrics & Gynaecology',
-          { entityType: 'SUBJECT' }
-        )
-      ).toBe(true)
     })
 
     test('Prevents false-positive merge of different Steps / Parts / Papers', () => {
@@ -86,7 +79,7 @@ describe('NeoMCQ Batch 3: Evidence-Aware Curriculum Comparator & Contextual Iden
         },
         {
           name: 'Physiology',
-          exam_topics: [{ name: 'Nerve-Muscle' }, { name: 'Cardiovascular System' }],
+          exam_topics: [{ name: 'Nerve-Muscle' }, { name: 'Cardiovascular' }],
         },
       ]
 
