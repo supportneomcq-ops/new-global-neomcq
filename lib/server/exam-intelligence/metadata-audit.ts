@@ -264,7 +264,7 @@ function canonicalizeComparable(value: any): any {
   if (typeof value === 'string') return normalizedText(value);
   if (Array.isArray(value)) return value.map(canonicalizeComparable);
   if (typeof value === 'object') {
-    return Object.keys(value).sort().reduce((result: AnyRecord, key) => {
+    return Object.keys(value).sort().reduce((result: AnyRecord, key: string) => {
       result[key] = canonicalizeComparable(value[key]);
       return result;
     }, {});
