@@ -90,6 +90,12 @@ export async function POST(req: NextRequest) {
     if (!user.email || user.email.toLowerCase() !== email.toLowerCase()) {
       return NextResponse.json({ error: 'The signed-in account does not match this onboarding email.' }, { status: 403 })
     }
+    if (!user.email_confirmed_at) {
+      return NextResponse.json(
+        { error: 'Please verify your email before finishing onboarding.' },
+        { status: 403 }
+      )
+    }
     const targetUserId = user.id
 
     // The exam was already resolved on Step 2/3. Verify a supplied ID against the
