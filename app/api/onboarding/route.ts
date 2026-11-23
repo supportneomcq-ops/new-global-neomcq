@@ -150,10 +150,11 @@ export async function POST(req: NextRequest) {
       let curriculumReady = false
       let requestedExamId = validation.data.examId || null
       let resolvedByServer = false
+      let rulesAuditedByEngine = false
 
       if (!requestedExamId) {
-        // Do not create/link a second exam when an existing learner is retrying
-        // onboarding. Existing learners must use the established exam-switch flow.
+        // If an earlier attempt persisted the profile before a later write failed,
+        // recognize the same exam and resume instead of creating another provisional row.
         const { data: existingEnrollmentProfile, error: enrollmentProfileError } = await (admin as any)
           .from('profiles')
           .select('current_exam_id')
@@ -165,13 +166,56 @@ export async function POST(req: NextRequest) {
             { status: 503 }
           )
         }
-        if (existingEnrollmentProfile?.current_exam_id) {
-          return NextResponse.json(
-            { success: false, error: 'Your account already has a selected examination. Use the exam-change workflow to switch examinations.' },
-            { status: 409 }
-          )
-        }
 
+        if (existingEnrollmentProfile?.current_exam_id) {
+          const { data: currentExam, error: currentExamError } = await (admin as any)
+            .from('exams')
+            .select('id, name, short_name, slug')
+            .eq('id', existingEnrollmentProfile.current_exam_id)
+            .maybeSingle()
+          if (currentExamError || !currentExam) {
+            return NextResponse.json(
+              { success: false, error: 'Your existing exam selection could not be recovered. Please contact support.' },
+              { status: 409 }
+            )
+          }
+
+          const normalizeLabel = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '')
+          const submittedLabel = normalizeLabel(examName)
+          const currentLabels = [currentExam.name, currentExam.short_name || '', currentExam.slug || '']
+            .filter(Boolean)
+            .map((value: string) => normalizeLabel(value))
+          let matchesExistingExam = currentLabels.includes(submittedLabel)
+
+          if (!matchesExistingExam) {
+            const { data: aliasMatch, error: aliasError } = await (admin as any)
+              .from('exam_aliases')
+              .select('exam_id')
+              .eq('exam_id', currentExam.id)
+              .ilike('alias', examName.trim())
+              .maybeSingle()
+            if (aliasError) {
+              return NextResponse.json(
+                { success: false, error: 'We could not verify your existing exam alias. Please retry.' },
+                { status: 503 }
+              )
+            }
+            matchesExistingExam = Boolean(aliasMatch)
+          }
+
+          if (!matchesExistingExam) {
+            return NextResponse.json(
+              { success: false, error: 'Your account already has a selected examination. Use the exam-change workflow to switch examinations.' },
+              { status: 409 }
+            )
+          }
+
+          requestedExamId = currentExam.id
+          resolvedByServer = true
+        }
+      }
+
+      if (!requestedExamId) {
         try {
           const resolution = await resolveOrInitializeExamIntelligence({
             examQuery: examName.trim(),
@@ -191,6 +235,7 @@ export async function POST(req: NextRequest) {
           }
           requestedExamId = resolution.exam.id
           resolvedByServer = true
+          rulesAuditedByEngine = true
         } catch (resolutionError: any) {
           console.error('[Onboarding] Canonical exam resolution failed:', resolutionError?.message || resolutionError)
           return NextResponse.json(
@@ -246,7 +291,7 @@ export async function POST(req: NextRequest) {
       // The pre-signup exam search is intentionally read-only. If it supplied an
       // existing but unverified exam ID, run the existing field-level rules audit
       // now; never promote the exam automatically from this onboarding request.
-      if (!examVerified && !resolvedByServer) {
+      if (!examVerified && !rulesAuditedByEngine) {
         try {
           await collectExamRulesProcess(
             selectedExam.id,
