@@ -158,7 +158,11 @@ export async function POST(req: NextRequest) {
             const countryFilteredAliases = aliasExamMatches.filter((exam: any) =>
               normalize(exam.countries?.name || '') === normalizedCountry
             )
-            if (countryFilteredAliases.length > 0) aliasExamMatches = countryFilteredAliases
+            if (countryFilteredAliases.length > 0) {
+              aliasExamMatches = countryFilteredAliases
+            } else if (aliasExamMatches.length > 0) {
+              return ambiguousResponse(aliasExamMatches)
+            }
           }
           if (aliasExamMatches.length === 1) {
             matchedExam = aliasExamMatches[0]
