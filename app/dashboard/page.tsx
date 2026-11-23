@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabaseClient } from '@/lib/supabase';
 import { OnboardingData } from '@/components/onboarding-flow';
-import { DashboardView } from '@/components/dashboard-view';
+import { DashboardView, type DashboardPreparationStatus } from '@/components/dashboard-view';
 import { FuturisticLoader } from '@/components/futuristic-loader';
 import { stopGlobalLoading } from '@/components/global-loading-provider';
 
@@ -14,6 +14,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<OnboardingData | null>(null);
+  const [preparationStatus, setPreparationStatus] = useState<DashboardPreparationStatus | null>(null);
 
   useEffect(() => {
     const fetchSessionAndProfile = async () => {
@@ -62,6 +63,23 @@ export default function DashboardPage() {
             userExamQuery = userExamQuery.eq('exam_id', profile.current_exam_id);
           }
           const { data: userExam } = await userExamQuery.limit(1).maybeSingle();
+
+          if (userExam && profile?.current_exam_id) {
+            try {
+              const statusResponse = await fetch('/api/onboarding/status', { cache: 'no-store' });
+              if (statusResponse.ok) {
+                const statusPayload = await statusResponse.json();
+                setPreparationStatus(statusPayload.preparationStatus || null);
+              } else {
+                setPreparationStatus(null);
+              }
+            } catch (statusError) {
+              console.warn('[Dashboard] Preparation status could not be loaded:', statusError);
+              setPreparationStatus(null);
+            }
+          } else {
+            setPreparationStatus(null);
+          }
 
           // Curriculum validation is asynchronous and must never block dashboard access.
           // 3. Fetch study preferences
@@ -141,6 +159,7 @@ export default function DashboardPage() {
   return (
     <DashboardView
       user={currentUser}
+      preparationStatus={preparationStatus}
       onSignOut={handleSignOut}
       onOpenPractice={() => { router.push('/exams'); }}
       onUpdateProfile={(updated) => {

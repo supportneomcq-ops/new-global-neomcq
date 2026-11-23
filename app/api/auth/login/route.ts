@@ -49,14 +49,28 @@ export async function POST(req: NextRequest) {
     try {
       const adminClient = getSupabaseAdmin();
       
-      // Ensure profile exists
-      await adminClient.from('profiles').upsert({
-        id: user.id,
-        auth_user_id: user.id,
-        email: inputEmail,
-        first_name: user.user_metadata?.first_name || 'User',
-        last_name: user.user_metadata?.last_name || '',
-      });
+      // Auth triggers normally create the profile. Recover only when it is genuinely
+      // missing; never upsert defaults over an existing learner profile during login.
+      const { data: existingProfile, error: profileLookupError } = await adminClient
+        .from('profiles')
+        .select('id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (profileLookupError) {
+        console.warn('Profile lookup warning in login route:', profileLookupError.message);
+      } else if (!existingProfile) {
+        const { error: profileInsertError } = await adminClient.from('profiles').insert({
+          id: user.id,
+          auth_user_id: user.id,
+          email: inputEmail,
+          first_name: user.user_metadata?.first_name || '',
+          last_name: user.user_metadata?.last_name || '',
+        });
+        if (profileInsertError && profileInsertError.code !== '23505') {
+          console.warn('Profile recovery insert warning in login route:', profileInsertError.message);
+        }
+      }
 
       // Check roles
       const { data: userRoles } = await adminClient

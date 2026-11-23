@@ -75,6 +75,9 @@ interface OnboardingState {
   selectedExamCategory: string;
   selectedExamCountry: string;
   selectedExamLevel: string;
+  selectedExamAuthority: string;
+  selectedExamOfficialWebsite: string;
+  selectedExamVerificationStatus: 'verified' | 'needs_review' | 'unknown';
   selectedExamFlag: string;
   selectedExamDescription: string;
   customExamInput: string;
@@ -142,8 +145,8 @@ export default function OnboardingPage() {
   const [step, setStep] = useState<number>(1);
   const [formError, setFormError] = useState('');
   const [isResolvingExam, setIsResolvingExam] = useState(false);
-  const [resolvingStage, setResolvingStage] = useState<number>(0);
-  const [resolvingExamType, setResolvingExamType] = useState<'EXISTING' | 'NEW_SYNTHESIS'>('EXISTING');
+  const [isSubmittingOnboarding, setIsSubmittingOnboarding] = useState(false);
+  const onboardingSubmitGuard = useRef(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [isAuthenticatedResume, setIsAuthenticatedResume] = useState(false);
@@ -158,14 +161,6 @@ export default function OnboardingPage() {
 
   // Step 5 Progress Animation Steps
   const [prepProgress, setPrepProgress] = useState<number>(0);
-  const [prepStatuses, setPrepStatuses] = useState<string[]>([
-    'Analyzing exam requirements & difficulty level...',
-    'AI Model generating official exam syllabus...',
-    'Building subject hierarchy & weightage matrix...',
-    'Generating granular main topics & subtopics for difficulty level...',
-    'Validating syllabus depth and structured subtopic details...',
-    'Curriculum created & linked to your study plan!',
-  ]);
   const [activePrepIndex, setActivePrepIndex] = useState<number>(0);
 
   // Core Form State
@@ -184,8 +179,11 @@ export default function OnboardingPage() {
     selectedExamName: '',
     selectedExamShortName: '',
     selectedExamCategory: '',
-    selectedExamCountry: 'Global',
+    selectedExamCountry: '',
     selectedExamLevel: '',
+    selectedExamAuthority: '',
+    selectedExamOfficialWebsite: '',
+    selectedExamVerificationStatus: 'unknown',
     selectedExamFlag: '🌐',
     selectedExamDescription: '',
     customExamInput: '',
@@ -372,6 +370,24 @@ export default function OnboardingPage() {
           country: hasSavedState ? prev.country : (metadata.country || prev.country),
           language: hasSavedState ? prev.language : (metadata.language || prev.language),
           examSearchQuery: prev.examSearchQuery || metadata.exam || '',
+          selectedExamId: hasSavedState ? prev.selectedExamId : (metadata.exam_id || ''),
+          selectedExamName: hasSavedState ? prev.selectedExamName : (metadata.exam_name || metadata.exam || ''),
+          selectedExamShortName: hasSavedState ? prev.selectedExamShortName : (metadata.exam_short_name || ''),
+          selectedExamFlag: hasSavedState ? prev.selectedExamFlag : (metadata.exam_flag || prev.selectedExamFlag),
+          selectedExamDescription: hasSavedState ? prev.selectedExamDescription : (metadata.exam_description || ''),
+          customExamInput: hasSavedState ? prev.customExamInput : (metadata.custom_exam_input || ''),
+          isCustomExam: hasSavedState ? prev.isCustomExam : Boolean(metadata.is_custom_exam),
+          examDate: hasSavedState ? prev.examDate : (metadata.exam_date || prev.examDate),
+          studyHours: hasSavedState ? prev.studyHours : (Number(metadata.study_hours) || prev.studyHours),
+          learningStyle: hasSavedState ? prev.learningStyle : (metadata.learning_style || prev.learningStyle),
+          studyTime: hasSavedState ? prev.studyTime : (metadata.study_time || prev.studyTime),
+          studyGoals: hasSavedState ? prev.studyGoals : (Array.isArray(metadata.study_goals) ? metadata.study_goals : prev.studyGoals),
+          selectedExamCountry: hasSavedState ? prev.selectedExamCountry : (metadata.exam_country || prev.selectedExamCountry),
+          selectedExamCategory: hasSavedState ? prev.selectedExamCategory : (metadata.exam_category || prev.selectedExamCategory),
+          selectedExamLevel: hasSavedState ? prev.selectedExamLevel : (metadata.exam_level || prev.selectedExamLevel),
+          selectedExamAuthority: hasSavedState ? prev.selectedExamAuthority : (metadata.exam_authority || prev.selectedExamAuthority),
+          selectedExamOfficialWebsite: hasSavedState ? prev.selectedExamOfficialWebsite : (metadata.exam_official_website || prev.selectedExamOfficialWebsite),
+          selectedExamVerificationStatus: hasSavedState ? prev.selectedExamVerificationStatus : (metadata.exam_verification_status || 'unknown'),
           password: '',
         }));
 
@@ -451,14 +467,6 @@ export default function OnboardingPage() {
           setFormError('Enter the exam name you want us to verify.');
           return false;
         }
-        if (!formData.selectedExamCountry.trim()) {
-          setFormError('Choose the exam country or jurisdiction.');
-          return false;
-        }
-        if (!formData.selectedExamCategory.trim()) {
-          setFormError('Choose the exam category so we can verify the correct curriculum.');
-          return false;
-        }
       } else if (!formData.selectedExamId || !formData.selectedExamName) {
         setFormError('Select a verified exam from the search results, or choose “Add a new exam” if it is not listed.');
         return false;
@@ -482,11 +490,15 @@ export default function OnboardingPage() {
     updateField('selectedExamId', exam.id || '');
     updateField('selectedExamName', exam.name);
     updateField('selectedExamShortName', exam.short_name || exam.name.split(' ')[0]);
-    updateField('selectedExamCategory', exam.category || 'Standard Exam Prep');
-    updateField('selectedExamCountry', exam.country || 'Global');
-    updateField('selectedExamLevel', exam.level || exam.difficulty || '');
+    const examIsVerified = (exam as any).verificationStatus === 'verified';
+    updateField('selectedExamCategory', examIsVerified ? (exam.category || '') : '');
+    updateField('selectedExamCountry', examIsVerified ? (exam.country || '') : '');
+    updateField('selectedExamLevel', examIsVerified ? (exam.level || '') : '');
+    updateField('selectedExamVerificationStatus', examIsVerified ? 'verified' : 'needs_review');
+    updateField('selectedExamAuthority', '');
+    updateField('selectedExamOfficialWebsite', '');
     updateField('selectedExamFlag', exam.flag || '🌐');
-    updateField('selectedExamDescription', exam.description || `Official examination preparation for ${exam.name}.`);
+    updateField('selectedExamDescription', exam.description || `Exam preparation for ${exam.name}.`);
     updateField('isCustomExam', false);
     updateField('customExamInput', '');
     setFormError('');
@@ -501,25 +513,16 @@ export default function OnboardingPage() {
     const isCustom = formData.isCustomExam || !!formData.customExamInput.trim();
 
     setIsResolvingExam(true);
-    setResolvingStage(0);
-    setResolvingExamType(isCustom ? 'NEW_SYNTHESIS' : 'EXISTING');
     setFormError('');
 
-    // Smooth stage progression ticker (0 -> 1 -> 2 -> 3)
-    let currentStage = 0;
-    const stageInterval = setInterval(() => {
-      currentStage = Math.min(3, currentStage + 1);
-      setResolvingStage(currentStage);
-    }, 600);
-
     try {
-      const startTime = Date.now();
       const res = await fetch('/api/exams/resolve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           examQuery: targetInput,
-          country: formData.selectedExamCountry || 'Global',
+          examId: formData.selectedExamId || null,
+          country: formData.selectedExamCountry.trim() || undefined,
           category: formData.selectedExamCategory,
           level: formData.selectedExamLevel,
         }),
@@ -529,17 +532,11 @@ export default function OnboardingPage() {
       if (!res.ok || !data.success || !data.exam?.name || (!data.exam?.id && data.status !== 'NEW_EXAM')) {
         throw new Error(data.error || 'We could not verify this exam. Please choose a listed exam or try again.');
       }
-      if (data.status === 'NEW_EXAM' && !formData.selectedExamCategory.trim()) {
-        setResolvingStage(0);
-        setFormError('This exam is not in the catalog yet. Please choose its department or category so we can prepare the right curriculum.');
-        return;
-      }
-
       // A valid new exam is intentionally returned without an ID at this stage.
       // The authenticated onboarding API creates/resolves its canonical record and
       // curriculum after account creation. Do not block users on a null pre-creation ID.
       const isNewExam = data.status === 'NEW_EXAM' || data.is_new || data.decision === 'NEW_EXAM_CREATED';
-      setResolvingExamType(isNewExam ? 'NEW_SYNTHESIS' : 'EXISTING');
+      updateField('selectedExamVerificationStatus', isNewExam ? 'needs_review' : (data.exam?.verificationStatus === 'verified' ? 'verified' : 'needs_review'));
       if (!isNewExam) {
         updateField('isCustomExam', false);
         updateField('customExamInput', '');
@@ -549,7 +546,7 @@ export default function OnboardingPage() {
         const ex = data.exam;
         updateField('selectedExamId', ex.id || '');
         updateField('selectedExamName', ex.name);
-        updateField('selectedExamShortName', ex.short_name || ex.name.split(' ')[0]);
+        updateField('selectedExamShortName', ex.shortName || ex.short_name || ex.name.split(' ')[0]);
         updateField('selectedExamCategory', ex.category || formData.selectedExamCategory);
         updateField('selectedExamCountry', ex.country || 'Global');
         updateField('selectedExamLevel', ex.level || formData.selectedExamLevel || '');
@@ -578,32 +575,15 @@ export default function OnboardingPage() {
         });
       }
 
-      // Ensure minimum display time (2.4s) so user clearly views resolution steps
-      const elapsed = Date.now() - startTime;
-      const minDuration = 2400;
-      if (elapsed < minDuration) {
-        await new Promise((resolve) => setTimeout(resolve, minDuration - elapsed));
-      }
-
-      // Final Completion Step (4)
-      clearInterval(stageInterval);
-      setResolvingStage(4);
-      await new Promise((resolve) => setTimeout(resolve, 650));
-
       setStep(3); // Proceed to Step 3: Exam Confirmation
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
       console.error('Exam resolution error:', err);
-      clearInterval(stageInterval);
-      setResolvingStage(0);
-      await new Promise((resolve) => setTimeout(resolve, 250));
-
       // Never advance onboarding with an unresolved or fabricated exam selection.
       setFormError('We could not verify this exam right now. Please try again or choose an exam from the list. Your selection has not been saved.');
       setStep(2);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
-      clearInterval(stageInterval);
       setIsResolvingExam(false);
     }
   };
@@ -643,18 +623,20 @@ export default function OnboardingPage() {
 
   // STEP 5: CURRICULUM PREPARATION & ACCOUNT CREATION
   const startCurriculumPreparation = async () => {
+    if (onboardingSubmitGuard.current) return;
+    onboardingSubmitGuard.current = true;
+    setIsSubmittingOnboarding(true);
     setStep(5);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     setActivePrepIndex(0);
-    setPrepProgress(15);
+    setPrepProgress(10);
 
     try {
       const supabase = getSupabaseClient();
 
-      // Progress Step 0: Exam recognized and validated
-      await new Promise((r) => setTimeout(r, 400));
+      // The canonical exam lookup was confirmed in the previous step.
       setActivePrepIndex(1);
-      setPrepProgress(30);
+      setPrepProgress(25);
 
       // 1. Create the account once, then persist only its non-secret ID so a
       // failed curriculum/setup attempt can resume without a duplicate-signup error.
@@ -663,13 +645,17 @@ export default function OnboardingPage() {
       const { data: { user: currentAuthUser } } = await supabase.auth.getUser();
       const { data: { session: currentSession } } = await supabase.auth.getSession();
 
-      if (currentAuthUser && currentSession) {
+      if (currentAuthUser && currentSession && currentAuthUser.email_confirmed_at) {
         authData = { user: currentAuthUser, session: currentSession };
+      } else if (currentAuthUser && currentSession && !currentAuthUser.email_confirmed_at) {
+        localStorage.setItem('neomcq_pending_auth_id', currentAuthUser.id);
+        router.push(`/auth/verify-email?email=${encodeURIComponent(formData.email)}`);
+        return;
       } else if (pendingAuthId) {
-        authData = {
-          user: { id: pendingAuthId, email_confirmed_at: null },
-          session: null,
-        };
+        // A saved Auth UUID is only a resume hint, never authentication proof.
+        // The email callback must establish a real session before server-side onboarding.
+        router.push(`/auth/verify-email?email=${encodeURIComponent(formData.email)}`);
+        return;
       } else {
         const { data: createdAuthData, error: authError } = await supabase.auth.signUp({
           email: formData.email,
@@ -681,7 +667,25 @@ export default function OnboardingPage() {
               phone: `${formData.countryCode}${formData.phone}`,
               country: formData.country,
               language: formData.language,
-              exam: formData.selectedExamName,
+              exam: formData.selectedExamName || formData.customExamInput,
+              exam_id: formData.selectedExamId,
+              exam_name: formData.selectedExamName,
+              exam_short_name: formData.selectedExamShortName,
+              exam_flag: formData.selectedExamFlag,
+              exam_description: formData.selectedExamDescription,
+              custom_exam_input: formData.customExamInput,
+              is_custom_exam: formData.isCustomExam,
+              exam_country: formData.selectedExamCountry,
+              exam_category: formData.selectedExamCategory,
+              exam_level: formData.selectedExamLevel,
+              exam_authority: formData.selectedExamAuthority,
+              exam_official_website: formData.selectedExamOfficialWebsite,
+              exam_verification_status: formData.selectedExamVerificationStatus,
+              exam_date: formData.examDate,
+              study_hours: formData.studyHours,
+              learning_style: formData.learningStyle,
+              study_time: formData.studyTime,
+              study_goals: formData.studyGoals,
             },
             emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback?next=/dashboard` : undefined,
           },
@@ -723,14 +727,20 @@ export default function OnboardingPage() {
         }
 
         authData = createdAuthData;
-        if (createdAuthData.user.id && !createdAuthData.user.email_confirmed_at) {
+        if (!createdAuthData.session || !createdAuthData.user.email_confirmed_at) {
+          // Supabase email-confirmation mode intentionally returns no session. Preserve
+          // the non-secret form state and wait for the callback to establish a session.
           localStorage.setItem('neomcq_pending_auth_id', createdAuthData.user.id);
+          setFormError('Your account was created. Verify your email to securely finish exam selection and preparation setup.');
+          router.push(`/auth/verify-email?email=${encodeURIComponent(formData.email)}`);
+          return;
         }
       }
 
-      // Progress Step 2: Checking the latest available curriculum
+      // Account creation or session recovery is complete. The next server request
+      // persists the profile, preferences, exam relationship, and durable job state.
       setActivePrepIndex(2);
-      setPrepProgress(50);
+      setPrepProgress(45);
 
       // 2. Map preferred time to DB Check constraint values ('morning', 'afternoon', 'evening', 'night')
       let dbPreferredTime: 'morning' | 'afternoon' | 'evening' | 'night' | 'flexible' = 'morning';
@@ -739,16 +749,11 @@ export default function OnboardingPage() {
         dbPreferredTime = uiTimeLower as any;
       }
 
-      // Progress Step 3: Synchronizing subjects and syllabus
-      setActivePrepIndex(3);
-      setPrepProgress(70);
-
       // 3. Sync all data server-side via the secure onboarding API
       const onboardResponse = await fetch('/api/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          authId: authData?.user?.id || null,
           firstName: formData.firstName,
           lastName: formData.lastName,
           email: formData.email,
@@ -757,9 +762,11 @@ export default function OnboardingPage() {
           language: formData.language,
           examName: formData.selectedExamName,
           examId: formData.selectedExamId || null,
-          examCountry: formData.selectedExamCountry || 'Global',
+          examCountry: formData.selectedExamCountry.trim() || undefined,
           examCategory: formData.selectedExamCategory,
           examLevel: formData.selectedExamLevel,
+          examAuthority: formData.selectedExamAuthority.trim() || null,
+          examOfficialWebsite: formData.selectedExamOfficialWebsite.trim() || null,
           examDate: formData.examDate,
           daysLeft,
           learningStyle: formData.learningStyle === 'Rapid Learning' ? 'rapid' : formData.learningStyle === 'Regular Study' ? 'mastery' : 'balanced',
@@ -771,12 +778,16 @@ export default function OnboardingPage() {
 
       const onboardData = await onboardResponse.json().catch(() => ({}));
       if (!onboardResponse.ok || onboardData.success === false) {
-        throw new Error(onboardData.error || 'Failed to finalize curriculum setup.');
+        throw new Error(onboardData.error || 'Failed to finalize account setup.');
+      }
+      if (typeof onboardData.examVerificationPending === 'boolean') {
+        updateField('selectedExamVerificationStatus', onboardData.examVerificationPending ? 'needs_review' : 'verified');
       }
 
-      // Progress Step 4: Verifying curriculum details
-      setActivePrepIndex(4);
-      setPrepProgress(85);
+      // The API has confirmed profile persistence, exam linking, and the durable
+      // preparation state. Curriculum readiness remains a separate backend status.
+      setActivePrepIndex(5);
+      setPrepProgress(90);
 
       // 4. Initialize the real study-plan endpoint only when sign-up returned a session.
       // Email-confirmation sign-ups have no session yet; the dashboard initializes the plan after verification.
@@ -794,8 +805,8 @@ export default function OnboardingPage() {
         }
       }
 
-      // Progress Step 5: Finished
-      setActivePrepIndex(5);
+      // Finish the account setup only after the server has confirmed its durable state.
+      setActivePrepIndex(6);
       setPrepProgress(100);
 
       // 5. Store active selection directly in localStorage so Dashboard renders the exact chosen exam
@@ -819,8 +830,6 @@ export default function OnboardingPage() {
         // Safe to ignore
       }
 
-      await new Promise((r) => setTimeout(r, 600));
-
       // Check if email confirmation is required:
       // If user session is null (or user has no email_confirmed_at), email verification is required.
       const requiresConfirmation = !authData?.session || !authData?.user?.email_confirmed_at;
@@ -843,6 +852,9 @@ export default function OnboardingPage() {
         setStep(4);
       }
       setFormError(safeMsg);
+    } finally {
+      onboardingSubmitGuard.current = false;
+      setIsSubmittingOnboarding(false);
     }
   };
 
@@ -1145,13 +1157,16 @@ export default function OnboardingPage() {
                         updateField('examSearchQuery', value);
                         updateField('selectedExamId', '');
                         updateField('selectedExamName', '');
+                        updateField('selectedExamVerificationStatus', 'unknown');
                         updateField('selectedExamShortName', '');
                         updateField('selectedExamDescription', '');
                         updateField('customExamInput', '');
                         updateField('isCustomExam', false);
                         updateField('selectedExamCategory', '');
                         updateField('selectedExamLevel', '');
-                        updateField('selectedExamCountry', 'Global');
+                        updateField('selectedExamAuthority', '');
+                        updateField('selectedExamOfficialWebsite', '');
+                        updateField('selectedExamCountry', '');
                         updateField('resolvedCurriculumSummary', { subjectCount: 0, topicCount: 0, subtopicCount: 0 });
                         setFormError('');
                       }}
@@ -1181,6 +1196,7 @@ export default function OnboardingPage() {
                               updateField('examSearchQuery', example);
                               updateField('selectedExamId', '');
                               updateField('selectedExamName', '');
+                              updateField('selectedExamVerificationStatus', 'unknown');
                               updateField('customExamInput', '');
                               updateField('isCustomExam', false);
                             }}
@@ -1197,7 +1213,7 @@ export default function OnboardingPage() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-gray-400">
-                          {isSearchingExams ? 'Searching verified exams…' : examSearchError ? 'Search temporarily unavailable' : searchResults.length ? 'Matching exams' : 'No matching exam found'}
+                          {isSearchingExams ? 'Searching the NeoMCQ exam catalog…' : examSearchError ? 'Search temporarily unavailable' : searchResults.length ? 'Matching exams' : 'No matching exam found'}
                         </p>
                         {!isSearchingExams && searchResults.length > 0 && (
                           <span className="text-[11px] text-slate-400">{searchResults.length} results</span>
@@ -1226,6 +1242,9 @@ export default function OnboardingPage() {
                                     {ex.short_name && ex.short_name.toLowerCase() !== ex.name.toLowerCase() && (
                                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 dark:bg-gray-800 font-mono">{ex.short_name}</span>
                                     )}
+                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${(ex as any).verificationStatus === 'verified' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'bg-amber-500/10 text-amber-700 dark:text-amber-300'}`}>
+                                      {(ex as any).verificationStatus === 'verified' ? 'Verified' : 'Pending verification'}
+                                    </span>
                                   </span>
                                   <span className="block text-xs text-slate-500 dark:text-gray-400 mt-1">{ex.country || 'Global'} · {ex.category || 'Exam preparation'}</span>
                                   {ex.description && <span className="block text-xs text-slate-400 mt-1 line-clamp-2">{ex.description}</span>}
@@ -1260,9 +1279,10 @@ export default function OnboardingPage() {
                               updateField('selectedExamName', query);
                               updateField('selectedExamShortName', query.split(/\s+/)[0] || query);
                               updateField('selectedExamId', '');
+                              updateField('selectedExamVerificationStatus', 'needs_review');
                               updateField('selectedExamCategory', '');
                               updateField('selectedExamLevel', '');
-                              updateField('selectedExamCountry', formData.country || 'Global');
+                              updateField('selectedExamCountry', '');
                               updateField('isCustomExam', true);
                               setFormError('');
                             }}
@@ -1303,15 +1323,16 @@ export default function OnboardingPage() {
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <label className="block text-xs font-semibold text-slate-600 dark:text-gray-300">
-                          Country / jurisdiction <span className="text-rose-500">*</span>
+                          Country / jurisdiction (optional)
                           <select value={formData.selectedExamCountry} onChange={(e) => updateField('selectedExamCountry', e.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-[#080C19] px-3 py-2.5 text-sm font-medium">
+                            <option value="">Not specified / not sure</option>
                             <option value="Global">Global / International</option>
                             {dbCountries.map((country: any) => <option key={country.id || country.name} value={country.name}>{country.name}</option>)}
                             {COUNTRIES.filter((country) => country !== 'Other Global Location' && !dbCountries.some((dbCountry: any) => dbCountry.name === country)).map((country) => <option key={country} value={country}>{country}</option>)}
                           </select>
                         </label>
                         <label className="block text-xs font-semibold text-slate-600 dark:text-gray-300">
-                          Exam category <span className="text-rose-500">*</span>
+                          Exam category (optional)
                           <select value={formData.selectedExamCategory} onChange={(e) => updateField('selectedExamCategory', e.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-[#080C19] px-3 py-2.5 text-sm font-medium">
                             <option value="">Choose a category</option>
                             {examCategoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}
@@ -1320,6 +1341,14 @@ export default function OnboardingPage() {
                         <label className="block text-xs font-semibold text-slate-600 dark:text-gray-300 sm:col-span-2">
                           Exam level / stage (optional)
                           <input value={formData.selectedExamLevel} onChange={(e) => updateField('selectedExamLevel', e.target.value)} maxLength={80} placeholder="e.g. Step 1, Level II" className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-[#080C19] px-3 py-2.5 text-sm font-medium" />
+                        </label>
+                        <label className="block text-xs font-semibold text-slate-600 dark:text-gray-300">
+                          Exam authority / board (optional)
+                          <input value={formData.selectedExamAuthority} onChange={(e) => updateField('selectedExamAuthority', e.target.value)} maxLength={180} placeholder="e.g. National Examination Board" className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-[#080C19] px-3 py-2.5 text-sm font-medium" />
+                        </label>
+                        <label className="block text-xs font-semibold text-slate-600 dark:text-gray-300">
+                          Official website or reference URL (optional)
+                          <input type="url" value={formData.selectedExamOfficialWebsite} onChange={(e) => updateField('selectedExamOfficialWebsite', e.target.value)} maxLength={2048} placeholder="https://..." className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-[#080C19] px-3 py-2.5 text-sm font-medium" />
                         </label>
                       </div>
                     </div>
@@ -1345,7 +1374,7 @@ export default function OnboardingPage() {
                     Confirm your Exam Details
                   </h1>
                   <p className="text-xs sm:text-sm text-slate-500 dark:text-gray-400">
-                    Your exam selection is ready. After you enter your exam date and study hours, NeoMCQ will prepare and validate the latest available curriculum.
+                    Your exam selection is ready. After you confirm your exam date and study preferences, NeoMCQ will save your account and link the exam. Official verification and curriculum preparation continue separately in the background.
                   </p>
                 </div>
 
@@ -1372,8 +1401,9 @@ export default function OnboardingPage() {
                         {formData.selectedExamDescription}
                       </p>
                       <p className="text-[11px] text-slate-500 dark:text-gray-400 mt-2">
-                        Jurisdiction: <span className="font-semibold">{formData.selectedExamCountry || 'Global'}</span>
+                        Jurisdiction: <span className="font-semibold">{formData.selectedExamCountry || 'Not specified'}</span>
                         {' · '}Level: <span className="font-semibold">{formData.selectedExamLevel || 'Not specified'}</span>
+                        {' · '}Verification: <span className="font-semibold">{formData.selectedExamVerificationStatus === 'verified' ? 'Verified' : 'Pending official review'}</span>
                       </p>
                     </div>
                   </div>
@@ -1381,14 +1411,14 @@ export default function OnboardingPage() {
                   <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-start gap-3">
                     <Layers className="w-5 h-5 text-[#6D5BFF] shrink-0 mt-0.5" />
                     <div className="space-y-1">
-                      <p className="text-sm font-bold text-slate-900 dark:text-white">Curriculum preparation is the next step</p>
-                      <p className="text-xs leading-relaxed text-slate-600 dark:text-gray-300">After you confirm your exam date and daily study hours, NeoMCQ will prepare and validate the latest available curriculum before completing account setup.</p>
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">Account setup comes first</p>
+                      <p className="text-xs leading-relaxed text-slate-600 dark:text-gray-300">NeoMCQ saves your account and exam selection first. If official verification is pending, curriculum generation waits for approval and continues in the background while your dashboard remains accessible.</p>
                     </div>
                   </div>
 
                   <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 shrink-0" />
-                    <span>Exam details recognized. Curriculum validation starts during account setup.</span>
+                    <span>Exam identity recognized. Official verification is checked separately from account setup.</span>
                   </div>
                 </div>
               </motion.div>
@@ -1536,7 +1566,7 @@ export default function OnboardingPage() {
               </motion.div>
             )}
 
-            {/* STEP 5: PREPARING YOUR CURRICULUM (PROGRESS ANIMATION) */}
+            {/* STEP 5: ACCOUNT CREATION AND BACKGROUND PREPARATION HANDOFF */}
             {step === 5 && (
               <motion.div
                 key="step-5"
@@ -1570,11 +1600,11 @@ export default function OnboardingPage() {
                 <div className="space-y-2.5 text-left max-w-md mx-auto pt-2">
                   {[
                     'Confirming the selected exam and jurisdiction',
-                    'Creating your learner account',
-                    'Saving study preferences',
-                    'Persisting the curriculum-generation job',
-                    'Requesting background curriculum processing',
-                    'Finishing account setup; curriculum status is tracked separately',
+                    'Creating or resuming your learner account',
+                    'Saving your profile and study preferences',
+                    'Linking the canonical exam to your account',
+                    'Recording or reusing background preparation',
+                    'Finishing account setup; curriculum readiness is tracked separately',
                   ].map((label, idx) => {
                     const isDone = activePrepIndex > idx;
                     const isCurrent = activePrepIndex === idx;
@@ -1625,7 +1655,7 @@ export default function OnboardingPage() {
               <button
                 type="button"
                 onClick={handleNext}
-                disabled={isResolvingExam}
+                disabled={isResolvingExam || isSubmittingOnboarding}
                 className="px-6 py-3 rounded-2xl bg-gradient-to-r from-[#6D5BFF] to-[#00D4FF] text-white text-xs sm:text-sm font-heading font-extrabold shadow-lg shadow-[#6D5BFF]/25 hover:opacity-95 transition-opacity flex items-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {isResolvingExam ? (
@@ -1635,7 +1665,7 @@ export default function OnboardingPage() {
                   </>
                 ) : step === 4 ? (
                   <>
-                    <span>Generate Curriculum & Deploy</span>
+                    <span>Create Account & Open Dashboard</span>
                     <Sparkles className="w-4 h-4" />
                   </>
                 ) : (
@@ -1650,7 +1680,7 @@ export default function OnboardingPage() {
         </div>
       </main>
 
-      {/* BIG EXAM RESOLUTION ANIMATION MODAL */}
+      {/* Exam catalog lookup modal. No curriculum-generation progress is claimed here. */}
       <AnimatePresence>
         {isResolvingExam && (
           <motion.div
@@ -1660,133 +1690,32 @@ export default function OnboardingPage() {
             className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/85 backdrop-blur-xl"
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 15 }}
+              initial={{ opacity: 0, scale: 0.96, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: -15 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="relative w-full max-w-lg p-6 sm:p-8 rounded-3xl bg-slate-900/95 border border-[#6D5BFF]/40 shadow-2xl shadow-[#6D5BFF]/25 text-white overflow-hidden space-y-6"
+              exit={{ opacity: 0, scale: 0.96, y: -12 }}
+              className="relative w-full max-w-lg p-6 sm:p-8 rounded-3xl bg-slate-900/95 border border-[#6D5BFF]/40 shadow-2xl text-white overflow-hidden space-y-5"
             >
-              {/* Glowing Background Radial Accents */}
-              <div className="absolute -top-24 -left-24 w-48 h-48 bg-[#6D5BFF]/30 rounded-full blur-3xl pointer-events-none" />
-              <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-[#00D4FF]/25 rounded-full blur-3xl pointer-events-none" />
-
-              {/* Top Header Badge */}
-              <div className="text-center space-y-3 relative z-10">
-                <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-[#6D5BFF]/20 text-[#00D4FF] border border-[#6D5BFF]/40 shadow-sm">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                  <span>
-                    {resolvingExamType === 'EXISTING'
-                      ? 'Validating Exam Intelligence'
-                      : 'Synthesizing Official Exam Pattern'}
-                  </span>
+              <div className="absolute -top-24 -left-24 w-48 h-48 bg-[#6D5BFF]/25 rounded-full blur-3xl pointer-events-none" />
+              <div className="relative z-10 flex flex-col items-center text-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#6D5BFF] to-[#00D4FF] flex items-center justify-center">
+                  <Loader2 className="w-7 h-7 text-white animate-spin" />
                 </div>
-
-                {/* Central Pulsing Holographic Orbital Ring */}
-                <div className="relative w-20 h-20 mx-auto my-3 flex items-center justify-center">
-                  {/* Outer Spinning Ring */}
-                  <div className="absolute inset-0 rounded-full border-2 border-dashed border-[#00D4FF]/40 animate-[spin_8s_linear_infinite]" />
-                  {/* Inner Reverse Spinning Ring */}
-                  <div className="absolute inset-2 rounded-full border-2 border-[#6D5BFF]/60 animate-[spin_4s_linear_infinite_reverse]" />
-                  {/* Glowing Core */}
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#6D5BFF] to-[#00D4FF] flex items-center justify-center shadow-lg shadow-[#6D5BFF]/50 animate-pulse">
-                    {resolvingExamType === 'EXISTING' ? (
-                      <Database className="w-6 h-6 text-white" />
-                    ) : (
-                      <Cpu className="w-6 h-6 text-white" />
-                    )}
-                  </div>
+                <div className="space-y-2">
+                  <h2 className="text-xl sm:text-2xl font-heading font-extrabold">Checking the NeoMCQ exam catalog</h2>
+                  <p className="text-sm text-slate-300">
+                    Matching the exam name, aliases, country, and category to the canonical exam record.
+                  </p>
                 </div>
-
-                <h2 className="text-xl sm:text-2xl font-heading font-extrabold tracking-tight">
-                  {resolvingExamType === 'EXISTING'
-                    ? 'Confirming Your Exam'
-                    : 'Collecting Exam Blueprint & Patterns'}
-                </h2>
-
-                {/* Selected Exam Highlight Pill */}
-                <div className="p-3 rounded-2xl bg-slate-800/80 border border-slate-700/70 text-xs font-semibold flex items-center justify-center gap-2 max-w-md mx-auto">
+                <div className="p-3 w-full rounded-2xl bg-slate-800/80 border border-slate-700/70 text-xs font-semibold flex items-center justify-center gap-2">
                   <span className="text-lg shrink-0">{formData.selectedExamFlag || '🌐'}</span>
-                  <span className="font-bold text-white truncate max-w-[280px]">
-                    {formData.selectedExamName || formData.customExamInput}
-                  </span>
+                  <span className="font-bold text-white truncate">{formData.selectedExamName || formData.customExamInput}</span>
                   <span className="px-2 py-0.5 rounded bg-[#6D5BFF]/20 text-[#00D4FF] text-[10px] font-mono font-bold uppercase">
-                    {formData.selectedExamCategory || 'Global Standard'}
+                    {formData.selectedExamCategory || 'Exam'}
                   </span>
                 </div>
-              </div>
-
-              {/* Animated Progress Bar */}
-              <div className="space-y-1.5 relative z-10">
-                <div className="flex justify-between text-[11px] font-mono font-bold text-slate-400">
-                  <span>
-                    {resolvingStage < 4 ? `STAGE ${resolvingStage + 1} OF 5` : 'COMPLETE'}
-                  </span>
-                  <span className="text-[#00D4FF]">
-                    {Math.min(100, Math.round(((resolvingStage + 1) / 5) * 100))}%
-                  </span>
-                </div>
-                <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden border border-slate-700/50">
-                  <motion.div
-                    className="h-full bg-gradient-to-r from-[#6D5BFF] via-[#00D4FF] to-emerald-400"
-                    animate={{ width: `${Math.min(100, ((resolvingStage + 1) / 5) * 100)}%` }}
-                    transition={{ duration: 0.4, ease: 'easeInOut' }}
-                  />
-                </div>
-              </div>
-
-              {/* Dynamic Resolution Checklist Steps */}
-              <div className="space-y-2 text-left relative z-10 text-xs font-medium">
-                {(resolvingExamType === 'EXISTING'
-                  ? [
-                      { title: 'Exam Recognition', desc: `Confirming the correct exam and official name` },
-                      { title: 'Curriculum Coverage Check', desc: `Checking subjects, topics, and subtopics for your exam` },
-                      { title: 'Exam Format Check', desc: `Confirming exam duration, question count, and marking rules` },
-                      { title: 'Final Quality Check', desc: `Checking that your exam setup is consistent and ready` },
-                      { title: 'Exam Setup Confirmed', desc: `Your exam is ready for your study workspace` },
-                    ]
-                  : [
-                      { title: 'Researching Your Exam', desc: `Analyzing official syllabus specifications for '${formData.selectedExamName || formData.customExamInput}'` },
-                      { title: 'Building Exam Blueprint', desc: `Structuring subject weightage, duration & marking parameters` },
-                      { title: 'Organizing Your Curriculum', desc: `Mapping main topics and high-yield cognitive subtopics` },
-                      { title: 'Saving Your Curriculum', desc: `Saving your exam, subjects, topics, and study structure securely` },
-                      { title: 'Curriculum Ready', desc: `Your curriculum is saved and ready for your study plan` },
-                    ]
-                ).map((item, idx) => {
-                  const isDone = resolvingStage > idx;
-                  const isCurrent = resolvingStage === idx;
-                  return (
-                    <div
-                      key={item.title}
-                      className={`p-2.5 rounded-2xl transition-all duration-300 flex items-center gap-3 border ${
-                        isDone
-                          ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
-                          : isCurrent
-                          ? 'bg-[#6D5BFF]/20 text-[#00D4FF] border-[#6D5BFF]/50 shadow-md shadow-[#6D5BFF]/20'
-                          : 'bg-slate-800/40 text-slate-500 border-slate-800/80'
-                      }`}
-                    >
-                      {isDone ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                      ) : isCurrent ? (
-                        <Loader2 className="w-4 h-4 text-[#00D4FF] animate-spin shrink-0" />
-                      ) : (
-                        <div className="w-4 h-4 rounded-full border border-slate-700 shrink-0" />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <div className="font-bold leading-none">{item.title}</div>
-                        <div className="text-[10px] text-slate-400 font-normal truncate mt-0.5">{item.desc}</div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Database Persistence Explicit Footnote */}
-              <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 text-[10px] text-slate-400 font-mono flex items-center gap-2 justify-center">
-                <Database className="w-3.5 h-3.5 text-[#00D4FF] shrink-0" />
-                <span>
-                  Your exam setup is being securely saved. This may take a moment.
-                </span>
+                <p className="text-xs text-slate-400">
+                  This lookup does not generate or verify a curriculum. Any missing official exam details remain pending verification.
+                </p>
               </div>
             </motion.div>
           </motion.div>

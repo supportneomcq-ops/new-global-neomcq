@@ -23,11 +23,22 @@ import { StudyPlanWorkspaceView } from './learning-workspace/study-plan-workspac
 import { TopicPreparationModal } from './learning-workspace/topic-preparation-modal';
 import { LearningContextBar } from './learning-workspace/learning-context-bar';
 
+export interface DashboardPreparationStatus {
+  examName: string;
+  verificationPending: boolean;
+  curriculumReady: boolean;
+  jobStatus: string | null;
+  progressStage: string | null;
+  stepPercentage: number;
+  hasJobError: boolean;
+}
+
 interface DashboardViewProps {
   user: OnboardingData;
   onSignOut: () => void;
   onOpenPractice: () => void;
   onUpdateProfile?: (updatedData: Partial<OnboardingData>) => void;
+  preparationStatus?: DashboardPreparationStatus | null;
 }
 
 type SavedBookmark = {
@@ -146,7 +157,7 @@ function SavedBookmarksView({ userId }: { userId?: string }) {
   );
 }
 
-export function DashboardView({ user, onSignOut, onOpenPractice, onUpdateProfile }: DashboardViewProps) {
+export function DashboardView({ user, onSignOut, onOpenPractice, onUpdateProfile, preparationStatus }: DashboardViewProps) {
   const [completedHours, setCompletedHours] = useState<number>(0);
   const [streakDays, setStreakDays] = useState<number>(0);
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('dashboard');
@@ -221,6 +232,86 @@ export function DashboardView({ user, onSignOut, onOpenPractice, onUpdateProfile
         onOpenAddTopic={() => setIsAddTopicModalOpen(true)}
         onOpenDiscoverExam={() => setIsCreateStudyModalOpen(true)}
       />
+
+      {preparationStatus && (
+        <section
+          role="status"
+          aria-live="polite"
+          className="mx-auto w-full max-w-[1536px] px-3.5 sm:px-5 lg:px-7"
+        >
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            {(() => {
+              const status = String(preparationStatus.jobStatus || '').toLowerCase();
+              const waitingForVerification = preparationStatus.verificationPending;
+              const waitingToResume = status === 'waiting_verification' && !preparationStatus.verificationPending;
+              const isRunning = status === 'running' || status === 'processing' || status === 'in_progress';
+              const isFailed = status === 'failed' || preparationStatus.hasJobError;
+              const isFinishedButUnvalidated = status === 'succeeded' || status === 'completed';
+              const title = preparationStatus.curriculumReady
+                ? 'Curriculum ready'
+                : isFailed
+                  ? 'Preparation needs attention'
+                  : waitingForVerification
+                    ? 'Waiting for official exam verification'
+                    : waitingToResume
+                      ? 'Waiting for official syllabus evidence'
+                      : status === 'queued'
+                      ? 'Preparation queued'
+                      : isRunning
+                        ? 'Preparation in progress'
+                        : isFinishedButUnvalidated
+                          ? 'Final curriculum validation pending'
+                          : 'Preparation status unavailable';
+              const message = preparationStatus.curriculumReady
+                ? 'The current approved exam version and curriculum hierarchy have passed validation.'
+                : isFailed
+                  ? 'Your account and exam selection are saved, but the background preparation job failed. The curriculum has not been marked ready. Refresh later; if the failure persists, contact support.'
+                  : waitingForVerification
+                    ? 'Official exam rules and source evidence must be approved before curriculum generation can proceed. You can continue using the dashboard.'
+                    : waitingToResume
+                      ? 'The exam pattern is verified, but structured official syllabus evidence is still required. Curriculum generation remains paused while you continue using the dashboard.'
+                      : status === 'queued'
+                      ? 'Your preparation request is saved and waiting for the background worker.'
+                      : isRunning
+                        ? 'Background preparation is running. Your dashboard remains available while processing continues.'
+                        : isFinishedButUnvalidated
+                          ? 'Background processing finished, but the saved curriculum has not yet passed final validation.'
+                          : 'Your exam is selected. A current preparation job status is not available yet.';
+              return (
+                <>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Exam preparation</p>
+                      <h2 className="mt-1 text-base font-bold text-slate-900 dark:text-slate-100">{preparationStatus.examName}</h2>
+                      <p className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-200">{title}</p>
+                      <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-slate-300">{message}</p>
+                    </div>
+                    <div className="shrink-0 rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200">
+                      Exam verification: {preparationStatus.verificationPending ? 'Pending' : 'Verified'}
+                    </div>
+                  </div>
+                  {isRunning && preparationStatus.progressStage && (
+                    <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">{preparationStatus.progressStage}</p>
+                  )}
+                  {isRunning && preparationStatus.stepPercentage > 0 && (
+                    <div className="mt-2">
+                      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                        <div
+                          className="h-full rounded-full bg-violet-600 transition-all"
+                          style={{ width: `${Math.min(100, Math.max(0, preparationStatus.stepPercentage))}%` }}
+                        />
+                      </div>
+                      <p className="mt-1 text-right text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
+                        {Math.min(100, Math.max(0, preparationStatus.stepPercentage))}% of the current background job
+                      </p>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        </section>
+      )}
 
       {/* 2. Workspace Body (Sidebar + Content Canvas) */}
       <div className="flex-1 flex w-full max-w-[1536px] mx-auto">

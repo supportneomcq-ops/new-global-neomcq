@@ -28,6 +28,8 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Exam intelligence and curriculum regression tests
         run: bun test lib/server/exam-intelligence/__tests__/batch3-evidence-comparator.test.ts
+      - name: Onboarding profile initialization tests
+        run: bun run test:onboarding
       - name: TypeScript type check
         run: bun run type-check
       - name: ESLint

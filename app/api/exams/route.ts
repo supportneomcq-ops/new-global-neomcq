@@ -10,6 +10,8 @@ export interface ExamItem {
   flag: string;
   description: string;
   is_featured: boolean;
+  verificationStatus: 'verified' | 'needs_review';
+  level?: string | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -31,10 +33,14 @@ export async function GET(req: NextRequest) {
           slug,
           description,
           difficulty,
+          level,
           question_count,
           time_limit_mins,
           is_featured,
           status,
+          verification_status,
+          metadata,
+          exam_versions(id, version_year, source_url, verified_at, verification_status, is_current),
           countries (
             name,
             iso2,
@@ -56,7 +62,7 @@ export async function GET(req: NextRequest) {
         // Fallback without joins
         let flatQuery = (supabase as any)
           .from('exams')
-          .select('id, name, slug, description, difficulty, question_count, time_limit_mins, is_featured, status')
+          .select('id, name, slug, description, difficulty, level, question_count, time_limit_mins, is_featured, status, verification_status, metadata')
           .neq('status', 'archived');
         if (featuredOnly) {
           flatQuery = flatQuery.eq('is_featured', true);
@@ -72,20 +78,37 @@ export async function GET(req: NextRequest) {
     }
 
     // Map DB results to match the frontend ExamItem interface expectations
-    let mappedExams = (dbExams || []).map((exam: any) => ({
+    let mappedExams = (dbExams || []).map((exam: any) => {
+      const metadata = exam.metadata || {}
+      const approvedCurrentVersion = (exam.exam_versions || []).some((version: any) =>
+        version.is_current === true &&
+        version.verification_status === 'verified' &&
+        Boolean(version.verified_at && version.source_url && version.version_year)
+      )
+      const verificationStatus =
+        String(exam.verification_status || '').toLowerCase() === 'verified' &&
+        metadata.exam_metadata_audit_status === 'verified' &&
+        approvedCurrentVersion
+          ? 'verified'
+          : 'needs_review'
+
+      return {
       id: exam.id,
       name: exam.name,
       slug: exam.slug,
-      category: exam.exam_categories?.name || 'Professional Certification',
-      country: exam.countries?.name || 'Global',
+      category: exam.exam_categories?.name || 'Unspecified',
+      country: exam.countries?.name || 'Unspecified',
       flag: exam.countries?.flag_emoji || '🌐',
       description: exam.description || '',
       is_featured: exam.is_featured,
       code: exam.slug.toUpperCase(),
       question_count: exam.question_count,
       time_limit_mins: exam.time_limit_mins,
-      difficulty: exam.difficulty
-    }));
+      difficulty: exam.difficulty,
+      level: exam.level || null,
+      verificationStatus,
+    };
+    });
 
     // Apply client-side fuzzy query filter if query param exists
     if (query) {
