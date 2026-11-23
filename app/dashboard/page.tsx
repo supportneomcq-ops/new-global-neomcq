@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabaseClient } from '@/lib/supabase';
 import { OnboardingData } from '@/components/onboarding-flow';
-import { DashboardView } from '@/components/dashboard-view';
+import { DashboardView, type DashboardPreparationStatus } from '@/components/dashboard-view';
 import { FuturisticLoader } from '@/components/futuristic-loader';
 import { stopGlobalLoading } from '@/components/global-loading-provider';
 
@@ -14,6 +14,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<OnboardingData | null>(null);
+  const [preparationStatus, setPreparationStatus] = useState<DashboardPreparationStatus | null>(null);
 
   useEffect(() => {
     const fetchSessionAndProfile = async () => {
@@ -62,6 +63,57 @@ export default function DashboardPage() {
             userExamQuery = userExamQuery.eq('exam_id', profile.current_exam_id);
           }
           const { data: userExam } = await userExamQuery.limit(1).maybeSingle();
+
+          const selectedExamRecord = (userExam as any)?.exams;
+          if (selectedExamRecord && profile?.current_exam_id) {
+            const [versionResult, jobResult] = await Promise.all([
+              supabase
+                .from('exam_versions')
+                .select('id, version_year, source_url, verified_at, verification_status')
+                .eq('exam_id', profile.current_exam_id)
+                .eq('is_current', true)
+                .eq('verification_status', 'verified')
+                .maybeSingle(),
+              supabase
+                .from('ai_jobs')
+                .select('status, progress_stage, step_percentage, error, created_at')
+                .eq('user_id', user.id)
+                .eq('exam_id', profile.current_exam_id)
+                .eq('task', 'curriculum_rebuild')
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle(),
+            ]);
+
+            const examMetadata = selectedExamRecord.metadata || {};
+            const hasApprovedCurrentVersion = Boolean(
+              versionResult.data?.verified_at &&
+              versionResult.data?.source_url &&
+              versionResult.data?.version_year
+            );
+            const verificationPending = !(
+              selectedExamRecord.verification_status === 'verified' &&
+              examMetadata.exam_metadata_audit_status === 'verified' &&
+              hasApprovedCurrentVersion
+            );
+            const curriculumReady = Boolean(
+              !verificationPending &&
+              examMetadata.curriculum_validation_version === 4 &&
+              examMetadata.curriculum_validation_passed === true
+            );
+            const job = jobResult.data;
+            setPreparationStatus({
+              examName: selectedExamRecord.name || 'Selected exam',
+              verificationPending,
+              curriculumReady,
+              jobStatus: job?.status || null,
+              progressStage: job?.progress_stage || null,
+              stepPercentage: Math.min(100, Math.max(0, Number(job?.step_percentage || 0))),
+              hasJobError: Boolean(job?.error) && job?.status === 'failed',
+            });
+          } else {
+            setPreparationStatus(null);
+          }
 
           // Curriculum validation is asynchronous and must never block dashboard access.
           // 3. Fetch study preferences
@@ -141,6 +193,7 @@ export default function DashboardPage() {
   return (
     <DashboardView
       user={currentUser}
+      preparationStatus={preparationStatus}
       onSignOut={handleSignOut}
       onOpenPractice={() => { router.push('/exams'); }}
       onUpdateProfile={(updated) => {
