@@ -7,7 +7,7 @@ export const maxDuration = 60;
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { examQuery, examId: requestedExamId, country, userId: requestedUserId } = body || {}
+    const { examQuery, examId: requestedExamId, country, category, level, userId: requestedUserId } = body || {}
 
     if (!examQuery || typeof examQuery !== 'string' || !examQuery.trim() || examQuery.trim().length > 160) {
       return NextResponse.json(
@@ -235,7 +235,7 @@ export async function POST(req: NextRequest) {
             question_count: examVerified && Number(matchedExam.question_count || 0) > 0 ? matchedExam.question_count : null,
             time_limit_mins: examVerified && Number(matchedExam.time_limit_mins || 0) > 0 ? matchedExam.time_limit_mins : null,
             current_version: examVerified ? (matchedExam.current_version || null) : null,
-            version_year: examVerified ? (currentExamVersion.version_year || matchedExam.version_year || null) : null,
+            version_year: examVerified ? (currentExamVersion?.version_year || matchedExam.version_year || null) : null,
             marking_scheme: examVerified ? matchedExam.marking_scheme || null : null,
             verificationStatus: examVerified ? 'verified' : 'needs_review',
             examMetadataAuditStatus: metadata.exam_metadata_audit_status || 'needs_review',
