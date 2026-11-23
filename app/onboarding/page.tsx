@@ -142,8 +142,6 @@ export default function OnboardingPage() {
   const [step, setStep] = useState<number>(1);
   const [formError, setFormError] = useState('');
   const [isResolvingExam, setIsResolvingExam] = useState(false);
-  const [resolvingStage, setResolvingStage] = useState<number>(0);
-  const [resolvingExamType, setResolvingExamType] = useState<'EXISTING' | 'NEW_SYNTHESIS'>('EXISTING');
   const [showPassword, setShowPassword] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [isAuthenticatedResume, setIsAuthenticatedResume] = useState(false);
@@ -158,14 +156,6 @@ export default function OnboardingPage() {
 
   // Step 5 Progress Animation Steps
   const [prepProgress, setPrepProgress] = useState<number>(0);
-  const [prepStatuses, setPrepStatuses] = useState<string[]>([
-    'Analyzing exam requirements & difficulty level...',
-    'AI Model generating official exam syllabus...',
-    'Building subject hierarchy & weightage matrix...',
-    'Generating granular main topics & subtopics for difficulty level...',
-    'Validating syllabus depth and structured subtopic details...',
-    'Curriculum created & linked to your study plan!',
-  ]);
   const [activePrepIndex, setActivePrepIndex] = useState<number>(0);
 
   // Core Form State
@@ -501,19 +491,9 @@ export default function OnboardingPage() {
     const isCustom = formData.isCustomExam || !!formData.customExamInput.trim();
 
     setIsResolvingExam(true);
-    setResolvingStage(0);
-    setResolvingExamType(isCustom ? 'NEW_SYNTHESIS' : 'EXISTING');
     setFormError('');
 
-    // Smooth stage progression ticker (0 -> 1 -> 2 -> 3)
-    let currentStage = 0;
-    const stageInterval = setInterval(() => {
-      currentStage = Math.min(3, currentStage + 1);
-      setResolvingStage(currentStage);
-    }, 600);
-
     try {
-      const startTime = Date.now();
       const res = await fetch('/api/exams/resolve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -578,32 +558,15 @@ export default function OnboardingPage() {
         });
       }
 
-      // Ensure minimum display time (2.4s) so user clearly views resolution steps
-      const elapsed = Date.now() - startTime;
-      const minDuration = 2400;
-      if (elapsed < minDuration) {
-        await new Promise((resolve) => setTimeout(resolve, minDuration - elapsed));
-      }
-
-      // Final Completion Step (4)
-      clearInterval(stageInterval);
-      setResolvingStage(4);
-      await new Promise((resolve) => setTimeout(resolve, 650));
-
       setStep(3); // Proceed to Step 3: Exam Confirmation
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
       console.error('Exam resolution error:', err);
-      clearInterval(stageInterval);
-      setResolvingStage(0);
-      await new Promise((resolve) => setTimeout(resolve, 250));
-
       // Never advance onboarding with an unresolved or fabricated exam selection.
       setFormError('We could not verify this exam right now. Please try again or choose an exam from the list. Your selection has not been saved.');
       setStep(2);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
-      clearInterval(stageInterval);
       setIsResolvingExam(false);
     }
   };
@@ -1654,7 +1617,7 @@ export default function OnboardingPage() {
         </div>
       </main>
 
-      {/* BIG EXAM RESOLUTION ANIMATION MODAL */}
+      {/* Exam catalog lookup modal. No curriculum-generation progress is claimed here. */}
       <AnimatePresence>
         {isResolvingExam && (
           <motion.div
@@ -1664,133 +1627,32 @@ export default function OnboardingPage() {
             className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/85 backdrop-blur-xl"
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 15 }}
+              initial={{ opacity: 0, scale: 0.96, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: -15 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="relative w-full max-w-lg p-6 sm:p-8 rounded-3xl bg-slate-900/95 border border-[#6D5BFF]/40 shadow-2xl shadow-[#6D5BFF]/25 text-white overflow-hidden space-y-6"
+              exit={{ opacity: 0, scale: 0.96, y: -12 }}
+              className="relative w-full max-w-lg p-6 sm:p-8 rounded-3xl bg-slate-900/95 border border-[#6D5BFF]/40 shadow-2xl text-white overflow-hidden space-y-5"
             >
-              {/* Glowing Background Radial Accents */}
-              <div className="absolute -top-24 -left-24 w-48 h-48 bg-[#6D5BFF]/30 rounded-full blur-3xl pointer-events-none" />
-              <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-[#00D4FF]/25 rounded-full blur-3xl pointer-events-none" />
-
-              {/* Top Header Badge */}
-              <div className="text-center space-y-3 relative z-10">
-                <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-[#6D5BFF]/20 text-[#00D4FF] border border-[#6D5BFF]/40 shadow-sm">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                  <span>
-                    {resolvingExamType === 'EXISTING'
-                      ? 'Validating Exam Intelligence'
-                      : 'Synthesizing Official Exam Pattern'}
-                  </span>
+              <div className="absolute -top-24 -left-24 w-48 h-48 bg-[#6D5BFF]/25 rounded-full blur-3xl pointer-events-none" />
+              <div className="relative z-10 flex flex-col items-center text-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#6D5BFF] to-[#00D4FF] flex items-center justify-center">
+                  <Loader2 className="w-7 h-7 text-white animate-spin" />
                 </div>
-
-                {/* Central Pulsing Holographic Orbital Ring */}
-                <div className="relative w-20 h-20 mx-auto my-3 flex items-center justify-center">
-                  {/* Outer Spinning Ring */}
-                  <div className="absolute inset-0 rounded-full border-2 border-dashed border-[#00D4FF]/40 animate-[spin_8s_linear_infinite]" />
-                  {/* Inner Reverse Spinning Ring */}
-                  <div className="absolute inset-2 rounded-full border-2 border-[#6D5BFF]/60 animate-[spin_4s_linear_infinite_reverse]" />
-                  {/* Glowing Core */}
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#6D5BFF] to-[#00D4FF] flex items-center justify-center shadow-lg shadow-[#6D5BFF]/50 animate-pulse">
-                    {resolvingExamType === 'EXISTING' ? (
-                      <Database className="w-6 h-6 text-white" />
-                    ) : (
-                      <Cpu className="w-6 h-6 text-white" />
-                    )}
-                  </div>
+                <div className="space-y-2">
+                  <h2 className="text-xl sm:text-2xl font-heading font-extrabold">Checking the NeoMCQ exam catalog</h2>
+                  <p className="text-sm text-slate-300">
+                    Matching the exam name, aliases, country, and category to the canonical exam record.
+                  </p>
                 </div>
-
-                <h2 className="text-xl sm:text-2xl font-heading font-extrabold tracking-tight">
-                  {resolvingExamType === 'EXISTING'
-                    ? 'Confirming Your Exam'
-                    : 'Collecting Exam Blueprint & Patterns'}
-                </h2>
-
-                {/* Selected Exam Highlight Pill */}
-                <div className="p-3 rounded-2xl bg-slate-800/80 border border-slate-700/70 text-xs font-semibold flex items-center justify-center gap-2 max-w-md mx-auto">
+                <div className="p-3 w-full rounded-2xl bg-slate-800/80 border border-slate-700/70 text-xs font-semibold flex items-center justify-center gap-2">
                   <span className="text-lg shrink-0">{formData.selectedExamFlag || '🌐'}</span>
-                  <span className="font-bold text-white truncate max-w-[280px]">
-                    {formData.selectedExamName || formData.customExamInput}
-                  </span>
+                  <span className="font-bold text-white truncate">{formData.selectedExamName || formData.customExamInput}</span>
                   <span className="px-2 py-0.5 rounded bg-[#6D5BFF]/20 text-[#00D4FF] text-[10px] font-mono font-bold uppercase">
-                    {formData.selectedExamCategory || 'Global Standard'}
+                    {formData.selectedExamCategory || 'Exam'}
                   </span>
                 </div>
-              </div>
-
-              {/* Animated Progress Bar */}
-              <div className="space-y-1.5 relative z-10">
-                <div className="flex justify-between text-[11px] font-mono font-bold text-slate-400">
-                  <span>
-                    {resolvingStage < 4 ? `STAGE ${resolvingStage + 1} OF 5` : 'COMPLETE'}
-                  </span>
-                  <span className="text-[#00D4FF]">
-                    {Math.min(100, Math.round(((resolvingStage + 1) / 5) * 100))}%
-                  </span>
-                </div>
-                <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden border border-slate-700/50">
-                  <motion.div
-                    className="h-full bg-gradient-to-r from-[#6D5BFF] via-[#00D4FF] to-emerald-400"
-                    animate={{ width: `${Math.min(100, ((resolvingStage + 1) / 5) * 100)}%` }}
-                    transition={{ duration: 0.4, ease: 'easeInOut' }}
-                  />
-                </div>
-              </div>
-
-              {/* Dynamic Resolution Checklist Steps */}
-              <div className="space-y-2 text-left relative z-10 text-xs font-medium">
-                {(resolvingExamType === 'EXISTING'
-                  ? [
-                      { title: 'Exam Recognition', desc: `Confirming the correct exam and official name` },
-                      { title: 'Curriculum Coverage Check', desc: `Checking subjects, topics, and subtopics for your exam` },
-                      { title: 'Exam Format Check', desc: `Confirming exam duration, question count, and marking rules` },
-                      { title: 'Final Quality Check', desc: `Checking that your exam setup is consistent and ready` },
-                      { title: 'Exam Setup Confirmed', desc: `Your exam is ready for your study workspace` },
-                    ]
-                  : [
-                      { title: 'Researching Your Exam', desc: `Analyzing official syllabus specifications for '${formData.selectedExamName || formData.customExamInput}'` },
-                      { title: 'Building Exam Blueprint', desc: `Structuring subject weightage, duration & marking parameters` },
-                      { title: 'Organizing Your Curriculum', desc: `Mapping main topics and high-yield cognitive subtopics` },
-                      { title: 'Saving Your Curriculum', desc: `Saving your exam, subjects, topics, and study structure securely` },
-                      { title: 'Curriculum Ready', desc: `Your curriculum is saved and ready for your study plan` },
-                    ]
-                ).map((item, idx) => {
-                  const isDone = resolvingStage > idx;
-                  const isCurrent = resolvingStage === idx;
-                  return (
-                    <div
-                      key={item.title}
-                      className={`p-2.5 rounded-2xl transition-all duration-300 flex items-center gap-3 border ${
-                        isDone
-                          ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
-                          : isCurrent
-                          ? 'bg-[#6D5BFF]/20 text-[#00D4FF] border-[#6D5BFF]/50 shadow-md shadow-[#6D5BFF]/20'
-                          : 'bg-slate-800/40 text-slate-500 border-slate-800/80'
-                      }`}
-                    >
-                      {isDone ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                      ) : isCurrent ? (
-                        <Loader2 className="w-4 h-4 text-[#00D4FF] animate-spin shrink-0" />
-                      ) : (
-                        <div className="w-4 h-4 rounded-full border border-slate-700 shrink-0" />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <div className="font-bold leading-none">{item.title}</div>
-                        <div className="text-[10px] text-slate-400 font-normal truncate mt-0.5">{item.desc}</div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Database Persistence Explicit Footnote */}
-              <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 text-[10px] text-slate-400 font-mono flex items-center gap-2 justify-center">
-                <Database className="w-3.5 h-3.5 text-[#00D4FF] shrink-0" />
-                <span>
-                  Your exam setup is being securely saved. This may take a moment.
-                </span>
+                <p className="text-xs text-slate-400">
+                  This lookup does not generate or verify a curriculum. Any missing official exam details remain pending verification.
+                </p>
               </div>
             </motion.div>
           </motion.div>
