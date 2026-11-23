@@ -1130,6 +1130,7 @@ export default function OnboardingPage() {
                         updateField('examSearchQuery', value);
                         updateField('selectedExamId', '');
                         updateField('selectedExamName', '');
+                        updateField('selectedExamVerificationStatus', 'unknown');
                         updateField('selectedExamShortName', '');
                         updateField('selectedExamDescription', '');
                         updateField('customExamInput', '');
