@@ -11,6 +11,7 @@ export interface ExamItem {
   description: string;
   is_featured: boolean;
   verificationStatus: 'verified' | 'needs_review';
+  level?: string | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -32,6 +33,7 @@ export async function GET(req: NextRequest) {
           slug,
           description,
           difficulty,
+          level,
           question_count,
           time_limit_mins,
           is_featured,
@@ -60,7 +62,7 @@ export async function GET(req: NextRequest) {
         // Fallback without joins
         let flatQuery = (supabase as any)
           .from('exams')
-          .select('id, name, slug, description, difficulty, question_count, time_limit_mins, is_featured, status, verification_status, metadata')
+          .select('id, name, slug, description, difficulty, level, question_count, time_limit_mins, is_featured, status, verification_status, metadata')
           .neq('status', 'archived');
         if (featuredOnly) {
           flatQuery = flatQuery.eq('is_featured', true);
@@ -103,6 +105,7 @@ export async function GET(req: NextRequest) {
       question_count: exam.question_count,
       time_limit_mins: exam.time_limit_mins,
       difficulty: exam.difficulty,
+      level: exam.level || null,
       verificationStatus,
     };
     });
