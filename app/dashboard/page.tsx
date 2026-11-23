@@ -64,53 +64,19 @@ export default function DashboardPage() {
           }
           const { data: userExam } = await userExamQuery.limit(1).maybeSingle();
 
-          const selectedExamRecord = (userExam as any)?.exams;
-          if (selectedExamRecord && profile?.current_exam_id) {
-            const [versionResult, jobResult] = await Promise.all([
-              supabase
-                .from('exam_versions')
-                .select('id, version_year, source_url, verified_at, verification_status')
-                .eq('exam_id', profile.current_exam_id)
-                .eq('is_current', true)
-                .eq('verification_status', 'verified')
-                .maybeSingle(),
-              supabase
-                .from('ai_jobs')
-                .select('status, progress_stage, step_percentage, error, created_at')
-                .eq('user_id', user.id)
-                .eq('exam_id', profile.current_exam_id)
-                .eq('task', 'curriculum_rebuild')
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .maybeSingle(),
-            ]);
-
-            const examMetadata = selectedExamRecord.metadata || {};
-            const hasApprovedCurrentVersion = Boolean(
-              versionResult.data?.verified_at &&
-              versionResult.data?.source_url &&
-              versionResult.data?.version_year
-            );
-            const verificationPending = !(
-              selectedExamRecord.verification_status === 'verified' &&
-              examMetadata.exam_metadata_audit_status === 'verified' &&
-              hasApprovedCurrentVersion
-            );
-            const curriculumReady = Boolean(
-              !verificationPending &&
-              examMetadata.curriculum_validation_version === 4 &&
-              examMetadata.curriculum_validation_passed === true
-            );
-            const job = jobResult.data;
-            setPreparationStatus({
-              examName: selectedExamRecord.name || 'Selected exam',
-              verificationPending,
-              curriculumReady,
-              jobStatus: job?.status || null,
-              progressStage: job?.progress_stage || null,
-              stepPercentage: Math.min(100, Math.max(0, Number(job?.step_percentage || 0))),
-              hasJobError: Boolean(job?.error) && job?.status === 'failed',
-            });
+          if (userExam && profile?.current_exam_id) {
+            try {
+              const statusResponse = await fetch('/api/onboarding/status', { cache: 'no-store' });
+              if (statusResponse.ok) {
+                const statusPayload = await statusResponse.json();
+                setPreparationStatus(statusPayload.preparationStatus || null);
+              } else {
+                setPreparationStatus(null);
+              }
+            } catch (statusError) {
+              console.warn('[Dashboard] Preparation status could not be loaded:', statusError);
+              setPreparationStatus(null);
+            }
           } else {
             setPreparationStatus(null);
           }
