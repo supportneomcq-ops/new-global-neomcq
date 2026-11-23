@@ -41,7 +41,9 @@ export function buildProfileInitialization(
     id: input.userId,
     auth_user_id: input.userId,
     email: input.email.toLowerCase(),
-    first_name: existing?.first_name || input.firstName.trim(),
+    first_name: existing?.first_name?.trim() && existing.first_name.trim().toLowerCase() !== 'user'
+      ? existing.first_name
+      : input.firstName.trim(),
     last_name: existing?.last_name || input.lastName?.trim() || '',
     phone: existing?.phone || input.phone || null,
     country_id: existing?.country_id || input.countryId,
