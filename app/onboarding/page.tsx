@@ -523,7 +523,6 @@ export default function OnboardingPage() {
         throw new Error(data.error || 'We could not verify this exam. Please choose a listed exam or try again.');
       }
       if (data.status === 'NEW_EXAM' && !formData.selectedExamCategory.trim()) {
-        setResolvingStage(0);
         setFormError('This exam is not in the catalog yet. Please choose its department or category so we can prepare the right curriculum.');
         return;
       }
@@ -532,7 +531,6 @@ export default function OnboardingPage() {
       // The authenticated onboarding API creates/resolves its canonical record and
       // curriculum after account creation. Do not block users on a null pre-creation ID.
       const isNewExam = data.status === 'NEW_EXAM' || data.is_new || data.decision === 'NEW_EXAM_CREATED';
-      setResolvingExamType(isNewExam ? 'NEW_SYNTHESIS' : 'EXISTING');
       if (!isNewExam) {
         updateField('isCustomExam', false);
         updateField('customExamInput', '');
