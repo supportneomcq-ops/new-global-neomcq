@@ -242,7 +242,8 @@ export function DashboardView({ user, onSignOut, onOpenPractice, onUpdateProfile
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
             {(() => {
               const status = String(preparationStatus.jobStatus || '').toLowerCase();
-              const waitingForVerification = status === 'waiting_verification' || preparationStatus.verificationPending;
+              const waitingForVerification = preparationStatus.verificationPending;
+              const waitingToResume = status === 'waiting_verification' && !preparationStatus.verificationPending;
               const isRunning = status === 'running' || status === 'processing' || status === 'in_progress';
               const isFailed = status === 'failed' || preparationStatus.hasJobError;
               const isFinishedButUnvalidated = status === 'succeeded' || status === 'completed';
@@ -252,7 +253,9 @@ export function DashboardView({ user, onSignOut, onOpenPractice, onUpdateProfile
                   ? 'Preparation needs attention'
                   : waitingForVerification
                     ? 'Waiting for official exam verification'
-                    : status === 'queued'
+                    : waitingToResume
+                      ? 'Waiting for background worker to resume'
+                      : status === 'queued'
                       ? 'Preparation queued'
                       : isRunning
                         ? 'Preparation in progress'
@@ -265,7 +268,9 @@ export function DashboardView({ user, onSignOut, onOpenPractice, onUpdateProfile
                   ? 'Your account and exam selection are saved, but the background preparation job failed. The curriculum has not been marked ready.'
                   : waitingForVerification
                     ? 'Official exam rules and source evidence must be approved before curriculum generation can proceed. You can continue using the dashboard.'
-                    : status === 'queued'
+                    : waitingToResume
+                      ? 'The exam is verified, but the durable preparation job has not resumed yet. Your dashboard remains available.'
+                      : status === 'queued'
                       ? 'Your preparation request is saved and waiting for the background worker.'
                       : isRunning
                         ? 'Background preparation is running. Your dashboard remains available while processing continues.'
