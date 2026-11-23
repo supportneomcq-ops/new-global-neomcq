@@ -110,9 +110,11 @@ export async function resolveOrInitializeExamIntelligence(options: {
   country?: string
   category?: string
   level?: string
+  authorityName?: string
+  officialWebsite?: string
   userId?: string | null
 }): Promise<ExamResolutionResponse> {
-  const { examQuery, country, category, level, userId } = options
+  const { examQuery, country, category, level, authorityName, officialWebsite, userId } = options
   const supabase = getSupabaseAdmin()
 
   if (!examQuery || typeof examQuery !== 'string' || !examQuery.trim()) {
@@ -134,7 +136,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
   const querySlug = norm.slug.toLowerCase()
 
   // Concurrency deduplication: Coalesce concurrent requests for the exact same query
-  const idempotencyKey = `${cleanQuery}::${(country || '').toLowerCase()}::${(category || '').toLowerCase()}::${(level || '').toLowerCase()}`
+  const idempotencyKey = `${cleanQuery}::${(country || '').toLowerCase()}::${(category || '').toLowerCase()}::${(level || '').toLowerCase()}::${(authorityName || '').toLowerCase()}::${(officialWebsite || '').toLowerCase()}`
   if (inFlightResolutions.has(idempotencyKey)) {
     console.log(`[Exam Intelligence] Concurrent resolution in flight for "${rawInput}". Joining existing Promise...`)
     return inFlightResolutions.get(idempotencyKey)!
@@ -659,13 +661,18 @@ export async function resolveOrInitializeExamIntelligence(options: {
       provenance: {
         rules_verified: false,
         rules_inferred: false,
-        source: 'User-provided exam name only; no official pattern or syllabus inferred',
+        source: 'User-provided exam details and optional reference only; no official pattern or syllabus inferred',
         last_updated_at: new Date().toISOString(),
       },
       metadata: {
         generated_from_query: rawInput,
         provisional_only: true,
         timestamp: new Date().toISOString(),
+        user_submitted_exam_details: {
+          authority_name: authorityName?.trim() || null,
+          official_website: officialWebsite?.trim() || null,
+          verification_status: 'unverified_user_submitted',
+        },
       },
     }
 
@@ -705,7 +712,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
       metadata: {
         exam_intelligence: intelligenceProfile,
         content_generation_rules: intelligenceProfile.content_generation_rules,
-        proposed_authority: null,
+        proposed_authority: authorityName?.trim() || null,
         provisional_exam_rules: {
           question_config: intelligenceProfile.question_config,
           source: 'user_input_only',
