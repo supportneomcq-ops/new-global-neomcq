@@ -253,7 +253,7 @@ function normalizedBoolean(value: unknown): boolean | null {
 
 function normalizedYear(value: unknown): number | null {
   if (typeof value === 'number' && Number.isInteger(value) && value >= 1900 && value <= 2200) return value;
-  const match = String(value ?? '').match(/\b(19|20|21|22)\\d{2}\b/);
+  const match = String(value ?? '').match(/\b(19|20|21|22)\d{2}\b/);
   return match ? Number(match[0]) : null;
 }
 
