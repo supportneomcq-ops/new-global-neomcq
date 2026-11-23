@@ -112,9 +112,10 @@ export async function resolveOrInitializeExamIntelligence(options: {
   level?: string
   authorityName?: string
   officialWebsite?: string
+  deferCurriculumPreparation?: boolean
   userId?: string | null
 }): Promise<ExamResolutionResponse> {
-  const { examQuery, country, category, level, authorityName, officialWebsite, userId } = options
+  const { examQuery, country, category, level, authorityName, officialWebsite, deferCurriculumPreparation, userId } = options
   const supabase = getSupabaseAdmin()
 
   if (!examQuery || typeof examQuery !== 'string' || !examQuery.trim()) {
@@ -136,7 +137,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
   const querySlug = norm.slug.toLowerCase()
 
   // Concurrency deduplication: Coalesce concurrent requests for the exact same query
-  const idempotencyKey = `${cleanQuery}::${(country || '').toLowerCase()}::${(category || '').toLowerCase()}::${(level || '').toLowerCase()}::${(authorityName || '').toLowerCase()}::${(officialWebsite || '').toLowerCase()}`
+  const idempotencyKey = `${cleanQuery}::${(country || '').toLowerCase()}::${(category || '').toLowerCase()}::${(level || '').toLowerCase()}::${(authorityName || '').toLowerCase()}::${(officialWebsite || '').toLowerCase()}::${deferCurriculumPreparation ? 'deferred' : 'inline'}`
   if (inFlightResolutions.has(idempotencyKey)) {
     console.log(`[Exam Intelligence] Concurrent resolution in flight for "${rawInput}". Joining existing Promise...`)
     return inFlightResolutions.get(idempotencyKey)!
@@ -535,7 +536,9 @@ export async function resolveOrInitializeExamIntelligence(options: {
         }
       }
 
-      const curriculumResult = await enrichCurriculumProcess(matchedExam.id, matchedExam.name, country, category, supabase)
+      const curriculumResult = deferCurriculumPreparation
+        ? null
+        : await enrichCurriculumProcess(matchedExam.id, matchedExam.name, country, category, supabase)
 
       if (userId) {
         try {
@@ -567,16 +570,16 @@ export async function resolveOrInitializeExamIntelligence(options: {
           time_limit_mins: rulesResult.duration_minutes,
           country: matchedExam.countries?.name || 'Global',
           flag: matchedExam.countries?.flag_emoji || '🌐',
-          curriculum_status: curriculumResult.curriculumStatus,
+          curriculum_status: curriculumResult?.curriculumStatus || matchedExam.metadata?.curriculum_status || 'deferred',
           verification_status: 'verified',
           rules_status: rulesResult.rulesStatus,
-          coverage_percentage: curriculumResult.coveragePercentage,
-          evidence_scope: curriculumResult.evidenceScope,
-          authority_name: curriculumResult.authorityName,
-          subjectCount: curriculumResult.subjectCount,
-          topicCount: curriculumResult.topicCount,
-          subtopicCount: curriculumResult.subtopicCount,
-          exam_subjects: curriculumResult.subjects,
+          coverage_percentage: curriculumResult?.coveragePercentage || 0,
+          evidence_scope: curriculumResult?.evidenceScope || 'Curriculum preparation is deferred to the durable background worker.',
+          authority_name: curriculumResult?.authorityName || null,
+          subjectCount: curriculumResult?.subjectCount || 0,
+          topicCount: curriculumResult?.topicCount || 0,
+          subtopicCount: curriculumResult?.subtopicCount || 0,
+          exam_subjects: curriculumResult?.subjects || [],
           marking_scheme: rulesResult.marking_scheme,
           question_types: rulesResult.question_types,
         },
