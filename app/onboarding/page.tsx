@@ -77,6 +77,7 @@ interface OnboardingState {
   selectedExamLevel: string;
   selectedExamAuthority: string;
   selectedExamOfficialWebsite: string;
+  selectedExamVerificationStatus: 'verified' | 'needs_review' | 'unknown';
   selectedExamFlag: string;
   selectedExamDescription: string;
   customExamInput: string;
@@ -182,6 +183,7 @@ export default function OnboardingPage() {
     selectedExamLevel: '',
     selectedExamAuthority: '',
     selectedExamOfficialWebsite: '',
+    selectedExamVerificationStatus: 'unknown',
     selectedExamFlag: '🌐',
     selectedExamDescription: '',
     customExamInput: '',
@@ -373,6 +375,7 @@ export default function OnboardingPage() {
           selectedExamLevel: hasSavedState ? prev.selectedExamLevel : (metadata.exam_level || prev.selectedExamLevel),
           selectedExamAuthority: hasSavedState ? prev.selectedExamAuthority : (metadata.exam_authority || prev.selectedExamAuthority),
           selectedExamOfficialWebsite: hasSavedState ? prev.selectedExamOfficialWebsite : (metadata.exam_official_website || prev.selectedExamOfficialWebsite),
+          selectedExamVerificationStatus: hasSavedState ? prev.selectedExamVerificationStatus : (metadata.exam_verification_status || 'unknown'),
           password: '',
         }));
 
@@ -475,13 +478,15 @@ export default function OnboardingPage() {
     updateField('selectedExamId', exam.id || '');
     updateField('selectedExamName', exam.name);
     updateField('selectedExamShortName', exam.short_name || exam.name.split(' ')[0]);
-    updateField('selectedExamCategory', exam.category || 'Standard Exam Prep');
-    updateField('selectedExamCountry', exam.country || '');
-    updateField('selectedExamLevel', exam.level || exam.difficulty || '');
+    const examIsVerified = (exam as any).verificationStatus === 'verified';
+    updateField('selectedExamCategory', examIsVerified ? (exam.category || '') : '');
+    updateField('selectedExamCountry', examIsVerified ? (exam.country || '') : '');
+    updateField('selectedExamLevel', examIsVerified ? (exam.level || '') : '');
+    updateField('selectedExamVerificationStatus', examIsVerified ? 'verified' : 'needs_review');
     updateField('selectedExamAuthority', '');
     updateField('selectedExamOfficialWebsite', '');
     updateField('selectedExamFlag', exam.flag || '🌐');
-    updateField('selectedExamDescription', exam.description || `Official examination preparation for ${exam.name}.`);
+    updateField('selectedExamDescription', exam.description || `Exam preparation for ${exam.name}.`);
     updateField('isCustomExam', false);
     updateField('customExamInput', '');
     setFormError('');
@@ -519,6 +524,7 @@ export default function OnboardingPage() {
       // The authenticated onboarding API creates/resolves its canonical record and
       // curriculum after account creation. Do not block users on a null pre-creation ID.
       const isNewExam = data.status === 'NEW_EXAM' || data.is_new || data.decision === 'NEW_EXAM_CREATED';
+      updateField('selectedExamVerificationStatus', isNewExam ? 'needs_review' : (data.exam?.verificationStatus === 'verified' ? 'verified' : 'needs_review'));
       if (!isNewExam) {
         updateField('isCustomExam', false);
         updateField('customExamInput', '');
@@ -528,7 +534,7 @@ export default function OnboardingPage() {
         const ex = data.exam;
         updateField('selectedExamId', ex.id || '');
         updateField('selectedExamName', ex.name);
-        updateField('selectedExamShortName', ex.short_name || ex.name.split(' ')[0]);
+        updateField('selectedExamShortName', ex.shortName || ex.short_name || ex.name.split(' ')[0]);
         updateField('selectedExamCategory', ex.category || formData.selectedExamCategory);
         updateField('selectedExamCountry', ex.country || 'Global');
         updateField('selectedExamLevel', ex.level || formData.selectedExamLevel || '');
@@ -655,6 +661,7 @@ export default function OnboardingPage() {
               exam_level: formData.selectedExamLevel,
               exam_authority: formData.selectedExamAuthority,
               exam_official_website: formData.selectedExamOfficialWebsite,
+              exam_verification_status: formData.selectedExamVerificationStatus,
             },
             emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback?next=/dashboard` : undefined,
           },
