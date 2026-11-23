@@ -180,6 +180,7 @@ export async function POST(req: NextRequest) {
             level: examLevel?.trim() || undefined,
             authorityName: examAuthority?.trim() || undefined,
             officialWebsite: examOfficialWebsite?.trim() || undefined,
+            deferCurriculumPreparation: true,
             userId: targetUserId,
           })
           if (!resolution?.success || !resolution.exam?.id) {
