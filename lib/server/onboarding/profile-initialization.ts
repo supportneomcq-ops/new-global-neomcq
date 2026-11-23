@@ -36,13 +36,14 @@ export function buildProfileInitialization(
 ) {
   const now = input.now || new Date().toISOString();
   const sameExam = Boolean(existing?.current_exam_id && existing.current_exam_id === input.examId);
+  const existingFirstName = existing?.first_name?.trim() || '';
 
   return {
     id: input.userId,
     auth_user_id: input.userId,
     email: input.email.toLowerCase(),
-    first_name: existing?.first_name?.trim() && existing.first_name.trim().toLowerCase() !== 'user'
-      ? existing.first_name
+    first_name: existingFirstName && existingFirstName.toLowerCase() !== 'user'
+      ? existingFirstName
       : input.firstName.trim(),
     last_name: existing?.last_name || input.lastName?.trim() || '',
     phone: existing?.phone || input.phone || null,
