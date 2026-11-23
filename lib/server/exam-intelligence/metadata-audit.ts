@@ -236,7 +236,7 @@ function evidenceValuesFor(evidence: AnyRecord[], keys: string[]): EvidenceValue
 function normalizedText(value: unknown): string | null {
   if (typeof value !== 'string' && typeof value !== 'number') return null;
   return String(value).normalize('NFKC').toLowerCase()
-    .replace(/[^\\p{L}\\p{N}]+/gu, ' ').replace(/\\s+/g, ' ').trim();
+    .replace(/[^\p{L}\p{N}]+/gu, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function normalizedBoolean(value: unknown): boolean | null {
@@ -246,14 +246,14 @@ function normalizedBoolean(value: unknown): boolean | null {
   if (!text) return null;
   if (/^(no|false|0|none|not applicable|not applicable to this exam)$/.test(text)) return false;
   if (/^(yes|true|1)$/.test(text)) return true;
-  if (/\\bno negative marking\\b|\\bwithout negative marking\\b|\\bno penalty for incorrect answers\\b/.test(text)) return false;
-  if (/\\bnegative marking\\b|\\bpenalty for incorrect answers\\b/.test(text)) return true;
+  if (/\bno negative marking\b|\bwithout negative marking\b|\bno penalty for incorrect answers\b/.test(text)) return false;
+  if (/\bnegative marking\b|\bpenalty for incorrect answers\b/.test(text)) return true;
   return null;
 }
 
 function normalizedYear(value: unknown): number | null {
   if (typeof value === 'number' && Number.isInteger(value) && value >= 1900 && value <= 2200) return value;
-  const match = String(value ?? '').match(/\\b(19|20|21|22)\\d{2}\\b/);
+  const match = String(value ?? '').match(/\b(19|20|21|22)\\d{2}\b/);
   return match ? Number(match[0]) : null;
 }
 
@@ -290,6 +290,7 @@ function comparableFieldValue(field: string, value: any): any {
   if (field === 'negative_marking') return normalizedBoolean(value);
   if (field === 'version_year') return normalizedYear(value);
   if (['question_count', 'duration_minutes', 'total_marks'].includes(field)) {
+    if (field === 'question_count' && Array.isArray(value)) return value.length;
     const number = typeof value === 'number' ? value : Number(String(value ?? '').trim());
     return Number.isFinite(number) && number >= 0 ? number : null;
   }
