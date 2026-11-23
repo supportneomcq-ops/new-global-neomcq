@@ -254,7 +254,7 @@ export function DashboardView({ user, onSignOut, onOpenPractice, onUpdateProfile
                   : waitingForVerification
                     ? 'Waiting for official exam verification'
                     : waitingToResume
-                      ? 'Waiting for background worker to resume'
+                      ? 'Waiting for official syllabus evidence'
                       : status === 'queued'
                       ? 'Preparation queued'
                       : isRunning
@@ -269,7 +269,7 @@ export function DashboardView({ user, onSignOut, onOpenPractice, onUpdateProfile
                   : waitingForVerification
                     ? 'Official exam rules and source evidence must be approved before curriculum generation can proceed. You can continue using the dashboard.'
                     : waitingToResume
-                      ? 'The exam is verified, but the durable preparation job has not resumed yet. Your dashboard remains available.'
+                      ? 'The exam pattern is verified, but structured official syllabus evidence is still required. Curriculum generation remains paused while you continue using the dashboard.'
                       : status === 'queued'
                       ? 'Your preparation request is saved and waiting for the background worker.'
                       : isRunning
