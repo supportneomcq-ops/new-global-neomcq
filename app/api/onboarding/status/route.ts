@@ -82,7 +82,7 @@ export async function GET() {
     currentVersion?.version_year
   )
   const verificationPending = !(
-    exam.verification_status === 'verified' &&
+    String(exam.verification_status || '').toLowerCase() === 'verified' &&
     metadata.exam_metadata_audit_status === 'verified' &&
     hasApprovedCurrentVersion
   )
