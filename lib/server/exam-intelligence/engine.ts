@@ -604,13 +604,15 @@ export async function resolveOrInitializeExamIntelligence(options: {
       if (cRow) countryId = cRow.id
     }
 
-    const targetCatSlug = category ? category.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'general-academics'
-    const { data: catRow } = await supabase
-      .from('exam_categories')
-      .select('id')
-      .or(`slug.eq.${targetCatSlug},id.eq.${category || ''}`)
-      .maybeSingle()
-    if (catRow) categoryId = catRow.id
+    if (category?.trim()) {
+      const targetCatSlug = category.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+      const { data: catRow } = await supabase
+        .from('exam_categories')
+        .select('id')
+        .or(`slug.eq.${targetCatSlug},id.eq.${category}`)
+        .maybeSingle()
+      if (catRow) categoryId = catRow.id
+    }
 
     // A student-supplied exam name is not enough evidence to infer an official pattern.
     // Create a minimal provisional record without calling an AI provider or inventing rules.
