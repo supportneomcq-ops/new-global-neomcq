@@ -213,6 +213,112 @@ function fieldResult(
   };
 }
 
+type EvidenceValue = {
+  value: any;
+  sourceId: string | null;
+  sourceUrl: string | null;
+  key: string;
+};
+
+function evidenceValuesFor(evidence: AnyRecord[], keys: string[]): EvidenceValue[] {
+  const values: EvidenceValue[] = [];
+  for (const item of evidence) {
+    const payload = evidencePayload(item);
+    for (const key of keys) {
+      const value = Object.prototype.hasOwnProperty.call(payload, key) ? payload[key] : item[key];
+      if (value === undefined || value === null) continue;
+      values.push({ value, sourceId: item.id || null, sourceUrl: item.source_url || null, key });
+    }
+  }
+  return values;
+}
+
+function normalizedText(value: unknown): string | null {
+  if (typeof value !== 'string' && typeof value !== 'number') return null;
+  return String(value).normalize('NFKC').toLowerCase()
+    .replace(/[^\\p{L}\\p{N}]+/gu, ' ').replace(/\\s+/g, ' ').trim();
+}
+
+function normalizedBoolean(value: unknown): boolean | null {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number' && (value === 0 || value === 1)) return value === 1;
+  const text = normalizedText(value);
+  if (!text) return null;
+  if (/^(no|false|0|none|not applicable|not applicable to this exam)$/.test(text)) return false;
+  if (/^(yes|true|1)$/.test(text)) return true;
+  if (/\\bno negative marking\\b|\\bwithout negative marking\\b|\\bno penalty for incorrect answers\\b/.test(text)) return false;
+  if (/\\bnegative marking\\b|\\bpenalty for incorrect answers\\b/.test(text)) return true;
+  return null;
+}
+
+function normalizedYear(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 1900 && value <= 2200) return value;
+  const match = String(value ?? '').match(/\\b(19|20|21|22)\\d{2}\\b/);
+  return match ? Number(match[0]) : null;
+}
+
+function canonicalizeComparable(value: any): any {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string') return normalizedText(value);
+  if (Array.isArray(value)) return value.map(canonicalizeComparable);
+  if (typeof value === 'object') {
+    return Object.keys(value).sort().reduce((result: AnyRecord, key) => {
+      result[key] = canonicalizeComparable(value[key]);
+      return result;
+    }, {});
+  }
+  return null;
+}
+
+function subjectNames(value: any): string[] | null {
+  const rows = Array.isArray(value)
+    ? value
+    : Array.isArray(objectValue(value).subjects)
+      ? objectValue(value).subjects
+      : null;
+  if (!rows?.length) return null;
+  const names = rows.map((row: any) => normalizedText(
+    typeof row === 'string' ? row : row?.name || row?.subject || row?.title
+  ));
+  if (names.some((name) => !name)) return null;
+  return (names as string[]).sort();
+}
+
+function comparableFieldValue(field: string, value: any): any {
+  if (field === 'negative_marking') return normalizedBoolean(value);
+  if (field === 'version_year') return normalizedYear(value);
+  if (['question_count', 'duration_minutes', 'total_marks'].includes(field)) {
+    const number = typeof value === 'number' ? value : Number(String(value ?? '').trim());
+    return Number.isFinite(number) && number >= 0 ? number : null;
+  }
+  if (field === 'official_subject_scope') return subjectNames(value);
+  if (field === 'question_types' || field === 'languages') {
+    const rows = Array.isArray(value) ? value : null;
+    if (!rows?.length) return null;
+    const normalized = rows.map(normalizedText);
+    if (normalized.some((item) => !item)) return null;
+    return normalized.sort();
+  }
+  return canonicalizeComparable(value);
+}
+
+function addSourceField(
+  fields: AnyRecord,
+  missingFields: string[],
+  name: string,
+  source: AnyRecord | null,
+  reason: string
+) {
+  if (!source?.source_url) {
+    fields[name] = fieldResult(null, 'missing', reason);
+    missingFields.push(name);
+    return;
+  }
+  fields[name] = fieldResult(source.source_url, 'verified', 'Current official source is verified, fresh and authority-domain matched.', [source]);
+}
+
 export function buildExamMetadataAudit(input: {
   exam: AnyRecord;
   country?: AnyRecord | null;
@@ -305,20 +411,59 @@ export function buildExamMetadataAudit(input: {
       return;
     }
 
-    fields[name] = fieldResult(value, 'verified', 'Supported by current, verified official evidence.', supporting);
+    const sourceValues = evidenceValuesFor(supporting, keys);
+    const storedComparable = comparableFieldValue(name, value);
+    const normalizedSourceValues = sourceValues.map((source) => ({
+      ...source,
+      comparable: comparableFieldValue(name, source.value),
+    }));
+
+    if (storedComparable === null || normalizedSourceValues.length === 0 || normalizedSourceValues.some((source) => source.comparable === null)) {
+      fields[name] = fieldResult(value, 'needs_review', 'Official evidence exists, but the stored and source values cannot be compared safely.', supporting);
+      missingFields.push(name);
+      return;
+    }
+
+    const mismatches = normalizedSourceValues.filter((source) =>
+      JSON.stringify(source.comparable) !== JSON.stringify(storedComparable)
+    );
+    if (mismatches.length > 0) {
+      fields[name] = fieldResult(value, 'conflict', 'Stored value does not exactly match one or more current, verified official source values.', supporting);
+      conflicts.push({
+        field: name,
+        stored_value: value,
+        official_values: mismatches.map((source) => ({
+          value: source.value,
+          source_id: source.sourceId,
+          source_url: source.sourceUrl,
+          evidence_key: source.key,
+        })),
+        reason: 'Stored metadata conflicts with current verified official evidence.',
+      });
+      missingFields.push(name);
+      return;
+    }
+
+    fields[name] = fieldResult(value, 'verified', 'Stored value matches current, verified official evidence.', supporting);
   };
 
   addField('canonical_exam_name', exam.name, ['canonical_exam_name', 'exam_name', 'official_name'], { evidencePool: verifiedOfficialEvidence });
   addField('country', country?.name || null, ['country', 'jurisdiction', 'country_name'], { evidencePool: verifiedOfficialEvidence });
   addField('authority', authority?.name || exam.authority || null, ['authority', 'exam_authority', 'publisher_authority'], { evidencePool: verifiedOfficialEvidence });
   addField('category', category?.name || null, ['category', 'exam_category'], { evidencePool: verifiedOfficialEvidence });
-  addField('exam_type', exam.exam_type || null, ['exam_type', 'test_type']);
-  addField('level', exam.level || null, ['level', 'credential_level', 'exam_level']);
-  addField('current_version', exam.current_version || currentVersion?.version_label || null, ['version', 'version_label', 'version_year']);
-  addField('version_year', versionYear, ['version_year', 'exam_year']);
+  addField('exam_type', exam.exam_type || null, ['exam_type', 'test_type'], { evidencePool: currentBulletins });
+  addField('level', exam.level || null, ['level', 'credential_level', 'exam_level'], { evidencePool: currentBulletins });
+  addField('current_version', exam.current_version || currentVersion?.version_label || null, ['version', 'version_label'], { evidencePool: currentBulletins });
+  addField('version_year', versionYear, ['version_year', 'exam_year', 'version'], { evidencePool: currentBulletins });
 
-  addField('official_bulletin_or_notification', currentBulletins[0]?.source_url || null, ['exam_pattern', 'question_count', 'duration_minutes', 'time_limit_mins', 'marking_scheme', 'passing_criteria'], { evidencePool: currentBulletins });
-  addField('official_syllabus', currentSyllabi[0]?.source_url || null, ['subjects', 'syllabus', 'curriculum', 'topics'], { evidencePool: currentSyllabi });
+  const latestBulletin = [...currentBulletins].sort((a, b) =>
+    String(b.source_version_date || '').localeCompare(String(a.source_version_date || ''))
+  )[0] || null;
+  const latestSyllabus = [...currentSyllabi].sort((a, b) =>
+    String(b.source_version_date || '').localeCompare(String(a.source_version_date || ''))
+  )[0] || null;
+  addSourceField(fields, missingFields, 'official_bulletin_or_notification', latestBulletin, 'No fresh, verified official bulletin or notification is available.');
+  addSourceField(fields, missingFields, 'official_syllabus', latestSyllabus, 'No fresh, structured, verified official syllabus is available.');
 
   const countKeys = ['question_count', 'total_questions', 'number_of_questions', 'questions'];
   const durationKeys = ['duration_minutes', 'time_limit_mins', 'total_duration_minutes', 'duration'];
