@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 export const EntityTypeSchema = z.enum(['EXAM', 'SUBJECT', 'TOPIC', 'SUBTOPIC'])
 export type EntityType = z.infer<typeof EntityTypeSchema>

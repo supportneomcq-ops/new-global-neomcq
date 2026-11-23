@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse, after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { GenerationJobManager } from '@/lib/server/content-engine/job-manager'
 
 export const maxDuration = 60;

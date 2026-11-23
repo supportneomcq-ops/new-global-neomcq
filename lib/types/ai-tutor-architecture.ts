@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 /**
  * NEOMCQ — FEATURE 7: AI TUTOR ARCHITECTURE TYPES & ZOD SCHEMAS
