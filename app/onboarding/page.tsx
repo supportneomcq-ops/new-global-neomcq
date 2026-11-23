@@ -1303,7 +1303,7 @@ export default function OnboardingPage() {
                         </label>
                         <label className="block text-xs font-semibold text-slate-600 dark:text-gray-300 sm:col-span-2">
                           Exam level / stage (optional)
-                          <input value={formData.selectedExamLevel} onChange={(e) => updateField('selectedExamLevel', e.target.value)} maxLength={80} placeholder="e.g. Step 1, Level II" className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:text-gray-700 bg-white dark:bg-[#080C19] px-3 py-2.5 text-sm font-medium" />
+                          <input value={formData.selectedExamLevel} onChange={(e) => updateField('selectedExamLevel', e.target.value)} maxLength={80} placeholder="e.g. Step 1, Level II" className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-[#080C19] px-3 py-2.5 text-sm font-medium" />
                         </label>
                         <label className="block text-xs font-semibold text-slate-600 dark:text-gray-300">
                           Exam authority / board (optional)
