@@ -183,6 +183,7 @@ export function AdminShell({ userEmail, roles, children }: AdminShellProps) {
       items: [
         { label: 'Exams', href: '/admin/exams', icon: BookOpen },
         { label: 'Exam Verification', href: '/admin/exam-verification', icon: ShieldCheck, badge: badges.examReview, badgeType: 'amber' },
+        { label: 'Curriculum Reconciliation', href: '/admin/curriculum-reconciliation', icon: BookOpen },
         { label: 'Exam Switches ($2)', href: '/admin/exam-switches', icon: Lock },
         { label: 'Subjects', href: '/admin/subjects', icon: FolderTree },
         { label: 'Topics', href: '/admin/topics', icon: FileText },

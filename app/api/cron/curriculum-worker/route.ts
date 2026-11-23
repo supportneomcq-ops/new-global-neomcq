@@ -447,43 +447,9 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // Queue one canonical shared content job per topic only after the exam and
-    // persisted curriculum both pass verification. Students reuse these shared packs.
-    // The unique idempotency key makes repeated curriculum reconciliation safe.
-    let topicContentJobsQueued = 0
-    if (examVerified) {
-      const topicJobs = subjects.flatMap((subject: any) =>
-        activeChildren(subject.exam_topics || []).map((topic: any) => ({
-          user_id: null,
-          exam_id: examId,
-          subject_id: subject.id,
-          topic_id: topic.id,
-          task: 'canonical_topic_prefetch',
-          idempotency_key: `canonical-topic-prefetch:v1:${examId}:${topic.id}`,
-          priority: 4,
-          status: 'queued',
-          attempts: 0,
-          max_attempts: 3,
-          input_payload: {
-            examId,
-            examName: persisted.name,
-            subjectId: subject.id,
-            subjectName: subject.name,
-            topicId: topic.id,
-            topicName: topic.name,
-            source: 'verified_curriculum_fanout',
-          },
-          progress_stage: 'Queued for shared canonical learning-content generation',
-          step_percentage: 0,
-        }))
-      )
-      if (topicJobs.length) {
-        const { error: queueError } = await admin.from('ai_jobs')
-          .upsert(topicJobs, { onConflict: 'idempotency_key', ignoreDuplicates: true })
-        if (queueError) throw new Error(`Verified curriculum saved, but canonical topic jobs could not be queued: ${queueError.message}`)
-        topicContentJobsQueued = topicJobs.length
-      }
-    }
+    // Curriculum verification and reconciliation must not fan out learning-content jobs.
+    // The canonical content worker remains a separate, explicitly scoped pipeline.
+    const topicContentJobsQueued = 0
 
     // Attach the verified canonical curriculum to a learner only after the
     // persisted hierarchy passes the validation gate.
