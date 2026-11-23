@@ -412,7 +412,7 @@ export async function POST(req: NextRequest) {
       if (finalExamId) {
         const { data: existingUserExam, error: userExamLookupError } = await (admin as any)
           .from('user_exams')
-          .select('id, target_date')
+          .select('id, target_date, target_score')
           .eq('user_id', targetUserId)
           .eq('exam_id', finalExamId)
           .maybeSingle()
@@ -432,6 +432,7 @@ export async function POST(req: NextRequest) {
               user_id: targetUserId,
               exam_id: finalExamId,
               target_date: cleanTargetDate,
+              target_score: 85.0,
               status: 'in_progress',
             })
 
@@ -457,18 +458,23 @@ export async function POST(req: NextRequest) {
               )
             }
           }
-        } else if (!existingUserExam.target_date && cleanTargetDate) {
-          const { error: targetDateError } = await (admin as any)
-            .from('user_exams')
-            .update({ target_date: cleanTargetDate })
-            .eq('id', existingUserExam.id)
-            .eq('user_id', targetUserId)
-          if (targetDateError) {
-            console.error('[Onboarding] Target date update failed:', targetDateError.message)
-            return NextResponse.json(
-              { success: false, error: 'We could not save your exam date. Please retry.' },
-              { status: 500 }
-            )
+        } else {
+          const relationshipPatch: Record<string, unknown> = {}
+          if (!existingUserExam.target_date && cleanTargetDate) relationshipPatch.target_date = cleanTargetDate
+          if (existingUserExam.target_score == null) relationshipPatch.target_score = 85.0
+          if (Object.keys(relationshipPatch).length > 0) {
+            const { error: relationshipUpdateError } = await (admin as any)
+              .from('user_exams')
+              .update(relationshipPatch)
+              .eq('id', existingUserExam.id)
+              .eq('user_id', targetUserId)
+            if (relationshipUpdateError) {
+              console.error('[Onboarding] User exam defaults update failed:', relationshipUpdateError.message)
+              return NextResponse.json(
+                { success: false, error: 'We could not save your exam preferences. Please retry.' },
+                { status: 500 }
+              )
+            }
           }
         }
       }
