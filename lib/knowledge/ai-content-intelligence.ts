@@ -348,8 +348,13 @@ function validateGeneratedContent(
       const matchedSubtopic = allowedSubtopics.find((name) => name.toLowerCase() === rawSubtopic.toLowerCase())
       if (allowedSubtopics.length > 0 && !matchedSubtopic) continue
 
-      const acceptedAnswers = Array.isArray(fib.acceptedAnswers)
-        ? Array.from(new Set(fib.acceptedAnswers.map((answer: unknown) => String(answer || '').trim()).filter(Boolean))).slice(0, 5)
+      const acceptedAnswers: string[] = Array.isArray(fib.acceptedAnswers)
+        ? Array.from(new Set(
+            fib.acceptedAnswers
+              .filter((answer: unknown): answer is string => typeof answer === 'string')
+              .map((answer: string) => answer.trim())
+              .filter((answer: string) => answer.length > 0)
+          )).slice(0, 5)
         : []
       if (!acceptedAnswers.some((answer) => answer.toLowerCase() === blank.toLowerCase())) acceptedAnswers.unshift(blank)
       if (acceptedAnswers.length < 2) continue
@@ -927,6 +932,7 @@ export async function getOrGenerateCanonicalTopicContent({
     parentJobId,
     startTime,
     hierarchy,
+    allowedSubtopicNames,
   })
 }
 
@@ -950,6 +956,7 @@ async function executeGenerationWorkflow({
   parentJobId,
   startTime,
   hierarchy,
+  allowedSubtopicNames,
 }: {
   supabase: any
   exam: any
@@ -967,6 +974,7 @@ async function executeGenerationWorkflow({
   parentJobId?: string | null
   startTime: number
   hierarchy: CanonicalHierarchyResolution
+  allowedSubtopicNames: string[]
 }): Promise<ContentIntelligenceResult> {
   let jobId: string | null = null
 
