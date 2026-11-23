@@ -78,10 +78,6 @@ export async function POST(req: NextRequest) {
         shortName: exam.short_name || exam.name,
         country: exam.countries?.name || 'Unspecified',
         category: exam.exam_categories?.name || 'Unspecified',
-        verificationStatus: String(exam.verification_status || '').toLowerCase() === 'verified' &&
-          exam.metadata?.exam_metadata_audit_status === 'verified'
-          ? 'verified'
-          : 'needs_review',
       }))
       const ambiguousResponse = (items: any[]) => NextResponse.json({
         success: false,
