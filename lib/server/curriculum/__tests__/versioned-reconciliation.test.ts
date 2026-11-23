@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import { buildCurriculumDiff, validateStructuredSyllabus } from '../curriculum-diff'
+import { isOfficialSyllabusVersionCompatible } from '../versioned-reconciliation'
 
 const spec = [{
   name:'Medicine',
@@ -19,6 +20,19 @@ const complete = [{
     ],
   }],
 }]
+
+describe('official syllabus version compatibility', () => {
+  it('accepts an authoritative syllabus that remains current across exam sessions', () => {
+    expect(isOfficialSyllabusVersionCompatible('2024-09-12', 2026)).toBe(true)
+    expect(isOfficialSyllabusVersionCompatible('2024', 2026)).toBe(true)
+  })
+
+  it('rejects stale, future and undated syllabus evidence', () => {
+    expect(isOfficialSyllabusVersionCompatible('2020-01-01', 2026)).toBe(false)
+    expect(isOfficialSyllabusVersionCompatible('2028-01-01', 2026)).toBe(false)
+    expect(isOfficialSyllabusVersionCompatible(null, 2026)).toBe(false)
+  })
+})
 
 describe('versioned official curriculum reconciliation',()=>{
   it('reports exact hierarchy coverage without mutation issues',()=>{

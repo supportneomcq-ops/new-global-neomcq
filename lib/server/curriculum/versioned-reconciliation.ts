@@ -48,6 +48,17 @@ function yearFrom(value: unknown): number | null {
   return match ? Number(match[1]) : null
 }
 
+/** Official syllabus documents may remain authoritative across multiple exam sessions. */
+export function isOfficialSyllabusVersionCompatible(sourceVersionDate: unknown, examVersionYear: unknown): boolean {
+  const sourceYear = yearFrom(sourceVersionDate)
+  const targetYear = Number(examVersionYear)
+  return sourceYear !== null
+    && Number.isInteger(targetYear)
+    && targetYear > 0
+    && sourceYear >= targetYear - 5
+    && sourceYear <= targetYear + 1
+}
+
 function sha256(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex')
 }
@@ -79,14 +90,20 @@ async function loadVerifiedSyllabus(examId: string) {
     throw new Error('The exam authority must have a recently verified HTTPS official website.')
   }
 
-  const year = Number(examVersion.version_year || exam.version_year || 0)
-  if (!year) throw new Error('The current exam version has no verified year.')
+  const year = Number(examVersion.version_year || 0)
+  if (!year || Number(exam.version_year || 0) !== year) {
+    throw new Error('The canonical exam and verified current exam version must have the same explicit version year.')
+  }
+  if (!examVersion.verified_at || !examVersion.source_url
+    || !hostMatchesAuthority(examVersion.source_url, authority.official_website, authority.official_source_domains)) {
+    throw new Error('The current exam version must retain its verified official authority source and verification timestamp.')
+  }
 
   const validEvidence = (evidenceRows || []).filter((row: any) =>
     OFFICIAL_SYLLABUS_TYPES.has(String(row.source_type || '').toLowerCase())
     && typeof row.source_url === 'string'
     && hostMatchesAuthority(row.source_url, authority.official_website, authority.official_source_domains)
-    && yearFrom(row.source_version_date) === year
+    && isOfficialSyllabusVersionCompatible(row.source_version_date, year)
   )
 
   const candidates = validEvidence.map((row: any) => ({
@@ -222,6 +239,9 @@ export async function approveCurriculumVersion(versionId: string, reviewerId: st
     .select('*').eq('id', versionId).maybeSingle()
   if (versionError || !version) throw new Error('Curriculum version was not found.')
   if (version.status === 'current' && version.is_current) return { version, alreadyCurrent: true }
+  if (version.status !== 'pending_review' || version.is_current) {
+    throw new Error('Only a pending curriculum version can be approved. Rejected and superseded versions remain immutable.')
+  }
 
   const { admin: verifiedAdmin, exam, examVersion, evidence, spec } = await loadVerifiedSyllabus(version.exam_id)
   if (examVersion.id !== version.exam_version_id || evidence.id !== version.source_evidence_id) {

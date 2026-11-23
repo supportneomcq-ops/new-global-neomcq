@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
     const { data: version, error } = await admin.from('exam_curriculum_versions').update({
       status:'rejected',is_current:false,reviewed_by:user.id,reviewed_at:now,
       review_notes:String(body.reviewNotes || 'Rejected during manual curriculum review.'),updated_at:now,
-    }).eq('id',versionId).eq('is_current',false).select('id,exam_id,status').maybeSingle()
+    }).eq('id',versionId).eq('is_current',false).eq('status','pending_review').select('id,exam_id,status').maybeSingle()
     if (error || !version) return NextResponse.json({success:false,error:error?.message || 'Pending curriculum version not found.'},{status:404})
     await admin.from('exam_curriculum_reconciliation_runs').update({status:'rejected',updated_at:now}).eq('curriculum_version_id',versionId)
     return NextResponse.json({success:true,version})
