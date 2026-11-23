@@ -1,6 +1,6 @@
 import { buildExamMetadataAudit } from '../metadata-audit'
 
-function createCompleteAuditInput() {
+function createCompleteAuditInput(): any {
   const officialWebsite = 'https://natboard.edu.in'
   const papers = [
     {
