@@ -614,7 +614,7 @@ export function detectAndValidateExamRules(
   let duration_minutes: number | null = examRow?.time_limit_mins || null
   let question_count: number | null = examRow?.question_count || null
   let marking_scheme: Record<string, any> = examRow?.marking_scheme || {}
-  let question_types: string[] = examRow?.question_types || []
+  const question_types: string[] = examRow?.question_types || []
 
   // Only explicitly verified official evidence may populate missing exam rules.
   // AI profiles and built-in templates are provisional suggestions, never exam facts.
