@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
           id: user.id,
           auth_user_id: user.id,
           email: inputEmail,
-          first_name: user.user_metadata?.first_name || 'User',
+          first_name: user.user_metadata?.first_name || '',
           last_name: user.user_metadata?.last_name || '',
         });
         if (profileInsertError && profileInsertError.code !== '23505') {
