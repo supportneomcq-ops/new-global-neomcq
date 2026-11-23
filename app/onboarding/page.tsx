@@ -75,6 +75,8 @@ interface OnboardingState {
   selectedExamCategory: string;
   selectedExamCountry: string;
   selectedExamLevel: string;
+  selectedExamAuthority: string;
+  selectedExamOfficialWebsite: string;
   selectedExamFlag: string;
   selectedExamDescription: string;
   customExamInput: string;
@@ -176,6 +178,8 @@ export default function OnboardingPage() {
     selectedExamCategory: '',
     selectedExamCountry: 'Global',
     selectedExamLevel: '',
+    selectedExamAuthority: '',
+    selectedExamOfficialWebsite: '',
     selectedExamFlag: '🌐',
     selectedExamDescription: '',
     customExamInput: '',
@@ -362,6 +366,11 @@ export default function OnboardingPage() {
           country: hasSavedState ? prev.country : (metadata.country || prev.country),
           language: hasSavedState ? prev.language : (metadata.language || prev.language),
           examSearchQuery: prev.examSearchQuery || metadata.exam || '',
+          selectedExamCountry: hasSavedState ? prev.selectedExamCountry : (metadata.exam_country || prev.selectedExamCountry),
+          selectedExamCategory: hasSavedState ? prev.selectedExamCategory : (metadata.exam_category || prev.selectedExamCategory),
+          selectedExamLevel: hasSavedState ? prev.selectedExamLevel : (metadata.exam_level || prev.selectedExamLevel),
+          selectedExamAuthority: hasSavedState ? prev.selectedExamAuthority : (metadata.exam_authority || prev.selectedExamAuthority),
+          selectedExamOfficialWebsite: hasSavedState ? prev.selectedExamOfficialWebsite : (metadata.exam_official_website || prev.selectedExamOfficialWebsite),
           password: '',
         }));
 
@@ -475,6 +484,8 @@ export default function OnboardingPage() {
     updateField('selectedExamCategory', exam.category || 'Standard Exam Prep');
     updateField('selectedExamCountry', exam.country || 'Global');
     updateField('selectedExamLevel', exam.level || exam.difficulty || '');
+    updateField('selectedExamAuthority', '');
+    updateField('selectedExamOfficialWebsite', '');
     updateField('selectedExamFlag', exam.flag || '🌐');
     updateField('selectedExamDescription', exam.description || `Official examination preparation for ${exam.name}.`);
     updateField('isCustomExam', false);
@@ -648,6 +659,11 @@ export default function OnboardingPage() {
               country: formData.country,
               language: formData.language,
               exam: formData.selectedExamName,
+              exam_country: formData.selectedExamCountry,
+              exam_category: formData.selectedExamCategory,
+              exam_level: formData.selectedExamLevel,
+              exam_authority: formData.selectedExamAuthority,
+              exam_official_website: formData.selectedExamOfficialWebsite,
             },
             emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback?next=/dashboard` : undefined,
           },
@@ -727,6 +743,8 @@ export default function OnboardingPage() {
           examCountry: formData.selectedExamCountry || 'Global',
           examCategory: formData.selectedExamCategory,
           examLevel: formData.selectedExamLevel,
+          examAuthority: formData.selectedExamAuthority.trim() || null,
+          examOfficialWebsite: formData.selectedExamOfficialWebsite.trim() || null,
           examDate: formData.examDate,
           daysLeft,
           learningStyle: formData.learningStyle === 'Rapid Learning' ? 'rapid' : formData.learningStyle === 'Regular Study' ? 'mastery' : 'balanced',
@@ -1285,7 +1303,15 @@ export default function OnboardingPage() {
                         </label>
                         <label className="block text-xs font-semibold text-slate-600 dark:text-gray-300 sm:col-span-2">
                           Exam level / stage (optional)
-                          <input value={formData.selectedExamLevel} onChange={(e) => updateField('selectedExamLevel', e.target.value)} maxLength={80} placeholder="e.g. Step 1, Level II" className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-[#080C19] px-3 py-2.5 text-sm font-medium" />
+                          <input value={formData.selectedExamLevel} onChange={(e) => updateField('selectedExamLevel', e.target.value)} maxLength={80} placeholder="e.g. Step 1, Level II" className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:text-gray-700 bg-white dark:bg-[#080C19] px-3 py-2.5 text-sm font-medium" />
+                        </label>
+                        <label className="block text-xs font-semibold text-slate-600 dark:text-gray-300">
+                          Exam authority / board (optional)
+                          <input value={formData.selectedExamAuthority} onChange={(e) => updateField('selectedExamAuthority', e.target.value)} maxLength={180} placeholder="e.g. National Examination Board" className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-[#080C19] px-3 py-2.5 text-sm font-medium" />
+                        </label>
+                        <label className="block text-xs font-semibold text-slate-600 dark:text-gray-300">
+                          Official website or reference URL (optional)
+                          <input type="url" value={formData.selectedExamOfficialWebsite} onChange={(e) => updateField('selectedExamOfficialWebsite', e.target.value)} maxLength={2048} placeholder="https://..." className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-[#080C19] px-3 py-2.5 text-sm font-medium" />
                         </label>
                       </div>
                     </div>
