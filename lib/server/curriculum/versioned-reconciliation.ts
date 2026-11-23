@@ -239,6 +239,9 @@ export async function approveCurriculumVersion(versionId: string, reviewerId: st
     .select('*').eq('id', versionId).maybeSingle()
   if (versionError || !version) throw new Error('Curriculum version was not found.')
   if (version.status === 'current' && version.is_current) return { version, alreadyCurrent: true }
+  if (version.status !== 'pending_review' || version.is_current) {
+    throw new Error('Only a pending curriculum version can be approved. Rejected and superseded versions remain immutable.')
+  }
 
   const { admin: verifiedAdmin, exam, examVersion, evidence, spec } = await loadVerifiedSyllabus(version.exam_id)
   if (examVersion.id !== version.exam_version_id || evidence.id !== version.source_evidence_id) {
