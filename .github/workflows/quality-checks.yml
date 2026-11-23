@@ -26,8 +26,8 @@ jobs:
           bun-version: latest
       - name: Install dependencies
         run: bun install --frozen-lockfile
-      - name: Curriculum anti-false-positive regression test
-        run: bun test --test-name-pattern "Prevents false-positive merge of antagonistic domain qualifiers" lib/server/exam-intelligence/__tests__/batch3-evidence-comparator.test.ts
+      - name: Exam intelligence and curriculum regression tests
+        run: bun test lib/server/exam-intelligence/__tests__/batch3-evidence-comparator.test.ts
       - name: TypeScript type check
         run: bun run type-check
       - name: ESLint
