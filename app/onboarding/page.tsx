@@ -1177,7 +1177,7 @@ export default function OnboardingPage() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-gray-400">
-                          {isSearchingExams ? 'Searching verified exams…' : examSearchError ? 'Search temporarily unavailable' : searchResults.length ? 'Matching exams' : 'No matching exam found'}
+                          {isSearchingExams ? 'Searching the NeoMCQ exam catalog…' : examSearchError ? 'Search temporarily unavailable' : searchResults.length ? 'Matching exams' : 'No matching exam found'}
                         </p>
                         {!isSearchingExams && searchResults.length > 0 && (
                           <span className="text-[11px] text-slate-400">{searchResults.length} results</span>
@@ -1206,6 +1206,9 @@ export default function OnboardingPage() {
                                     {ex.short_name && ex.short_name.toLowerCase() !== ex.name.toLowerCase() && (
                                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 dark:bg-gray-800 font-mono">{ex.short_name}</span>
                                     )}
+                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${(ex as any).verificationStatus === 'verified' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'bg-amber-500/10 text-amber-700 dark:text-amber-300'}`}>
+                                      {(ex as any).verificationStatus === 'verified' ? 'Verified' : 'Pending verification'}
+                                    </span>
                                   </span>
                                   <span className="block text-xs text-slate-500 dark:text-gray-400 mt-1">{ex.country || 'Global'} · {ex.category || 'Exam preparation'}</span>
                                   {ex.description && <span className="block text-xs text-slate-400 mt-1 line-clamp-2">{ex.description}</span>}
