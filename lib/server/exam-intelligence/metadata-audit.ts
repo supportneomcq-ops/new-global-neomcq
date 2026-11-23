@@ -279,10 +279,10 @@ function subjectNames(value: any): string[] | null {
       ? objectValue(value).subjects
       : null;
   if (!rows?.length) return null;
-  const names = rows.map((row: any) => normalizedText(
+  const names: Array<string | null> = rows.map((row: any): string | null => normalizedText(
     typeof row === 'string' ? row : row?.name || row?.subject || row?.title
   ));
-  if (names.some((name) => !name)) return null;
+  if (names.some((name: string | null) => !name)) return null;
   return (names as string[]).sort();
 }
 
