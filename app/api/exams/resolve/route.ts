@@ -101,9 +101,26 @@ export async function POST(req: NextRequest) {
 
       if (matchedExam) {
         const metadata = matchedExam.metadata || {}
+        const { data: currentExamVersion, error: currentVersionError } = await admin
+          .from('exam_versions')
+          .select('id, version_year, source_url, verified_at, verification_status')
+          .eq('exam_id', matchedExam.id)
+          .eq('is_current', true)
+          .eq('verification_status', 'verified')
+          .maybeSingle()
+        if (currentVersionError) {
+          console.warn('[Exam Resolution] Current exam version lookup failed:', currentVersionError.message)
+        }
+        const hasApprovedCurrentVersion = Boolean(
+          !currentVersionError &&
+          currentExamVersion?.verified_at &&
+          currentExamVersion?.source_url &&
+          currentExamVersion?.version_year
+        )
         const examVerified =
           String(matchedExam.verification_status || '').toLowerCase() === 'verified' &&
-          metadata.exam_metadata_audit_status === 'verified'
+          metadata.exam_metadata_audit_status === 'verified' &&
+          hasApprovedCurrentVersion
         const curriculumReady =
           examVerified &&
           metadata.curriculum_validation_version === 4 &&
@@ -135,7 +152,7 @@ export async function POST(req: NextRequest) {
             question_count: examVerified && Number(matchedExam.question_count || 0) > 0 ? matchedExam.question_count : null,
             time_limit_mins: examVerified && Number(matchedExam.time_limit_mins || 0) > 0 ? matchedExam.time_limit_mins : null,
             current_version: examVerified ? (matchedExam.current_version || null) : null,
-            version_year: examVerified ? (matchedExam.version_year || null) : null,
+            version_year: examVerified ? (currentExamVersion.version_year || matchedExam.version_year || null) : null,
             marking_scheme: examVerified ? matchedExam.marking_scheme || null : null,
             verificationStatus: examVerified ? 'verified' : 'needs_review',
             examMetadataAuditStatus: metadata.exam_metadata_audit_status || 'needs_review',
@@ -173,6 +190,7 @@ export async function POST(req: NextRequest) {
       country: typeof country === 'string' ? country.slice(0, 100) : undefined,
       category: typeof category === 'string' ? category.slice(0, 100) : undefined,
       level: typeof level === 'string' ? level.slice(0, 80) : undefined,
+      deferCurriculumPreparation: true,
       userId: user.id,
     })
 
