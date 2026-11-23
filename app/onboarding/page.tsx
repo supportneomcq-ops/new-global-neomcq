@@ -1135,6 +1135,8 @@ export default function OnboardingPage() {
                         updateField('isCustomExam', false);
                         updateField('selectedExamCategory', '');
                         updateField('selectedExamLevel', '');
+                        updateField('selectedExamAuthority', '');
+                        updateField('selectedExamOfficialWebsite', '');
                         updateField('selectedExamCountry', 'Global');
                         updateField('resolvedCurriculumSummary', { subjectCount: 0, topicCount: 0, subtopicCount: 0 });
                         setFormError('');
