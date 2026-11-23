@@ -168,7 +168,11 @@ export async function POST(req: NextRequest) {
             if (countryFilteredAliases.length > 0) {
               aliasExamMatches = countryFilteredAliases
             } else if (aliasExamMatches.length > 0) {
-              return ambiguousResponse(aliasExamMatches)
+              return NextResponse.json({
+                success: false,
+                status: 'JURISDICTION_MISMATCH',
+                error: 'This exam alias matches a different jurisdiction. Check the country or clear it if you are unsure.',
+              }, { status: 409 })
             }
           }
           if (aliasExamMatches.length === 1) {
