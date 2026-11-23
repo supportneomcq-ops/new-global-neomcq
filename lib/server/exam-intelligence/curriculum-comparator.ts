@@ -26,6 +26,8 @@ const DIFFERENTIATOR_WORDS = new Set([
   'general',
   'micro',
   'macro',
+  'microeconomics',
+  'macroeconomics',
   'organic',
   'inorganic',
   'physical',
@@ -174,6 +176,8 @@ export function areEntitiesContextuallyIdentical(
           (qA === 'foundation' && qB === 'advanced') ||
           (qA === 'micro' && qB === 'macro') ||
           (qA === 'macro' && qB === 'micro') ||
+          (qA === 'microeconomics' && qB === 'macroeconomics') ||
+          (qA === 'macroeconomics' && qB === 'microeconomics') ||
           (qA === 'organic' && qB === 'inorganic') ||
           (qA === 'inorganic' && qB === 'organic') ||
           (qA === 'direct' && qB === 'indirect') ||
