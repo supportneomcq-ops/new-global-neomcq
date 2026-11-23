@@ -504,6 +504,7 @@ export default function OnboardingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           examQuery: targetInput,
+          examId: formData.selectedExamId || null,
           country: formData.selectedExamCountry.trim() || undefined,
           category: formData.selectedExamCategory,
           level: formData.selectedExamLevel,
