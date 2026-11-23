@@ -144,6 +144,8 @@ export default function OnboardingPage() {
   const [step, setStep] = useState<number>(1);
   const [formError, setFormError] = useState('');
   const [isResolvingExam, setIsResolvingExam] = useState(false);
+  const [isSubmittingOnboarding, setIsSubmittingOnboarding] = useState(false);
+  const onboardingSubmitGuard = useRef(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [isAuthenticatedResume, setIsAuthenticatedResume] = useState(false);
@@ -617,6 +619,9 @@ export default function OnboardingPage() {
 
   // STEP 5: CURRICULUM PREPARATION & ACCOUNT CREATION
   const startCurriculumPreparation = async () => {
+    if (onboardingSubmitGuard.current) return;
+    onboardingSubmitGuard.current = true;
+    setIsSubmittingOnboarding(true);
     setStep(5);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     setActivePrepIndex(0);
@@ -827,6 +832,9 @@ export default function OnboardingPage() {
         setStep(4);
       }
       setFormError(safeMsg);
+    } finally {
+      onboardingSubmitGuard.current = false;
+      setIsSubmittingOnboarding(false);
     }
   };
 
@@ -1619,7 +1627,7 @@ export default function OnboardingPage() {
               <button
                 type="button"
                 onClick={handleNext}
-                disabled={isResolvingExam}
+                disabled={isResolvingExam || isSubmittingOnboarding}
                 className="px-6 py-3 rounded-2xl bg-gradient-to-r from-[#6D5BFF] to-[#00D4FF] text-white text-xs sm:text-sm font-heading font-extrabold shadow-lg shadow-[#6D5BFF]/25 hover:opacity-95 transition-opacity flex items-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {isResolvingExam ? (
