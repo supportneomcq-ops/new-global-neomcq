@@ -265,7 +265,7 @@ export function DashboardView({ user, onSignOut, onOpenPractice, onUpdateProfile
               const message = preparationStatus.curriculumReady
                 ? 'The current approved exam version and curriculum hierarchy have passed validation.'
                 : isFailed
-                  ? 'Your account and exam selection are saved, but the background preparation job failed. The curriculum has not been marked ready.'
+                  ? 'Your account and exam selection are saved, but the background preparation job failed. The curriculum has not been marked ready. Refresh later; if the failure persists, contact support.'
                   : waitingForVerification
                     ? 'Official exam rules and source evidence must be approved before curriculum generation can proceed. You can continue using the dashboard.'
                     : waitingToResume
