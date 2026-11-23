@@ -670,6 +670,7 @@ export async function POST(req: NextRequest) {
         : 'Onboarding preferences saved',
       userId: targetUserId,
       examId: finalExamId,
+      examVerificationPending,
       studyPlanReady,
       curriculumStatus: curriculumPending ? (examVerificationPending ? 'verification_pending' : 'pending') : 'ready',
     })
