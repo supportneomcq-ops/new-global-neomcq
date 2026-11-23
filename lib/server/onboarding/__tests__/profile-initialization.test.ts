@@ -63,6 +63,24 @@ describe('buildProfileInitialization', () => {
     expect(profile.exam_selected_at).toBe('2026-01-01T00:00:00.000Z');
   });
 
+  test('replaces a generic login placeholder with the submitted first name', () => {
+    const profile = buildProfileInitialization(
+      { ...existingProfile, first_name: 'User' },
+      {
+        userId: 'user-1',
+        email: 'existing@example.com',
+        firstName: 'Swapnil',
+        countryId: null,
+        languageId: null,
+        timezone: 'UTC',
+        examId: 'exam-1',
+        curriculumReady: false,
+      },
+    );
+
+    expect(profile.first_name).toBe('Swapnil');
+  });
+
   test('does not clear a previously selected exam when a retry has no canonical ID yet', () => {
     const profile = buildProfileInitialization(existingProfile, {
       userId: 'user-1',
