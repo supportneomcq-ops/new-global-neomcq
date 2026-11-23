@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { z } from 'zod/v3'
-import { resolveOrInitializeExamIntelligence } from '@/lib/server/exam-intelligence'
+import { resolveOrInitializeExamIntelligence, collectExamRulesProcess } from '@/lib/server/exam-intelligence'
 import { ensureCurrentStudyPlan } from '@/lib/study-plans/ensure-current-plan'
 import { buildProfileInitialization } from '@/lib/server/onboarding/profile-initialization'
 
@@ -229,6 +229,28 @@ export async function POST(req: NextRequest) {
       const examVerified =
         String(selectedExam.verification_status || 'pending_review').toLowerCase() === 'verified' &&
         examMetadata.exam_metadata_audit_status === 'verified'
+
+      // The pre-signup exam search is intentionally read-only. If it supplied an
+      // existing but unverified exam ID, run the existing field-level rules audit
+      // now; never promote the exam automatically from this onboarding request.
+      if (!examVerified && !resolvedByServer) {
+        try {
+          await collectExamRulesProcess(
+            selectedExam.id,
+            selectedExam.name,
+            examCountry || country,
+            examCategory,
+            admin
+          )
+        } catch (rulesAuditError: any) {
+          console.error('[Onboarding] Existing exam rules audit failed:', rulesAuditError?.message || rulesAuditError)
+          return NextResponse.json(
+            { success: false, error: 'We could not complete the examination verification checks right now. Please retry.' },
+            { status: 503 }
+          )
+        }
+      }
+
       examVerificationPending = !examVerified
       curriculumReady =
         examVerified &&
