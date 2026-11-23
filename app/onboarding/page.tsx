@@ -1168,6 +1168,7 @@ export default function OnboardingPage() {
                               updateField('examSearchQuery', example);
                               updateField('selectedExamId', '');
                               updateField('selectedExamName', '');
+                              updateField('selectedExamVerificationStatus', 'unknown');
                               updateField('customExamInput', '');
                               updateField('isCustomExam', false);
                             }}
@@ -1250,6 +1251,7 @@ export default function OnboardingPage() {
                               updateField('selectedExamName', query);
                               updateField('selectedExamShortName', query.split(/\s+/)[0] || query);
                               updateField('selectedExamId', '');
+                              updateField('selectedExamVerificationStatus', 'needs_review');
                               updateField('selectedExamCategory', '');
                               updateField('selectedExamLevel', '');
                               updateField('selectedExamCountry', '');
@@ -1373,6 +1375,7 @@ export default function OnboardingPage() {
                       <p className="text-[11px] text-slate-500 dark:text-gray-400 mt-2">
                         Jurisdiction: <span className="font-semibold">{formData.selectedExamCountry || 'Not specified'}</span>
                         {' · '}Level: <span className="font-semibold">{formData.selectedExamLevel || 'Not specified'}</span>
+                        {' · '}Verification: <span className="font-semibold">{formData.selectedExamVerificationStatus === 'verified' ? 'Verified' : 'Pending official review'}</span>
                       </p>
                     </div>
                   </div>
