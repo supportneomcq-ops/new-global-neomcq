@@ -219,7 +219,7 @@ export async function POST(req: NextRequest) {
         try {
           const resolution = await resolveOrInitializeExamIntelligence({
             examQuery: examName.trim(),
-            country: (examCountry || country || '').trim() || undefined,
+            country: examCountry?.trim() || undefined,
             category: examCategory?.trim() || undefined,
             level: examLevel?.trim() || undefined,
             authorityName: examAuthority?.trim() || undefined,
