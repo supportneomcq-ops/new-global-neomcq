@@ -20,6 +20,8 @@ const onboardingSchema = z.object({
   examCountry: z.string().max(100).optional(),
   examCategory: z.string().max(100).optional(),
   examLevel: z.string().max(80).optional(),
+  examAuthority: z.string().trim().max(180).nullable().optional(),
+  examOfficialWebsite: z.string().url().max(2048).nullable().optional(),
   examDate: z.string()
     .min(1, 'Exam date is required')
     .refine((value) => !Number.isNaN(Date.parse(value)), 'Enter a valid exam date'),
@@ -51,6 +53,8 @@ export async function POST(req: NextRequest) {
       examCountry,
       examCategory,
       examLevel,
+      examAuthority,
+      examOfficialWebsite,
       examDate,
       learningStyle,
       studyHours,
@@ -174,6 +178,8 @@ export async function POST(req: NextRequest) {
             country: (examCountry || country || '').trim() || undefined,
             category: examCategory?.trim() || undefined,
             level: examLevel?.trim() || undefined,
+            authorityName: examAuthority?.trim() || undefined,
+            officialWebsite: examOfficialWebsite?.trim() || undefined,
             userId: targetUserId,
           })
           if (!resolution?.success || !resolution.exam?.id) {
