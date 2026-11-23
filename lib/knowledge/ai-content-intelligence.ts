@@ -348,13 +348,13 @@ function validateGeneratedContent(
       const matchedSubtopic = allowedSubtopics.find((name) => name.toLowerCase() === rawSubtopic.toLowerCase())
       if (allowedSubtopics.length > 0 && !matchedSubtopic) continue
 
-      const acceptedAnswers: string[] = Array.isArray(fib.acceptedAnswers)
-        ? Array.from(new Set(
-            fib.acceptedAnswers
-              .filter((answer: unknown): answer is string => typeof answer === 'string')
-              .map((answer: string) => answer.trim())
-              .filter((answer: string) => answer.length > 0)
-          )).slice(0, 5)
+      const acceptedAnswers = Array.isArray(fib.acceptedAnswers)
+        ? fib.acceptedAnswers.reduce<string[]>((answers, answer: unknown) => {
+            if (typeof answer !== 'string') return answers
+            const normalizedAnswer = answer.trim()
+            if (normalizedAnswer && !answers.includes(normalizedAnswer)) answers.push(normalizedAnswer)
+            return answers
+          }, []).slice(0, 5)
         : []
       if (!acceptedAnswers.some((answer) => answer.toLowerCase() === blank.toLowerCase())) acceptedAnswers.unshift(blank)
       if (acceptedAnswers.length < 2) continue
