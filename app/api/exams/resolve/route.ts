@@ -7,7 +7,7 @@ export const maxDuration = 60;
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { examQuery, country, category, level, userId: requestedUserId } = body || {}
+    const { examQuery, examId: requestedExamId, country, category, level, userId: requestedUserId } = body || {}
 
     if (!examQuery || typeof examQuery !== 'string' || !examQuery.trim() || examQuery.trim().length > 160) {
       return NextResponse.json(
@@ -72,31 +72,105 @@ export async function POST(req: NextRequest) {
       const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
       const query = normalize(examQuery.trim())
       const normalizedCountry = typeof country === 'string' ? normalize(country) : ''
-      const exactMatches = (exams || []).filter((exam: any) =>
-        normalize(exam.name || '') === query ||
-        normalize(exam.short_name || '') === query ||
-        normalize(exam.slug || '') === query
-      )
-      let matchedExam: any = exactMatches.find((exam: any) =>
-        normalizedCountry && normalize(exam.countries?.name || '') === normalizedCountry
-      ) || exactMatches[0]
+      const candidatePayload = (items: any[]) => items.map((exam: any) => ({
+        id: exam.id,
+        name: exam.name,
+        shortName: exam.short_name || exam.name,
+        country: exam.countries?.name || 'Unspecified',
+        category: exam.exam_categories?.name || 'Unspecified',
+        verificationStatus: String(exam.verification_status || '').toLowerCase() === 'verified' &&
+          exam.metadata?.exam_metadata_audit_status === 'verified'
+          ? 'verified'
+          : 'needs_review',
+      }))
+      const ambiguousResponse = (items: any[]) => NextResponse.json({
+        success: false,
+        status: 'AMBIGUOUS',
+        error: 'Multiple examinations match this name. Select the exact examination from the search results, including its country or authority.',
+        candidates: candidatePayload(items),
+      }, { status: 409 })
 
-      if (!matchedExam) {
-        const { data: aliases, error: aliasesError } = await admin
-          .from('exam_aliases')
-          .select('exam_id, alias')
-          .limit(5000)
-        if (aliasesError) {
-          console.error('[Exam Resolution] Canonical alias lookup failed:', aliasesError.message)
-          return NextResponse.json({
-            success: false,
-            error: 'We could not verify this exam name right now. Please retry in a moment.',
-          }, { status: 503 })
+      let matchedExam: any = null
+      if (typeof requestedExamId === 'string' && requestedExamId.trim()) {
+        matchedExam = (exams || []).find((exam: any) => exam.id === requestedExamId.trim()) || null
+        if (!matchedExam) {
+          const { data: selectedExam, error: selectedExamError } = await admin
+            .from('exams')
+            .select(`
+              id, name, short_name, slug, level, verification_status, metadata,
+              current_version, version_year, difficulty, question_count, time_limit_mins,
+              marking_scheme, countries(name, flag_emoji), exam_categories(name, slug),
+              exam_subjects(id, name, exam_topics(id, name, exam_subtopics(id, name)))
+            `)
+            .eq('id', requestedExamId.trim())
+            .neq('status', 'archived')
+            .maybeSingle()
+          if (selectedExamError || !selectedExam) {
+            return NextResponse.json({ success: false, error: 'The selected examination is no longer available. Please choose it again.' }, { status: 404 })
+          }
+          matchedExam = selectedExam
         }
-        const matchedAlias = (aliases || []).find((alias: any) => normalize(alias.alias || '') === query)
-        if (matchedAlias) matchedExam = (exams || []).find((exam: any) => exam.id === matchedAlias.exam_id)
-      }
 
+        const allowedLabels = [matchedExam.name, matchedExam.short_name || '', matchedExam.slug || '']
+          .filter(Boolean)
+          .map((value: string) => normalize(value))
+        if (!allowedLabels.includes(query)) {
+          const { data: aliasMatch, error: aliasError } = await admin
+            .from('exam_aliases')
+            .select('exam_id')
+            .eq('exam_id', matchedExam.id)
+            .ilike('alias', examQuery.trim())
+            .maybeSingle()
+          if (aliasError || !aliasMatch) {
+            return NextResponse.json({ success: false, error: 'The selected exam does not match the entered exam name. Please select it again.' }, { status: 400 })
+          }
+        }
+      } else {
+        const exactMatches = (exams || []).filter((exam: any) =>
+          normalize(exam.name || '') === query ||
+          normalize(exam.short_name || '') === query ||
+          normalize(exam.slug || '') === query
+        )
+        const countryMatches = normalizedCountry
+          ? exactMatches.filter((exam: any) => normalize(exam.countries?.name || '') === normalizedCountry)
+          : exactMatches
+
+        if (countryMatches.length === 1) {
+          matchedExam = countryMatches[0]
+        } else if (countryMatches.length > 1) {
+          return ambiguousResponse(countryMatches)
+        } else if (exactMatches.length > 0) {
+          return ambiguousResponse(exactMatches)
+        }
+
+        if (!matchedExam) {
+          const { data: aliases, error: aliasesError } = await admin
+            .from('exam_aliases')
+            .select('exam_id, alias')
+            .limit(5000)
+          if (aliasesError) {
+            console.error('[Exam Resolution] Canonical alias lookup failed:', aliasesError.message)
+            return NextResponse.json({
+              success: false,
+              error: 'We could not verify this exam name right now. Please retry in a moment.',
+            }, { status: 503 })
+          }
+          const matchedAliases = (aliases || []).filter((alias: any) => normalize(alias.alias || '') === query)
+          const aliasExamIds = [...new Set(matchedAliases.map((alias: any) => alias.exam_id))]
+          let aliasExamMatches = (exams || []).filter((exam: any) => aliasExamIds.includes(exam.id))
+          if (normalizedCountry) {
+            const countryFilteredAliases = aliasExamMatches.filter((exam: any) =>
+              normalize(exam.countries?.name || '') === normalizedCountry
+            )
+            if (countryFilteredAliases.length > 0) aliasExamMatches = countryFilteredAliases
+          }
+          if (aliasExamMatches.length === 1) {
+            matchedExam = aliasExamMatches[0]
+          } else if (aliasExamMatches.length > 1) {
+            return ambiguousResponse(aliasExamMatches)
+          }
+        }
+      }
       if (matchedExam) {
         const metadata = matchedExam.metadata || {}
         const { data: currentExamVersion, error: currentVersionError } = await admin
