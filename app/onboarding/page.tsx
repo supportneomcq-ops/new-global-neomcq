@@ -178,7 +178,7 @@ export default function OnboardingPage() {
     selectedExamName: '',
     selectedExamShortName: '',
     selectedExamCategory: '',
-    selectedExamCountry: 'Global',
+    selectedExamCountry: '',
     selectedExamLevel: '',
     selectedExamAuthority: '',
     selectedExamOfficialWebsite: '',
@@ -452,14 +452,6 @@ export default function OnboardingPage() {
           setFormError('Enter the exam name you want us to verify.');
           return false;
         }
-        if (!formData.selectedExamCountry.trim()) {
-          setFormError('Choose the exam country or jurisdiction.');
-          return false;
-        }
-        if (!formData.selectedExamCategory.trim()) {
-          setFormError('Choose the exam category so we can verify the correct curriculum.');
-          return false;
-        }
       } else if (!formData.selectedExamId || !formData.selectedExamName) {
         setFormError('Select a verified exam from the search results, or choose “Add a new exam” if it is not listed.');
         return false;
@@ -484,7 +476,7 @@ export default function OnboardingPage() {
     updateField('selectedExamName', exam.name);
     updateField('selectedExamShortName', exam.short_name || exam.name.split(' ')[0]);
     updateField('selectedExamCategory', exam.category || 'Standard Exam Prep');
-    updateField('selectedExamCountry', exam.country || 'Global');
+    updateField('selectedExamCountry', exam.country || '');
     updateField('selectedExamLevel', exam.level || exam.difficulty || '');
     updateField('selectedExamAuthority', '');
     updateField('selectedExamOfficialWebsite', '');
@@ -512,7 +504,7 @@ export default function OnboardingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           examQuery: targetInput,
-          country: formData.selectedExamCountry || 'Global',
+          country: formData.selectedExamCountry.trim() || undefined,
           category: formData.selectedExamCategory,
           level: formData.selectedExamLevel,
         }),
@@ -522,11 +514,6 @@ export default function OnboardingPage() {
       if (!res.ok || !data.success || !data.exam?.name || (!data.exam?.id && data.status !== 'NEW_EXAM')) {
         throw new Error(data.error || 'We could not verify this exam. Please choose a listed exam or try again.');
       }
-      if (data.status === 'NEW_EXAM' && !formData.selectedExamCategory.trim()) {
-        setFormError('This exam is not in the catalog yet. Please choose its department or category so we can prepare the right curriculum.');
-        return;
-      }
-
       // A valid new exam is intentionally returned without an ID at this stage.
       // The authenticated onboarding API creates/resolves its canonical record and
       // curriculum after account creation. Do not block users on a null pre-creation ID.
@@ -743,7 +730,7 @@ export default function OnboardingPage() {
           language: formData.language,
           examName: formData.selectedExamName,
           examId: formData.selectedExamId || null,
-          examCountry: formData.selectedExamCountry || 'Global',
+          examCountry: formData.selectedExamCountry.trim() || undefined,
           examCategory: formData.selectedExamCategory,
           examLevel: formData.selectedExamLevel,
           examAuthority: formData.selectedExamAuthority.trim() || null,
@@ -1143,7 +1130,7 @@ export default function OnboardingPage() {
                         updateField('selectedExamLevel', '');
                         updateField('selectedExamAuthority', '');
                         updateField('selectedExamOfficialWebsite', '');
-                        updateField('selectedExamCountry', 'Global');
+                        updateField('selectedExamCountry', '');
                         updateField('resolvedCurriculumSummary', { subjectCount: 0, topicCount: 0, subtopicCount: 0 });
                         setFormError('');
                       }}
@@ -1254,7 +1241,7 @@ export default function OnboardingPage() {
                               updateField('selectedExamId', '');
                               updateField('selectedExamCategory', '');
                               updateField('selectedExamLevel', '');
-                              updateField('selectedExamCountry', formData.country || 'Global');
+                              updateField('selectedExamCountry', '');
                               updateField('isCustomExam', true);
                               setFormError('');
                             }}
@@ -1295,15 +1282,16 @@ export default function OnboardingPage() {
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <label className="block text-xs font-semibold text-slate-600 dark:text-gray-300">
-                          Country / jurisdiction <span className="text-rose-500">*</span>
+                          Country / jurisdiction (optional)
                           <select value={formData.selectedExamCountry} onChange={(e) => updateField('selectedExamCountry', e.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-[#080C19] px-3 py-2.5 text-sm font-medium">
+                            <option value="">Not specified / not sure</option>
                             <option value="Global">Global / International</option>
                             {dbCountries.map((country: any) => <option key={country.id || country.name} value={country.name}>{country.name}</option>)}
                             {COUNTRIES.filter((country) => country !== 'Other Global Location' && !dbCountries.some((dbCountry: any) => dbCountry.name === country)).map((country) => <option key={country} value={country}>{country}</option>)}
                           </select>
                         </label>
                         <label className="block text-xs font-semibold text-slate-600 dark:text-gray-300">
-                          Exam category <span className="text-rose-500">*</span>
+                          Exam category (optional)
                           <select value={formData.selectedExamCategory} onChange={(e) => updateField('selectedExamCategory', e.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-[#080C19] px-3 py-2.5 text-sm font-medium">
                             <option value="">Choose a category</option>
                             {examCategoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}
@@ -1372,7 +1360,7 @@ export default function OnboardingPage() {
                         {formData.selectedExamDescription}
                       </p>
                       <p className="text-[11px] text-slate-500 dark:text-gray-400 mt-2">
-                        Jurisdiction: <span className="font-semibold">{formData.selectedExamCountry || 'Global'}</span>
+                        Jurisdiction: <span className="font-semibold">{formData.selectedExamCountry || 'Not specified'}</span>
                         {' · '}Level: <span className="font-semibold">{formData.selectedExamLevel || 'Not specified'}</span>
                       </p>
                     </div>
