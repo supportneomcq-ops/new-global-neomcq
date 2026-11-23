@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from '@/lib/supabase'
 import { z } from 'zod/v3'
 import { resolveOrInitializeExamIntelligence } from '@/lib/server/exam-intelligence'
 import { ensureCurrentStudyPlan } from '@/lib/study-plans/ensure-current-plan'
+import { buildProfileInitialization } from '@/lib/server/onboarding/profile-initialization'
 
 export const maxDuration = 60;
 
@@ -267,27 +268,21 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      const profileNow = new Date().toISOString()
+      const profilePayload = buildProfileInitialization(existingProfile, {
+        userId: targetUserId,
+        email: user.email,
+        firstName,
+        lastName,
+        phone,
+        countryId: resolvedCountryId,
+        languageId: resolvedLanguageId,
+        timezone: resolvedTimezone,
+        examId: finalExamId,
+        curriculumReady,
+      })
       const { data: updatedProfile, error: profileError } = await (admin as any)
         .from('profiles')
-        .upsert({
-          id: targetUserId,
-          auth_user_id: targetUserId,
-          email: user.email.toLowerCase(),
-          first_name: existingProfile?.first_name || firstName.trim(),
-          last_name: existingProfile?.last_name || lastName?.trim() || '',
-          phone: existingProfile?.phone || phone || null,
-          country_id: existingProfile?.country_id || resolvedCountryId,
-          language_id: existingProfile?.language_id || resolvedLanguageId,
-          timezone: existingProfile?.timezone || resolvedTimezone,
-          current_exam_id: finalExamId || existingProfile?.current_exam_id || null,
-          exam_locked: Boolean(existingProfile?.exam_locked || (finalExamId && curriculumReady)),
-          exam_selected_at: finalExamId
-            ? (existingProfile?.current_exam_id === finalExamId ? existingProfile.exam_selected_at : profileNow)
-            : existingProfile?.exam_selected_at || null,
-          exam_switch_count: existingProfile?.exam_switch_count ?? 0,
-          updated_at: profileNow,
-        }, { onConflict: 'id' })
+        .upsert(profilePayload, { onConflict: 'id' })
         .select('id')
         .single()
 
