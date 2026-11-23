@@ -7,7 +7,7 @@ export const maxDuration = 60;
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { examQuery, examId: requestedExamId, country, category, level, userId: requestedUserId } = body || {}
+    const { examQuery, examId: requestedExamId, country, userId: requestedUserId } = body || {}
 
     if (!examQuery || typeof examQuery !== 'string' || !examQuery.trim() || examQuery.trim().length > 160) {
       return NextResponse.json(
