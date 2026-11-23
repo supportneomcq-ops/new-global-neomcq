@@ -1339,7 +1339,7 @@ export default function OnboardingPage() {
                     Confirm your Exam Details
                   </h1>
                   <p className="text-xs sm:text-sm text-slate-500 dark:text-gray-400">
-                    Your exam selection is ready. After you enter your exam date and study hours, NeoMCQ will prepare and validate the latest available curriculum.
+                    Your exam selection is ready. After you confirm your exam date and study preferences, NeoMCQ will save your account and link the exam. Official verification and curriculum preparation continue separately in the background.
                   </p>
                 </div>
 
@@ -1375,14 +1375,14 @@ export default function OnboardingPage() {
                   <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-start gap-3">
                     <Layers className="w-5 h-5 text-[#6D5BFF] shrink-0 mt-0.5" />
                     <div className="space-y-1">
-                      <p className="text-sm font-bold text-slate-900 dark:text-white">Curriculum preparation is the next step</p>
-                      <p className="text-xs leading-relaxed text-slate-600 dark:text-gray-300">After you confirm your exam date and daily study hours, NeoMCQ will prepare and validate the latest available curriculum before completing account setup.</p>
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">Account setup comes first</p>
+                      <p className="text-xs leading-relaxed text-slate-600 dark:text-gray-300">NeoMCQ saves your account and exam selection first. If official verification is pending, curriculum generation waits for approval and continues in the background while your dashboard remains accessible.</p>
                     </div>
                   </div>
 
                   <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 shrink-0" />
-                    <span>Exam details recognized. Curriculum validation starts during account setup.</span>
+                    <span>Exam identity recognized. Official verification is checked separately from account setup.</span>
                   </div>
                 </div>
               </motion.div>
@@ -1530,7 +1530,7 @@ export default function OnboardingPage() {
               </motion.div>
             )}
 
-            {/* STEP 5: PREPARING YOUR CURRICULUM (PROGRESS ANIMATION) */}
+            {/* STEP 5: ACCOUNT CREATION AND BACKGROUND PREPARATION HANDOFF */}
             {step === 5 && (
               <motion.div
                 key="step-5"
@@ -1629,7 +1629,7 @@ export default function OnboardingPage() {
                   </>
                 ) : step === 4 ? (
                   <>
-                    <span>Generate Curriculum & Deploy</span>
+                    <span>Create Account & Open Dashboard</span>
                     <Sparkles className="w-4 h-4" />
                   </>
                 ) : (
