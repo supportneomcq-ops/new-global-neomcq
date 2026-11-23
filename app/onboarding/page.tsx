@@ -666,10 +666,10 @@ export default function OnboardingPage() {
       if (currentAuthUser && currentSession) {
         authData = { user: currentAuthUser, session: currentSession };
       } else if (pendingAuthId) {
-        authData = {
-          user: { id: pendingAuthId, email_confirmed_at: null },
-          session: null,
-        };
+        // A saved Auth UUID is only a resume hint, never authentication proof.
+        // The email callback must establish a real session before server-side onboarding.
+        router.push(`/auth/verify-email?email=${encodeURIComponent(formData.email)}`);
+        return;
       } else {
         const { data: createdAuthData, error: authError } = await supabase.auth.signUp({
           email: formData.email,
@@ -723,8 +723,13 @@ export default function OnboardingPage() {
         }
 
         authData = createdAuthData;
-        if (createdAuthData.user.id && !createdAuthData.user.email_confirmed_at) {
+        if (!createdAuthData.session) {
+          // Supabase email-confirmation mode intentionally returns no session. Preserve
+          // the non-secret form state and wait for the callback to establish a session.
           localStorage.setItem('neomcq_pending_auth_id', createdAuthData.user.id);
+          setFormError('Your account was created. Verify your email to securely finish exam selection and preparation setup.');
+          router.push(`/auth/verify-email?email=${encodeURIComponent(formData.email)}`);
+          return;
         }
       }
 
@@ -748,7 +753,6 @@ export default function OnboardingPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          authId: authData?.user?.id || null,
           firstName: formData.firstName,
           lastName: formData.lastName,
           email: formData.email,
