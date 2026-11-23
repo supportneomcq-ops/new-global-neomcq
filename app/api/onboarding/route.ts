@@ -284,9 +284,31 @@ export async function POST(req: NextRequest) {
 
       finalExamId = selectedExam.id
       const examMetadata = selectedExam.metadata || {}
+      const { data: currentExamVersion, error: currentExamVersionError } = await (admin as any)
+        .from('exam_versions')
+        .select('id, version_year, source_url, official_notification_url, official_syllabus_url, verified_at, verification_status')
+        .eq('exam_id', finalExamId)
+        .eq('is_current', true)
+        .eq('verification_status', 'verified')
+        .maybeSingle()
+
+      if (currentExamVersionError) {
+        console.error('[Onboarding] Current exam version lookup failed:', currentExamVersionError.message)
+        return NextResponse.json(
+          { success: false, error: 'We could not confirm the current official exam version. Please retry.' },
+          { status: 503 }
+        )
+      }
+
+      const hasApprovedCurrentVersion = Boolean(
+        currentExamVersion?.verified_at &&
+        currentExamVersion?.source_url &&
+        currentExamVersion?.version_year
+      )
       const examVerified =
         String(selectedExam.verification_status || 'pending_review').toLowerCase() === 'verified' &&
-        examMetadata.exam_metadata_audit_status === 'verified'
+        examMetadata.exam_metadata_audit_status === 'verified' &&
+        hasApprovedCurrentVersion
 
       // The pre-signup exam search is intentionally read-only. If it supplied an
       // existing but unverified exam ID, run the existing field-level rules audit
