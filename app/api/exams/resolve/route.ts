@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
             flag: matchedExam.countries?.flag_emoji || '🌐',
             category: examVerified ? (matchedExam.exam_categories?.name || 'Unspecified') : 'Pending verification',
             level: examVerified ? (matchedExam.level || null) : null,
-            difficulty: matchedExam.difficulty || 'Unspecified',
+            difficulty: examVerified ? (matchedExam.difficulty || 'Unspecified') : 'Pending verification',
             question_count: examVerified && Number(matchedExam.question_count || 0) > 0 ? matchedExam.question_count : null,
             time_limit_mins: examVerified && Number(matchedExam.time_limit_mins || 0) > 0 ? matchedExam.time_limit_mins : null,
             current_version: examVerified ? (matchedExam.current_version || null) : null,
