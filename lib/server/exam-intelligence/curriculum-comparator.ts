@@ -26,6 +26,8 @@ const DIFFERENTIATOR_WORDS = new Set([
   'general',
   'micro',
   'macro',
+  'microeconomics',
+  'macroeconomics',
   'organic',
   'inorganic',
   'physical',
@@ -174,6 +176,8 @@ export function areEntitiesContextuallyIdentical(
           (qA === 'foundation' && qB === 'advanced') ||
           (qA === 'micro' && qB === 'macro') ||
           (qA === 'macro' && qB === 'micro') ||
+          (qA === 'microeconomics' && qB === 'macroeconomics') ||
+          (qA === 'macroeconomics' && qB === 'microeconomics') ||
           (qA === 'organic' && qB === 'inorganic') ||
           (qA === 'inorganic' && qB === 'organic') ||
           (qA === 'direct' && qB === 'indirect') ||
@@ -610,7 +614,7 @@ export function detectAndValidateExamRules(
   let duration_minutes: number | null = examRow?.time_limit_mins || null
   let question_count: number | null = examRow?.question_count || null
   let marking_scheme: Record<string, any> = examRow?.marking_scheme || {}
-  let question_types: string[] = examRow?.question_types || []
+  const question_types: string[] = examRow?.question_types || []
 
   // Only explicitly verified official evidence may populate missing exam rules.
   // AI profiles and built-in templates are provisional suggestions, never exam facts.

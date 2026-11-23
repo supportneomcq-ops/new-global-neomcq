@@ -278,7 +278,7 @@ export class AIGateway {
 
     // Reserve the platform's 60% AI pool before any provider request. Student credits
     // and platform cash budget are separate controls and both must pass.
-    const platformBudgetRequestId = options.jobId || randomUUID();
+    const platformBudgetRequestId = options.requestId || options.jobId || randomUUID();
     let platformReservationId: string | null = null;
     try {
       platformReservationId = await this.reservePlatformBudget(taskType, route, userId, platformBudgetRequestId, options.metadata);

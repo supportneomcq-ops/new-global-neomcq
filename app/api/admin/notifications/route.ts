@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { verifyAdminApiSession, logRevenueAuditEvent } from '@/lib/admin-auth';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 const createNotificationSchema = z.object({
   title: z.string().min(2, 'Title is required'),

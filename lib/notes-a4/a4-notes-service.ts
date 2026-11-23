@@ -1,6 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { AIGateway } from '@/lib/ai-gateway';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import {
   A4NotesDocument,
   ContentScope,

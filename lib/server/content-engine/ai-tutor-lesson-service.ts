@@ -19,7 +19,7 @@ import {
   type TutorAsset,
   type TutorVoiceMetadata,
 } from '../../types/ai-tutor-architecture';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 export interface GetOrGenerateLessonParams {
   examId: string;

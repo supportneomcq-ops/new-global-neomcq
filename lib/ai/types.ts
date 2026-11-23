@@ -86,6 +86,8 @@ export interface AIGenerationOptions {
   responseMimeType?: string;
   responseSchema?: any; // JSON schema or Gemini Type
   jobId?: string | null;
+  /** Stable per-attempt correlation and platform-budget idempotency key. */
+  requestId?: string;
   contentVersionId?: string | null;
   metadata?: Record<string, unknown>;
   timeoutMs?: number;
