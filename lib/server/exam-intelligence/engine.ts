@@ -609,7 +609,7 @@ export async function resolveOrInitializeExamIntelligence(options: {
       const { data: catRow } = await supabase
         .from('exam_categories')
         .select('id')
-        .or(`slug.eq.${targetCatSlug},id.eq.${category}`)
+        .eq('slug', targetCatSlug)
         .maybeSingle()
       if (catRow) categoryId = catRow.id
     }
