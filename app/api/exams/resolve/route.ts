@@ -136,6 +136,13 @@ export async function POST(req: NextRequest) {
         } else if (countryMatches.length > 1) {
           return ambiguousResponse(countryMatches)
         } else if (exactMatches.length > 0) {
+          if (normalizedCountry) {
+            return NextResponse.json({
+              success: false,
+              status: 'JURISDICTION_MISMATCH',
+              error: 'This exam name exists, but not in the selected jurisdiction. Check the country or clear it if you are unsure.',
+            }, { status: 409 })
+          }
           return ambiguousResponse(exactMatches)
         }
 
