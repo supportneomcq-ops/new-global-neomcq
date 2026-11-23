@@ -609,15 +609,14 @@ export default function OnboardingPage() {
     setStep(5);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     setActivePrepIndex(0);
-    setPrepProgress(15);
+    setPrepProgress(10);
 
     try {
       const supabase = getSupabaseClient();
 
-      // Progress Step 0: Exam recognized and validated
-      await new Promise((r) => setTimeout(r, 400));
+      // The canonical exam lookup was confirmed in the previous step.
       setActivePrepIndex(1);
-      setPrepProgress(30);
+      setPrepProgress(25);
 
       // 1. Create the account once, then persist only its non-secret ID so a
       // failed curriculum/setup attempt can resume without a duplicate-signup error.
@@ -626,8 +625,12 @@ export default function OnboardingPage() {
       const { data: { user: currentAuthUser } } = await supabase.auth.getUser();
       const { data: { session: currentSession } } = await supabase.auth.getSession();
 
-      if (currentAuthUser && currentSession) {
+      if (currentAuthUser && currentSession && currentAuthUser.email_confirmed_at) {
         authData = { user: currentAuthUser, session: currentSession };
+      } else if (currentAuthUser && currentSession && !currentAuthUser.email_confirmed_at) {
+        localStorage.setItem('neomcq_pending_auth_id', currentAuthUser.id);
+        router.push(`/auth/verify-email?email=${encodeURIComponent(formData.email)}`);
+        return;
       } else if (pendingAuthId) {
         // A saved Auth UUID is only a resume hint, never authentication proof.
         // The email callback must establish a real session before server-side onboarding.
@@ -686,7 +689,7 @@ export default function OnboardingPage() {
         }
 
         authData = createdAuthData;
-        if (!createdAuthData.session) {
+        if (!createdAuthData.session || !createdAuthData.user.email_confirmed_at) {
           // Supabase email-confirmation mode intentionally returns no session. Preserve
           // the non-secret form state and wait for the callback to establish a session.
           localStorage.setItem('neomcq_pending_auth_id', createdAuthData.user.id);
@@ -696,9 +699,10 @@ export default function OnboardingPage() {
         }
       }
 
-      // Progress Step 2: Checking the latest available curriculum
+      // Account creation or session recovery is complete. The next server request
+      // persists the profile, preferences, exam relationship, and durable job state.
       setActivePrepIndex(2);
-      setPrepProgress(50);
+      setPrepProgress(45);
 
       // 2. Map preferred time to DB Check constraint values ('morning', 'afternoon', 'evening', 'night')
       let dbPreferredTime: 'morning' | 'afternoon' | 'evening' | 'night' | 'flexible' = 'morning';
@@ -706,10 +710,6 @@ export default function OnboardingPage() {
       if (['morning', 'afternoon', 'evening', 'night', 'flexible'].includes(uiTimeLower)) {
         dbPreferredTime = uiTimeLower as any;
       }
-
-      // Progress Step 3: Synchronizing subjects and syllabus
-      setActivePrepIndex(3);
-      setPrepProgress(70);
 
       // 3. Sync all data server-side via the secure onboarding API
       const onboardResponse = await fetch('/api/onboarding', {
@@ -741,9 +741,10 @@ export default function OnboardingPage() {
         throw new Error(onboardData.error || 'Failed to finalize curriculum setup.');
       }
 
-      // Progress Step 4: Verifying curriculum details
-      setActivePrepIndex(4);
-      setPrepProgress(85);
+      // The API has confirmed profile persistence, exam linking, and the durable
+      // preparation state. Curriculum readiness remains a separate backend status.
+      setActivePrepIndex(5);
+      setPrepProgress(90);
 
       // 4. Initialize the real study-plan endpoint only when sign-up returned a session.
       // Email-confirmation sign-ups have no session yet; the dashboard initializes the plan after verification.
@@ -761,8 +762,8 @@ export default function OnboardingPage() {
         }
       }
 
-      // Progress Step 5: Finished
-      setActivePrepIndex(5);
+      // Finish the account setup only after the server has confirmed its durable state.
+      setActivePrepIndex(6);
       setPrepProgress(100);
 
       // 5. Store active selection directly in localStorage so Dashboard renders the exact chosen exam
@@ -785,8 +786,6 @@ export default function OnboardingPage() {
       } catch {
         // Safe to ignore
       }
-
-      await new Promise((r) => setTimeout(r, 600));
 
       // Check if email confirmation is required:
       // If user session is null (or user has no email_confirmed_at), email verification is required.
@@ -1537,11 +1536,11 @@ export default function OnboardingPage() {
                 <div className="space-y-2.5 text-left max-w-md mx-auto pt-2">
                   {[
                     'Confirming the selected exam and jurisdiction',
-                    'Creating your learner account',
-                    'Saving study preferences',
-                    'Persisting the curriculum-generation job',
-                    'Requesting background curriculum processing',
-                    'Finishing account setup; curriculum status is tracked separately',
+                    'Creating or resuming your learner account',
+                    'Saving your profile and study preferences',
+                    'Linking the canonical exam to your account',
+                    'Recording or reusing background preparation',
+                    'Finishing account setup; curriculum readiness is tracked separately',
                   ].map((label, idx) => {
                     const isDone = activePrepIndex > idx;
                     const isCurrent = activePrepIndex === idx;
