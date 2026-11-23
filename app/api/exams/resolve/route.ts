@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { resolveOrInitializeExamIntelligence } from '@/lib/server/exam-intelligence'
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 
@@ -27,10 +26,9 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Before signup, only resolve the canonical exam name. Do not run paid AI curriculum
-    // generation for anonymous visitors; the full curriculum is prepared once onboarding
-    // has created the account and credit wallet.
-    if (!user) {
+    // This endpoint is read-only for every caller. Canonical creation, user linking,
+    // verification audit, and durable job handoff happen after verified signup in /api/onboarding.
+    {
       const admin = getSupabaseAdmin()
       const { data: exams, error: examsError } = await admin
         .from('exams')
@@ -185,27 +183,7 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    const result = await resolveOrInitializeExamIntelligence({
-      examQuery: examQuery.trim(),
-      country: typeof country === 'string' ? country.slice(0, 100) : undefined,
-      category: typeof category === 'string' ? category.slice(0, 100) : undefined,
-      level: typeof level === 'string' ? level.slice(0, 80) : undefined,
-      deferCurriculumPreparation: true,
-      userId: user.id,
-    })
 
-    const rawError = typeof (result as any)?.error === 'string' ? (result as any).error : ''
-    const exposesInternals = /relation|column|schema|table|database|supabase|postgrest|sql|constraint|permission denied|does not exist|duplicate key|foreign key|PGRST\\d+/i.test(rawError)
-
-    if (result?.success === false && exposesInternals) {
-      console.error('[Exam Resolution] Internal curriculum failure:', rawError)
-      return NextResponse.json({
-        success: false,
-        error: 'We could not prepare this exam curriculum right now. Please retry in a moment.',
-      }, { status: 422 })
-    }
-
-    return NextResponse.json(result)
   } catch (error: any) {
     console.error('[Exam Resolution API] Unexpected failure:', error)
     return NextResponse.json(
