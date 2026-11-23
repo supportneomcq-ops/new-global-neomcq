@@ -754,7 +754,10 @@ export default function OnboardingPage() {
 
       const onboardData = await onboardResponse.json().catch(() => ({}));
       if (!onboardResponse.ok || onboardData.success === false) {
-        throw new Error(onboardData.error || 'Failed to finalize curriculum setup.');
+        throw new Error(onboardData.error || 'Failed to finalize account setup.');
+      }
+      if (typeof onboardData.examVerificationPending === 'boolean') {
+        updateField('selectedExamVerificationStatus', onboardData.examVerificationPending ? 'needs_review' : 'verified');
       }
 
       // The API has confirmed profile persistence, exam linking, and the durable
