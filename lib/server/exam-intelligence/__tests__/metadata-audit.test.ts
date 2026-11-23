@@ -112,6 +112,11 @@ function createCompleteAuditInput(): any {
 describe('Stage 2 official exam metadata value verification', () => {
   test('marks fields ready for review only when stored values match official evidence', () => {
     const audit = buildExamMetadataAudit(createCompleteAuditInput())
+    console.log('AUDIT_DIAGNOSTICS', JSON.stringify({
+      missing: audit.missing_fields,
+      conflicts: audit.conflicting_fields,
+      fieldResults: audit.field_results,
+    }))
 
     expect(audit.status).toBe('ready_for_review')
     expect(audit.missing_fields).toEqual([])
