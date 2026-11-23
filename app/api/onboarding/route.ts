@@ -567,6 +567,7 @@ export async function POST(req: NextRequest) {
           ? `curriculum-onboarding-v1:${finalExamId}:${targetUserId}`
           : `curriculum-onboarding-v1:new:${examIdentityKey}:${targetUserId}`
         const { data: insertedJob, error: queueError } = await (admin as any).from('ai_jobs').upsert({
+          user_id: targetUserId,
           task: 'curriculum_rebuild',
           exam_id: finalExamId,
           priority: 5,
@@ -586,7 +587,7 @@ export async function POST(req: NextRequest) {
           progress_stage: 'Queued for curriculum generation',
           step_percentage: 0,
         }, { onConflict: 'idempotency_key', ignoreDuplicates: true })
-          .select('id, status, attempts, max_attempts')
+          .select('id, status, attempts, max_attempts, user_id, input_payload')
           .maybeSingle()
 
         if (queueError) {
@@ -602,7 +603,7 @@ export async function POST(req: NextRequest) {
         const { data: existingJob, error: jobLookupError } = insertedJob
           ? { data: insertedJob, error: null }
           : await (admin as any).from('ai_jobs')
-              .select('id, status, attempts, max_attempts')
+              .select('id, status, attempts, max_attempts, user_id, input_payload')
               .eq('idempotency_key', curriculumKey)
               .maybeSingle()
 
@@ -614,7 +615,50 @@ export async function POST(req: NextRequest) {
           }, { status: 503 })
         }
 
-        let jobToKick = existingJob
+        let jobRecord = existingJob
+        if (!jobRecord.user_id) {
+          if ((jobRecord.input_payload as any)?.userId !== targetUserId) {
+            return NextResponse.json(
+              { success: false, error: 'The existing preparation job could not be safely attached to this account.' },
+              { status: 409 }
+            )
+          }
+          const { data: attachedJob, error: attachJobError } = await (admin as any).from('ai_jobs')
+            .update({ user_id: targetUserId })
+            .eq('id', jobRecord.id)
+            .is('user_id', null)
+            .select('id, status, attempts, max_attempts, user_id, input_payload')
+            .maybeSingle()
+          if (attachJobError) {
+            return NextResponse.json(
+              { success: false, error: 'We could not link the existing preparation job to your account. Please retry.' },
+              { status: 503 }
+            )
+          }
+          if (attachedJob) {
+            jobRecord = attachedJob
+          } else {
+            const { data: refreshedJob, error: refreshJobError } = await (admin as any).from('ai_jobs')
+              .select('id, status, attempts, max_attempts, user_id, input_payload')
+              .eq('id', jobRecord.id)
+              .maybeSingle()
+            if (refreshJobError || refreshedJob?.user_id !== targetUserId) {
+              return NextResponse.json(
+                { success: false, error: 'We could not confirm ownership of the existing preparation job.' },
+                { status: 409 }
+              )
+            }
+            jobRecord = refreshedJob
+          }
+        }
+        if (jobRecord.user_id !== targetUserId) {
+          return NextResponse.json(
+            { success: false, error: 'The existing preparation job belongs to another account.' },
+            { status: 409 }
+          )
+        }
+
+        let jobToKick = jobRecord
         if (
           jobToKick.status === 'failed' &&
           Number(jobToKick.attempts || 0) >= Number(jobToKick.max_attempts || 3)
