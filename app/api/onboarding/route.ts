@@ -141,6 +141,26 @@ export async function POST(req: NextRequest) {
       let resolvedByServer = false
 
       if (!requestedExamId) {
+        // Do not create/link a second exam when an existing learner is retrying
+        // onboarding. Existing learners must use the established exam-switch flow.
+        const { data: existingEnrollmentProfile, error: enrollmentProfileError } = await (admin as any)
+          .from('profiles')
+          .select('current_exam_id')
+          .eq('id', targetUserId)
+          .maybeSingle()
+        if (enrollmentProfileError) {
+          return NextResponse.json(
+            { success: false, error: 'We could not load your existing exam selection. Please retry.' },
+            { status: 503 }
+          )
+        }
+        if (existingEnrollmentProfile?.current_exam_id) {
+          return NextResponse.json(
+            { success: false, error: 'Your account already has a selected examination. Use the exam-change workflow to switch examinations.' },
+            { status: 409 }
+          )
+        }
+
         try {
           const resolution = await resolveOrInitializeExamIntelligence({
             examQuery: examName.trim(),
