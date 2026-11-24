@@ -563,8 +563,16 @@ export function buildExamMetadataAudit(input: {
     }
     return Number(raw);
   }).filter((value: number) => Number.isFinite(value) && value > 0);
-  addRepeatedValueField('questions_per_part', perPartQuestions, ['questions_per_part', 'question_count_per_part']);
-  addRepeatedValueField('minutes_per_part', perPartMinutes, ['minutes_per_part', 'duration_per_part', 'minutes_per_paper']);
+  addRepeatedValueField(
+    'questions_per_part',
+    perPartQuestions.length === structureRows.length ? perPartQuestions : [],
+    ['questions_per_part', 'question_count_per_part'],
+  );
+  addRepeatedValueField(
+    'minutes_per_part',
+    perPartMinutes.length === structureRows.length ? perPartMinutes : [],
+    ['minutes_per_part', 'duration_per_part', 'minutes_per_paper'],
+  );
 
   addField('official_subject_scope', objectValue(exam.syllabus_info).subjects || objectValue(exam.metadata).official_subjects || null, syllabusKeys, { allowNotPublished: true, allowNotApplicable: true, evidencePool: currentSyllabi });
 
