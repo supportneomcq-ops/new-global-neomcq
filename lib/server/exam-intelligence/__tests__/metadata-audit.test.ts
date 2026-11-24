@@ -177,6 +177,7 @@ describe('Stage 2 official exam metadata value verification', () => {
       { name: 'Part B', question_count: 150, duration_minutes: 150 },
     ]
     input.evidence[0].extracted_data.parts = 2
+    delete input.evidence[0].extracted_data.papers
     input.evidence[0].extracted_data.paper_count = 1
     input.evidence[0].extracted_data.questions_per_part = 150
     input.evidence[0].extracted_data.minutes_per_part = 150
