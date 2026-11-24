@@ -38,6 +38,7 @@ function createCompleteAuditInput(): any {
       selection_process: 'Pass or fail screening test',
       question_types: ['single_best_answer_mcq'],
       papers,
+      sections: [{ name: 'Part I', question_count: 300, duration_minutes: 300 }],
       languages: ['English'],
       syllabus_info: { subjects: [{ name: 'Anatomy' }] },
       metadata: {},
@@ -93,6 +94,10 @@ function createCompleteAuditInput(): any {
           application_information: 'Apply online',
           selection_process: 'Pass or fail screening test',
           question_types: ['single_best_answer_mcq'],
+          parts: 1,
+          paper_count: 1,
+          questions_per_part: 300,
+          minutes_per_part: 300,
           papers,
           languages: ['English'],
         },
@@ -119,6 +124,10 @@ describe('Stage 2 official exam metadata value verification', () => {
     expect(audit.field_results.version_year.status).toBe('verified')
     expect(audit.field_results.marking_scheme.status).toBe('verified')
     expect(audit.field_results.official_syllabus.status).toBe('verified')
+    expect(audit.field_results.part_count.status).toBe('verified')
+    expect(audit.field_results.paper_count.status).toBe('verified')
+    expect(audit.field_results.questions_per_part.status).toBe('verified')
+    expect(audit.field_results.minutes_per_part.status).toBe('verified')
   })
 
   test('detects a negative-marking mismatch even when the source contains the field', () => {
@@ -155,6 +164,30 @@ describe('Stage 2 official exam metadata value verification', () => {
     expect(audit.status).toBe('needs_review')
     expect(audit.field_results.eligibility.status).toBe('needs_review')
     expect(audit.missing_fields).toContain('eligibility')
+  })
+
+  test('detects a paper-count mismatch when an exam has two parts inside one paper', () => {
+    const input = createCompleteAuditInput()
+    input.exam.papers = [
+      { paper_number: 1, total_questions: 150, duration_minutes: 150, total_marks: 150 },
+      { paper_number: 2, total_questions: 150, duration_minutes: 150, total_marks: 150 },
+    ]
+    input.exam.sections = [
+      { name: 'Part A', question_count: 150, duration_minutes: 150 },
+      { name: 'Part B', question_count: 150, duration_minutes: 150 },
+    ]
+    input.evidence[0].extracted_data.parts = 2
+    input.evidence[0].extracted_data.paper_count = 1
+    input.evidence[0].extracted_data.questions_per_part = 150
+    input.evidence[0].extracted_data.minutes_per_part = 150
+
+    const audit = buildExamMetadataAudit(input)
+
+    expect(audit.field_results.part_count.status).toBe('verified')
+    expect(audit.field_results.paper_count.status).toBe('conflict')
+    expect(audit.field_results.questions_per_part.status).toBe('verified')
+    expect(audit.field_results.minutes_per_part.status).toBe('verified')
+    expect(audit.conflicting_fields.some((item: any) => item.field === 'paper_count')).toBe(true)
   })
 
   test('normalizes equivalent negative-marking wording without losing the boolean meaning', () => {
