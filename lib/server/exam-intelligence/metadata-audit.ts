@@ -448,6 +448,61 @@ export function buildExamMetadataAudit(input: {
     fields[name] = fieldResult(value, 'verified', 'Stored value matches current, verified official evidence.', supporting);
   };
 
+  const structureRows = Array.isArray(exam.sections) && exam.sections.length
+    ? exam.sections
+    : Array.isArray(exam.stages) && exam.stages.length
+      ? exam.stages
+      : Array.isArray(exam.papers)
+        ? exam.papers
+        : [];
+
+  const addRepeatedValueField = (
+    name: string,
+    storedValues: number[],
+    keys: string[],
+    evidencePool: AnyRecord[] = currentBulletins,
+  ) => {
+    const supporting = evidenceFor(evidencePool, keys);
+    if (!storedValues.length) {
+      fields[name] = fieldResult(null, 'missing', 'No per-part values are stored.', supporting);
+      missingFields.push(name);
+      return;
+    }
+    if (!supporting.length) {
+      fields[name] = fieldResult(storedValues, 'needs_review', 'Per-part values exist but no current, verified official source supports them.');
+      missingFields.push(name);
+      return;
+    }
+
+    const sourceValues = evidenceValuesFor(supporting, keys)
+      .map((source) => comparableFieldValue('duration_minutes', source.value));
+    const normalizedStored = storedValues
+      .map((value) => comparableFieldValue('duration_minutes', value));
+
+    if (sourceValues.length === 0 || sourceValues.some((value) => value === null)
+        || normalizedStored.some((value) => value === null)) {
+      fields[name] = fieldResult(storedValues, 'needs_review', 'Official per-part evidence cannot be compared safely.', supporting);
+      missingFields.push(name);
+      return;
+    }
+
+    const mismatches = normalizedStored.filter((value) => !sourceValues.includes(value));
+    const unsupportedSourceValues = sourceValues.filter((value) => !normalizedStored.includes(value));
+    if (mismatches.length || unsupportedSourceValues.length) {
+      fields[name] = fieldResult(storedValues, 'conflict', 'Stored per-part values do not match current, verified official evidence.', supporting);
+      conflicts.push({
+        field: name,
+        stored_values: storedValues,
+        official_values: sourceValues,
+        reason: 'Per-part structure conflicts with current verified official evidence.',
+      });
+      missingFields.push(name);
+      return;
+    }
+
+    fields[name] = fieldResult(storedValues, 'verified', 'Every stored part matches current, verified official evidence.', supporting);
+  };
+
   addField('canonical_exam_name', exam.name, ['canonical_exam_name', 'exam_name', 'official_name'], { evidencePool: verifiedOfficialEvidence });
   addField('country', country?.name || null, ['country', 'jurisdiction', 'country_name'], { evidencePool: verifiedOfficialEvidence });
   addField('authority', authority?.name || exam.authority || null, ['authority', 'exam_authority', 'publisher_authority'], { evidencePool: verifiedOfficialEvidence });
@@ -494,6 +549,23 @@ export function buildExamMetadataAudit(input: {
   addField('question_types', exam.question_types, questionTypeKeys, { allowNotPublished: true, allowNotApplicable: true, evidencePool: currentBulletins });
   addField('exam_structure', exam.papers || exam.stages || exam.sections, structureKeys, { allowNotPublished: true, allowNotApplicable: true, evidencePool: currentBulletins });
   addField('languages', exam.languages, languageKeys, { allowNotPublished: true, allowNotApplicable: true, evidencePool: currentBulletins });
+  addField('part_count', structureRows.length || null, ['parts', 'part_count', 'number_of_parts'], { evidencePool: currentBulletins });
+  addField('paper_count', Array.isArray(exam.papers) ? exam.papers.length : null, ['paper_count', 'number_of_papers'], { evidencePool: currentBulletins });
+
+  const perPartQuestions = structureRows.map((row: AnyRecord) =>
+    Number(row.question_count ?? row.total_questions ?? row.questions)
+  ).filter((value: number) => Number.isFinite(value) && value > 0);
+  const perPartMinutes = structureRows.map((row: AnyRecord) => {
+    const raw = row.duration_minutes ?? row.time_limit_mins ?? row.duration_mins ?? row.duration;
+    if (typeof raw === 'string') {
+      const match = raw.match(/\\d+(?:\\.\\d+)?/);
+      return match ? Number(match[0]) : NaN;
+    }
+    return Number(raw);
+  }).filter((value: number) => Number.isFinite(value) && value > 0);
+  addRepeatedValueField('questions_per_part', perPartQuestions, ['questions_per_part', 'question_count_per_part']);
+  addRepeatedValueField('minutes_per_part', perPartMinutes, ['minutes_per_part', 'duration_per_part', 'minutes_per_paper']);
+
   addField('official_subject_scope', objectValue(exam.syllabus_info).subjects || objectValue(exam.metadata).official_subjects || null, syllabusKeys, { allowNotPublished: true, allowNotApplicable: true, evidencePool: currentSyllabi });
 
   const currentVersionSourceMatches = currentVersion
